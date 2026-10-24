@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--PROTO-HEAD-START-->
+<title>Дашборд прототип</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  ПРОТОТИП, НЕ ПРОДУКЦИОНЕН КОД. Отговаря на билет #5 от карта #1:
+  „Как трябва да изглежда дашбордът на TV / таблет / телефон?“
+  Три структурно различни варианта на един екран, превключвани с ?variant=A|B|C
+  (и със стрелките на клавиатурата). Отделно: ?mode=kiosk|phone, ?theme=auto|light|dark,
+  ?data=normal|stale|over|missing. Фиктивни данни, нищо не се записва.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=Literata:opsz,wght@7..72,500;7..72,700&display=swap">
+<style>
+/* Оформление: един екран без скрол в kiosk режим; телефонът е вертикален поток в рамка 390px. */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --surface-2:#e3e8ee; --fg:#17202b; --muted:#5b6b7c; --line:#cfd7e0;
+  --accent:#0f6f6a; --accent-ink:#ffffff;
+  --p-dako:#2457d6; --p-wife:#b4541a; --p-family:#6b3fc7;
+  --good:#1b7f3b; --warn:#b06a00; --bad:#b8231f; --bad-soft:#fde3e1; --warn-soft:#fff1d6;
+  --font-display:"Literata",Georgia,"Times New Roman",serif;
+  --font-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --radius:14px; --shadow:0 1px 2px rgba(20,30,40,.06),0 6px 20px rgba(20,30,40,.06);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1319; --surface:#171e27; --surface-2:#212a35; --fg:#e8eef4; --muted:#93a3b4; --line:#2b3643;
+  --accent:#4cc3b8; --accent-ink:#06211f;
+  --p-dako:#7fa3ff; --p-wife:#f0a26b; --p-family:#b89cff;
+  --good:#5ad07c; --warn:#f2b74a; --bad:#ff7b74; --bad-soft:#3a1715; --warn-soft:#3a2a0e;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1319; --surface:#171e27; --surface-2:#212a35; --fg:#e8eef4; --muted:#93a3b4; --line:#2b3643;
+  --accent:#4cc3b8; --accent-ink:#06211f;
+  --p-dako:#7fa3ff; --p-wife:#f0a26b; --p-family:#b89cff;
+  --good:#5ad07c; --warn:#f2b74a; --bad:#ff7b74; --bad-soft:#3a1715; --warn-soft:#3a2a0e;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}
+
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.35;
+  -webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+.num{font-variant-numeric:tabular-nums}
+.eyebrow{font-size:.72em;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* ----- рамка на екрана ----- */
+#stage{height:100%;display:flex;align-items:stretch;justify-content:center}
+#stage.kiosk{--base:clamp(15px,1.55vw,30px);font-size:var(--base)}
+#stage.kiosk .screen{flex:1;height:100%;overflow:hidden;
+  padding-block:1.2em;padding-left:max(16px,env(safe-area-inset-left,0px),1.4em);padding-right:max(16px,env(safe-area-inset-right,0px),1.4em)}
+#stage.phone{padding-block:24px 110px;align-items:flex-start;overflow:auto;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#stage.phone .screen{width:390px;max-width:100%;min-height:780px;background:var(--surface);border:1px solid var(--line);
+  border-radius:38px;padding:52px 16px 28px;box-shadow:var(--shadow);position:relative;font-size:15px}
+#stage.phone .screen::before{content:"";position:absolute;top:14px;left:50%;transform:translateX(-50%);width:110px;height:26px;border-radius:14px;background:var(--fg);opacity:.9}
+@media (max-width:440px){#stage.phone{padding-block:0 110px;padding-left:0;padding-right:0}
+  #stage.phone .screen{border:0;border-radius:0;box-shadow:none;padding:16px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+  #stage.phone .screen::before{display:none}}
+
+/* ----- общи дребни елементи ----- */
+.pill{display:inline-flex;align-items:center;gap:.35em;border-radius:999px;padding:.15em .6em;font-size:.8em;font-weight:600;background:var(--surface-2);color:var(--fg)}
+.dot{width:.6em;height:.6em;border-radius:50%;background:var(--c);flex:none}
+.avatar{width:1.5em;height:1.5em;border-radius:50%;background:var(--c);color:#fff;display:inline-grid;place-items:center;font-size:.7em;font-weight:800;flex:none}
+.stale{display:inline-flex;align-items:center;gap:.4em;color:var(--warn);font-size:.78em;font-weight:600}
+.stale::before{content:"";width:.6em;height:.6em;border-radius:50%;background:var(--warn)}
+.empty{color:var(--muted);font-style:italic}
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1em 1.1em;min-width:0}
+#stage.phone .card{box-shadow:none;background:var(--surface-2)}
+.bar{height:.8em;border-radius:999px;background:var(--surface-2);overflow:hidden;position:relative}
+#stage.phone .bar{background:var(--line)}
+.bar>i{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:999px}
+.bar>b{position:absolute;top:-.25em;bottom:-.25em;width:2px;background:var(--fg);opacity:.5}
+.bar.over>i{background:var(--bad)}
+.legend{display:flex;gap:1em;flex-wrap:wrap;font-size:.78em;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:.35em}
+
+/* ================= ВАРИАНТ A — Три панела ================= */
+.vA{display:grid;grid-template-columns:7fr 4fr;gap:1.2em;height:100%}
+.vA .cal{display:grid;grid-template-rows:auto 1fr;gap:.9em;min-width:0}
+.vA .today-head{display:flex;justify-content:space-between;align-items:baseline}
+.vA .today-head h1{font-family:var(--font-display);font-weight:700;font-size:2.2em;line-height:1}
+.vA .clock{font-family:var(--font-display);font-size:2.2em;color:var(--muted)}
+.vA .days{display:grid;grid-auto-rows:1fr;gap:.35em;overflow:hidden}
+.vA .day{display:grid;grid-template-columns:5.5em 1fr;gap:.8em;padding:.5em .8em;border-radius:10px;align-items:start}
+.vA .day.today{background:var(--surface);box-shadow:var(--shadow);grid-row:span 2}
+.vA .day .d{font-weight:700}.vA .day .d small{display:block;color:var(--muted);font-weight:500;font-size:.75em}
+.vA .day.weekend .d{color:var(--accent)}
+.vA .evs{display:flex;flex-direction:column;gap:.25em;min-width:0}
+.vA .ev{display:grid;grid-template-columns:.6em 4em 1fr;align-items:center;gap:.55em;font-size:.92em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vA .ev .t{color:var(--muted);font-variant-numeric:tabular-nums}
+.vA .ev .n{overflow:hidden;text-overflow:ellipsis}
+.vA .side{display:grid;grid-template-rows:auto 1fr;gap:1.2em}
+.vA .budget .big{font-family:var(--font-display);font-size:3em;line-height:1;font-weight:700}
+.vA .budget .big small{font-size:.4em;color:var(--muted);font-weight:500}
+.vA .budget.over .big{color:var(--bad)}
+.vA .budget .row{display:flex;justify-content:space-between;color:var(--muted);font-size:.85em;margin-top:.5em}
+.vA .cook{display:flex;flex-direction:column;gap:.7em}
+.vA .cook .meal{display:grid;grid-template-columns:auto 1fr;gap:.8em;align-items:center}
+.vA .cook .meal .k{font-size:.75em;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;width:4.5em}
+.vA .cook .dish{font-family:var(--font-display);font-size:1.5em;font-weight:700;line-height:1.15}
+.vA .cook .by{display:flex;align-items:center;gap:.45em;color:var(--muted);font-size:.9em}
+.vA .cook .dinner .dish{font-size:2em}
+#stage.phone .vA{display:flex;flex-direction:column;gap:1em;height:auto}
+#stage.phone .vA .days{grid-auto-rows:auto}
+#stage.phone .vA .day{grid-template-columns:4.2em 1fr;padding:.5em .4em}
+#stage.phone .vA .day.today{background:var(--surface-2);grid-row:auto}
+#stage.phone .vA .side{grid-template-rows:auto auto}
+#stage.phone .vA .budget .big{font-size:2.2em}
+#stage.phone .vA .cook .dinner .dish{font-size:1.5em}
+
+/* ================= ВАРИАНТ B — Седмичен ред ================= */
+.vB{display:grid;grid-template-rows:auto 1fr auto;gap:1em;height:100%}
+.vB .strip{display:flex;justify-content:space-between;align-items:center;gap:1em}
+.vB .strip .date{font-family:var(--font-display);font-size:1.6em;font-weight:700}
+.vB .strip .date span{color:var(--muted);font-weight:500}
+.vB .ring{display:flex;align-items:center;gap:.8em}
+.vB .ring svg{width:3.6em;height:3.6em;display:block}
+.vB .ring .lbl{line-height:1.15}
+.vB .ring .lbl b{font-size:1.25em;display:block}
+.vB .ring .lbl small{color:var(--muted);font-size:.78em}
+.vB .ring.over .lbl b{color:var(--bad)}
+.vB .week{display:grid;grid-template-columns:1.7fr repeat(7,1fr);gap:.5em;min-height:0}
+.vB .col{background:var(--surface);border-radius:12px;padding:.7em .7em;display:flex;flex-direction:column;gap:.5em;min-width:0;overflow:hidden;box-shadow:var(--shadow)}
+.vB .col.today{outline:3px solid var(--accent);outline-offset:-3px}
+.vB .col .h{display:flex;justify-content:space-between;align-items:baseline}
+.vB .col .h b{font-size:1.1em}.vB .col .h small{color:var(--muted)}
+.vB .col.weekend .h b{color:var(--accent)}
+.vB .col.today .h b{font-family:var(--font-display);font-size:1.5em}
+.vB .chip{display:flex;gap:.45em;align-items:flex-start;background:var(--surface-2);border-radius:8px;padding:.35em .5em;font-size:.82em;line-height:1.25;min-width:0}
+.vB .chip .avatar{margin-top:.1em}
+.vB .chip .tt{min-width:0;overflow:hidden}
+.vB .chip .tt small{display:block;color:var(--muted);font-variant-numeric:tabular-nums}
+.vB .chip.allday{border-left:3px solid var(--c)}
+.vB .chip.cook{background:var(--accent);color:var(--accent-ink)}
+.vB .chip.cook small{color:var(--accent-ink);opacity:.8}
+.vB .band{display:grid;grid-template-columns:auto 1fr auto;gap:1.2em;align-items:center;background:var(--surface);border-radius:var(--radius);padding:.9em 1.2em;box-shadow:var(--shadow)}
+.vB .band .k{color:var(--muted);font-size:.8em;text-transform:uppercase;letter-spacing:.06em}
+.vB .band .dish{font-family:var(--font-display);font-size:1.7em;font-weight:700}
+.vB .band .lunch{color:var(--muted);font-size:.95em;margin-top:.15em}
+.vB .band .by{display:flex;align-items:center;gap:.5em;font-weight:600}
+.vB .band .by .avatar{width:2.2em;height:2.2em;font-size:.9em}
+#stage.phone .vB{height:auto;gap:1em}
+#stage.phone .vB .strip{flex-wrap:wrap}
+#stage.phone .vB .week{grid-template-columns:1fr;gap:.6em}
+#stage.phone .vB .col{box-shadow:none;background:var(--surface-2);flex-direction:row;flex-wrap:wrap;align-items:flex-start}
+#stage.phone .vB .col .h{flex:0 0 4.5em;flex-direction:column;align-items:flex-start}
+#stage.phone .vB .col .chips{flex:1;display:flex;flex-direction:column;gap:.35em;min-width:0}
+#stage.phone .vB .chip{background:var(--surface)}
+#stage.phone .vB .band{box-shadow:none;background:var(--surface-2);grid-template-columns:1fr auto}
+#stage.phone .vB .band .k{grid-column:1/-1}
+
+/* ================= ВАРИАНТ C — Днес на фокус ================= */
+.vC{display:grid;grid-template-columns:3fr 2fr;grid-template-rows:auto 1fr;gap:.6em 1.6em;height:100%}
+.vC .top{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:1em;border-bottom:1px solid var(--line);padding-bottom:.5em}
+.vC .top h1{font-family:var(--font-display);font-size:2.4em;font-weight:700;line-height:1}
+.vC .top h1 span{color:var(--muted);font-weight:500;font-size:.6em}
+.vC .money{font-size:1.05em;display:flex;align-items:center;gap:.6em}
+.vC .money b{font-size:1.4em}
+.vC .money .pace{color:var(--muted)}
+.vC .money.good b{color:var(--good)}.vC .money.warn b{color:var(--warn)}.vC .money.over b{color:var(--bad)}
+.vC .tl{position:relative;display:grid;grid-template-columns:3.2em 1fr;min-height:0;overflow:hidden}
+.vC .hours{display:grid;color:var(--muted);font-size:.8em;font-variant-numeric:tabular-nums;border-right:1px solid var(--line);padding-right:.5em;text-align:right}
+.vC .hours span{display:block}
+.vC .slots{position:relative;display:grid}
+.vC .slots .line{border-top:1px dashed var(--line)}
+.vC .block{position:absolute;left:.5em;right:.5em;border-radius:8px;padding:.3em .6em;background:var(--surface);border-left:5px solid var(--c);box-shadow:var(--shadow);min-width:0;overflow:hidden;line-height:1.2}
+.vC .block .who{font-size:.72em;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.vC .block .nm{font-weight:600}
+.vC .block.meal{background:var(--accent);color:var(--accent-ink);border-left-color:var(--accent-ink)}
+.vC .block.meal .who{color:var(--accent-ink);opacity:.8}
+.vC .block.meal .nm{font-family:var(--font-display);font-size:1.25em}
+.vC .block.now{outline:2px solid var(--fg)}
+.vC .allday{display:flex;gap:.5em;flex-wrap:wrap;margin-bottom:.4em;grid-column:2}
+.vC .nowline{position:absolute;left:0;right:0;border-top:2px solid var(--bad);z-index:2}
+.vC .nowline::before{content:"";position:absolute;left:-.4em;top:-.4em;width:.7em;height:.7em;border-radius:50%;background:var(--bad)}
+.vC .next{display:grid;grid-template-rows:auto 1fr;gap:.6em;min-height:0}
+.vC .lanes{display:grid;grid-template-columns:4.6em 1fr 1fr;gap:.25em .6em;align-content:start;overflow:hidden;font-size:.9em}
+.vC .lanes .lh{color:var(--muted);font-size:.78em;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:.4em;padding-bottom:.3em;border-bottom:2px solid var(--c, var(--line))}
+.vC .lanes .ld{font-weight:700;padding-top:.45em;border-top:1px solid var(--line)}
+.vC .lanes .ld small{display:block;color:var(--muted);font-weight:500;font-size:.78em}
+.vC .lanes .ld.weekend{color:var(--accent)}
+.vC .lanes .lc{padding-top:.45em;border-top:1px solid var(--line);min-width:0}
+.vC .lanes .it{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vC .lanes .it small{color:var(--muted);font-variant-numeric:tabular-nums}
+.vC .lanes .it.fam{color:var(--p-family);font-weight:600}
+.vC .lanes .lc .dash{color:var(--line)}
+#stage.phone .vC{display:flex;flex-direction:column;height:auto;gap:1em}
+#stage.phone .vC .top{flex-direction:column;align-items:flex-start;gap:.3em}
+#stage.phone .vC .tl{min-height:420px}
+#stage.phone .vC .block{box-shadow:none;background:var(--surface-2)}
+#stage.phone .vC .lanes{font-size:.85em;grid-template-columns:3.8em 1fr 1fr}
+
+/* ----- панел на прототипа (не е част от дизайна) ----- */
+#proto{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;pointer-events:none;z-index:50;
+  padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+#proto .bar2{pointer-events:auto;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 24px);
+  background:#111;color:#fff;border:2px dashed #ffb400;border-radius:14px;padding:6px 10px;font:13px/1.2 ui-monospace,Menlo,Consolas,monospace;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+#proto button,#proto select{font:inherit;background:#222;color:#fff;border:1px solid #555;border-radius:8px;padding:5px 9px;cursor:pointer}
+#proto button:hover{background:#333}#proto button:focus-visible,#proto select:focus-visible{outline:2px solid #ffb400;outline-offset:1px}
+#proto .vname{min-width:14em;text-align:center;font-weight:700;color:#ffb400}
+#proto .sep{width:1px;height:20px;background:#444}
+@media (prefers-reduced-motion:no-preference){.vB .col.today{transition:outline-color .2s}}
+</style>
+<!--PROTO-HEAD-END-->
+</head>
+<body>
+<div id="stage" class="kiosk"><main class="screen" id="screen"></main></div>
+
+<div id="proto" aria-label="Контроли на прототипа"><div class="bar2">
+  <button id="prev" title="Предишен вариант (←)">←</button>
+  <span class="vname" id="vname">A</span>
+  <button id="next" title="Следващ вариант (→)">→</button>
+  <span class="sep"></span>
+  <select id="mode" aria-label="Екран"><option value="kiosk">Kiosk (TV/таблет)</option><option value="phone">Телефон</option></select>
+  <select id="theme" aria-label="Тема"><option value="auto">Тема: системна</option><option value="light">Светла</option><option value="dark">Тъмна</option></select>
+  <select id="data" aria-label="Данни"><option value="normal">Данни: нормални</option><option value="over">Бюджет превишен</option><option value="stale">Остарели / без връзка</option><option value="missing">Липсващи</option></select>
+</div></div>
+
+<script>
+/* ---------- фиктивни данни ---------- */
+const TODAY = new Date(2026,9,25,17,40); // неделя, 25.10.2026, 17:40
+const PEOPLE = {
+  dako:   {id:'dako',   name:'Дако',    init:'Д', color:'var(--p-dako)'},
+  wife:   {id:'wife',   name:'Съпруга', init:'С', color:'var(--p-wife)'},
+  family: {id:'family', name:'Семеен',  init:'★', color:'var(--p-family)'},
+};
+const DOW = ['неделя','понеделник','вторник','сряда','четвъртък','петък','събота'];
+const DOWS = ['нд','пн','вт','ср','чт','пт','сб'];
+const MON = ['януари','февруари','март','април','май','юни','юли','август','септември','октомври','ноември','декември'];
+// събития по отместване спрямо днес (0..7)
+const EVENTS = [
+  {d:0, who:'family', t:'10:00', e:'11:30', n:'Баба и дядо на обяд'},
+  {d:0, who:'dako',   t:'15:00', e:'16:30', n:'Тренировка'},
+  {d:0, who:'wife',   t:'18:30', e:'19:30', n:'Разговор с Ива'},
+  {d:1, who:'dako',   t:'09:00', e:'10:00', n:'Standup emerald'},
+  {d:1, who:'wife',   t:'17:30', e:'18:30', n:'Йога'},
+  {d:1, who:'family', t:'',      e:'',      n:'Плащане на ток', allDay:true},
+  {d:2, who:'wife',   t:'08:30', e:'09:00', n:'Детска градина — родителска'},
+  {d:2, who:'dako',   t:'14:00', e:'15:30', n:'Зъболекар'},
+  {d:3, who:'family', t:'19:00', e:'21:00', n:'Гости: Петя и Мартин'},
+  {d:4, who:'dako',   t:'11:00', e:'12:00', n:'Интервю кандидат'},
+  {d:4, who:'wife',   t:'13:00', e:'14:00', n:'Фризьор'},
+  {d:5, who:'family', t:'',      e:'',      n:'Рожден ден на Ива', allDay:true},
+  {d:5, who:'wife',   t:'16:00', e:'17:00', n:'Торта — вземане'},
+  {d:6, who:'family', t:'10:00', e:'13:00', n:'Парти в детския център'},
+  {d:7, who:'dako',   t:'08:00', e:'09:00', n:'Бягане в парка'},
+  {d:7, who:'family', t:'12:30', e:'14:30', n:'Обяд у мама'},
+];
+const MENU = {
+  dinner:{dish:'Мусака с кисело мляко', cook:'dako', time:'19:00'},
+  lunch: {dish:'Таратор и пилешки хапки (за работа)', cook:'wife', time:'12:30'},
+};
+const BUDGET = {limit:3000, spent:2140, month:'октомври', dayOfMonth:25, daysInMonth:31, syncedMinAgo:14};
+
+/* ---------- състояние на прототипа ---------- */
+const VARIANTS = [
+  {key:'A', name:'Три панела'},
+  {key:'B', name:'Седмичен ред'},
+  {key:'C', name:'Днес на фокус'},
+];
+const url = new URL(location.href);
+const state = {
+  variant: (url.searchParams.get('variant')||'A').toUpperCase(),
+  mode: url.searchParams.get('mode')||'kiosk',
+  theme: url.searchParams.get('theme')||'auto',
+  data: url.searchParams.get('data')||'normal',
+};
+if(!VARIANTS.some(v=>v.key===state.variant)) state.variant='A';
+
+function scenario(){
+  const s = state.data;
+  const b = {...BUDGET};
+  if(s==='over'){ b.spent = 3310; }
+  const budget = s==='missing' ? null : {...b, remaining:b.limit-b.spent, stale: s==='stale', syncedMinAgo: s==='stale'?195:b.syncedMinAgo};
+  const events = s==='missing' ? [] : EVENTS;
+  const calStale = s==='stale';
+  const menu = (s==='missing'||s==='stale') ? {dinner:null,lunch:s==='stale'?MENU.lunch:null} : MENU;
+  return {budget, events, calStale, menu};
+}
+const dayAt = o => new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()+o);
+const fmtDay = o => { const d=dayAt(o); return {dow:DOW[d.getDay()], dows:DOWS[d.getDay()], date:d.getDate(), mon:MON[d.getMonth()], weekend:d.getDay()===0||d.getDay()===6}; };
+const lv = n => n.toLocaleString('bg-BG') + ' лв';
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const evsFor = (events,o) => events.filter(e=>e.d===o).sort((a,b)=>(a.allDay?'':a.t).localeCompare(b.allDay?'':b.t));
+const perDayPace = b => Math.round(b.remaining/Math.max(1,b.daysInMonth-b.dayOfMonth+1));
+const budgetClass = b => b.remaining<0?'over':(b.remaining/b.limit<0.15?'warn':'good');
+const syncNote = b => b.stale ? `<span class="stale">Wallet не отговаря · данни от преди ${Math.round(b.syncedMinAgo/60)} ч</span>` : `<span class="eyebrow">Wallet · преди ${b.syncedMinAgo} мин</span>`;
+const calNote = st => st ? `<span class="stale">Google Calendar не отговаря · показваме данни от 14:25</span>` : '';
+
+/* ================= ВАРИАНТ A ================= */
+function renderA(sc){
+  const t = fmtDay(0);
+  const days = [0,1,2,3,4,5,6,7].map(o=>{
+    const f=fmtDay(o); const evs=evsFor(sc.events,o);
+    const list = evs.length ? evs.map(e=>`<div class="ev"><span class="dot" style="--c:${PEOPLE[e.who].color}"></span><span class="t">${e.allDay?'цял ден':e.t}</span><span class="n">${esc(e.n)}</span></div>`).join('')
+      : `<div class="ev empty"><span></span><span></span><span>${sc.calStale?'—':'нищо планирано'}</span></div>`;
+    return `<div class="day ${o===0?'today':''} ${f.weekend?'weekend':''}"><div class="d">${o===0?'Днес':f.dows+' '+f.date}<small>${o===0?f.dows+' '+f.date:f.dow}</small></div><div class="evs">${list}</div></div>`;
+  }).join('');
+  const b = sc.budget;
+  const budget = b ? `<div class="card budget ${b.remaining<0?'over':''}">
+      <div class="eyebrow">Остатък за ${b.month}</div>
+      <div class="big num">${b.remaining<0?'−':''}${lv(Math.abs(b.remaining))} <small>от ${lv(b.limit)}</small></div>
+      <div class="bar ${b.remaining<0?'over':''}"><i style="width:${Math.min(100,b.spent/b.limit*100)}%"></i><b style="left:${b.dayOfMonth/b.daysInMonth*100}%" title="днес"></b></div>
+      <div class="row"><span class="num">похарчени ${lv(b.spent)}</span><span class="num">${b.remaining<0?'превишение '+lv(-b.remaining):'~'+lv(perDayPace(b))+'/ден до края'}</span></div>
+      <div style="margin-top:.5em">${syncNote(b)}</div></div>`
+    : `<div class="card budget"><div class="eyebrow">Остатък за октомври</div><div class="big">—</div><div class="empty">Няма данни от Wallet</div></div>`;
+  const m = sc.menu;
+  const meal = (k,label,x,cls) => `<div class="meal ${cls}"><span class="k">${label}</span><div>${x?`<div class="dish">${esc(x.dish)}</div><div class="by"><span class="avatar" style="--c:${PEOPLE[x.cook].color}">${PEOPLE[x.cook].init}</span>готви ${PEOPLE[x.cook].name} · ${x.time}</div>`:`<div class="empty">не е планирано</div>`}</div></div>`;
+  const cook = `<div class="card cook"><div class="eyebrow">Днес се готви</div>${meal('dinner','Вечеря',m.dinner,'dinner')}${meal('lunch','Обяд',m.lunch,'lunch')}</div>`;
+  return `<div class="vA">
+    <section class="cal">
+      <div class="today-head"><h1>${t.dow}, ${t.date} ${t.mon}</h1><span class="clock num">17:40</span></div>
+      <div class="legend"><span><i class="dot" style="--c:${PEOPLE.dako.color}"></i>Дако</span><span><i class="dot" style="--c:${PEOPLE.wife.color}"></i>Съпруга</span><span><i class="dot" style="--c:${PEOPLE.family.color}"></i>Семеен</span>${calNote(sc.calStale)}</div>
+      <div class="days">${days}</div>
+    </section>
+    <aside class="side">${budget}${cook}</aside></div>`;
+}
+
+/* ================= ВАРИАНТ B ================= */
+function renderB(sc){
+  const t = fmtDay(0);
+  const cols = [0,1,2,3,4,5,6,7].map(o=>{
+    const f=fmtDay(o); const evs=evsFor(sc.events,o);
+    let chips = evs.map(e=>`<div class="chip ${e.allDay?'allday':''}" style="--c:${PEOPLE[e.who].color}"><span class="avatar" style="--c:${PEOPLE[e.who].color}">${PEOPLE[e.who].init}</span><div class="tt">${esc(e.n)}<small>${e.allDay?'цял ден':e.t+'–'+e.e}</small></div></div>`).join('');
+    if(o===0 && sc.menu.dinner){ const d=sc.menu.dinner; chips += `<div class="chip cook"><span class="avatar" style="--c:${PEOPLE[d.cook].color}">${PEOPLE[d.cook].init}</span><div class="tt">${esc(d.dish)}<small>вечеря ${d.time} · ${PEOPLE[d.cook].name}</small></div></div>`; }
+    if(!chips) chips = `<div class="empty" style="font-size:.85em">${sc.calStale?'—':'свободно'}</div>`;
+    return `<div class="col ${o===0?'today':''} ${f.weekend?'weekend':''}"><div class="h"><b>${o===0?'Днес':f.dows}</b><small class="num">${f.date}${o===0?' '+f.mon.slice(0,3):''}</small></div><div class="chips">${chips}</div></div>`;
+  }).join('');
+  const b = sc.budget;
+  let ring;
+  if(b){
+    const pct = Math.min(1,b.spent/b.limit); const r=20, c=2*Math.PI*r;
+    ring = `<div class="ring ${b.remaining<0?'over':''}"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="6"/><circle cx="24" cy="24" r="${r}" fill="none" stroke="${b.remaining<0?'var(--bad)':'var(--accent)'}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${(c*pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 24 24)"/><text x="24" y="28" text-anchor="middle" font-size="11" font-weight="700" fill="var(--fg)">${Math.round(pct*100)}%</text></svg>
+      <div class="lbl"><b class="num">${b.remaining<0?'−':''}${lv(Math.abs(b.remaining))}</b><small>${b.remaining<0?'над бюджета за '+b.month:'остават за '+b.month}</small><br>${syncNote(b)}</div></div>`;
+  } else ring = `<div class="ring"><div class="lbl"><b>—</b><small class="empty">няма данни от Wallet</small></div></div>`;
+  const m=sc.menu;
+  const band = `<div class="band"><span class="k">Днес се готви</span><div>${m.dinner?`<div class="dish">${esc(m.dinner.dish)}</div>`:`<div class="dish empty" style="font-size:1.2em">Вечерята не е планирана</div>`}${m.lunch?`<div class="lunch">Обяд за работа: ${esc(m.lunch.dish)} · ${PEOPLE[m.lunch.cook].name}</div>`:''}</div>
+    ${m.dinner?`<div class="by"><span class="avatar" style="--c:${PEOPLE[m.dinner.cook].color}">${PEOPLE[m.dinner.cook].init}</span>${PEOPLE[m.dinner.cook].name} · ${m.dinner.time}</div>`:'<span></span>'}</div>`;
+  return `<div class="vB">
+    <div class="strip"><div class="date">${t.dow} <span class="num">${t.date} ${t.mon} · 17:40</span>${sc.calStale?'<br>'+calNote(true):''}</div>${ring}</div>
+    <div class="week">${cols}</div>
+    ${band}</div>`;
+}
+
+/* ================= ВАРИАНТ C ================= */
+function renderC(sc){
+  const t = fmtDay(0);
+  const H0=7, H1=23; const hours=[]; for(let h=H0;h<H1;h++) hours.push(`<span>${String(h).padStart(2,'0')}</span>`);
+  const toMin = s => { const [h,m]=s.split(':').map(Number); return h*60+m; };
+  const pct = s => ((toMin(s)-H0*60)/((H1-H0)*60)*100);
+  const today = evsFor(sc.events,0);
+  const allday = today.filter(e=>e.allDay).map(e=>`<span class="pill"><i class="dot" style="--c:${PEOPLE[e.who].color}"></i>${esc(e.n)}</span>`).join('');
+  let blocks = today.filter(e=>!e.allDay).map(e=>`<div class="block" style="--c:${PEOPLE[e.who].color};top:${pct(e.t)}%;height:${Math.max(6,pct(e.e)-pct(e.t))}%"><div class="who">${PEOPLE[e.who].name} · ${e.t}</div><div class="nm">${esc(e.n)}</div></div>`).join('');
+  const m=sc.menu;
+  if(m.lunch) blocks += `<div class="block meal" style="top:${pct(m.lunch.time)}%;height:7%"><div class="who">Обяд · ${PEOPLE[m.lunch.cook].name}</div><div class="nm">${esc(m.lunch.dish)}</div></div>`;
+  if(m.dinner) blocks += `<div class="block meal" style="top:${pct(m.dinner.time)}%;height:11%"><div class="who">Вечеря ${m.dinner.time} · готви ${PEOPLE[m.dinner.cook].name}</div><div class="nm">${esc(m.dinner.dish)}</div></div>`;
+  else blocks += `<div class="block" style="--c:var(--line);top:${pct('19:00')}%;height:9%;border-style:dashed;background:transparent;box-shadow:none"><div class="who">Вечеря</div><div class="nm empty">${sc.calStale?'планът не е наличен':'не е планирано — кой готви?'}</div></div>`;
+  const now = `<div class="nowline" style="top:${pct('17:40')}%"></div>`;
+  const b = sc.budget;
+  const money = b ? `<div class="money ${budgetClass(b)}"><span class="eyebrow">Бюджет</span><b class="num">${b.remaining<0?'−':''}${lv(Math.abs(b.remaining))}</b><span class="pace num">${b.remaining<0?'над лимита за '+b.month:'· още '+(b.daysInMonth-b.dayOfMonth+1)+' дни · ~'+lv(perDayPace(b))+'/ден'}</span>${b.stale?syncNote(b):''}</div>`
+    : `<div class="money"><span class="eyebrow">Бюджет</span><b>—</b><span class="pace empty">няма данни от Wallet</span></div>`;
+  const lanes = [1,2,3,4,5,6,7].map(o=>{
+    const f=fmtDay(o); const evs=evsFor(sc.events,o);
+    const cell = who => { const l=evs.filter(e=>e.who===who||e.who==='family'); return l.length? l.map(e=>`<div class="it ${e.who==='family'?'fam':''}"><small>${e.allDay?'ден':e.t}</small> ${esc(e.n)}</div>`).join('') : '<span class="dash">—</span>'; };
+    return `<div class="ld ${f.weekend?'weekend':''}">${f.dows} <span class="num">${f.date}</span><small>${f.dow}</small></div><div class="lc">${cell('dako')}</div><div class="lc">${cell('wife')}</div>`;
+  }).join('');
+  return `<div class="vC">
+    <div class="top"><h1>${t.dow} <span class="num">${t.date} ${t.mon}</span></h1>${money}</div>
+    <section class="todaycol" style="display:grid;grid-template-rows:auto 1fr;min-height:0">
+      <div class="allday">${allday}${calNote(sc.calStale)}</div>
+      <div class="tl"><div class="hours">${hours.join('')}</div><div class="slots">${hours.map(()=>'<div class="line"></div>').join('')}${blocks}${now}</div></div>
+    </section>
+    <aside class="next">
+      <div class="eyebrow">Следващите 7 дни</div>
+      <div class="lanes"><div class="lh">ден</div><div class="lh" style="--c:${PEOPLE.dako.color}"><span class="avatar" style="--c:${PEOPLE.dako.color}">Д</span>Дако</div><div class="lh" style="--c:${PEOPLE.wife.color}"><span class="avatar" style="--c:${PEOPLE.wife.color}">С</span>Съпруга</div>${lanes}</div>
+      <div class="legend"><span style="color:var(--p-family);font-weight:600">★ семейните събития са и в двете колони</span></div>
+    </aside></div>`;
+}
+
+/* ---------- превключвател ---------- */
+const RENDER = {A:renderA, B:renderB, C:renderC};
+function apply(){
+  const root=document.documentElement;
+  if(state.theme==='auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme',state.theme);
+  document.getElementById('stage').className = state.mode;
+  document.getElementById('screen').innerHTML = RENDER[state.variant](scenario());
+  const v = VARIANTS.find(v=>v.key===state.variant);
+  document.getElementById('vname').textContent = `${v.key} · ${v.name}`;
+  for(const k of ['mode','theme','data']) document.getElementById(k).value = state[k];
+  const u=new URL(location.href); for(const k in state) u.searchParams.set(k,state[k]);
+  try{ history.replaceState(null,'',u); }catch(e){}
+}
+function cycle(d){ const i=VARIANTS.findIndex(v=>v.key===state.variant); state.variant=VARIANTS[(i+d+VARIANTS.length)%VARIANTS.length].key; apply(); }
+document.getElementById('prev').onclick=()=>cycle(-1);
+document.getElementById('next').onclick=()=>cycle(1);
+for(const k of ['mode','theme','data']) document.getElementById(k).onchange=e=>{state[k]=e.target.value;apply();};
+addEventListener('keydown',e=>{ const t=e.target; if(t.matches('input,textarea,select,[contenteditable]')) return; if(e.key==='ArrowLeft')cycle(-1); if(e.key==='ArrowRight')cycle(1); });
+apply();
+</script>
+</body>
+</html>
