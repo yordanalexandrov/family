@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Project docs
+
+Read before changing code:
+
+- `docs/concept.md` — vision, decisions, phases, AI contracts, data model
+- `docs/conventions.md` — rules for changes, definition of done
+- `docs/architecture.md` — packages, boundaries, layers
+- `docs/testing.md` — what and how to test
+
 ## Agent skills
 
 ### Issue tracker
