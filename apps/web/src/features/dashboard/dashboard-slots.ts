@@ -21,7 +21,7 @@ export type SlotName =
 /** `wide`: TV (≥ 1600 px), три колони. `narrow`: kiosk (< 1600 px), две колони. */
 export type KioskGrid = 'wide' | 'narrow';
 
-/** Медийната заявка за `wide`; същата граница е в KioskLayout.css. */
+/** Медийната заявка за `wide`, единственият източник на границата; CSS-ът я повтаря в KioskLayout.css и GlassScreen.css. */
 export const WIDE_QUERY = '(min-width: 1600px)';
 
 /** Колоните отляво надясно, слотовете във всяка отгоре надолу. */

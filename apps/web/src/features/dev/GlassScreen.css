@@ -54,6 +54,7 @@
   }
 }
 
+/* TV: границата е `WIDE_QUERY` от features/dashboard/dashboard-slots.ts. */
 @media (min-width: 1600px) {
   .glass-demo__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

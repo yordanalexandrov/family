@@ -41,7 +41,7 @@
   justify-content: center;
 }
 
-/* TV: три колони, ядрото в средата. */
+/* TV: три колони, ядрото в средата. Границата е `WIDE_QUERY` от dashboard-slots.ts (CSS не може да я внесе). */
 @media (min-width: 1600px) {
   .kiosk__grid {
     grid-template: var(--rows-wide) / minmax(0, 1fr) auto minmax(0, 1fr);
