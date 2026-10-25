@@ -38,6 +38,7 @@ jobs:
           CF_ACCESS_TEAM_DOMAIN: ${{ secrets.CF_ACCESS_TEAM_DOMAIN }}
           CF_ACCESS_AUD: ${{ secrets.CF_ACCESS_AUD }}
           ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+          OPENCLAW_GATEWAY_PASSWORD: ${{ secrets.OPENCLAW_GATEWAY_PASSWORD }}
           # Дашборд (по избор): празна стойност = източникът е unconfigured, api тръгва без него.
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_CALENDARS: ${{ secrets.GOOGLE_CALENDARS }}
@@ -45,7 +46,7 @@ jobs:
           WALLET_BUDGET_ID: ${{ secrets.WALLET_BUDGET_ID }}
         run: |
           # Без някой от тях api не тръгва: спираме, преди стекът да е пипнат, и казваме само името.
-          for name in POSTGRES_PASSWORD CF_ACCESS_TEAM_DOMAIN CF_ACCESS_AUD ALLOWED_EMAILS; do
+          for name in POSTGRES_PASSWORD CF_ACCESS_TEAM_DOMAIN CF_ACCESS_AUD ALLOWED_EMAILS OPENCLAW_GATEWAY_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::secret $name is not set in the production environment"
               exit 1
@@ -67,6 +68,7 @@ jobs:
           CF_ACCESS_TEAM_DOMAIN=${CF_ACCESS_TEAM_DOMAIN}
           CF_ACCESS_AUD=${CF_ACCESS_AUD}
           ALLOWED_EMAILS=${ALLOWED_EMAILS}
+          OPENCLAW_GATEWAY_PASSWORD=${OPENCLAW_GATEWAY_PASSWORD}
           GOOGLE_SERVICE_ACCOUNT_JSON='${GOOGLE_SERVICE_ACCOUNT_JSON}'
           GOOGLE_CALENDARS='${GOOGLE_CALENDARS}'
           WALLET_API_TOKEN='${WALLET_API_TOKEN}'

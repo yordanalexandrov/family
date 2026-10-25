@@ -1,6 +1,13 @@
 import type { ApiErrorCode, ApiErrorResponse } from '@family/shared';
 import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
+import {
+  ConflictError,
+  InvalidReferenceError,
+  NotFoundError,
+  OpenClawUnavailableError,
+  ServiceRefusal,
+} from '../services/errors.js';
 
 /**
  * A refusal the client can act on. The error handler answers it with `statusCode` and
@@ -31,6 +38,11 @@ const errorHandler: FastifyPluginAsync = async (app) => {
       } satisfies ApiErrorResponse);
     }
 
+    const refusal = serviceRefusal(error);
+    if (refusal) {
+      return reply.code(refusal.statusCode).send(refusal.body);
+    }
+
     const statusCode = statusOf(error);
     if (statusCode >= 500) {
       // A bug or an outage: always logged in full.
@@ -46,6 +58,36 @@ const errorHandler: FastifyPluginAsync = async (app) => {
     } satisfies ApiErrorResponse),
   );
 };
+
+/** The status and code of each typed refusal from `services/errors.ts`. */
+const REFUSALS: [
+  abstract new (...args: never[]) => ServiceRefusal,
+  number,
+  ApiErrorCode,
+][] = [
+  [NotFoundError, 404, 'not_found'],
+  [ConflictError, 409, 'conflict'],
+  [InvalidReferenceError, 400, 'invalid_reference'],
+  [OpenClawUnavailableError, 503, 'openclaw_unavailable'],
+];
+
+/** The status and body of a typed refusal, or `undefined` for any other error. */
+function serviceRefusal(
+  error: unknown,
+): { statusCode: number; body: ApiErrorResponse } | undefined {
+  if (!(error instanceof ServiceRefusal)) {
+    return undefined;
+  }
+  const refusal = REFUSALS.find(([type]) => error instanceof type);
+  if (!refusal) {
+    return undefined;
+  }
+  const [, statusCode, code] = refusal;
+  return {
+    statusCode,
+    body: { ...error.details, error: code, message: error.message },
+  };
+}
 
 /** The error's own status when it is an error status (4xx, 5xx); without one the error is a bug: 500. */
 function statusOf(error: FastifyError): number {

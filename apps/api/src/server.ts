@@ -21,6 +21,7 @@ const app = buildApp({
       }
     : undefined,
   scheduler: {},
+  openclaw: config.openclaw,
 });
 
 try {

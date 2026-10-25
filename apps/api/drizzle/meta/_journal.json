@@ -19,8 +19,22 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1792956872212,
-      "tag": "0002_dashboard",
+      "when": 1792956857533,
+      "tag": "0002_food",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792956882534,
+      "tag": "0003_seed_ingredients",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792963780333,
+      "tag": "0004_dashboard",
       "breakpoints": true
     }
   ]

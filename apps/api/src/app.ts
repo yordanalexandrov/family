@@ -6,11 +6,12 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
-import type { CalendarSourceConfig } from './config.js';
+import type { CalendarSourceConfig, OpenClawConfig } from './config.js';
 import { closeDb, createDb, type Db } from './db/client.js';
 import { upsertCalendarSources } from './db/repositories/calendar-sources.js';
 import type { GoogleCalendarClient } from './integrations/google-calendar/client.js';
 import type { WalletClient } from './integrations/wallet/client.js';
+import { createOpenClawClient } from './openclaw/client.js';
 import actingUser from './plugins/acting-user.js';
 import cloudflareAccess, {
   type CloudflareAccessOptions,
@@ -20,11 +21,18 @@ import scheduler, { type SchedulerOptions } from './plugins/scheduler.js';
 import { calendarEventsRoutes } from './routes/calendar-events.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { healthRoutes } from './routes/health.js';
+import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
+import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
+import { recipesRoutes } from './routes/recipes.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
 import { createCalendarSync } from './services/calendar-sync.js';
+import {
+  createRecipeSuggestionsService,
+  type RecipeSuggestionsService,
+} from './services/recipe-suggestions.js';
 import type { Sync } from './services/sync-mutex.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
@@ -39,6 +47,8 @@ declare module 'fastify' {
     budgetSync: Sync | null;
     /** The clock of the app; specs fix it. */
     now: () => Date;
+    /** Keeps the `recipe.suggest` runs in flight; `app.close()` aborts and awaits them before the pool closes. */
+    recipeSuggestions: RecipeSuggestionsService;
   }
 }
 
@@ -63,6 +73,11 @@ export interface BuildAppOptions {
   now?: () => Date;
   /** Runs the periodic syncs (`server.ts`); specs leave it out and sync by hand. */
   scheduler?: SchedulerOptions;
+  /**
+   * The OpenClaw gateway for AI contracts. In dev mode, without it or without `gatewayPassword`, the client is
+   * disabled and `POST /api/recipe-suggestions/requests` answers 503 `openclaw_unavailable`; any other mode throws.
+   */
+  openclaw?: OpenClawConfig;
 }
 
 /**
@@ -78,7 +93,14 @@ export function buildApp({
   wallet,
   now = () => new Date(),
   scheduler: schedulerOptions,
+  openclaw,
 }: BuildAppOptions): FastifyInstance {
+  if (auth.mode !== 'dev' && !openclaw?.gatewayPassword) {
+    // `loadConfig()` refuses this too; checked here so no caller can start a disabled OpenClaw outside dev mode.
+    throw new Error(
+      'OpenClaw needs a gateway password unless AUTH_MODE is dev',
+    );
+  }
   const app = Fastify({ logger });
 
   // Route schemas are Zod (from @family/shared): they validate the input and check the output.
@@ -111,7 +133,31 @@ export function buildApp({
   if (calendarSources) {
     app.addHook('onReady', () => upsertCalendarSources(db, calendarSources));
   }
-  app.addHook('onClose', () => closeDb(db));
+  const client =
+    openclaw &&
+    createOpenClawClient(openclaw, app.log.child({ module: 'openclaw' }));
+  const recipeSuggestions = createRecipeSuggestionsService({
+    db,
+    openclaw:
+      openclaw && client ? { client, agent: openclaw.recipeAgent } : null,
+    log: app.log,
+  });
+  app.decorate('recipeSuggestions', recipeSuggestions);
+  app.addHook('onClose', async () => {
+    await recipeSuggestions.close();
+    await closeDb(db);
+  });
+  // Runs once the app is ready, i.e. after `server.ts` applied the migrations. Not fatal: the api serves without it.
+  app.addHook('onReady', async () => {
+    try {
+      const failed = await recipeSuggestions.failStaleRequests();
+      if (failed > 0) {
+        app.log.warn({ failed }, 'stale suggestion requests marked failed');
+      }
+    } catch (error) {
+      app.log.error({ err: error }, 'could not fail stale suggestion requests');
+    }
+  });
 
   app.register(errorHandler);
   app.register(cloudflareAccess, auth);
@@ -126,6 +172,9 @@ export function buildApp({
   app.register(syncRoutes);
   app.register(calendarEventsRoutes);
   app.register(dashboardRoutes);
+  app.register(ingredientsRoutes);
+  app.register(recipesRoutes);
+  app.register(recipeSuggestionsRoutes);
 
   return app;
 }

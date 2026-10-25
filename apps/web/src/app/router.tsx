@@ -15,7 +15,16 @@ import { Aurora } from '../components/Aurora';
 import { CalendarScreen } from '../features/calendar/CalendarScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
+import {
+  EditRecipeScreen,
+  NewRecipeScreen,
+} from '../features/recipes/RecipeEditor';
+import { RecipeList } from '../features/recipes/RecipeList';
+import { RecipeView } from '../features/recipes/RecipeView';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
+import { SuggestionRequestView } from '../features/suggestions/SuggestionRequestView';
+import { SuggestionReview } from '../features/suggestions/SuggestionReview';
+import { SuggestScreen } from '../features/suggestions/SuggestScreen';
 import { WhoScreen } from '../features/who/WhoScreen';
 import { useActingUser } from './acting-user';
 import { BottomNav } from './BottomNav';
@@ -162,6 +171,50 @@ const deviceRoute = createRoute({
   component: DeviceScreen,
 });
 
+// Регистър рецепти: телефон и таблет; не влиза в kiosk/TV навигацията.
+const recipesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes',
+  component: RecipeList,
+});
+
+const recipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id',
+  component: RecipeView,
+});
+
+const newRecipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/new',
+  component: NewRecipeScreen,
+});
+
+const editRecipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id/edit',
+  component: EditRecipeScreen,
+});
+
+// Предложения за рецепти: заявка, изчакване и резултати, преглед и одобрение.
+const suggestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest',
+  component: SuggestScreen,
+});
+
+const suggestionRequestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest/$requestId',
+  component: SuggestionRequestView,
+});
+
+const suggestionReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest/$requestId/$suggestionId',
+  component: SuggestionReview,
+});
+
 // Временна витрина на дизайн системата (#46), само в dev; production build-ът я изрязва.
 const devRoutes = import.meta.env.DEV
   ? [
@@ -182,6 +235,13 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   whoRoute,
   deviceRoute,
+  recipesRoute,
+  newRecipeRoute,
+  recipeRoute,
+  editRecipeRoute,
+  suggestRoute,
+  suggestionRequestRoute,
+  suggestionReviewRoute,
   ...devRoutes,
 ]);
 

@@ -306,7 +306,7 @@ describe('DashboardScreen', () => {
     expect(scrollIntoView.mock.contexts[0]).toBe(item);
   });
 
-  it('има долна навигация към календара и настройките', async () => {
+  it('има долна навигация към календара, рецептите и настройките', async () => {
     renderApp('/');
 
     const nav = await screen.findByRole('navigation', {
@@ -317,6 +317,7 @@ describe('DashboardScreen', () => {
       'page',
     );
     expect(within(nav).getByRole('link', { name: 'Календар' })).toBeVisible();
+    expect(within(nav).getByRole('link', { name: 'Рецепти' })).toBeVisible();
     expect(within(nav).getByRole('link', { name: 'Настройки' })).toBeVisible();
   });
 });

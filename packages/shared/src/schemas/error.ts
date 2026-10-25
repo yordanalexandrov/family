@@ -14,8 +14,14 @@ export const apiErrorCodeSchema = z.enum([
   'missing_acting_user',
   // 400: X-Acting-User names no user (e.g. the user was removed).
   'unknown_acting_user',
-  // 404: no such route.
+  // 404: no such route, or no such record (e.g. a recipe id).
   'not_found',
+  // 409: the record clashes with an existing one (e.g. an ingredient name); the body names the existing one.
+  'conflict',
+  // 400: the body points at a record that does not exist (e.g. an unknown ingredientId in a recipe).
+  'invalid_reference',
+  // 503: the OpenClaw client is disabled (no gateway password, local dev), so no suggestions can be asked for.
+  'openclaw_unavailable',
   // 5xx: a bug or an outage; the client is told nothing more.
   'internal_error',
   // Anything else without a code of its own; its message is for the screen (e.g. Fastify's 415 for an unsupported content type).

@@ -39,6 +39,15 @@ pnpm -r test            # преди commit
 pnpm --filter api db:generate
 ```
 
+Приложена миграция не се редактира: Drizzle я пуска веднъж и промяна по файла никога не стига до production. Това важи и за data миграциите със seed данни (`drizzle/0003_seed_ingredients.sql`). Нови seed продукти се добавят в `apps/api/src/db/seed/ingredients.json` и отиват в **нова** миграция — генераторът пише само продуктите, които никоя seed миграция още не вкарва, и отказва миграция, която вече има SQL:
+
+```bash
+pnpm --filter api db:generate --custom --name seed_ingredients_<какво>
+pnpm --filter api db:seed-ingredients -- <tag от първата команда, напр. 0007_seed_ingredients_<какво>>
+```
+
+Spec-ът в `src/db/seed/ingredients.spec.ts` проверява, че всеки продукт от JSON-а е в точно една seed миграция и че `0003` не е пипана.
+
 Ако промяната засяга runtime wiring (Docker Compose, Dockerfile, env, Caddy) — вдигни пълния стек локално по [infra/README.md](../infra/README.md) и провери ръчно.
 
 ## Definition of done

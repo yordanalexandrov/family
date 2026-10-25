@@ -51,15 +51,18 @@ routes/      → Fastify plugins; валидират вход/изход със 
 plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler; `scheduler` — кронът на api
 services/    → бизнес логика (меню → списък за пазаруване, синхронизация на календара и т.н.); без HTTP детайли
 integrations/→ клиенти на външни системи (`google-calendar/`): само HTTP и auth към тях, без база
+openclaw/    → клиентът към OpenClaw gateway-а (`/v1/chat/completions`) за AI контрактите: Zod валидация + един retry
 db/          → Drizzle schema, миграции, repository функции
 scripts/     → ръчни инструменти през `tsx` (напр. `calendar:probe` срещу реалния Google)
 ```
 
 Синхронизациите с външни системи вървят сами: `plugins/scheduler.ts` пуска всяка задача 5 с след `ready`, после през интервала ± 25 % jitter (`setTimeout` верига) и я спира при затваряне, като изчаква текущото пускане. Задача се регистрира само ако системата е конфигурирана; иначе се логва „calendar sync: unconfigured“ и `app.calendarSync` е `null`. Ръчното пускане (`POST /api/sync/calendar`) и кронът минават през един и същ service с mutex, затова второ пускане по време на първото връща `running`. `buildApp()` получава клиента (`googleCalendar`), календарите от GOOGLE_CALENDARS (`calendarSources`, upsert-ват се в `onReady`), часовника (`now`) и `scheduler` отвън: `server.ts` ги строи от config, а spec-овете подават клиент с генериран ключ срещу msw, фиксиран часовник и без scheduler.
 
+AI контрактите вървят във фон в процеса на api: `POST` записва заявка `pending` и връща `202`, service-ът (`app.recipeSuggestions`) вика OpenClaw клиента и записва `done`/`failed`, клиентът пита с `GET`. `app.close()` прекъсва и изчаква текущите заявки, а при старт `pending` заявки по-стари от 10 мин стават `failed`/`stale`. Кодовете на `failed` (`error`: `timeout`, `invalid_output`, `http_<status>`, `aborted`, `stale`, `error`) са `suggestionFailureSchema` в shared; api ги записва, web ги превежда на съобщения. Без `OPENCLAW_GATEWAY_PASSWORD` клиентът е изключен и заявката за предложения връща `503 openclaw_unavailable` — позволено само в `AUTH_MODE=dev`; във всеки друг режим api не тръгва.
+
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
-Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`.
+Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`. Service не знае за HTTP и отказва с типизирана грешка от `services/errors.ts` (наследник на `ServiceRefusal`: `NotFoundError` → 404 `not_found`, `ConflictError` → 409 `conflict` с `details` в тялото, `InvalidReferenceError` → 400 `invalid_reference`, `OpenClawUnavailableError` → 503 `openclaw_unavailable`); error handler-ът я мапва на статус по таблица `REFUSALS`, а нов клас се добавя и там.
 
 ## Слоеве в `apps/web`
 

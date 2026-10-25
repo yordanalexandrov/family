@@ -6,8 +6,12 @@
     "types": ["node"],
     "noEmit": true,
     "paths": {
-      "@family/shared": ["../../packages/shared/src/index.ts"]
-    }
+      "@family/shared": ["../../packages/shared/src/index.ts"],
+      "@family/shared/fixtures/*": [
+        "../../packages/shared/src/contracts/fixtures/*"
+      ]
+    },
+    "resolveJsonModule": true
   },
-  "include": ["src", "vitest.config.ts", "drizzle.config.ts"]
+  "include": ["src", "scripts", "vitest.config.ts", "drizzle.config.ts"]
 }

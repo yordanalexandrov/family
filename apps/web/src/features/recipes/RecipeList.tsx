@@ -1,0 +1,108 @@
+import { TAG_LABELS_BG, type Tag } from '@family/shared';
+import { Link } from '@tanstack/react-router';
+import { useState } from 'react';
+import { ErrorBox } from '../../components/ErrorBox';
+import { Spinner } from '../../components/Spinner';
+import { formatMinutes } from './format';
+import { useRecipes } from './queries';
+import { TagChips } from './TagChips';
+import { useDebouncedValue } from './useDebouncedValue';
+import './recipes.css';
+
+const SEARCH_DEBOUNCE_MS = 300;
+
+export function RecipeList() {
+  const [search, setSearch] = useState('');
+  const [tag, setTag] = useState<Tag | undefined>();
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
+  const recipes = useRecipes({
+    ...(q ? { q } : {}),
+    ...(tag ? { tag } : {}),
+    includeArchived,
+  });
+
+  return (
+    <main className="screen recipes">
+      <header className="recipes__header">
+        <Link to="/" className="recipes__back">
+          ← Начало
+        </Link>
+        <h1 className="recipes__title">Рецепти</h1>
+        <Link to="/recipes/suggest" className="button button--quiet">
+          Поискай предложение
+        </Link>
+        <Link to="/recipes/new" className="button">
+          Нова рецепта
+        </Link>
+      </header>
+
+      <div className="recipes__filters">
+        <input
+          type="search"
+          className="field__input"
+          aria-label="Търси"
+          placeholder="Търси по заглавие"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <TagChips
+          label="Таг"
+          selected={tag ? [tag] : []}
+          onToggle={(next) => setTag(next === tag ? undefined : next)}
+        />
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(event) => setIncludeArchived(event.target.checked)}
+          />
+          Покажи архивираните
+        </label>
+      </div>
+
+      {recipes.isPending ? (
+        <Spinner />
+      ) : recipes.isError ? (
+        <ErrorBox
+          error={recipes.error}
+          onRetry={() => void recipes.refetch()}
+        />
+      ) : recipes.data.length === 0 ? (
+        <div className="recipes__empty">
+          <p>Няма рецепти. Добави първата или поискай предложение.</p>
+          <Link to="/recipes/suggest" className="button">
+            Поискай предложение
+          </Link>
+        </div>
+      ) : (
+        <ul className="recipe-cards">
+          {recipes.data.map((recipe) => (
+            <li key={recipe.id}>
+              <Link
+                to="/recipes/$id"
+                params={{ id: recipe.id }}
+                className="recipe-card"
+              >
+                <span className="recipe-card__title">{recipe.title}</span>
+                <span className="recipe-card__meta">
+                  {recipe.prepMinutes !== undefined && (
+                    <span>{formatMinutes(recipe.prepMinutes)}</span>
+                  )}
+                  {recipe.archivedAt && (
+                    <span className="badge">архивирана</span>
+                  )}
+                </span>
+                {recipe.tags.length > 0 && (
+                  <span className="recipe-card__tags">
+                    {recipe.tags.map((t) => TAG_LABELS_BG[t]).join(' · ')}
+                  </span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}

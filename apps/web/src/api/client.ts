@@ -24,16 +24,20 @@ type ClientErrorCode = 'http_error' | 'invalid_response' | 'session_expired';
 export class ApiError extends Error {
   readonly status: number;
   readonly code: ApiErrorCode | ClientErrorCode;
+  /** Суровото тяло на отговора, за грешки с повече от `{ error, message }` (напр. 409 с `ingredient`). */
+  readonly body: unknown;
 
   constructor(
     status: number,
     code: ApiErrorCode | ClientErrorCode,
     message: string,
+    body?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.body = body;
   }
 
   /** 401/403 или пренасочване: Cloudflare Access сесията е изтекла; презареждането води до PIN екрана. */
@@ -55,6 +59,9 @@ export class ApiError extends Error {
     return this.status >= 500;
   }
 }
+
+/** Headers of a request with a JSON body. */
+export const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 export async function apiFetch<T>(
   path: string,
@@ -100,15 +107,20 @@ function isRedirect(response: Response): boolean {
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
-  const body = apiErrorSchema.safeParse(
-    await response.json().catch(() => undefined),
-  );
+  const raw: unknown = await response.json().catch(() => undefined);
+  const body = apiErrorSchema.safeParse(raw);
   if (body.success) {
-    return new ApiError(response.status, body.data.error, body.data.message);
+    return new ApiError(
+      response.status,
+      body.data.error,
+      body.data.message,
+      raw,
+    );
   }
   return new ApiError(
     response.status,
     'http_error',
     `Сървърът отговори с грешка ${response.status}`,
+    raw,
   );
 }

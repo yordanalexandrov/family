@@ -12,6 +12,7 @@ const cloudflare = {
   CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN,
   CF_ACCESS_AUD: 'aud-tag',
   ALLOWED_EMAILS: 'dani@example.com, Poli@Example.com',
+  OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
 };
 
 const defaults = {
@@ -22,6 +23,12 @@ const defaults = {
   DATABASE_URL,
   googleCalendar: null,
   wallet: null,
+  openclaw: {
+    url: 'http://127.0.0.1:18789',
+    gatewayPassword: undefined,
+    recipeAgent: 'family-recipe',
+    timeoutMs: 180_000,
+  },
 };
 
 const calendars = [
@@ -65,6 +72,56 @@ describe('loadConfig', () => {
     );
   });
 
+  describe('OPENCLAW_*', () => {
+    it('reads the gateway url, password, recipe agent and timeout', () => {
+      expect(
+        loadConfig({
+          ...dev,
+          OPENCLAW_URL: 'http://127.0.0.1:28789/',
+          OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
+          OPENCLAW_RECIPE_AGENT: 'family-recipe-test',
+          OPENCLAW_TIMEOUT_MS: '60000',
+        }),
+      ).toMatchObject({
+        openclaw: {
+          url: 'http://127.0.0.1:28789',
+          gatewayPassword: 'gateway-secret',
+          recipeAgent: 'family-recipe-test',
+          timeoutMs: 60_000,
+        },
+      });
+    });
+
+    it('treats an empty password as none, so OpenClaw stays disabled in dev mode', () => {
+      expect(
+        loadConfig({ ...dev, OPENCLAW_GATEWAY_PASSWORD: '' }),
+      ).toMatchObject({ openclaw: { gatewayPassword: undefined } });
+    });
+
+    it('requires the gateway password outside dev mode, in production and out of it', () => {
+      for (const NODE_ENV of ['production', 'development']) {
+        expect(() =>
+          loadConfig({
+            ...cloudflare,
+            NODE_ENV,
+            OPENCLAW_GATEWAY_PASSWORD: '',
+          }),
+        ).toThrow(/OPENCLAW_GATEWAY_PASSWORD/);
+      }
+    });
+
+    it('never puts the password into the error message', () => {
+      const load = () =>
+        loadConfig({
+          ...dev,
+          OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
+          OPENCLAW_TIMEOUT_MS: 'soon',
+        });
+      expect(load).toThrow(/OPENCLAW_TIMEOUT_MS/);
+      expect(load).not.toThrow(/gateway-secret/);
+    });
+  });
+
   describe('AUTH_MODE', () => {
     it('is required', () => {
       expect(() => loadConfig({ DATABASE_URL })).toThrow(/AUTH_MODE/);
@@ -97,6 +154,7 @@ describe('loadConfig', () => {
     it('in cloudflare mode splits ALLOWED_EMAILS on commas, trimmed and lowercased', () => {
       expect(loadConfig(cloudflare)).toEqual({
         ...defaults,
+        openclaw: { ...defaults.openclaw, gatewayPassword: 'gateway-secret' },
         auth: {
           mode: 'cloudflare',
           teamDomain: TEAM_DOMAIN,
@@ -132,7 +190,11 @@ describe('loadConfig', () => {
 
     it('accepts cloudflare mode in production', () => {
       expect(
-        loadConfig({ ...cloudflare, NODE_ENV: 'production' }),
+        loadConfig({
+          ...cloudflare,
+          NODE_ENV: 'production',
+          OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
+        }),
       ).toMatchObject({ NODE_ENV: 'production', auth: { mode: 'cloudflare' } });
     });
   });
