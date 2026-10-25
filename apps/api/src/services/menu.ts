@@ -341,7 +341,10 @@ export async function readCooking(
   const title = dinner?.recipe?.title ?? dinner?.note;
   return {
     lunch: null,
-    dinner: dinner && title ? { title, cookUserId: dinner.cookUserId } : null,
+    dinner:
+      dinner && title
+        ? { title, cookUserId: dinner.cookUserId, servings: dinner.servings }
+        : null,
   };
 }
 

@@ -28,8 +28,8 @@ const DAY_MAX_EVENTS = 3;
 /** Слотовете, които Фаза 1 пълни; в реда на фокуса на TV: ядро → бюджет → дни. */
 const FILLED = ['core', 'left-1', 'right-1'] as const satisfies SlotName[];
 
-/** kiosk: докосване на тези слотове отваря пълния календар. */
-const OPENS_CALENDAR: readonly SlotName[] = ['core', 'right-1'];
+/** kiosk: докосване на тези слотове отваря пълния календар; ядрото носи връзките си само (Core). */
+const OPENS_CALENDAR: readonly SlotName[] = ['right-1'];
 
 /**
  * kiosk и TV: лентата горе и решетка с именувани слотове (dashboard-slots.ts).
@@ -51,6 +51,8 @@ export function KioskLayout({ state, now, interactive }: KioskLayoutProps) {
         seconds
         maxEvents={CORE_MAX_EVENTS}
         showHiddenCount
+        opensMenu={interactive}
+        opensCalendar={interactive}
       />
     ),
     'left-1': (

@@ -721,7 +721,24 @@ describe('cooking.dinner in GET /api/dashboard', () => {
 
     expect(await cooking()).toEqual({
       lunch: null,
-      dinner: { title: 'Леща яхния', cookUserId: POLI.id },
+      dinner: {
+        title: 'Леща яхния',
+        cookUserId: POLI.id,
+        servings: { [DANI.id]: 1, [POLI.id]: 1 },
+      },
+    });
+  });
+
+  it('carries the servings of today’s dinner (guests)', async () => {
+    const plan = await createPlan(WEEK);
+    await patchMeal(plan.meals[1].id, {
+      recipeId: recipeId(2),
+      servings: { [DANI.id]: 2, [POLI.id]: 2 },
+    });
+
+    expect((await cooking()).dinner.servings).toEqual({
+      [DANI.id]: 2,
+      [POLI.id]: 2,
     });
   });
 
@@ -731,7 +748,11 @@ describe('cooking.dinner in GET /api/dashboard', () => {
 
     expect(await cooking()).toEqual({
       lunch: null,
-      dinner: { title: 'ядем навън', cookUserId: null },
+      dinner: {
+        title: 'ядем навън',
+        cookUserId: null,
+        servings: { [DANI.id]: 1, [POLI.id]: 1 },
+      },
     });
   });
 
