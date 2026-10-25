@@ -2,16 +2,28 @@ import { meResponseSchema } from '@family/shared';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { apiError, dani, server } from '../test/msw';
+import { setUpDevice } from '../test/render';
 import { ApiError, apiFetch } from './client';
 
 describe('apiFetch', () => {
-  it('слага X-Acting-User от localStorage', async () => {
-    localStorage.setItem('family.actingUserId', dani.id);
+  it('на телефон слага X-Acting-User от localStorage', async () => {
+    setUpDevice('phone', dani.id);
 
     const result = await apiFetch('/me', meResponseSchema);
 
     expect(result.user.name).toBe('Дани');
   });
+
+  it.each(['kiosk', 'tv'] as const)(
+    'в режим %s не праща X-Acting-User, дори да е останал записан',
+    async (mode) => {
+      setUpDevice(mode, dani.id);
+
+      const error = await apiFetch('/me', meResponseSchema).catch((e) => e);
+
+      expect(error).toMatchObject({ status: 400, code: 'missing_acting_user' });
+    },
+  );
 
   it('без действащ потребител не праща хедъра и получава 400 от api', async () => {
     const error = await apiFetch('/me', meResponseSchema).catch((e) => e);

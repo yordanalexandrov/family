@@ -66,7 +66,7 @@ Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest`
 ```
 app/              → композиция: code-based маршрути (TanStack Router), QueryClient, режим на устройството, действащ потребител (localStorage), тема, ниво на ефектите, долна навигация
 features/<име>/   → екран + hooks + компоненти за една функционалност (device, who, dashboard, calendar, settings; после menu, shopping, recipes)
-api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User`, Zod, `ApiError`) + TanStack Query hooks (`queries.ts`)
+api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User` само в режим `phone`, Zod, `ApiError`, пренасочване от Access = изтекла сесия) + TanStack Query hooks (`queries.ts`)
 components/       → споделени UI компоненти без бизнес логика (Card, Aurora, TopBar, Avatar, Spinner, ErrorBox, Toast)
 lib/              → общи чисти помощници за няколко features: форматиране на час, дата и пари (`format.ts`), надписите за остарели или липсващи данни (`sync-notes.ts`)
 styles/           → design tokens на „Стъкло“ (`tokens.css`, `data-theme`, `data-effects`), шрифтът Inter (`fonts.css`) и глобални стилове

@@ -4,6 +4,7 @@ import {
   apiErrorSchema,
 } from '@family/shared';
 import { readActingUserId } from '../app/acting-user';
+import { readDeviceMode } from '../app/device-mode';
 
 const BASE_PATH = '/api';
 
@@ -62,7 +63,8 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
-  const actingUserId = readActingUserId();
+  // Само телефонът има действащ потребител; на kiosk/TV останал запис не се праща.
+  const actingUserId = readDeviceMode() === 'phone' ? readActingUserId() : null;
   if (actingUserId) {
     headers.set('X-Acting-User', actingUserId);
   }
