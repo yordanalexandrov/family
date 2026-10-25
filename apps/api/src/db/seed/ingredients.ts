@@ -1,20 +1,19 @@
-import { fileURLToPath } from 'node:url';
 import type { CreateIngredient } from '@family/shared';
 
 /**
- * The data migration that inserts the seed ingredients. It is generated from `ingredients.json`
- * (`pnpm --filter api db:seed-ingredients`), so Drizzle applies it once like any migration;
- * a spec keeps the two in sync.
+ * The seed ingredients live in `ingredients.json` and reach the database only through data migrations, which Drizzle
+ * applies once. A migration that is applied is frozen: adding to `ingredients.json` later goes into a **new** seed
+ * migration (`<n>_seed_ingredients_<what>.sql`), never into an edit of an old one, or production would never see it.
+ * `pnpm --filter api db:seed-ingredients -- <tag>` writes the ingredients no seed migration inserts yet into the
+ * custom migration `<tag>` (made empty by `pnpm --filter api db:generate --custom --name seed_ingredients_<what>`),
+ * and refuses a migration that already has SQL. A spec keeps the JSON and the migrations in sync.
  */
-export const INGREDIENT_SEED_MIGRATION = fileURLToPath(
-  new URL('../../../drizzle/0003_seed_ingredients.sql', import.meta.url),
-);
 
 function literal(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-/** SQL of the seed migration: one insert, idempotent by canonical name (`on conflict do nothing`). */
+/** SQL of a seed migration: one insert, idempotent by canonical name (`on conflict do nothing`). */
 export function ingredientSeedSql(ingredients: CreateIngredient[]): string {
   const rows = ingredients.map(
     ({ name, unit, aisle }) =>
@@ -28,4 +27,11 @@ export function ingredientSeedSql(ingredients: CreateIngredient[]): string {
     'ON CONFLICT DO NOTHING;',
     '',
   ].join('\n');
+}
+
+/** The names a seed migration written by `ingredientSeedSql` inserts, in its order. */
+export function seededIngredientNames(sql: string): string[] {
+  return [...sql.matchAll(/^\('((?:[^']|'')*)', /gm)].map((match) =>
+    (match[1] ?? '').replaceAll("''", "'"),
+  );
 }

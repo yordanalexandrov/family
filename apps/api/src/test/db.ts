@@ -1,20 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { sql } from 'drizzle-orm';
 import { closeDb, createDb, type Db } from '../db/client.js';
+import { dataMigrations } from '../db/seed/migrations.js';
 
 /** The throwaway Postgres from `docker compose --profile test up -d postgres-test`. */
 export const TEST_DATABASE_URL =
   process.env.DATABASE_URL_TEST ??
   'postgres://family:test@127.0.0.1:5433/family';
-
-/**
- * The data migrations (Дани and Поли, the seed ingredients); re-run after every test so their rows
- * are always there. Both are idempotent (`on conflict do nothing`).
- */
-const SEED_MIGRATIONS = [
-  '0001_seed_users.sql',
-  '0003_seed_ingredients.sql',
-].map((file) => new URL(`../../drizzle/${file}`, import.meta.url));
 
 let db: Db | undefined;
 
@@ -48,7 +40,8 @@ export async function resetDatabase(db: Db): Promise<void> {
     await db.execute(sql`truncate ${tables} restart identity cascade`);
   }
   // The pool runs each file as one simple-protocol query, so several statements are fine.
-  for (const file of SEED_MIGRATIONS) {
-    await db.$client.query(await readFile(file, 'utf8'));
+  // The data migrations (`<n>_seed_*`: Дани and Поли, the seed ingredients) are idempotent (`on conflict do nothing`).
+  for (const migration of await dataMigrations()) {
+    await db.$client.query(await readFile(migration.path, 'utf8'));
   }
 }

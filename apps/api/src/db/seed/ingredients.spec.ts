@@ -1,10 +1,16 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { AISLES, createIngredientSchema } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { testDb } from '../../test/db.js';
-import { INGREDIENT_SEED_MIGRATION, ingredientSeedSql } from './ingredients.js';
+import { seededIngredientNames } from './ingredients.js';
 import seed from './ingredients.json' with { type: 'json' };
+import {
+  ingredientSeedMigrations,
+  isEmptyMigration,
+  migrationPath,
+} from './migrations.js';
 
 async function ingredientNames(): Promise<string[]> {
   const { rows } = await testDb().execute<{ name: string }>(
@@ -14,9 +20,9 @@ async function ingredientNames(): Promise<string[]> {
 }
 
 async function runSeedMigration(): Promise<void> {
-  await testDb().$client.query(
-    await readFile(INGREDIENT_SEED_MIGRATION, 'utf8'),
-  );
+  for (const migration of await ingredientSeedMigrations()) {
+    await testDb().$client.query(await readFile(migration.path, 'utf8'));
+  }
 }
 
 describe('ingredient seed', () => {
@@ -78,13 +84,49 @@ describe('ingredients.json', () => {
     }
   });
 
-  it('is what the seed migration inserts (regenerate with `pnpm --filter api db:seed-ingredients`)', async () => {
-    expect(await readFile(INGREDIENT_SEED_MIGRATION, 'utf8')).toBe(
-      ingredientSeedSql(
-        seed.ingredients.map((ingredient) =>
-          createIngredientSchema.parse(ingredient),
-        ),
-      ),
+  it('is inserted by the seed migrations, each ingredient by exactly one (add new ones with `pnpm --filter api db:seed-ingredients`)', async () => {
+    const seeded: string[] = [];
+    for (const migration of await ingredientSeedMigrations()) {
+      seeded.push(
+        ...seededIngredientNames(await readFile(migration.path, 'utf8')),
+      );
+    }
+
+    expect(seeded.sort()).toEqual(
+      seed.ingredients.map((ingredient) => ingredient.name).sort(),
     );
+  });
+});
+
+describe('seed migrations', () => {
+  it('keeps 0003_seed_ingredients as it was applied: new seed ingredients go into a new migration', async () => {
+    const content = await readFile(
+      migrationPath('0003_seed_ingredients'),
+      'utf8',
+    );
+
+    expect(createHash('sha256').update(content).digest('hex')).toBe(
+      'b5b87dcc00765dc0310b4913246a976a9ae16b04a8015a4fff69ccb195822040',
+    );
+  });
+
+  it('reads back the names of a generated migration, quotes included', () => {
+    const generated = [
+      'INSERT INTO "ingredient" ("name", "unit", "aisle") VALUES',
+      "('лук', 'pcs', 'produce'),",
+      "('o''brien', 'g', 'other')",
+      'ON CONFLICT DO NOTHING;',
+    ].join('\n');
+
+    expect(seededIngredientNames(generated)).toEqual(['лук', "o'brien"]);
+  });
+
+  it('treats a fresh custom migration as empty and a generated one as not', () => {
+    expect(
+      isEmptyMigration(
+        '-- Custom SQL migration file, put your code below! --\n',
+      ),
+    ).toBe(true);
+    expect(isEmptyMigration("INSERT INTO x VALUES ('a');")).toBe(false);
   });
 });

@@ -34,9 +34,7 @@ export async function searchIngredients(
     .from(ingredient)
     .where(q ? ilike(ingredient.name, likePattern(q)) : undefined)
     .orderBy(
-      ...(q
-        ? [desc(eq(canonicalName, normalizeIngredientName(q)))]
-        : []),
+      ...(q ? [desc(eq(canonicalName, normalizeIngredientName(q)))] : []),
       ingredient.name,
     )
     .limit(limit);
