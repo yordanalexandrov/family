@@ -38,7 +38,7 @@ export const updateIngredientSchema = createIngredientSchema.partial();
 
 export type UpdateIngredient = z.infer<typeof updateIngredientSchema>;
 
-/** `GET /api/ingredients?q=` for autocomplete: `q` matches anywhere in the name, ignoring case. */
+/** `GET /api/ingredients?q=` for autocomplete: `q` matches anywhere in the name, ignoring case; the exact (canonical) match comes first. */
 export const ingredientsQuerySchema = z.object({
   q: z.string().trim().optional(),
 });

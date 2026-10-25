@@ -34,6 +34,30 @@ describe('GET /api/ingredients', () => {
     ]);
     expect(ingredients[0]).toMatchObject({ unit: 'g', aisle: 'produce' });
   });
+
+  it('puts the exact match first, so the 50-row cap cannot push it out', async () => {
+    // 60 names that contain „мед“ and sort before it.
+    for (let index = 0; index < 60; index += 1) {
+      const response = await createIngredient({
+        name: `а${String(index).padStart(2, '0')} мед`,
+        unit: 'g',
+        aisle: 'other',
+      });
+      expect(response.statusCode).toBe(201);
+    }
+    await createIngredient({ name: 'мед', unit: 'g', aisle: 'other' });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/ingredients?q=${encodeURIComponent(' Мед ')}`,
+      headers,
+    });
+
+    const { ingredients } = ingredientsResponseSchema.parse(response.json());
+    expect(ingredients).toHaveLength(50);
+    expect(ingredients[0]?.name).toBe('мед');
+    expect(ingredients[1]?.name).toBe('а00 мед');
+  });
 });
 
 function createIngredient(payload: object) {

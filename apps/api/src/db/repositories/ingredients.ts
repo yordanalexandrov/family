@@ -1,9 +1,10 @@
-import type {
-  CreateIngredient,
-  Ingredient,
-  UpdateIngredient,
+import {
+  type CreateIngredient,
+  type Ingredient,
+  normalizeIngredientName,
+  type UpdateIngredient,
 } from '@family/shared';
-import { eq, ilike, inArray, sql } from 'drizzle-orm';
+import { desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
 import { ingredient } from '../schema/food.js';
 
@@ -20,6 +21,10 @@ export function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
+/** The canonical name as the unique index `ingredient_name_key` compares it. */
+const canonicalName = sql`lower(trim(${ingredient.name}))`;
+
+/** Names containing `q`, ordered by name, but the one equal to `q`'s canonical form first so `limit` never cuts it. */
 export async function searchIngredients(
   db: Db,
   { q, limit }: { q?: string; limit: number },
@@ -28,7 +33,12 @@ export async function searchIngredients(
     .select(ingredientColumns)
     .from(ingredient)
     .where(q ? ilike(ingredient.name, likePattern(q)) : undefined)
-    .orderBy(ingredient.name)
+    .orderBy(
+      ...(q
+        ? [desc(eq(canonicalName, normalizeIngredientName(q)))]
+        : []),
+      ingredient.name,
+    )
     .limit(limit);
 }
 
@@ -40,7 +50,7 @@ export async function findIngredientByName(
   const [row] = await db
     .select(ingredientColumns)
     .from(ingredient)
-    .where(eq(sql`lower(trim(${ingredient.name}))`, name))
+    .where(eq(canonicalName, name))
     .limit(1);
   return row;
 }

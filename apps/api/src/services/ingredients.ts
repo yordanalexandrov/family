@@ -17,7 +17,7 @@ import { ConflictError, NotFoundError } from './errors.js';
 /** Enough for an autocomplete list; the client narrows with a longer `q`. */
 const SEARCH_LIMIT = 50;
 
-/** Ingredients (GLOSSARY: Продукт) whose name contains `q`, ordered by name, at most 50. */
+/** Ingredients (GLOSSARY: Продукт) whose name contains `q`, ordered by name with an exact match first, at most 50. */
 export function findIngredients(
   db: Db,
   { q }: IngredientsQuery,
