@@ -8,6 +8,7 @@ import {
   recipeSuggestionStatusSchema,
   type Slot,
   type Suggestion,
+  type SuggestionFailure,
   type SuggestionRequestStatus,
   slotSchema,
   suggestionRequestStatusSchema,
@@ -132,7 +133,7 @@ export const recipeSuggestionRequest = pgTable(
       .$type<SuggestionRequestStatus>()
       .notNull()
       .default('pending'),
-    error: text('error'),
+    error: text('error').$type<SuggestionFailure>(),
     requestedBy: uuid('requested_by')
       .notNull()
       .references(() => user.id),

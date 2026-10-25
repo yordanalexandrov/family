@@ -1,5 +1,6 @@
 import type {
   RecipeSuggestParams,
+  SuggestionFailure,
   SuggestionRequestDetail,
 } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
@@ -127,9 +128,9 @@ describe('SuggestionRequestView', () => {
     ]);
   });
 
-  it.each([
+  it.each<[SuggestionFailure, string]>([
     ['invalid_output', 'Получих нечетим отговор'],
-    ['openclaw_unavailable', 'AI не е наличен в момента'],
+    ['stale', 'Сървърът се рестартира, докато търсех. Опитай пак'],
     ['http_502', 'AI отговори с грешка 502, опитай пак'],
   ])('failed/%s показва „%s“', async (code, message) => {
     localStorage.setItem(KEY, dani.id);

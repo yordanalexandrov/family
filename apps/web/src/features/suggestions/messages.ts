@@ -1,5 +1,7 @@
 import {
   type Slot,
+  type SUGGESTION_FAILURES,
+  type SuggestionFailure,
   type SuggestionRequestStatus,
   TAG_LABELS_BG,
 } from '@family/shared';
@@ -19,28 +21,31 @@ export const REQUEST_STATUS_LABELS: Record<SuggestionRequestStatus, string> = {
 
 const OPENCLAW_UNAVAILABLE = 'AI не е наличен в момента';
 
-const FAILURE_MESSAGES: Record<string, string> = {
+const TRY_AGAIN = 'Нещо се обърка, опитай пак';
+
+const FAILURE_MESSAGES: Record<(typeof SUGGESTION_FAILURES)[number], string> = {
   timeout: 'Не успях навреме, опитай пак',
   invalid_output: 'Получих нечетим отговор',
-  openclaw_unavailable: OPENCLAW_UNAVAILABLE,
   stale: 'Сървърът се рестартира, докато търсех. Опитай пак',
   aborted: 'Търсенето беше прекъснато. Опитай пак',
-  error: 'Нещо се обърка, опитай пак',
+  error: TRY_AGAIN,
 };
 
+function isHttpFailure(
+  error: SuggestionFailure,
+): error is Extract<SuggestionFailure, `http_${number}`> {
+  return error.startsWith('http_');
+}
+
 /** Съобщение по кода на неуспешна заявка (`request.error`). */
-export function failureMessage(error: string | undefined): string {
-  if (error !== undefined) {
-    const known = FAILURE_MESSAGES[error];
-    if (known) {
-      return known;
-    }
-    const http = /^http_(\d{3})$/.exec(error);
-    if (http) {
-      return `AI отговори с грешка ${http[1]}, опитай пак`;
-    }
+export function failureMessage(error: SuggestionFailure | undefined): string {
+  if (error === undefined) {
+    return TRY_AGAIN;
   }
-  return 'Нещо се обърка, опитай пак';
+  if (isHttpFailure(error)) {
+    return `AI отговори с грешка ${error.slice('http_'.length)}, опитай пак`;
+  }
+  return FAILURE_MESSAGES[error];
 }
 
 /** Грешка при пускане на заявка: 503 `openclaw_unavailable` с приятелско съобщение, другите както са. */

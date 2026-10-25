@@ -1,3 +1,4 @@
+import type { SuggestionFailure } from '@family/shared';
 import { type ZodType, z } from 'zod';
 import type { OpenClawConfig } from '../config.js';
 
@@ -7,19 +8,36 @@ import type { OpenClawConfig } from '../config.js';
  * AI contract (`recipe.suggest`, later `menu.propose`).
  */
 
+/**
+ * Why a call failed, as a short code that callers store as is (`recipe_suggestion_request.error` for `recipe.suggest`).
+ */
+export type OpenClawFailure = Extract<
+  SuggestionFailure,
+  'timeout' | 'invalid_output' | `http_${number}`
+>;
+
+/** Every failure of the client that is not a bug or an abort by the caller. */
+export abstract class OpenClawError extends Error {
+  abstract readonly code: OpenClawFailure;
+}
+
 /** The gateway answered with a status other than 2xx. */
-export class OpenClawHttpError extends Error {
+export class OpenClawHttpError extends OpenClawError {
   readonly status: number;
+  readonly code: OpenClawFailure;
 
   constructor(status: number) {
     super(`OpenClaw answered HTTP ${status}`);
     this.name = 'OpenClawHttpError';
     this.status = status;
+    this.code = `http_${status}`;
   }
 }
 
 /** No valid answer within `timeoutMs` (the whole call, retry included); the request was aborted, which also cancels the agent run. */
-export class OpenClawTimeoutError extends Error {
+export class OpenClawTimeoutError extends OpenClawError {
+  readonly code = 'timeout';
+
   constructor(timeoutMs: number) {
     super(`OpenClaw did not answer within ${timeoutMs} ms`);
     this.name = 'OpenClawTimeoutError';
@@ -27,7 +45,8 @@ export class OpenClawTimeoutError extends Error {
 }
 
 /** The agent's answer was not valid JSON for the contract, twice. `issues` are of the last attempt. */
-export class OpenClawInvalidOutputError extends Error {
+export class OpenClawInvalidOutputError extends OpenClawError {
+  readonly code = 'invalid_output';
   readonly issues: string;
 
   constructor(issues: string) {

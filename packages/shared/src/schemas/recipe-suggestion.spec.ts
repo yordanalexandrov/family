@@ -4,6 +4,7 @@ import fixture from '../contracts/fixtures/recipe-suggest.valid.json' with {
 };
 import {
   recipeSuggestionSchema,
+  suggestionFailureSchema,
   suggestionRequestSchema,
 } from './recipe-suggestion.js';
 
@@ -32,7 +33,7 @@ describe('suggestionRequestSchema', () => {
       maxMinutes: 30,
       hint: 'нещо с риба',
       status: 'failed',
-      error: 'Агентът не отговори навреме.',
+      error: 'timeout',
       finishedAt: '2026-10-25T18:03:00.000Z',
     };
 
@@ -44,6 +45,27 @@ describe('suggestionRequestSchema', () => {
       suggestionRequestSchema.safeParse({ ...pending, status: 'running' })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('suggestionFailureSchema', () => {
+  it('accepts the failure codes of a run and http_<status>', () => {
+    for (const code of [
+      'timeout',
+      'invalid_output',
+      'aborted',
+      'stale',
+      'error',
+      'http_502',
+    ]) {
+      expect(suggestionFailureSchema.parse(code)).toBe(code);
+    }
+  });
+
+  it('rejects codes no run produces', () => {
+    for (const code of ['openclaw_unavailable', 'http_', 'http_abc', '']) {
+      expect(suggestionFailureSchema.safeParse(code).success).toBe(false);
+    }
   });
 });
 

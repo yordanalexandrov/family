@@ -13,6 +13,25 @@ export type SuggestionRequestStatus = z.infer<
   typeof suggestionRequestStatusSchema
 >;
 
+/**
+ * Why a request ended `failed` (its `error`): `timeout`, `invalid_output` (two invalid answers), `http_<status>`
+ * (the gateway answered an error), `aborted` (the api shut down), `stale` (cut off by a restart) or `error` (a bug).
+ */
+export const SUGGESTION_FAILURES = [
+  'timeout',
+  'invalid_output',
+  'aborted',
+  'stale',
+  'error',
+] as const;
+
+export const suggestionFailureSchema = z.union([
+  z.enum(SUGGESTION_FAILURES),
+  z.templateLiteral(['http_', z.int()]),
+]);
+
+export type SuggestionFailure = z.infer<typeof suggestionFailureSchema>;
+
 /** One run of `recipe.suggest` by a user (GLOSSARY: Заявка за предложения). */
 export const suggestionRequestSchema = z.object({
   id: z.uuid(),
@@ -21,7 +40,7 @@ export const suggestionRequestSchema = z.object({
   tags: z.array(tagSchema),
   hint: z.string().optional(),
   status: suggestionRequestStatusSchema,
-  error: z.string().optional(),
+  error: suggestionFailureSchema.optional(),
   requestedBy: z.uuid(),
   createdAt: z.iso.datetime(),
   finishedAt: z.iso.datetime().optional(),

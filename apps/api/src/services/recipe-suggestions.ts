@@ -6,6 +6,7 @@ import {
   type RecipeSuggestion,
   type RecipeSuggestParams,
   recipeSuggestAgentOutputSchema,
+  type SuggestionFailure,
   type SuggestionRequest,
   type SuggestionRequestDetail,
 } from '@family/shared';
@@ -24,12 +25,7 @@ import {
   lockSuggestion,
 } from '../db/repositories/recipe-suggestions.js';
 import { listActiveRecipeTitles } from '../db/repositories/recipes.js';
-import {
-  type OpenClawClient,
-  OpenClawHttpError,
-  OpenClawInvalidOutputError,
-  OpenClawTimeoutError,
-} from '../openclaw/client.js';
+import { type OpenClawClient, OpenClawError } from '../openclaw/client.js';
 import {
   ConflictError,
   NotFoundError,
@@ -212,16 +208,10 @@ export function createRecipeSuggestionsService({
   };
 }
 
-/** The short `error` of a failed request: `timeout`, `invalid_output`, `http_<status>`, `aborted` or `error`. */
-function errorCode(error: unknown): string {
-  if (error instanceof OpenClawTimeoutError) {
-    return 'timeout';
-  }
-  if (error instanceof OpenClawInvalidOutputError) {
-    return 'invalid_output';
-  }
-  if (error instanceof OpenClawHttpError) {
-    return `http_${error.status}`;
+/** The `error` of a failed request: the client's own code, `aborted` on shutdown, otherwise `error` (a bug). */
+function errorCode(error: unknown): SuggestionFailure {
+  if (error instanceof OpenClawError) {
+    return error.code;
   }
   if (error instanceof Error && error.name === 'AbortError') {
     return 'aborted';
