@@ -6,6 +6,7 @@ const ITEMS = [
   { to: '/', label: 'Дашборд', exact: true },
   { to: '/calendar', label: 'Календар', exact: true },
   { to: '/recipes', label: 'Рецепти', exact: false },
+  { to: '/menu', label: 'Меню', exact: true },
   { to: '/settings', label: 'Настройки', exact: true },
 ] as const;
 
@@ -19,7 +20,7 @@ export function BottomNav() {
             <Link
               to={to}
               className="bottom-nav__link"
-              activeOptions={{ exact }}
+              activeOptions={{ exact, includeSearch: false }}
               activeProps={{ 'aria-current': 'page' }}
             >
               {label}

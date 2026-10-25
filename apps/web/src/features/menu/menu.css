@@ -1,0 +1,348 @@
+/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem). */
+.screen.menu {
+  align-items: stretch;
+  justify-content: flex-start;
+  inline-size: 100%;
+  max-inline-size: 48rem;
+  margin-inline: auto;
+  padding-block-end: calc(var(--bottom-nav-space) + var(--space-4));
+  text-align: start;
+}
+
+.menu__weeks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.menu__back,
+.servings__step {
+  flex: none;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+}
+
+.servings__step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.menu__tabs {
+  display: flex;
+  flex: 1;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+}
+
+.menu__tab {
+  flex: 1;
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu__tab[aria-selected="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.menu__range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.menu__propose,
+.menu__waiting,
+.menu__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+}
+
+.menu__waiting {
+  align-items: center;
+  text-align: center;
+}
+
+.menu__waiting > p,
+.menu__confirm > p,
+.menu__missing {
+  margin: 0;
+}
+
+.menu__missing {
+  color: var(--color-warning);
+}
+
+.menu__counter {
+  align-self: flex-end;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.menu__meals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meal-row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: 3.5rem;
+  padding: var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+}
+
+button.meal-row {
+  cursor: pointer;
+}
+
+button.meal-row:hover {
+  background: var(--glass-bg-strong);
+}
+
+.meal-row__day,
+.meal-row__main,
+.meal-row__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.meal-row__weekday {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.meal-row__date,
+.meal-row__note,
+.meal-row__why,
+.meal-row__servings {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.meal-row__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.meal-row__title--empty {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.meal-row__side {
+  align-items: center;
+}
+
+.meal-row__no-cook {
+  display: inline-block;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 2px dashed var(--color-line);
+  border-radius: 50%;
+}
+
+.menu__summary {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.menu__delete {
+  align-self: flex-start;
+}
+
+.menu__danger {
+  background: var(--color-danger);
+}
+
+/* Лист: отдолу на телефона, центриран прозорец на таблета. */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--color-bg) 60%, transparent);
+  cursor: pointer;
+}
+
+.sheet__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 40rem;
+  max-block-size: 90dvh;
+  overflow-y: auto;
+  padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--color-bg);
+  box-shadow: var(--glass-shadow);
+  text-align: start;
+}
+
+@media (min-width: 48rem) {
+  .sheet {
+    align-items: center;
+  }
+
+  .sheet__panel {
+    border-radius: var(--radius-lg);
+  }
+}
+
+.sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sheet__title {
+  font-size: var(--font-size-lg);
+}
+
+.sheet__title::first-letter {
+  text-transform: uppercase;
+}
+
+fieldset.sheet__section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.sheet__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sheet__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.recipe-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-block-size: 16rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.recipe-picker__option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.recipe-picker__option[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.recipe-picker__empty {
+  color: var(--color-text-muted);
+}
+
+.cook-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.servings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.servings__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.servings__name {
+  flex: 1;
+}
+
+.servings__count {
+  min-inline-size: 2ch;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  text-align: center;
+}

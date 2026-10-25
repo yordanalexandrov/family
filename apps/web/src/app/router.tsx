@@ -15,6 +15,7 @@ import { Aurora } from '../components/Aurora';
 import { CalendarScreen } from '../features/calendar/CalendarScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
+import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
 import {
   EditRecipeScreen,
   NewRecipeScreen,
@@ -196,6 +197,14 @@ const editRecipeRoute = createRoute({
   component: EditRecipeScreen,
 });
 
+// Седмично меню: телефон и таблет; не влиза в kiosk/TV навигацията.
+const menuRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/menu',
+  component: MenuWeek,
+  validateSearch: parseMenuSearch,
+});
+
 // Предложения за рецепти: заявка, изчакване и резултати, преглед и одобрение.
 const suggestRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -242,6 +251,7 @@ const routeTree = rootRoute.addChildren([
   suggestRoute,
   suggestionRequestRoute,
   suggestionReviewRoute,
+  menuRoute,
   ...devRoutes,
 ]);
 
