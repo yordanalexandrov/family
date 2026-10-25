@@ -22,6 +22,15 @@ describe('userSchema', () => {
       'initial',
     ]);
   });
+
+  it('rejects a colour that is not a person colour token (e.g. a CSS value)', () => {
+    const result = userSchema.safeParse({ ...dani, color: '#d9480f' });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      'color',
+    ]);
+  });
 });
 
 describe('meResponseSchema', () => {
