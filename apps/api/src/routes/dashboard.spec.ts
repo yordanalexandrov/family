@@ -86,6 +86,42 @@ async function getDashboard(target: FastifyInstance = app) {
   return dashboardResponseSchema.parse(response.json());
 }
 
+/**
+ * Starts a Wallet sync whose request Wallet does not answer until `release()`, which lets it fail and waits
+ * for it; resolves once the request has reached Wallet.
+ */
+async function heldBudgetSync() {
+  let reached: () => void = () => undefined;
+  const reachedWallet = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  let answer: () => void = () => undefined;
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve;
+  });
+  server.use(
+    budgetsEndpoint(
+      async () => {
+        reached();
+        await answered;
+        return Response.json(
+          { error: 'Invalid or expired token' },
+          { status: 401 },
+        );
+      },
+      { once: true },
+    ),
+  );
+  const running = sync('budget');
+  await reachedWallet;
+  return {
+    async release() {
+      answer();
+      await running;
+    },
+  };
+}
+
 /** An app without Google or Wallet config, with its clock at `now`. */
 async function withUnconfiguredApp(
   now: Date,
@@ -238,5 +274,49 @@ describe('GET /api/dashboard', () => {
       lastSuccessAt: NOW.toISOString(),
       lastError: 'wallet_unauthorized',
     });
+  });
+  it('still reports the failure while the next Wallet sync is under way', async () => {
+    server.use(
+      budgetsEndpoint(
+        () =>
+          Response.json({ error: 'Invalid or expired token' }, { status: 401 }),
+        { once: true },
+      ),
+    );
+    await sync('budget');
+    clock = new Date(NOW.getTime() + 60 * MINUTE_MS);
+    const next = await heldBudgetSync();
+
+    try {
+      const body = await getDashboard();
+
+      expect(body.sync.budget).toEqual({
+        source: 'budget',
+        status: 'failed',
+        lastSuccessAt: null,
+        lastError: 'wallet_unauthorized',
+      });
+    } finally {
+      await next.release();
+    }
+  });
+
+  it('reports a configured source that has never synced as stale, also during its first sync', async () => {
+    expect((await getDashboard()).sync.budget).toMatchObject({
+      status: 'stale',
+      lastSuccessAt: null,
+    });
+
+    const first = await heldBudgetSync();
+
+    try {
+      expect((await getDashboard()).sync.budget).toMatchObject({
+        status: 'stale',
+        lastSuccessAt: null,
+        lastError: null,
+      });
+    } finally {
+      await first.release();
+    }
   });
 });

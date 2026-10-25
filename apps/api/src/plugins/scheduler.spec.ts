@@ -1,3 +1,4 @@
+import { dashboardResponseSchema } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import {
   afterAll,
@@ -26,7 +27,9 @@ import {
   tokenHandler,
 } from '../test/google.js';
 import { server } from '../test/msw.js';
+import { DANI } from '../test/users.js';
 import {
+  budgetsEndpoint,
   budgetsHandler,
   TEST_BUDGET_ID,
   TEST_WALLET_TOKEN,
@@ -82,5 +85,57 @@ describe('scheduler', () => {
       ]);
     });
     expect(await testDb().select().from(budgetSnapshot)).toHaveLength(1);
+  });
+  it('prunes sync history older than a week but keeps the last success of each source', async () => {
+    let clock = new Date('2026-10-10T12:00:00Z');
+    const reader = buildTestApp({
+      wallet: {
+        client: createWalletClient(TEST_WALLET_TOKEN),
+        budgetId: TEST_BUDGET_ID,
+      },
+      now: () => clock,
+    });
+    const budgetStatus = async () => {
+      const response = await reader.inject({
+        method: 'GET',
+        url: '/api/dashboard',
+      });
+      return dashboardResponseSchema.parse(response.json()).sync.budget;
+    };
+    try {
+      const syncBudget = () =>
+        reader.inject({
+          method: 'POST',
+          url: '/api/sync/budget',
+          headers: { 'x-acting-user': DANI.id },
+        });
+      server.use(budgetsHandler());
+      await syncBudget();
+      clock = new Date('2026-10-11T12:00:00Z');
+      server.use(
+        budgetsEndpoint(() =>
+          Response.json({ error: 'Invalid or expired token' }, { status: 401 }),
+        ),
+      );
+      await syncBudget();
+      clock = new Date('2026-10-25T12:00:00Z');
+      expect((await budgetStatus()).status).toBe('failed');
+
+      app = buildTestApp({
+        now: () => clock,
+        scheduler: { firstRunDelayMs: 0 },
+      });
+      await app.ready();
+
+      // The old failure is gone, so the budget is judged by its old success again.
+      await vi.waitFor(async () => {
+        expect(await budgetStatus()).toMatchObject({
+          status: 'stale',
+          lastSuccessAt: '2026-10-10T12:00:00.000Z',
+        });
+      });
+    } finally {
+      await reader.close();
+    }
   });
 });
