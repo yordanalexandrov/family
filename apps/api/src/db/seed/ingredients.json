@@ -1,0 +1,811 @@
+{
+  "aisles": [
+    {
+      "key": "produce",
+      "labelBg": "Плод и зеленчук",
+      "order": 1
+    },
+    {
+      "key": "bakery",
+      "labelBg": "Хляб и тестени",
+      "order": 2
+    },
+    {
+      "key": "meat",
+      "labelBg": "Месо и колбаси",
+      "order": 3
+    },
+    {
+      "key": "fish",
+      "labelBg": "Риба и морски дарове",
+      "order": 4
+    },
+    {
+      "key": "dairy",
+      "labelBg": "Млечни и яйца",
+      "order": 5
+    },
+    {
+      "key": "grains",
+      "labelBg": "Зърнени, варива и паста",
+      "order": 6
+    },
+    {
+      "key": "canned",
+      "labelBg": "Консерви и буркани",
+      "order": 7
+    },
+    {
+      "key": "spices",
+      "labelBg": "Подправки, сосове и бакалия",
+      "order": 8
+    },
+    {
+      "key": "frozen",
+      "labelBg": "Замразени",
+      "order": 9
+    },
+    {
+      "key": "drinks",
+      "labelBg": "Напитки",
+      "order": 10
+    },
+    {
+      "key": "other",
+      "labelBg": "Друго",
+      "order": 11
+    }
+  ],
+  "ingredients": [
+    {
+      "name": "картоф",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "лук",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "чесън",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "морков",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "домат",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "краставица",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "чушка",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "люта чушка",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "патладжан",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "тиквичка",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "тиква",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "зеле",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "карфиол",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "броколи",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "спанак",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "маруля",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "целина",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "праз",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "гъба",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "сладък картоф",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "зелен фасул",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "прясна царевица",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "магданоз",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "копър",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "босилек пресен",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "джинджифил",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "лимон",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "ябълка",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "банан",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "портокал",
+      "unit": "pcs",
+      "aisle": "produce"
+    },
+    {
+      "name": "ягода",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "диня",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "орех",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "бадем",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "сусам",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "стафида",
+      "unit": "g",
+      "aisle": "produce"
+    },
+    {
+      "name": "хляб",
+      "unit": "pcs",
+      "aisle": "bakery"
+    },
+    {
+      "name": "питка",
+      "unit": "pcs",
+      "aisle": "bakery"
+    },
+    {
+      "name": "тортила",
+      "unit": "pcs",
+      "aisle": "bakery"
+    },
+    {
+      "name": "точени кори",
+      "unit": "g",
+      "aisle": "bakery"
+    },
+    {
+      "name": "бутер тесто",
+      "unit": "g",
+      "aisle": "bakery"
+    },
+    {
+      "name": "галета",
+      "unit": "g",
+      "aisle": "bakery"
+    },
+    {
+      "name": "пилешко филе",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "пилешко бутче",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "пиле цяло",
+      "unit": "pcs",
+      "aisle": "meat"
+    },
+    {
+      "name": "пуешко филе",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "свинска кайма",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "смесена кайма",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "телешка кайма",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "свински врат",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "свинско бон филе",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "свинско ребро",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "телешко месо",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "агнешко месо",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "пилешки дроб",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "бекон",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "шунка",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "кренвирш",
+      "unit": "pcs",
+      "aisle": "meat"
+    },
+    {
+      "name": "наденица",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "луканка",
+      "unit": "g",
+      "aisle": "meat"
+    },
+    {
+      "name": "сьомга",
+      "unit": "g",
+      "aisle": "fish"
+    },
+    {
+      "name": "пъстърва",
+      "unit": "pcs",
+      "aisle": "fish"
+    },
+    {
+      "name": "скумрия",
+      "unit": "pcs",
+      "aisle": "fish"
+    },
+    {
+      "name": "ципура",
+      "unit": "pcs",
+      "aisle": "fish"
+    },
+    {
+      "name": "бяла риба филе",
+      "unit": "g",
+      "aisle": "fish"
+    },
+    {
+      "name": "скарида",
+      "unit": "g",
+      "aisle": "fish"
+    },
+    {
+      "name": "прясно мляко",
+      "unit": "ml",
+      "aisle": "dairy"
+    },
+    {
+      "name": "кисело мляко",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "сирене",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "кашкавал",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "извара",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "крема сирене",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "моцарела",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "пармезан",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "сметана",
+      "unit": "ml",
+      "aisle": "dairy"
+    },
+    {
+      "name": "заквасена сметана",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "масло",
+      "unit": "g",
+      "aisle": "dairy"
+    },
+    {
+      "name": "яйце",
+      "unit": "pcs",
+      "aisle": "dairy"
+    },
+    {
+      "name": "брашно",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "пълнозърнесто брашно",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "ориз",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "булгур",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "кускус",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "грис",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "овесени ядки",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "нишесте",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "спагети",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "макарони",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "фиде",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "боб",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "леща",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "нахут",
+      "unit": "g",
+      "aisle": "grains"
+    },
+    {
+      "name": "домати консерва",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "доматено пюре",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "лютеница",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "кисела краставичка",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "маслина",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "царевица консерва",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "грах консерва",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "боб консерва",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "риба тон консерва",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "кокосово мляко",
+      "unit": "ml",
+      "aisle": "canned"
+    },
+    {
+      "name": "сладко",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "мед",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "тахан",
+      "unit": "g",
+      "aisle": "canned"
+    },
+    {
+      "name": "сол",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "захар",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "пудра захар",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "черен пипер",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "червен пипер",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "чубрица",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "кимион",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "канела",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "дафинов лист",
+      "unit": "pcs",
+      "aisle": "spices"
+    },
+    {
+      "name": "риган",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "сушен босилек",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "розмарин",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "куркума",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "ванилия",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "бакпулвер",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "сода бикарбонат",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "суха мая",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "какао",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "бульон кубче",
+      "unit": "pcs",
+      "aisle": "spices"
+    },
+    {
+      "name": "соев сос",
+      "unit": "ml",
+      "aisle": "spices"
+    },
+    {
+      "name": "горчица",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "кетчуп",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "майонеза",
+      "unit": "g",
+      "aisle": "spices"
+    },
+    {
+      "name": "оцет",
+      "unit": "ml",
+      "aisle": "spices"
+    },
+    {
+      "name": "балсамов оцет",
+      "unit": "ml",
+      "aisle": "spices"
+    },
+    {
+      "name": "слънчогледово олио",
+      "unit": "ml",
+      "aisle": "spices"
+    },
+    {
+      "name": "зехтин",
+      "unit": "ml",
+      "aisle": "spices"
+    },
+    {
+      "name": "замразен грах",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "замразен спанак",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "замразена зеленчукова смес",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "замразени горски плодове",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "замразена риба филе",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "замразено тесто",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "сладолед",
+      "unit": "g",
+      "aisle": "frozen"
+    },
+    {
+      "name": "вода",
+      "unit": "ml",
+      "aisle": "drinks"
+    },
+    {
+      "name": "портокалов сок",
+      "unit": "ml",
+      "aisle": "drinks"
+    },
+    {
+      "name": "кафе",
+      "unit": "g",
+      "aisle": "drinks"
+    },
+    {
+      "name": "чай",
+      "unit": "pcs",
+      "aisle": "drinks"
+    },
+    {
+      "name": "бира",
+      "unit": "ml",
+      "aisle": "drinks"
+    },
+    {
+      "name": "бяло вино",
+      "unit": "ml",
+      "aisle": "drinks"
+    },
+    {
+      "name": "червено вино",
+      "unit": "ml",
+      "aisle": "drinks"
+    },
+    {
+      "name": "шоколад",
+      "unit": "g",
+      "aisle": "other"
+    },
+    {
+      "name": "бисквита",
+      "unit": "g",
+      "aisle": "other"
+    },
+    {
+      "name": "желатин",
+      "unit": "g",
+      "aisle": "other"
+    },
+    {
+      "name": "лимонтузу",
+      "unit": "g",
+      "aisle": "other"
+    }
+  ]
+}
