@@ -15,6 +15,23 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      # Тестовата база на api (същите стойности като postgres-test в docker-compose.yml).
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: family
+          POSTGRES_USER: family
+          POSTGRES_PASSWORD: test
+        options: >-
+          --health-cmd "pg_isready -U family -d family"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5433:5432
+    env:
+      DATABASE_URL_TEST: postgres://family:test@127.0.0.1:5433/family
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

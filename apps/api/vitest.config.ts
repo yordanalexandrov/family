@@ -12,5 +12,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.spec.ts'],
+    setupFiles: ['./src/test/setup.ts'],
+    // All spec files share one test database, so they run one after another.
+    fileParallelism: false,
   },
 });

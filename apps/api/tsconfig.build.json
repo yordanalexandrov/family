@@ -7,6 +7,6 @@
     "paths": {}
   },
   "include": ["src"],
-  "exclude": ["src/**/*.spec.ts"],
+  "exclude": ["src/**/*.spec.ts", "src/test"],
   "references": [{ "path": "../../packages/shared/tsconfig.build.json" }]
 }
