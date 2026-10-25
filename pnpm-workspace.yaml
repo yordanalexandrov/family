@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+
+# esbuild (via tsx) works through its optional platform package; its postinstall is not needed.
+ignoredBuiltDependencies:
+  - esbuild

@@ -47,6 +47,7 @@ MVP-то е с минимален AI: OpenClaw предлага меню и ре
 | Backend | Fastify + TypeScript |
 | DB слой | Drizzle ORM (schema в TypeScript, вградени миграции) |
 | Структура | pnpm workspaces: `apps/web`, `apps/api`, `packages/shared` |
+| Инфраструктура | Docker Compose (postgres, api, caddy, backup), Cloudflare Tunnel + Access, GitHub Actions |
 
 ## Фичъри по фази
 
@@ -96,8 +97,8 @@ MVP-то е с минимален AI: OpenClaw предлага меню и ре
 |---|---|---|
 | PWA | Един клиент за телефон, таблет и TV; изглед „kiosk“ за таблета | React + Vite, service worker, Web Push |
 | Backend API | REST/JSON, auth, бизнес логика (меню → списък), единственият писач в базата | Fastify, TypeScript, Drizzle |
-| Postgres | Данните на платформата + кеш на календар и бюджет | Postgres 16, nightly backup |
-| n8n | Всички интеграции и крон-задачи: синхронизира Google Calendar и Wallet, тегли брошури, праща напомняния, задейства OpenClaw | n8n self-hosted (вече го има) |
+| Postgres | Данните на платформата + кеш на календар и бюджет | Postgres 17, nightly backup |
+| n8n | Всички интеграции и крон-задачи: синхронизира Google Calendar и Wallet, тегли брошури, праща напомняния, задейства OpenClaw | n8n self-hosted. Фаза 1 е без n8n — интеграциите живеят в `apps/api` ([ADR-0001](adr/0001-no-n8n-in-phase-1.md)) |
 | OpenClaw | Изпълнява AI контрактите; няма свободен чат към потребителите | OpenClaw + абонаментен LLM (вече го има) |
 | Reverse proxy | TLS; публично на `*.yo-po.eu` през Cloudflare Tunnel, Cloudflare Access с имейл PIN пред всичко | Caddy или Traefik |
 

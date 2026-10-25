@@ -39,7 +39,7 @@ pnpm -r test            # преди commit
 pnpm --filter api db:generate
 ```
 
-Ако промяната засяга runtime wiring (Docker Compose, env, Caddy) — вдигни стека локално и провери ръчно.
+Ако промяната засяга runtime wiring (Docker Compose, Dockerfile, env, Caddy) — вдигни пълния стек локално по [infra/README.md](../infra/README.md) и провери ръчно.
 
 ## Definition of done
 

@@ -1,0 +1,19 @@
+.avatar {
+  --avatar-size: 3rem;
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--avatar-size);
+  block-size: var(--avatar-size);
+  border-radius: 50%;
+  background: var(--avatar-color, var(--color-accent));
+  color: var(--color-person-ink);
+  font-weight: 800;
+  font-size: calc(var(--avatar-size) * 0.45);
+  line-height: 1;
+  flex: none;
+  user-select: none;
+}
+
+.avatar--lg {
+  --avatar-size: clamp(5.5rem, 22vw, 8rem);
+}

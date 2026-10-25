@@ -1,0 +1,40 @@
+# Caddy in the `web` image (Dockerfile). Host network, loopback only (docs/adr/0005-api-and-caddy-on-host-network.md):
+# cloudflared → http://localhost:18090. TLS ends at Cloudflare, so Caddy speaks plain HTTP.
+# api is on 127.0.0.1:$API_PORT, which docker-compose.yml gives to both containers (default 18091).
+{
+	auto_https off
+	admin off
+}
+
+:18090 {
+	bind 127.0.0.1
+	encode zstd gzip
+
+	handle /healthz {
+		reverse_proxy 127.0.0.1:{$API_PORT:18091}
+	}
+	handle /api/* {
+		reverse_proxy 127.0.0.1:{$API_PORT:18091}
+	}
+
+	# Hashed Vite bundles. A missing one is a 404, not index.html cached for a year.
+	handle /assets/* {
+		root * /srv
+		@exists file
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	# The PWA. `route` keeps this order, so try_files has already turned an app path (/who)
+	# into /index.html when @nocache is checked; index.html, the service worker and the manifest
+	# are always revalidated.
+	handle {
+		root * /srv
+		route {
+			try_files {path} /index.html
+			@nocache path / /index.html /sw.js /manifest.webmanifest /registerSW.js
+			header @nocache Cache-Control "no-cache"
+			file_server
+		}
+	}
+}

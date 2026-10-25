@@ -44,7 +44,7 @@
 ## Механика
 
 - Vitest във всички пакети; `pnpm --filter <package> test`, подмножество с `vitest run <glob>`.
-- api: `fastify.inject()` вместо реален порт; тестова Postgres (Docker, `DATABASE_URL_TEST`), миграции се прилагат в `beforeAll`, таблиците се чистят между тестове.
+- api: `fastify.inject()` вместо реален порт. Тестовата Postgres е `docker compose --profile test up -d postgres-test` (tmpfs, 127.0.0.1:5433); адресът идва от `DATABASE_URL_TEST`, по подразбиране `postgres://family:test@127.0.0.1:5433/family`. `src/test/setup.ts` (Vitest `setupFiles`) прилага миграциите от `apps/api/drizzle` в `beforeAll` и след всеки тест прави `TRUNCATE … RESTART IDENTITY CASCADE` на всички таблици в `public` (таблицата на Drizzle е в схема `drizzle` и не се пипа), след което **изпълнява отново data миграцията** `drizzle/0001_seed_users.sql`. Така всеки тест започва от мигрираното състояние с Дани и Поли, а seed данните имат един източник на истина — миграцията, не отделен helper. Spec файловете вървят последователно (`fileParallelism: false`), защото делят една база. `app` за тест се строи с `buildTestApp()` от `src/test/app.ts`: тестовата база и `AUTH_MODE=dev`, подадени изрично, защото `buildApp()` няма auth по подразбиране. Spec подменя `databaseUrl` (недостъпна база за `503` на `/healthz`) или `auth`: `cloudflare-access.spec.ts` минава в режим `cloudflare` с `jwks` от `createLocalJWKSet` вместо ключовете на team домейна.
 - web: React Testing Library + msw; четеш състоянието от DOM-а, не от вътрешни полета; `userEvent` за реални събития.
 - Stub-вай само истинските ръбове: външни HTTP системи (Google Calendar, Wallet, OpenClaw), часовника, env.
 

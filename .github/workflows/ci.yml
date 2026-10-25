@@ -1,0 +1,70 @@
+# Само GitHub-hosted runner. Self-hosted се ползва единствено от deploy.yml.
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      # Тестовата база на api (същите стойности като postgres-test в docker-compose.yml).
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: family
+          POSTGRES_USER: family
+          POSTGRES_PASSWORD: test
+        options: >-
+          --health-cmd "pg_isready -U family -d family"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5433:5432
+    env:
+      DATABASE_URL_TEST: postgres://family:test@127.0.0.1:5433/family
+    steps:
+      - uses: actions/checkout@v7
+      # AGENTS.md → Public repo: runner-ът на homesrv е само за deploy.yml, а deploy.yml не тръгва от PR.
+      - name: Runner на homesrv само в deploy.yml
+        run: sh .github/scripts/check-workflows.sh
+      # deploy.yml не върви на PR, затова се проверява тук статично: синтаксис, изрази, shellcheck на run скриптовете.
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      # Образите от Dockerfile-а (docker-compose.yml): само build, без push; кешът на слоевете е в GitHub Actions cache.
+      - uses: docker/setup-buildx-action@v4
+      - name: docker build --target api
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: api
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: docker build --target web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: web
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
