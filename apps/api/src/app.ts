@@ -159,22 +159,20 @@ export function buildApp({
     await closeDb(db);
   });
   // Runs once the app is ready, i.e. after `server.ts` applied the migrations. Not fatal: the api serves without it.
+  const staleRequests = [
+    ['suggestion requests', () => recipeSuggestions.failStaleRequests()],
+    ['menu proposals', () => menu.failStaleProposals()],
+  ] as const;
   app.addHook('onReady', async () => {
-    try {
-      const failed = await recipeSuggestions.failStaleRequests();
-      if (failed > 0) {
-        app.log.warn({ failed }, 'stale suggestion requests marked failed');
+    for (const [what, failStale] of staleRequests) {
+      try {
+        const failed = await failStale();
+        if (failed > 0) {
+          app.log.warn({ failed }, `stale ${what} marked failed`);
+        }
+      } catch (error) {
+        app.log.error({ err: error }, `could not fail stale ${what}`);
       }
-    } catch (error) {
-      app.log.error({ err: error }, 'could not fail stale suggestion requests');
-    }
-    try {
-      const failed = await menu.failStaleProposals();
-      if (failed > 0) {
-        app.log.warn({ failed }, 'stale menu proposals marked failed');
-      }
-    } catch (error) {
-      app.log.error({ err: error }, 'could not fail stale menu proposals');
     }
   });
 

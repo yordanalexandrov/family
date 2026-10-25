@@ -24,16 +24,17 @@ import {
   lockSuggestion,
 } from '../db/repositories/recipe-suggestions.js';
 import { listActiveRecipeTitles } from '../db/repositories/recipes.js';
-import { failureCode, type OpenClawClient } from '../openclaw/client.js';
+import {
+  createContractRuns,
+  type OpenClawAgent,
+  staleCutoff,
+} from './contract-runs.js';
 import {
   ConflictError,
   NotFoundError,
   OpenClawUnavailableError,
 } from './errors.js';
 import { addRecipe } from './recipes.js';
-
-/** A `pending` request older than this cannot still be running (one api instance, 180 s timeout) after a restart. */
-const STALE_AFTER_MS = 10 * 60 * 1000;
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
 const NO_SUCH_SUGGESTION = 'Няма такова предложение';
@@ -69,61 +70,39 @@ export function createRecipeSuggestionsService({
   log,
 }: {
   db: Db;
-  /** The client and the agent that answers `recipe.suggest` (`OPENCLAW_RECIPE_AGENT`). */
-  openclaw: { client: OpenClawClient; agent: string } | null;
+  /** The agent that answers `recipe.suggest` (`OPENCLAW_RECIPE_AGENT`). */
+  openclaw: OpenClawAgent | null;
   log: FastifyBaseLogger;
 }): RecipeSuggestionsService {
-  const shutdown = new AbortController();
-  const running = new Set<Promise<void>>();
+  const runs = createContractRuns(log);
 
   async function runRequest(
-    { client, agent }: { client: OpenClawClient; agent: string },
+    { client, agent }: OpenClawAgent,
     request: SuggestionRequest,
+    signal: AbortSignal,
   ): Promise<void> {
-    try {
-      const input: RecipeSuggestInput = {
-        slot: request.slot,
-        maxMinutes: request.maxMinutes,
-        tags: request.tags.length > 0 ? request.tags : undefined,
-        hint: request.hint,
-        existingRecipeTitles: await listActiveRecipeTitles(db),
-        ingredientNames: await listIngredientNames(db),
-      };
-      const output = await client.complete({
-        agent,
-        input,
-        outputSchema: recipeSuggestAgentOutputSchema,
-        jsonSchema: {
-          name: 'recipe_suggest',
-          schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
-        },
-        signal: shutdown.signal,
-      });
-      await db.transaction(async (tx) => {
-        await insertSuggestions(tx, request.id, output.suggestions);
-        await finishSuggestionRequest(tx, request.id, 'done', null);
-      });
-    } catch (error) {
-      const code = failureCode(error);
-      if (code === 'error') {
-        log.error(
-          { err: error, requestId: request.id },
-          'recipe.suggest failed',
-        );
-      } else {
-        log.warn(
-          { requestId: request.id, error: code },
-          'recipe.suggest failed',
-        );
-      }
-      await finishSuggestionRequest(db, request.id, 'failed', code).catch(
-        (writeError: unknown) =>
-          log.error(
-            { err: writeError, requestId: request.id },
-            'could not mark the suggestion request failed',
-          ),
-      );
-    }
+    const input: RecipeSuggestInput = {
+      slot: request.slot,
+      maxMinutes: request.maxMinutes,
+      tags: request.tags.length > 0 ? request.tags : undefined,
+      hint: request.hint,
+      existingRecipeTitles: await listActiveRecipeTitles(db),
+      ingredientNames: await listIngredientNames(db),
+    };
+    const output = await client.complete({
+      agent,
+      input,
+      outputSchema: recipeSuggestAgentOutputSchema,
+      jsonSchema: {
+        name: 'recipe_suggest',
+        schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
+      },
+      signal,
+    });
+    await db.transaction(async (tx) => {
+      await insertSuggestions(tx, request.id, output.suggestions);
+      await finishSuggestionRequest(tx, request.id, 'done', null);
+    });
   }
 
   async function decide(id: string, tx: DbExecutor): Promise<RecipeSuggestion> {
@@ -146,12 +125,13 @@ export function createRecipeSuggestionsService({
         );
       }
       const request = await insertSuggestionRequest(db, params, actingUserId);
-      // Not awaited: the client polls GET …/requests/:id. runRequest catches and records its own errors.
-      const run = new Promise<void>((resolve) => setImmediate(resolve)).then(
-        () => runRequest(gateway, request),
-      );
-      running.add(run);
-      void run.finally(() => running.delete(run));
+      // The client polls GET …/requests/:id.
+      runs.start({
+        contract: 'recipe.suggest',
+        logContext: { requestId: request.id },
+        run: (signal) => runRequest(gateway, request, signal),
+        fail: (code) => finishSuggestionRequest(db, request.id, 'failed', code),
+      });
       return request;
     },
 
@@ -192,16 +172,11 @@ export function createRecipeSuggestionsService({
     },
 
     failStaleRequests() {
-      return failPendingRequestsBefore(
-        db,
-        new Date(Date.now() - STALE_AFTER_MS),
-        'stale',
-      );
+      return failPendingRequestsBefore(db, staleCutoff(), 'stale');
     },
 
-    async close() {
-      shutdown.abort();
-      await Promise.all(running);
+    close() {
+      return runs.close();
     },
   };
 }
