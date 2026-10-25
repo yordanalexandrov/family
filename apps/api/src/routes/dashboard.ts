@@ -1,6 +1,7 @@
 import { dashboardResponseSchema } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { readDashboard } from '../services/dashboard.js';
+import { configuredSources } from '../services/sync-status.js';
 
 /** Everything the kiosk, TV and phone screens show, from the cache; Google and Wallet are never asked here. */
 export const dashboardRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -11,10 +12,6 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (app) => {
       config: { actingUser: false },
       schema: { response: { 200: dashboardResponseSchema } },
     },
-    async () =>
-      readDashboard(app.db, app.now(), {
-        calendar: app.calendarSync !== null,
-        budget: app.budgetSync !== null,
-      }),
+    async () => readDashboard(app.db, app.now(), configuredSources(app)),
   );
 };

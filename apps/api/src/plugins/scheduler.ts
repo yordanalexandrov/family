@@ -1,3 +1,4 @@
+import type { SyncRunResult } from '@family/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import { pruneRuns } from '../db/repositories/sync-runs.js';
@@ -19,7 +20,8 @@ export interface Job {
   intervalMs: number;
   /** Each wait is `intervalMs ± jitter × intervalMs`, so syncs do not fall in step with anything else. */
   jitter?: number;
-  run: () => Promise<unknown>;
+  /** A sync answers its result (logged, a `failed` one as a warning); housekeeping answers nothing. */
+  run: () => Promise<SyncRunResult | undefined>;
 }
 
 function jittered(intervalMs: number, jitter: number): number {
@@ -43,11 +45,7 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
     app.log.info({ job: name }, 'job started');
     try {
       const result = await run();
-      const failed =
-        typeof result === 'object' &&
-        result !== null &&
-        'status' in result &&
-        result.status === 'failed';
+      const failed = result?.status === 'failed';
       app.log[failed ? 'warn' : 'info'](
         { job: name, durationMs: Date.now() - startedAt, result },
         'job finished',
@@ -105,7 +103,10 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
     name: 'prune-runs',
     intervalMs: PRUNE_INTERVAL_MS,
     jitter: 0,
-    run: () => pruneRuns(app.db, KEEP_RUNS_DAYS, app.now()),
+    run: async () => {
+      await pruneRuns(app.db, KEEP_RUNS_DAYS, app.now());
+      return undefined;
+    },
   });
 
   // Before `onClose`, where the database pool is closed.

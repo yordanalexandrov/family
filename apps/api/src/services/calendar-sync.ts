@@ -16,13 +16,13 @@ import {
   type EnabledCalendarSource,
   listEnabledSources,
 } from '../db/repositories/calendar-sources.js';
-import { finishRun, startRun } from '../db/repositories/sync-runs.js';
 import type {
   GoogleEvent,
   GoogleEventTime,
   ListEvents,
 } from '../integrations/google-calendar/client.js';
 import { oneAtATime, type Sync } from './sync-mutex.js';
+import { messageOf, recordRun } from './sync-run.js';
 
 /** Title of an event the service account may not see the details of (a private one). */
 const BUSY_TITLE = 'Заето';
@@ -77,61 +77,49 @@ export interface SyncCalendarsDeps {
   db: Db;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * GLOSSARY: Синхронизация. Reloads the window of every source, recorded as one `sync_run`. A source that fails
  * keeps its previous events and the others still sync; the run is then `failed` and its `error` names each
  * failed source.
  */
-export async function syncCalendars({
+export function syncCalendars({
   sources,
   listEvents,
   now,
   db,
 }: SyncCalendarsDeps): Promise<SyncRunResult> {
-  const startedAt = now();
-  const window = syncWindow(startedAt);
-  const runId = await startRun(db, 'calendar', startedAt);
-  const failures: string[] = [];
-  for (const source of sources) {
-    try {
-      const events = await listEvents(
-        source.googleCalendarId,
-        window.from,
-        window.to,
-        FAMILY_TIME_ZONE,
-      );
-      const syncedAt = now();
-      await replaceSourceEvents(
-        db,
-        source.id,
-        window,
-        events.map((event) => toCalendarEventRow(source, event, syncedAt)),
-      );
-    } catch (error) {
-      failures.push(`${source.name}: ${messageOf(error)}`);
+  return recordRun(db, 'calendar', now, async (startedAt) => {
+    const window = syncWindow(startedAt);
+    const failures: string[] = [];
+    for (const source of sources) {
+      try {
+        const events = await listEvents(
+          source.googleCalendarId,
+          window.from,
+          window.to,
+          FAMILY_TIME_ZONE,
+        );
+        const syncedAt = now();
+        await replaceSourceEvents(
+          db,
+          source.id,
+          window,
+          events.map((event) => toCalendarEventRow(source, event, syncedAt)),
+        );
+      } catch (error) {
+        failures.push(`${source.name}: ${messageOf(error)}`);
+      }
     }
-  }
-  const error = failures.length > 0 ? failures.join('; ') : undefined;
-  const finishedAt = now();
-  await finishRun(db, runId, error ? 'failed' : 'ok', error, finishedAt);
-  const durationMs = Math.max(0, finishedAt.getTime() - startedAt.getTime());
-  return error
-    ? { source: 'calendar', status: 'failed', durationMs, error }
-    : { source: 'calendar', status: 'ok', durationMs };
+    return failures.length > 0 ? failures.join('; ') : undefined;
+  });
 }
 
 /** The calendar sync of the app: one run at a time, whether started by the scheduler or by hand. */
-export type CalendarSync = Sync;
-
 export function createCalendarSync(deps: {
   db: Db;
   listEvents: ListEvents;
   now: () => Date;
-}): CalendarSync {
+}): Sync {
   return oneAtATime('calendar', async () => {
     const sources = await listEnabledSources(deps.db);
     return syncCalendars({ ...deps, sources });
