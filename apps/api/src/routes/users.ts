@@ -6,7 +6,11 @@ import { listUsers } from '../db/repositories/users.js';
 export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/api/users',
-    { schema: { response: { 200: usersResponseSchema } } },
+    {
+      // Answers before anyone is picked on the device, so it needs no X-Acting-User.
+      config: { actingUser: false },
+      schema: { response: { 200: usersResponseSchema } },
+    },
     async () => ({ users: await listUsers(app.db) }),
   );
 };
