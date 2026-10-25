@@ -1,0 +1,82 @@
+# Единственият workflow, който ползва self-hosted runner. Тръгва само от `master`. Виж AGENTS.md → Public repo.
+# Runner: homesrv-family на homesrv (infra/README.md → GitHub). ci.yml пази правилото с .github/scripts/check-workflows.sh.
+# Логът на Actions в публично repo е публичен: secrets не се echo-ват, .env не се качва като artifact.
+# Нова променлива в .env (следващ епик): ред в "Write runtime env" + secret в GitHub Environment production.
+name: deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Един deploy наведнъж: новият чака текущия, не го прекъсва (от няколко чакащи остава най-новият).
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # workflow_dispatch позволява избор на клон; deploy-ва се само master.
+    if: github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, linux, family]
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # След checkout-а git не трябва, затова токенът не остава в workspace-а на сървъра.
+          persist-credentials: false
+
+      # .env (в .gitignore и .dockerignore) е до docker-compose.yml: оттам са ${POSTGRES_PASSWORD} и ${TZ},
+      # а api го чете през env_file. NODE_ENV, AUTH_MODE и DATABASE_URL на api задава docker-compose.yml.
+      - name: Write runtime env
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          CF_ACCESS_TEAM_DOMAIN: ${{ secrets.CF_ACCESS_TEAM_DOMAIN }}
+          CF_ACCESS_AUD: ${{ secrets.CF_ACCESS_AUD }}
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+        run: |
+          # Без някой от тях api не тръгва: спираме, преди стекът да е пипнат, и казваме само името.
+          for name in POSTGRES_PASSWORD CF_ACCESS_TEAM_DOMAIN CF_ACCESS_AUD ALLOWED_EMAILS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::secret $name is not set in the production environment"
+              exit 1
+            fi
+          done
+          umask 077
+          cat > .env <<EOF
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          CF_ACCESS_TEAM_DOMAIN=${CF_ACCESS_TEAM_DOMAIN}
+          CF_ACCESS_AUD=${CF_ACCESS_AUD}
+          ALLOWED_EMAILS=${ALLOWED_EMAILS}
+          TZ=Europe/Sofia
+          EOF
+
+      # Пресъздава само контейнерите с нов образ или нова конфигурация; postgres и volume pgdata остават.
+      # backup.sh е bind mount на файл: git пише промяната като нов файл, който работещият backup не вижда,
+      # а compose не го пресъздава, затова при разлика се пресъздава само backup.
+      # prune: само висящите образи на този проект, не на другите стекове на homesrv.
+      - name: Deploy
+        run: |
+          docker compose -p family up -d --build --remove-orphans
+          docker compose -p family exec -T backup cat /usr/local/bin/backup.sh | cmp -s - infra/backup/backup.sh ||
+            docker compose -p family up -d --no-deps --force-recreate backup
+          docker image prune -f --filter label=com.docker.compose.project=family
+
+      # През Caddy, по пътя на cloudflared: /healthz стига api и базата, / е index.html на PWA-то.
+      - name: Smoke test
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 5 http://127.0.0.1:18090/healthz | grep -q '"db":"ok"' &&
+              curl -fsS --max-time 5 http://127.0.0.1:18090/ | grep -q '<div id="root">'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::127.0.0.1:18090 did not answer /healthz with db ok and / with index.html within 60 s"
+          docker compose -p family ps -a
+          docker compose -p family logs --tail 100 api
+          exit 1
