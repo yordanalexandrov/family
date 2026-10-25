@@ -64,10 +64,58 @@ export const recipeSuggestOutputSchema = z.object({
 export type RecipeSuggestOutput = z.infer<typeof recipeSuggestOutputSchema>;
 
 /**
- * JSON Schema of the output for `response_format: { type: 'json_schema' }`. Refinements
- * (a pinch has no quantity) are not expressible there; the API still parses with the Zod schema.
+ * The output as the agent writes it under strict structured outputs (`response_format.json_schema.strict: true`),
+ * where every property is required and an optional one is sent as `null`. Only for the JSON Schema below.
+ */
+const recipeSuggestWireSchema = z.object({
+  suggestions: z
+    .array(
+      suggestionSchema.extend({
+        // `format: uri` is not supported in strict mode; the URL is still checked by `suggestionSchema`.
+        sourceUrl: z.string(),
+        nutritionPer100g: nutritionSchema.nullable(),
+      }),
+    )
+    .min(3)
+    .max(5),
+});
+
+/**
+ * JSON Schema of the output for `response_format: { type: 'json_schema', strict: true }`: every object closed and
+ * every property required, `nutritionPer100g` nullable. Refinements (a pinch has no quantity) are not expressible
+ * there; the API still parses with {@link recipeSuggestAgentOutputSchema}.
  */
 export const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
-  recipeSuggestOutputSchema,
+  recipeSuggestWireSchema,
   { io: 'output', unrepresentable: 'any' },
+);
+
+/** `nutritionPer100g: null` (how strict mode says "none") becomes absent; anything else is left for the contract. */
+function withoutNullNutrition(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.suggestions)) {
+    return value;
+  }
+  return {
+    ...value,
+    suggestions: value.suggestions.map((suggestion: unknown) => {
+      if (!isRecord(suggestion) || suggestion.nutritionPer100g !== null) {
+        return suggestion;
+      }
+      const { nutritionPer100g: _none, ...rest } = suggestion;
+      return rest;
+    }),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The agent's answer parsed into {@link RecipeSuggestOutput}: accepts `nutritionPer100g: null` from strict mode as
+ * well as the field left out, and otherwise refuses exactly what {@link recipeSuggestOutputSchema} refuses.
+ */
+export const recipeSuggestAgentOutputSchema = z.preprocess(
+  withoutNullNutrition,
+  recipeSuggestOutputSchema,
 );

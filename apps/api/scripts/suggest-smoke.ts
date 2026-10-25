@@ -6,7 +6,7 @@ import { parseArgs } from 'node:util';
 import {
   RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
   type RecipeSuggestInput,
-  recipeSuggestOutputSchema,
+  recipeSuggestAgentOutputSchema,
   recipeSuggestParamsSchema,
 } from '@family/shared';
 import { z } from 'zod';
@@ -70,7 +70,7 @@ try {
   const output = await client.complete({
     agent: config.recipeAgent,
     input,
-    outputSchema: recipeSuggestOutputSchema,
+    outputSchema: recipeSuggestAgentOutputSchema,
     jsonSchema: {
       name: 'recipe_suggest',
       schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,

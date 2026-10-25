@@ -4,6 +4,7 @@ import fixture from './fixtures/recipe-suggest.valid.json' with {
 };
 import {
   RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
+  recipeSuggestAgentOutputSchema,
   recipeSuggestInputSchema,
   recipeSuggestOutputSchema,
 } from './recipe-suggest.js';
@@ -138,6 +139,94 @@ describe('RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA', () => {
         'steps',
       ]),
     );
-    expect(suggestions.items.required).not.toContain('nutritionPer100g');
+  });
+
+  it('is accepted by strict structured outputs: every object closed, every property required', () => {
+    // OpenAI-style `strict: true`: optional fields are nullable instead, and only these string formats exist.
+    const formats = new Set([
+      'date-time',
+      'time',
+      'date',
+      'duration',
+      'email',
+      'hostname',
+      'ipv4',
+      'ipv6',
+      'uuid',
+    ]);
+    const problems: string[] = [];
+    function walk(node: unknown, path: string): void {
+      if (Array.isArray(node)) {
+        for (const [index, item] of node.entries()) {
+          walk(item, `${path}[${index}]`);
+        }
+        return;
+      }
+      if (typeof node !== 'object' || node === null) {
+        return;
+      }
+      const record = node as Record<string, unknown>;
+      if (record.type === 'object') {
+        const keys = Object.keys(
+          (record.properties ?? {}) as Record<string, unknown>,
+        ).sort();
+        if (record.additionalProperties !== false) {
+          problems.push(`${path}: additionalProperties is not false`);
+        }
+        if (
+          JSON.stringify([...((record.required ?? []) as string[])].sort()) !==
+          JSON.stringify(keys)
+        ) {
+          problems.push(`${path}: not every property is required`);
+        }
+      }
+      if (typeof record.format === 'string' && !formats.has(record.format)) {
+        problems.push(`${path}: format ${record.format} is not supported`);
+      }
+      for (const [key, value] of Object.entries(record)) {
+        walk(value, `${path}.${key}`);
+      }
+    }
+
+    walk(RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA, '$');
+
+    expect(problems).toEqual([]);
+  });
+
+  it('asks for nutritionPer100g as an object or null', () => {
+    const schema = RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA as unknown as {
+      properties: {
+        suggestions: {
+          items: { properties: { nutritionPer100g: { anyOf: unknown[] } } };
+        };
+      };
+    };
+
+    expect(
+      schema.properties.suggestions.items.properties.nutritionPer100g.anyOf,
+    ).toEqual([expect.objectContaining({ type: 'object' }), { type: 'null' }]);
+  });
+});
+
+describe('recipeSuggestAgentOutputSchema', () => {
+  it('reads nutritionPer100g: null, as strict mode sends it, as no nutrition', () => {
+    const output = validOutput();
+    output.suggestions[0].nutritionPer100g = null;
+
+    const parsed = recipeSuggestAgentOutputSchema.parse(output);
+
+    expect(parsed.suggestions[0]).not.toHaveProperty('nutritionPer100g');
+    expect(parsed.suggestions[1]).toEqual(output.suggestions[1]);
+  });
+
+  it('still accepts nutrition left out and refuses what the contract refuses', () => {
+    const output = validOutput();
+    delete output.suggestions[0].nutritionPer100g;
+    expect(recipeSuggestAgentOutputSchema.parse(output)).toEqual(output);
+
+    output.suggestions[1].sourceUrl = 'не е линк';
+    expect(recipeSuggestAgentOutputSchema.safeParse(output).success).toBe(
+      false,
+    );
   });
 });

@@ -5,7 +5,7 @@ import {
   type RecipeSuggestInput,
   type RecipeSuggestion,
   type RecipeSuggestParams,
-  recipeSuggestOutputSchema,
+  recipeSuggestAgentOutputSchema,
   type SuggestionRequest,
   type SuggestionRequestDetail,
 } from '@family/shared';
@@ -98,7 +98,7 @@ export function createRecipeSuggestionsService({
       const output = await client.complete({
         agent,
         input,
-        outputSchema: recipeSuggestOutputSchema,
+        outputSchema: recipeSuggestAgentOutputSchema,
         jsonSchema: {
           name: 'recipe_suggest',
           schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,

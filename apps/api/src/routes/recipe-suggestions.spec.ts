@@ -207,6 +207,22 @@ describe('the recipe.suggest run', () => {
     ).toEqual(['Боб чорба']);
   });
 
+  it('takes nutritionPer100g: null, as strict structured outputs send it, as no nutrition', async () => {
+    const output = suggestFixture();
+    const [first] = output.suggestions;
+    if (!first) {
+      throw new Error('fixture without suggestions');
+    }
+    (first as { nutritionPer100g: unknown }).nutritionPer100g = null;
+    const calls = answerInTurn(JSON.stringify(output));
+
+    const body = await finished(await requested({ slot: 'dinner' }));
+
+    expect(body.request.status).toBe('done');
+    expect(calls.bodies).toHaveLength(1);
+    expect(body.suggestions[0].payload).not.toHaveProperty('nutritionPer100g');
+  });
+
   it('accepts JSON wrapped in a ``` fence', async () => {
     answerInTurn(`\`\`\`json\n${VALID()}\n\`\`\``);
 
