@@ -2,12 +2,17 @@ import { z } from 'zod';
 import { budgetSnapshotSchema } from './budget.js';
 import { dayEventsSchema } from './calendar.js';
 import { dateKeySchema, instantSchema } from './dates.js';
+import { servingsSchema } from './menu.js';
 import { syncStatusSchema } from './sync.js';
 
-/** „Днес се готви“ for one slot: the recipe title (or the note of the meal) and who cooks it, `null` when nobody is set. */
+/**
+ * „Днес се готви“ for one slot: the recipe title (or the note of the meal), who cooks it (`null` when nobody is set)
+ * and the servings per user. `servings` is optional so a client keeps reading a server from before Меню 4.
+ */
 export const cookingMealSchema = z.object({
   title: z.string(),
   cookUserId: z.uuid().nullable(),
+  servings: servingsSchema.optional(),
 });
 
 export type CookingMeal = z.infer<typeof cookingMealSchema>;
