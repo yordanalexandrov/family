@@ -1,0 +1,17 @@
+# Пълният стек локално, без Cloudflare Access (infra/README.md):
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+# Compose го чете автоматично върху docker-compose.yml. Файлът е в .gitignore и никога не стига до сървъра.
+services:
+  api:
+    environment:
+      # loadConfig() не пуска AUTH_MODE=dev при NODE_ENV=production.
+      NODE_ENV: test
+      AUTH_MODE: dev
+      DEV_USER_EMAIL: parent@example.com
+  backup:
+    volumes:
+      # Вместо /srv/family/backups на сървъра; `docker compose down -v` го трие.
+      - backups:/backups
+
+volumes:
+  backups:

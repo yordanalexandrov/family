@@ -36,5 +36,51 @@ services:
       timeout: 5s
       retries: 10
 
+  # api и caddy са на host мрежата и слушат само на loopback (docs/adr/0005-api-and-caddy-on-host-network.md).
+  api:
+    build:
+      context: .
+      target: api
+    network_mode: host
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      API_HOST: 127.0.0.1
+      API_PORT: "18091"
+      DATABASE_URL: postgres://family:${POSTGRES_PASSWORD}@127.0.0.1:5432/family
+      AUTH_MODE: cloudflare
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Статиката на web + прокси към api на 127.0.0.1:18090; cloudflared сочи тук (infra/caddy/Caddyfile).
+  caddy:
+    build:
+      context: .
+      target: web
+    network_mode: host
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Всяка нощ в 03:00 (TZ) pg_dump в /srv/family/backups, пази 14 дни (infra/backup/backup.sh).
+  backup:
+    image: postgres:17-alpine
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: family
+      PGDATABASE: family
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-Europe/Sofia}
+    volumes:
+      - /srv/family/backups:/backups
+      - ./infra/backup/backup.sh:/usr/local/bin/backup.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
