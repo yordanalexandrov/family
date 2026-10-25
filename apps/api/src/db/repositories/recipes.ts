@@ -16,8 +16,9 @@ import {
   sql,
 } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
+import { likePattern } from '../like.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
-import { likePattern } from './ingredients.js';
+import { ingredientColumns } from './ingredients.js';
 
 type RecipeRow = typeof recipe.$inferSelect;
 
@@ -71,12 +72,7 @@ export async function findRecipe(
       quantity: recipeIngredient.quantity,
       unit: recipeIngredient.unit,
       note: recipeIngredient.note,
-      ingredient: {
-        id: ingredient.id,
-        name: ingredient.name,
-        unit: ingredient.unit,
-        aisle: ingredient.aisle,
-      },
+      ingredient: ingredientColumns,
     })
     .from(recipeIngredient)
     .innerJoin(ingredient, eq(ingredient.id, recipeIngredient.ingredientId))

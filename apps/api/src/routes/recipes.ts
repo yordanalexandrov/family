@@ -5,7 +5,6 @@ import {
   recipesResponseSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
 import {
   createRecipe,
   findRecipes,
@@ -13,8 +12,7 @@ import {
   replaceRecipe,
   setRecipeArchived,
 } from '../services/recipes.js';
-
-const idParamsSchema = z.object({ id: z.uuid() });
+import { idParamsSchema } from './params.js';
 
 /** The recipe registry (GLOSSARY: Регистър рецепти). There is no DELETE: a recipe is archived instead. */
 export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {

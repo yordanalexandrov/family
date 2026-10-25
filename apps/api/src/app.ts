@@ -78,12 +78,13 @@ export function buildApp({
   );
   app.decorate('db', db);
   app.decorate('users', createUsersService(db));
+  const client =
+    openclaw &&
+    createOpenClawClient(openclaw, app.log.child({ module: 'openclaw' }));
   const recipeSuggestions = createRecipeSuggestionsService({
     db,
-    openclaw: openclaw
-      ? createOpenClawClient(openclaw, app.log.child({ module: 'openclaw' }))
-      : null,
-    agent: openclaw?.recipeAgent ?? 'family-recipe',
+    openclaw:
+      openclaw && client ? { client, agent: openclaw.recipeAgent } : null,
     log: app.log,
   });
   app.decorate('recipeSuggestions', recipeSuggestions);

@@ -7,14 +7,12 @@ import {
   updateIngredientSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
 import {
   changeIngredient,
   createIngredient,
   findIngredients,
 } from '../services/ingredients.js';
-
-const idParamsSchema = z.object({ id: z.uuid() });
+import { idParamsSchema } from './params.js';
 
 /** Ingredients (GLOSSARY: Продукт) are looked up, created and fixed while a recipe is edited. */
 export const ingredientsRoutes: FastifyPluginAsyncZod = async (app) => {

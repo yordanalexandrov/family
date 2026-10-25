@@ -67,19 +67,18 @@ export interface RecipeSuggestionsService {
 export function createRecipeSuggestionsService({
   db,
   openclaw,
-  agent,
   log,
 }: {
   db: Db;
-  openclaw: OpenClawClient | null;
-  agent: string;
+  /** The client and the agent that answers `recipe.suggest` (`OPENCLAW_RECIPE_AGENT`). */
+  openclaw: { client: OpenClawClient; agent: string } | null;
   log: FastifyBaseLogger;
 }): RecipeSuggestionsService {
   const shutdown = new AbortController();
   const running = new Set<Promise<void>>();
 
   async function runRequest(
-    client: OpenClawClient,
+    { client, agent }: { client: OpenClawClient; agent: string },
     request: SuggestionRequest,
   ): Promise<void> {
     try {
@@ -141,8 +140,8 @@ export function createRecipeSuggestionsService({
 
   return {
     async requestSuggestions(params, actingUserId) {
-      const client = openclaw;
-      if (!client) {
+      const gateway = openclaw;
+      if (!gateway) {
         throw new OpenClawUnavailableError(
           'Предложенията не са достъпни: OpenClaw не е настроен',
         );
@@ -150,7 +149,7 @@ export function createRecipeSuggestionsService({
       const request = await insertSuggestionRequest(db, params, actingUserId);
       // Not awaited: the client polls GET …/requests/:id. runRequest catches and records its own errors.
       const run = new Promise<void>((resolve) => setImmediate(resolve)).then(
-        () => runRequest(client, request),
+        () => runRequest(gateway, request),
       );
       running.add(run);
       void run.finally(() => running.delete(run));

@@ -6,20 +6,16 @@ import {
 } from '@family/shared';
 import { desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
+import { likePattern } from '../like.js';
 import { ingredient } from '../schema/food.js';
 
-/** API shape of an ingredient: the DB row without `created_at`. */
-const ingredientColumns = {
+/** API shape of an ingredient: the DB row without `created_at`; also what a recipe line carries. */
+export const ingredientColumns = {
   id: ingredient.id,
   name: ingredient.name,
   unit: ingredient.unit,
   aisle: ingredient.aisle,
 };
-
-/** `%`, `_` and `\` in user text match themselves, not any characters. */
-export function likePattern(text: string): string {
-  return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
-}
 
 /** The canonical name as the unique index `ingredient_name_key` compares it. */
 const canonicalName = sql`lower(trim(${ingredient.name}))`;

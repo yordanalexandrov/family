@@ -9,9 +9,7 @@ import {
   suggestionRequestsResponseSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
-
-const idParamsSchema = z.object({ id: z.uuid() });
+import { idParamsSchema } from './params.js';
 
 /**
  * `recipe.suggest` runs (GLOSSARY: Заявка за предложения) and the decisions on their suggestions. A POST answers 202 at
