@@ -47,7 +47,7 @@ export async function runMigrations(
         throw error;
       }
       log.warn(
-        { attempt, retryInMs: intervalMs, reason: errorMessage(error) },
+        { attempt, retryInMs: intervalMs, reason: rootMessage(error) },
         'database not accepting connections yet, retrying',
       );
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -67,17 +67,28 @@ const CONNECTION_ERROR_CODES = new Set([
   '57P03',
 ]);
 
+/** Drizzle wraps driver errors (`DrizzleQueryError` → `cause`), so the chain is walked down to the socket/Postgres error. */
 function isConnectionError(error: unknown): boolean {
   if (error instanceof AggregateError) {
     return error.errors.some(isConnectionError);
   }
   const code = (error as { code?: unknown } | null)?.code;
-  return (
+  if (
     typeof code === 'string' &&
     (CONNECTION_ERROR_CODES.has(code) || code.startsWith('08'))
-  );
+  ) {
+    return true;
+  }
+  return error instanceof Error && error.cause !== undefined
+    ? isConnectionError(error.cause)
+    : false;
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/** Message of the innermost cause, e.g. `connect ECONNREFUSED 127.0.0.1:5432` rather than Drizzle's "Failed query". */
+function rootMessage(error: unknown): string {
+  let current = error;
+  while (current instanceof Error && current.cause !== undefined) {
+    current = current.cause;
+  }
+  return current instanceof Error ? current.message : String(current);
 }
