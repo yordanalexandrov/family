@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hintSchema } from '../contracts/hint.js';
 import { slotSchema } from '../food/tags.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
@@ -46,8 +47,8 @@ export const mealPlanSchema = z.object({
   summary: z.string().nullable(),
   meals: z.array(mealSchema),
   createdBy: z.uuid(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime(),
+  createdAt: instantSchema,
+  updatedAt: instantSchema,
 });
 
 export type MealPlan = z.infer<typeof mealPlanSchema>;
@@ -114,8 +115,8 @@ export const menuProposalRequestSchema = z.object({
   error: suggestionFailureSchema.optional(),
   requestedBy: z.uuid(),
   planId: z.uuid().optional(),
-  createdAt: z.iso.datetime(),
-  finishedAt: z.iso.datetime().optional(),
+  createdAt: instantSchema,
+  finishedAt: instantSchema.optional(),
 });
 
 export type MenuProposalRequest = z.infer<typeof menuProposalRequestSchema>;
@@ -123,7 +124,7 @@ export type MenuProposalRequest = z.infer<typeof menuProposalRequestSchema>;
 /** `POST /api/menu/proposals`. */
 export const createMenuProposalSchema = z.object({
   weekStart: weekStartSchema,
-  hint: z.string().trim().max(200).optional(),
+  hint: hintSchema.optional(),
 });
 
 export type CreateMenuProposal = z.infer<typeof createMenuProposalSchema>;

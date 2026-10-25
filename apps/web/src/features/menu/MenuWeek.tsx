@@ -1,6 +1,7 @@
 import {
   addDays,
   type DateKey,
+  HINT_MAX,
   hasWeekStarted,
   type MealPlan,
   menuProposalRequestSchema,
@@ -30,8 +31,6 @@ import {
 } from './queries';
 import '../recipes/recipes.css';
 import './menu.css';
-
-const HINT_MAX = 200;
 
 /** `?week=` (понеделник) и `?proposal=` (предложението, което се чака) на `/menu`. */
 export interface MenuSearch {

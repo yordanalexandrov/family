@@ -1,3 +1,4 @@
+export * from './contracts/hint.js';
 export * from './contracts/menu-propose.js';
 export * from './contracts/recipe-suggest.js';
 export * from './dashboard/budget.js';

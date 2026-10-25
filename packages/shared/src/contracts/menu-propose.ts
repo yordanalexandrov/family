@@ -3,6 +3,7 @@ import { slotSchema, tagSchema } from '../food/tags.js';
 import { daysOfWeek } from '../menu/week.js';
 import { dateKeySchema } from '../schemas/dates.js';
 import { weekStartSchema } from '../schemas/menu.js';
+import { hintSchema } from './hint.js';
 
 /**
  * AI contract `menu.propose` (GLOSSARY: AI контракт, Предложение за меню): the API assembles the week and the
@@ -27,7 +28,7 @@ export const menuProposeInputSchema = z.object({
   recipes: z.array(menuProposeRecipeSchema),
   /** Recipes of the meals of the 2 previous weeks, to avoid when the choice allows. */
   recentRecipeIds: z.array(z.string()),
-  hint: z.string().trim().max(200).optional(),
+  hint: hintSchema.optional(),
 });
 
 export type MenuProposeInput = z.infer<typeof menuProposeInputSchema>;
