@@ -17,6 +17,15 @@ beforeAll(async () => {
   test.get('/test/refused', async () => {
     throw new HttpError(403, 'forbidden', 'Нямаш достъп до това');
   });
+  test.get('/test/unavailable', async () => {
+    throw new HttpError(503, 'error', 'Календарът не отговаря, опитай пак');
+  });
+  test.get('/test/pool-down', async () => {
+    throw Object.assign(new Error('pool exhausted at 10.0.0.5:5432'), {
+      statusCode: 503,
+      code: 'POOL_EXHAUSTED',
+    });
+  });
   // Like Fastify's own refusals (e.g. FST_ERR_CTP_INVALID_MEDIA_TYPE): a status and a code outside the contract.
   test.get('/test/teapot', async () => {
     throw Object.assign(new Error('Чайник съм'), {
@@ -55,6 +64,33 @@ describe('error handler', () => {
       error: 'forbidden',
       message: 'Нямаш достъп до това',
     });
+  });
+
+  it('keeps a 5xx status of an HttpError together with its code and message', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test/unavailable',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: 'error',
+      message: 'Календарът не отговаря, опитай пак',
+    });
+  });
+
+  it('keeps a 5xx status of another error but tells nothing from it', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test/pool-down',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: 'internal_error',
+      message: 'Вътрешна грешка',
+    });
+    expect(response.body).not.toContain('10.0.0.5');
   });
 
   it('keeps the status and message of another error with a status, under the generic code error', async () => {

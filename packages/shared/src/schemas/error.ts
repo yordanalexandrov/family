@@ -18,7 +18,7 @@ export const apiErrorCodeSchema = z.enum([
   'not_found',
   // 5xx: a bug or an outage; the client is told nothing more.
   'internal_error',
-  // Any other refusal without a code of its own, e.g. Fastify's 415 for an unsupported content type.
+  // Anything else without a code of its own; its message is for the screen (e.g. Fastify's 415 for an unsupported content type).
   'error',
 ]);
 
