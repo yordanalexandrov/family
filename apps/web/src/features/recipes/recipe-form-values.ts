@@ -1,4 +1,5 @@
 import {
+  type BaseUnit,
   type Ingredient,
   type Recipe,
   type RecipeInput,
@@ -18,6 +19,21 @@ export interface IngredientRowValues {
   quantity: string;
   unit: Unit;
   note?: string;
+  /** Продукт, който го няма в регистъра (от предложение): откроен като „нов продукт“, докато не се свърже. */
+  isNew?: boolean;
+}
+
+/** Основната единица за нов продукт по единицата в рецептата: kg → g, l → ml; лъжиците и „по вкус“ → g. */
+export function baseUnitFor(unit: Unit): BaseUnit {
+  switch (unit) {
+    case 'ml':
+    case 'l':
+      return 'ml';
+    case 'pcs':
+      return 'pcs';
+    default:
+      return 'g';
+  }
 }
 
 /** Стойностите на `RecipeForm` като текст, както са в полетата. */

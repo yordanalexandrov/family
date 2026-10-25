@@ -1,7 +1,12 @@
-import { type Ingredient, normalizeIngredientName } from '@family/shared';
+import {
+  type Ingredient,
+  normalizeIngredientName,
+  type Unit,
+} from '@family/shared';
 import { useId, useState } from 'react';
 import { NewIngredientForm } from './NewIngredientForm';
 import { useIngredientSearch } from './queries';
+import { baseUnitFor } from './recipe-form-values';
 import { useDebouncedValue } from './useDebouncedValue';
 
 const SEARCH_DEBOUNCE_MS = 200;
@@ -9,6 +14,10 @@ const SEARCH_DEBOUNCE_MS = 200;
 interface IngredientPickerProps {
   ingredient: Ingredient | null;
   query: string;
+  /** Единицата в реда; от нея идва основната единица на нов продукт. */
+  unit: Unit;
+  /** Ред от предложение, който го няма в регистъра. */
+  isNew?: boolean | undefined;
   onQueryChange: (query: string) => void;
   onSelect: (ingredient: Ingredient) => void;
   inputProps: {
@@ -25,6 +34,8 @@ interface IngredientPickerProps {
 export function IngredientPicker({
   ingredient,
   query,
+  unit,
+  isNew = false,
   onQueryChange,
   onSelect,
   inputProps,
@@ -57,7 +68,9 @@ export function IngredientPicker({
       />
       {unresolved && (
         <p className="ingredient-picker__unresolved">
-          Непознат продукт: избери от списъка или създай нов
+          {isNew
+            ? 'Нов продукт: избери съществуващ или създай нов'
+            : 'Непознат продукт: избери от списъка или създай нов'}
         </p>
       )}
       <ul
@@ -90,6 +103,7 @@ export function IngredientPicker({
       {creating && (
         <NewIngredientForm
           initialName={query.trim()}
+          initialUnit={baseUnitFor(unit)}
           onCreated={select}
           onCancel={() => setCreating(false)}
         />

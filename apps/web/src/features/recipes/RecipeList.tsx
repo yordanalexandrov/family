@@ -29,6 +29,9 @@ export function RecipeList() {
           ← Начало
         </Link>
         <h1 className="recipes__title">Рецепти</h1>
+        <Link to="/recipes/suggest" className="button button--quiet">
+          Поискай предложение
+        </Link>
         <Link to="/recipes/new" className="button">
           Нова рецепта
         </Link>
@@ -66,9 +69,12 @@ export function RecipeList() {
           onRetry={() => void recipes.refetch()}
         />
       ) : recipes.data.length === 0 ? (
-        <p className="recipes__empty">
-          Няма рецепти. Добави първата или поискай предложение.
-        </p>
+        <div className="recipes__empty">
+          <p>Няма рецепти. Добави първата или поискай предложение.</p>
+          <Link to="/recipes/suggest" className="button">
+            Поискай предложение
+          </Link>
+        </div>
       ) : (
         <ul className="recipe-cards">
           {recipes.data.map((recipe) => (

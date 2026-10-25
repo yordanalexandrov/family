@@ -15,6 +15,9 @@ import {
 } from '../features/recipes/RecipeEditor';
 import { RecipeList } from '../features/recipes/RecipeList';
 import { RecipeView } from '../features/recipes/RecipeView';
+import { SuggestionRequestView } from '../features/suggestions/SuggestionRequestView';
+import { SuggestionReview } from '../features/suggestions/SuggestionReview';
+import { SuggestScreen } from '../features/suggestions/SuggestScreen';
 import { WhoScreen } from '../features/who/WhoScreen';
 import { useActingUser } from './acting-user';
 
@@ -84,6 +87,25 @@ const editRecipeRoute = createRoute({
   component: EditRecipeScreen,
 });
 
+// Предложения за рецепти: заявка, изчакване и резултати, преглед и одобрение.
+const suggestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest',
+  component: SuggestScreen,
+});
+
+const suggestionRequestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest/$requestId',
+  component: SuggestionRequestView,
+});
+
+const suggestionReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest/$requestId/$suggestionId',
+  component: SuggestionReview,
+});
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   whoRoute,
@@ -91,6 +113,9 @@ const routeTree = rootRoute.addChildren([
   newRecipeRoute,
   recipeRoute,
   editRecipeRoute,
+  suggestRoute,
+  suggestionRequestRoute,
+  suggestionReviewRoute,
 ]);
 
 export function createAppRouter(history?: RouterHistory) {

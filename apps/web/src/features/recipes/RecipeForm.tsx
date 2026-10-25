@@ -29,6 +29,8 @@ export interface RecipeFormProps {
   /** Грешка от записа (api), показва се над бутоните. */
   submitError?: unknown;
   onCancel?: () => void;
+  /** Бутонът е блокиран, докато има ред без избран продукт (одобрение на предложение). */
+  requireResolvedIngredients?: boolean;
 }
 
 const NUTRITION_FIELDS = [
@@ -55,11 +57,16 @@ export function RecipeForm({
   isSubmitting = false,
   submitError,
   onCancel,
+  requireResolvedIngredients = false,
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
   );
   const [errors, setErrors] = useState<RecipeFormErrors>({});
+  const unresolvedCount = values.ingredients.filter(
+    (row) => row.ingredient === null,
+  ).length;
+  const blocked = requireResolvedIngredients && unresolvedCount > 0;
 
   function set<K extends keyof RecipeFormValues>(
     key: K,
@@ -195,6 +202,8 @@ export function RecipeForm({
                   inputProps={props}
                   ingredient={row.ingredient}
                   query={row.query}
+                  unit={row.unit}
+                  isNew={row.isNew}
                   onQueryChange={(query) =>
                     updateRow(index, { query, ingredient: null })
                   }
@@ -364,7 +373,18 @@ export function RecipeForm({
         {submitError !== undefined && submitError !== null && (
           <ErrorBox error={submitError} />
         )}
-        <button type="submit" className="button" disabled={isSubmitting}>
+        {blocked && (
+          <p className="recipe-form__blocked">
+            {unresolvedCount === 1
+              ? 'Остава 1 продукт за свързване'
+              : `Остават ${unresolvedCount} продукта за свързване`}
+          </p>
+        )}
+        <button
+          type="submit"
+          className="button"
+          disabled={isSubmitting || blocked}
+        >
           {submitLabel}
         </button>
         {onCancel && (

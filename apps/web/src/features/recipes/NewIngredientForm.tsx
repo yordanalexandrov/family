@@ -14,6 +14,8 @@ import { useCreateIngredient } from './queries';
 
 interface NewIngredientFormProps {
   initialName: string;
+  /** Основна единица по подразбиране, напр. по единицата в рецептата. */
+  initialUnit?: BaseUnit;
   onCreated: (ingredient: Ingredient) => void;
   onCancel: () => void;
 }
@@ -24,11 +26,12 @@ interface NewIngredientFormProps {
  */
 export function NewIngredientForm({
   initialName,
+  initialUnit = 'g',
   onCreated,
   onCancel,
 }: NewIngredientFormProps) {
   const [name, setName] = useState(initialName);
-  const [unit, setUnit] = useState<BaseUnit>('g');
+  const [unit, setUnit] = useState<BaseUnit>(initialUnit);
   const [aisle, setAisle] = useState<Aisle | ''>('');
   const [errors, setErrors] = useState<{ name?: string; aisle?: string }>({});
   const create = useCreateIngredient();

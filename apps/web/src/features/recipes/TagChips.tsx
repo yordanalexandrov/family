@@ -4,13 +4,20 @@ interface TagChipsProps {
   selected: readonly Tag[];
   onToggle: (tag: Tag) => void;
   label: string;
+  /** Кои тагове да се покажат; по подразбиране всички. */
+  options?: readonly Tag[];
 }
 
 /** Фиксираният списък тагове като toggle бутони (`aria-pressed`). */
-export function TagChips({ selected, onToggle, label }: TagChipsProps) {
+export function TagChips({
+  selected,
+  onToggle,
+  label,
+  options = tagSchema.options,
+}: TagChipsProps) {
   return (
     <fieldset className="chips" aria-label={label}>
-      {tagSchema.options.map((tag) => (
+      {options.map((tag) => (
         <button
           key={tag}
           type="button"
