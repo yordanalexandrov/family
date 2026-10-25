@@ -5,9 +5,7 @@ import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { apiError, dani, server } from '../../test/msw';
 import { chickenWithRice } from '../../test/recipes';
-import { renderApp } from '../../test/render';
-
-const KEY = 'family.actingUserId';
+import { renderApp, setUpDevice } from '../../test/render';
 
 function serveRecipe(recipe: Recipe = chickenWithRice) {
   server.use(
@@ -17,7 +15,7 @@ function serveRecipe(recipe: Recipe = chickenWithRice) {
 
 describe('RecipeView', () => {
   it('показва продуктите по щандове с количество и единица, и номерираните стъпки', async () => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveRecipe();
 
     renderApp(`/recipes/${chickenWithRice.id}`);
@@ -66,7 +64,7 @@ describe('RecipeView', () => {
 
   it('„Архивирай“ праща заявката и предлага „Върни“', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveRecipe();
     let archived = false;
     server.use(
@@ -92,7 +90,7 @@ describe('RecipeView', () => {
   });
 
   it('за непозната рецепта показва съобщението от api', async () => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     server.use(
       http.get('/api/recipes/:id', () =>
         apiError(404, 'not_found', 'Няма такава рецепта'),

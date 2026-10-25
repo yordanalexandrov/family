@@ -10,7 +10,7 @@ import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { dani, server } from '../../test/msw';
 import { chicken, ingredients, omelette, salt } from '../../test/recipes';
-import { renderApp } from '../../test/render';
+import { renderApp, setUpDevice } from '../../test/render';
 import {
   chickenSkewers,
   doneRequest,
@@ -18,8 +18,6 @@ import {
   skewersSuggestion,
   suggestions,
 } from '../../test/suggestions';
-
-const KEY = 'family.actingUserId';
 
 const sumac: Ingredient = {
   id: 'aaaaaaaa-0000-4000-8000-000000000010',
@@ -100,7 +98,7 @@ function ingredientRow(index: number) {
 describe('SuggestionReview', () => {
   it('нов продукт блокира „Одобри“; след избор праща recipeInput с реални ingredientId', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const { approved, searches } = serveReview();
 
     renderApp(reviewPath);
@@ -159,7 +157,7 @@ describe('SuggestionReview', () => {
 
   it('продукт без съвпадение се създава с основна единица по рецептата', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const suggestion: RecipeSuggestion = {
       ...skewersSuggestion,
       payload: {
@@ -210,7 +208,7 @@ describe('SuggestionReview', () => {
 
   it('„Отхвърли“ праща reject и връща към предложенията', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveReview();
     const rejected: string[] = [];
     server.use(

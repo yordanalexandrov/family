@@ -39,6 +39,11 @@ jobs:
           CF_ACCESS_AUD: ${{ secrets.CF_ACCESS_AUD }}
           ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
           OPENCLAW_GATEWAY_PASSWORD: ${{ secrets.OPENCLAW_GATEWAY_PASSWORD }}
+          # Дашборд (по избор): празна стойност = източникът е unconfigured, api тръгва без него.
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_CALENDARS: ${{ secrets.GOOGLE_CALENDARS }}
+          WALLET_API_TOKEN: ${{ secrets.WALLET_API_TOKEN }}
+          WALLET_BUDGET_ID: ${{ secrets.WALLET_BUDGET_ID }}
         run: |
           # Без някой от тях api не тръгва: спираме, преди стекът да е пипнат, и казваме само името.
           for name in POSTGRES_PASSWORD CF_ACCESS_TEAM_DOMAIN CF_ACCESS_AUD ALLOWED_EMAILS OPENCLAW_GATEWAY_PASSWORD; do
@@ -47,6 +52,16 @@ jobs:
               exit 1
             fi
           done
+          # Стойностите по избор отиват в .env в единични кавички: dotenv на compose и на Node ги взема буквално,
+          # без интерполация на $ и без escape-и (JSON ключът носи \n). Затова не бива да съдържат ' или нов ред.
+          for name in GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_CALENDARS WALLET_API_TOKEN WALLET_BUDGET_ID; do
+            case "${!name}" in
+              *"'"* | *$'\n'*)
+                echo "::error::secret $name must be one line without single quotes"
+                exit 1
+                ;;
+            esac
+          done
           umask 077
           cat > .env <<EOF
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -54,6 +69,10 @@ jobs:
           CF_ACCESS_AUD=${CF_ACCESS_AUD}
           ALLOWED_EMAILS=${ALLOWED_EMAILS}
           OPENCLAW_GATEWAY_PASSWORD=${OPENCLAW_GATEWAY_PASSWORD}
+          GOOGLE_SERVICE_ACCOUNT_JSON='${GOOGLE_SERVICE_ACCOUNT_JSON}'
+          GOOGLE_CALENDARS='${GOOGLE_CALENDARS}'
+          WALLET_API_TOKEN='${WALLET_API_TOKEN}'
+          WALLET_BUDGET_ID='${WALLET_BUDGET_ID}'
           TZ=Europe/Sofia
           EOF
 

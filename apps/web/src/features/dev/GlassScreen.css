@@ -1,0 +1,128 @@
+.glass-demo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+  padding: var(--space-gap) max(var(--space-gap), env(safe-area-inset-right))
+    var(--space-gap) max(var(--space-gap), env(safe-area-inset-left));
+}
+
+.glass-demo__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.glass-demo__choice {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  font-size: var(--font-size-sm);
+}
+
+.glass-demo__choice legend {
+  padding-inline: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.glass-demo__option {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.glass-demo__option[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.glass-demo__grid {
+  display: grid;
+  gap: var(--space-gap);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 701px) {
+  .glass-demo__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* TV: границата е `WIDE_QUERY` от features/dashboard/dashboard-slots.ts. */
+@media (min-width: 1600px) {
+  .glass-demo__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.glass-demo__core {
+  border-radius: 50%;
+  aspect-ratio: 1;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.glass-demo__core .card__body {
+  flex: none;
+  align-items: center;
+}
+
+.glass-demo__clock {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: 300;
+  letter-spacing: -0.045em;
+  line-height: 0.9;
+}
+
+.glass-demo__money {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.glass-demo__muted {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.glass-demo__events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: start;
+}
+
+.glass-demo__events li {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.glass-demo__grid p {
+  margin: 0;
+}
+
+.glass-demo__person {
+  font-weight: 700;
+  color: var(--color-person-1);
+}
+
+.glass-demo__person[data-person="2"] {
+  color: var(--color-person-2);
+}
+
+.glass-demo__person[data-person="family"] {
+  color: var(--color-person-family);
+}

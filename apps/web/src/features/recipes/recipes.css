@@ -6,6 +6,7 @@
   inline-size: 100%;
   max-inline-size: 64rem;
   margin-inline: auto;
+  padding-block-end: calc(var(--bottom-nav-space) + var(--space-4));
   text-align: start;
 }
 
@@ -48,7 +49,7 @@
   gap: var(--space-3);
   margin: 0;
   padding: var(--space-5);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text-muted);
   text-align: center;
@@ -83,7 +84,7 @@
   min-block-size: 2.75rem;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-line);
-  border-radius: calc(var(--radius) / 2);
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
@@ -166,7 +167,7 @@ textarea.field__input {
   block-size: 100%;
   min-block-size: 2.75rem;
   padding: var(--space-4);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow);
   color: var(--color-text);
@@ -209,7 +210,7 @@ textarea.field__input {
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
@@ -270,7 +271,7 @@ textarea.field__input {
   margin: 0;
   padding: var(--space-4);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
 }
 
@@ -307,7 +308,7 @@ textarea.field__input {
   min-block-size: 2.75rem;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-line);
-  border-radius: calc(var(--radius) / 2);
+  border-radius: var(--radius-sm);
   background: var(--color-surface-2);
   color: var(--color-text);
   font: inherit;
@@ -340,7 +341,7 @@ textarea.field__input {
   padding: 0;
   list-style: none;
   border: 1px solid var(--color-line);
-  border-radius: calc(var(--radius) / 2);
+  border-radius: var(--radius-sm);
   background: var(--color-surface);
 }
 
@@ -375,7 +376,7 @@ textarea.field__input {
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px dashed var(--color-accent);
-  border-radius: calc(var(--radius) / 2);
+  border-radius: var(--radius-sm);
 }
 
 @media (min-width: 48rem) {

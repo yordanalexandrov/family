@@ -1,6 +1,15 @@
-import type { ApiErrorCode, User } from '@family/shared';
+import {
+  type ApiErrorCode,
+  addDays,
+  type DashboardResponse,
+  type DayEvents,
+  dashboardResponseSchema,
+  groupEventsByDay,
+  type User,
+} from '@family/shared';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
+import dashboardFixture from './fixtures/dashboard.json';
 
 // Фикстури по seed-а на api (#16): Дани и Поли.
 export const dani: User = {
@@ -23,9 +32,37 @@ export const users = [dani, poli];
 
 export const accessEmail = 'parent@example.com';
 
+/**
+ * `GET /api/dashboard` в сряда, 4 ноември 2026, 10:00 в София: 4 дни (покана от двата
+ * източника, целодневно, празен ден, многодневно), бюджет в евро, всичко `ok`.
+ * Минава през schema-та, за да не се разминава с договора.
+ */
+export const dashboard: DashboardResponse =
+  dashboardResponseSchema.parse(dashboardFixture);
+
+/** Моментът на фикстурата: 10:00 в София. */
+export const fixtureNow = new Date(dashboard.now);
+
+/** Копие на фикстурата с подменени полета. */
+export function dashboardWith(
+  overrides: Partial<DashboardResponse>,
+): DashboardResponse {
+  return { ...structuredClone(dashboard), ...overrides };
+}
+
 /** Тяло по `apiErrorSchema`, както го връща error handler-ът на api. */
 export function apiError(status: number, error: ApiErrorCode, message: string) {
   return HttpResponse.json({ error, message }, { status });
+}
+
+/** Дните от `from` до `to` (без него), групирани като в api: многодневните са във всеки свой ден. */
+function calendarDays(from: string, to: string): DayEvents[] {
+  const events = new Map(
+    dashboard.days
+      .flatMap((day) => day.events)
+      .map((event) => [event.id, event]),
+  );
+  return groupEventsByDay([...events.values()], from, to);
 }
 
 export const handlers = [
@@ -40,6 +77,13 @@ export const handlers = [
       return apiError(400, 'unknown_acting_user', 'Непознат потребител');
     }
     return HttpResponse.json({ user, accessEmail });
+  }),
+  http.get('/api/dashboard', () => HttpResponse.json(dashboard)),
+  http.get('/api/calendar/events', ({ request }) => {
+    const url = new URL(request.url);
+    const from = url.searchParams.get('from') ?? dashboard.today;
+    const to = url.searchParams.get('to') ?? addDays(from, 14);
+    return HttpResponse.json({ from, to, days: calendarDays(from, to) });
   }),
 ];
 

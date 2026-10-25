@@ -11,9 +11,7 @@ import {
   omelette,
   salt,
 } from '../../test/recipes';
-import { renderApp } from '../../test/render';
-
-const KEY = 'family.actingUserId';
+import { renderApp, setUpDevice } from '../../test/render';
 
 const mint: Ingredient = {
   id: 'aaaaaaaa-0000-4000-8000-000000000009',
@@ -58,7 +56,7 @@ function ingredientRow(index: number) {
 describe('RecipeForm', () => {
   it('попълване с избор от autocomplete праща POST /api/recipes с правилното тяло', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const saved = serveForm();
 
     renderApp('/recipes/new');
@@ -123,7 +121,7 @@ describe('RecipeForm', () => {
 
   it('„Нов продукт“ праща POST /api/ingredients и новият продукт застава в реда', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveForm();
     const created: unknown[] = [];
     server.use(
@@ -167,7 +165,7 @@ describe('RecipeForm', () => {
 
   it('при 409 за нов продукт предлага съществуващия', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveForm();
     server.use(
       http.get('/api/ingredients', () =>
@@ -216,7 +214,7 @@ describe('RecipeForm', () => {
 
   it('без заглавие не праща и показва грешката под полето', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const saved = serveForm();
 
     renderApp('/recipes/new');
@@ -238,7 +236,7 @@ describe('RecipeForm', () => {
 
   it('редакцията зарежда рецептата и праща PUT с промените', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const put: RecipeInput[] = [];
     server.use(
       http.get(`/api/recipes/${chickenWithRice.id}`, () =>

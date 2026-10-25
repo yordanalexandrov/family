@@ -1,0 +1,42 @@
+{
+  "kind": "calendar#events",
+  "summary": "Дани",
+  "timeZone": "Europe/Sofia",
+  "items": [
+    {
+      "id": "birthday",
+      "iCalUID": "birthday@google.com",
+      "status": "confirmed",
+      "summary": "Рожден ден на баба",
+      "start": { "date": "2026-11-03" },
+      "end": { "date": "2026-11-04" }
+    },
+    {
+      "id": "dentist",
+      "iCalUID": "dentist@google.com",
+      "status": "confirmed",
+      "summary": "Зъболекар",
+      "location": "ул. Шипка 1",
+      "htmlLink": "https://www.google.com/calendar/event?eid=dentist",
+      "start": {
+        "dateTime": "2026-11-02T17:00:00+02:00",
+        "timeZone": "Europe/Sofia"
+      },
+      "end": {
+        "dateTime": "2026-11-02T18:00:00+02:00",
+        "timeZone": "Europe/Sofia"
+      }
+    },
+    {
+      "id": "swim_20261104T160000Z",
+      "iCalUID": "swim@google.com",
+      "status": "confirmed",
+      "summary": "Плуване",
+      "recurringEventId": "swim",
+      "originalStartTime": { "dateTime": "2026-11-04T18:00:00+02:00" },
+      "start": { "dateTime": "2026-11-04T18:30:00+02:00" },
+      "end": { "dateTime": "2026-11-04T19:30:00+02:00" }
+    }
+  ],
+  "nextPageToken": "page-2"
+}

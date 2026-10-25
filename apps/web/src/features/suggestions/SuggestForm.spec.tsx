@@ -4,10 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { dani, server } from '../../test/msw';
-import { renderApp } from '../../test/render';
+import { renderApp, setUpDevice } from '../../test/render';
 import { doneRequest, pendingRequest, requestId } from '../../test/suggestions';
-
-const KEY = 'family.actingUserId';
 
 /** Записва телата на `POST …/requests`; заявката веднага е `pending`. */
 function serveRequests() {
@@ -30,7 +28,7 @@ function serveRequests() {
 describe('SuggestForm', () => {
   it('слот, време, таг и подсказка → правилното тяло и към заявката', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const sent = serveRequests();
 
     renderApp('/recipes/suggest');
@@ -55,7 +53,7 @@ describe('SuggestForm', () => {
 
   it('без слот не праща; без време, тагове и подсказка праща само слота', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const sent = serveRequests();
 
     renderApp('/recipes/suggest');
@@ -76,7 +74,7 @@ describe('SuggestForm', () => {
   });
 
   it('под формата са последните заявки с линк към тях', async () => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const limits: (string | null)[] = [];
     serveRequests();
     server.use(
@@ -96,7 +94,7 @@ describe('SuggestForm', () => {
 
   it('503 openclaw_unavailable показва, че AI не е наличен', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveRequests();
     server.use(
       http.post('/api/recipe-suggestions/requests', () =>
@@ -122,7 +120,7 @@ describe('SuggestForm', () => {
   });
 
   it('регистърът има бутон „Поискай предложение“', async () => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     server.use(
       http.get('/api/recipes', () => HttpResponse.json({ recipes: [] })),
     );

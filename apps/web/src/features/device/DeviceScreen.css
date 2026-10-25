@@ -1,0 +1,52 @@
+.device__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-gap);
+  inline-size: min(100%, 60rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.device__choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 9rem;
+  padding: var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    160deg,
+    var(--glass-bg-strong),
+    var(--glass-bg) 40%
+  );
+  box-shadow: var(--glass-shadow);
+  color: var(--color-text);
+  text-align: start;
+  cursor: pointer;
+  transition: transform var(--motion-base) var(--motion-spring);
+}
+
+.device__choice:hover,
+.device__choice:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+}
+
+.device__name {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.device__description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+:root[data-effects="full"] .device__choice {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+}

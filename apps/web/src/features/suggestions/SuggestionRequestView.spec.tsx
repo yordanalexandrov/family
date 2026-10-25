@@ -8,7 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dani, server } from '../../test/msw';
-import { renderApp } from '../../test/render';
+import { renderApp, setUpDevice } from '../../test/render';
 import {
   doneRequest,
   failedRequest,
@@ -18,8 +18,6 @@ import {
   skewersSuggestion,
   suggestions,
 } from '../../test/suggestions';
-
-const KEY = 'family.actingUserId';
 
 /** Отговаря на `GET …/requests/:id` с поредните състояния; последното се повтаря. */
 function serveDetail(...states: SuggestionRequestDetail[]) {
@@ -41,7 +39,7 @@ afterEach(() => {
 describe('SuggestionRequestView', () => {
   it('докато е pending пита на 3 s; при done показва картите', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const calls = serveDetail(
       { request: pendingRequest, suggestions: [] },
       { request: doneRequest, suggestions },
@@ -93,7 +91,7 @@ describe('SuggestionRequestView', () => {
 
   it('failed/timeout показва съобщението; „Опитай пак“ пуска нова заявка със същия вход', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveDetail({ request: failedRequest('timeout'), suggestions: [] });
     const sent: RecipeSuggestParams[] = [];
     const retryId = 'cccccccc-0000-4000-8000-000000000002';
@@ -133,7 +131,7 @@ describe('SuggestionRequestView', () => {
     ['stale', 'Сървърът се рестартира, докато търсех. Опитай пак'],
     ['http_502', 'AI отговори с грешка 502, опитай пак'],
   ])('failed/%s показва „%s“', async (code, message) => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveDetail({ request: failedRequest(code), suggestions: [] });
 
     renderApp(`/recipes/suggest/${requestId}`);

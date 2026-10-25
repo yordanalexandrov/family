@@ -1,0 +1,16 @@
+{
+  "kind": "calendar#events",
+  "summary": "Поли",
+  "timeZone": "Europe/Sofia",
+  "items": [
+    {
+      "id": "dinner-poli",
+      "iCalUID": "dinner@google.com",
+      "status": "confirmed",
+      "summary": "Вечеря с приятели",
+      "start": { "dateTime": "2026-11-05T19:00:00+02:00" },
+      "end": { "dateTime": "2026-11-05T22:00:00+02:00" }
+    }
+  ],
+  "nextSyncToken": "sync-token"
+}

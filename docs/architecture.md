@@ -48,11 +48,15 @@ import { mealPlanSchema, type MealPlan } from '@family/shared';
 
 ```
 routes/      → Fastify plugins; валидират вход/изход със schema от shared, викат service
-plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler
-services/    → бизнес логика (меню → списък за пазаруване и т.н.); без HTTP детайли
+plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler; `scheduler` — кронът на api
+services/    → бизнес логика (меню → списък за пазаруване, синхронизация на календара и т.н.); без HTTP детайли
+integrations/→ клиенти на външни системи (`google-calendar/`): само HTTP и auth към тях, без база
 openclaw/    → клиентът към OpenClaw gateway-а (`/v1/chat/completions`) за AI контрактите: Zod валидация + един retry
 db/          → Drizzle schema, миграции, repository функции
+scripts/     → ръчни инструменти през `tsx` (напр. `calendar:probe` срещу реалния Google)
 ```
+
+Синхронизациите с външни системи вървят сами: `plugins/scheduler.ts` пуска всяка задача 5 с след `ready`, после през интервала ± 25 % jitter (`setTimeout` верига) и я спира при затваряне, като изчаква текущото пускане. Задача се регистрира само ако системата е конфигурирана; иначе се логва „calendar sync: unconfigured“ и `app.calendarSync` е `null`. Ръчното пускане (`POST /api/sync/calendar`) и кронът минават през един и същ service с mutex, затова второ пускане по време на първото връща `running`. `buildApp()` получава клиента (`googleCalendar`), календарите от GOOGLE_CALENDARS (`calendarSources`, upsert-ват се в `onReady`), часовника (`now`) и `scheduler` отвън: `server.ts` ги строи от config, а spec-овете подават клиент с генериран ключ срещу msw, фиксиран часовник и без scheduler.
 
 AI контрактите вървят във фон в процеса на api: `POST` записва заявка `pending` и връща `202`, service-ът (`app.recipeSuggestions`) вика OpenClaw клиента и записва `done`/`failed`, клиентът пита с `GET`. `app.close()` прекъсва и изчаква текущите заявки, а при старт `pending` заявки по-стари от 10 мин стават `failed`/`stale`. Кодовете на `failed` (`error`: `timeout`, `invalid_output`, `http_<status>`, `aborted`, `stale`, `error`) са `suggestionFailureSchema` в shared; api ги записва, web ги превежда на съобщения. Без `OPENCLAW_GATEWAY_PASSWORD` клиентът е изключен и заявката за предложения връща `503 openclaw_unavailable` — позволено само в `AUTH_MODE=dev`; във всеки друг режим api не тръгва.
 
@@ -63,15 +67,16 @@ Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest`
 ## Слоеве в `apps/web`
 
 ```
-app/              → композиция: code-based маршрути (TanStack Router), QueryClient, действащ потребител (localStorage), тема
-features/<име>/   → екран + hooks + компоненти за една функционалност (who, home; после dashboard, menu, shopping, recipes)
-api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User`, Zod, `ApiError`) + TanStack Query hooks (`queries.ts`)
-components/       → споделени UI компоненти без бизнес логика (Avatar, Spinner, ErrorBox)
-styles/           → design tokens (`tokens.css`, `data-theme`) и глобални стилове
+app/              → композиция: code-based маршрути (TanStack Router), QueryClient, режим на устройството, действащ потребител (localStorage), тема, ниво на ефектите, долна навигация
+features/<име>/   → екран + hooks + компоненти за една функционалност (device, who, dashboard, calendar, settings; после menu, shopping, recipes)
+api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User` само в режим `phone`, Zod, `ApiError`, пренасочване от Access = изтекла сесия) + TanStack Query hooks (`queries.ts`)
+components/       → споделени UI компоненти без бизнес логика (Card, Aurora, TopBar, Avatar, Spinner, ErrorBox, Toast)
+lib/              → общи чисти помощници за няколко features: форматиране на час, дата и пари (`format.ts`), надписите за остарели или липсващи данни (`sync-notes.ts`)
+styles/           → design tokens на „Стъкло“ (`tokens.css`, `data-theme`, `data-effects`), шрифтът Inter (`fonts.css`) и глобални стилове
 logger.ts         → единственият изход към конзолата
 ```
 
-Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът праща към `/who`, докато устройството няма действащ потребител. Заявка, върнала `400 unknown_acting_user` (потребителят вече го няма), чисти избора централно в `QueryCache` (`app/query-client.ts`), така че и тогава root layout-ът води към `/who`; екраните не го обработват сами.
+Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът записва `?device=phone|kiosk|tv` в `family.deviceMode` и маха параметъра; без режим праща към `/device` („Какво е това устройство?“), а в режим `phone` без действащ потребител — към `/who`. kiosk и TV нямат действащ потребител. Заявка, върнала `400 unknown_acting_user` (потребителят вече го няма), чисти избора централно в `QueryCache` (`app/query-client.ts`), така че и тогава root layout-ът води към `/who`; екраните не го обработват сами.
 
 ## Вижте също
 

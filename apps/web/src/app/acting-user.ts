@@ -1,59 +1,25 @@
 import { useSyncExternalStore } from 'react';
-import { logger } from '../logger';
+import { storedSetting } from './stored-setting';
 
 // Действащ потребител на устройството (GLOSSARY: acting user), пазен в localStorage.
 export const ACTING_USER_KEY = 'family.actingUserId';
 
-const listeners = new Set<() => void>();
+const actingUser = storedSetting<string | null>({
+  key: ACTING_USER_KEY,
+  parse: (raw) => raw,
+  unset: null,
+});
 
-export function readActingUserId(): string | null {
-  try {
-    return localStorage.getItem(ACTING_USER_KEY);
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-    return null;
-  }
-}
-
-export function writeActingUserId(id: string): void {
-  try {
-    localStorage.setItem(ACTING_USER_KEY, id);
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-  }
-  notify();
-}
+export const readActingUserId = actingUser.read;
 
 export function clearActingUserId(): void {
-  try {
-    localStorage.removeItem(ACTING_USER_KEY);
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-  }
-  notify();
-}
-
-function notify(): void {
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  // Смяна от друг таб на същото устройство.
-  window.addEventListener('storage', listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener('storage', listener);
-  };
+  actingUser.write(null);
 }
 
 export function useActingUser() {
-  const actingUserId = useSyncExternalStore(subscribe, readActingUserId);
   return {
-    actingUserId,
-    setActingUserId: writeActingUserId,
+    actingUserId: useSyncExternalStore(actingUser.subscribe, actingUser.read),
+    setActingUserId: actingUser.write,
     clearActingUser: clearActingUserId,
   };
 }

@@ -1,0 +1,52 @@
+/* Лентата стои над съдържанието; екраните оставят място с --bottom-nav-space. */
+:root {
+  --bottom-nav-space: calc(4.25rem + env(safe-area-inset-bottom));
+}
+
+.bottom-nav {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) var(--space-4)
+    max(var(--space-2), env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.bottom-nav__list {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow);
+  list-style: none;
+  pointer-events: auto;
+}
+
+.bottom-nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--motion-base);
+}
+
+.bottom-nav__link[aria-current="page"] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+:root[data-effects="full"] .bottom-nav__list {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+}

@@ -1,12 +1,10 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { dani, server } from '../../test/msw';
 import { chickenWithRice, omelette, toSummary } from '../../test/recipes';
-import { renderApp } from '../../test/render';
-
-const KEY = 'family.actingUserId';
+import { renderApp, setUpDevice } from '../../test/render';
 
 /** Записва query-тата на `GET /api/recipes` и връща дадените рецепти. */
 function serveRecipes(recipes = [chickenWithRice, omelette]) {
@@ -22,7 +20,7 @@ function serveRecipes(recipes = [chickenWithRice, omelette]) {
 
 describe('RecipeList', () => {
   it('показва рецептите от регистъра с време и тагове', async () => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveRecipes();
 
     renderApp('/recipes');
@@ -36,7 +34,7 @@ describe('RecipeList', () => {
 
   it('филтър по таг праща tag в query-то', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const queries = serveRecipes();
 
     renderApp('/recipes');
@@ -53,7 +51,7 @@ describe('RecipeList', () => {
 
   it('търсенето праща q, а „покажи архивираните“ праща includeArchived', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     const queries = serveRecipes();
 
     renderApp('/recipes');
@@ -69,7 +67,7 @@ describe('RecipeList', () => {
   });
 
   it('без рецепти показва празно състояние', async () => {
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveRecipes([]);
 
     renderApp('/recipes');
@@ -85,16 +83,23 @@ describe('RecipeList', () => {
     );
   });
 
-  it('от началния екран води към „Рецепти“', async () => {
+  it('от долната навигация на телефона води към „Рецепти“ и я държи активна', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(KEY, dani.id);
+    setUpDevice('phone', dani.id);
     serveRecipes();
 
     renderApp('/');
-    await user.click(await screen.findByRole('link', { name: 'Рецепти' }));
+    const nav = await screen.findByRole('navigation', {
+      name: 'Основна навигация',
+    });
+    await user.click(within(nav).getByRole('link', { name: 'Рецепти' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Рецепти' }),
     ).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Рецепти' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 });

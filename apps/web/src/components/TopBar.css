@@ -1,0 +1,99 @@
+.top-bar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-gap);
+  min-block-size: 2.5em;
+  padding-inline: 0.4em;
+}
+
+.top-bar__date {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.top-bar__date::first-letter {
+  text-transform: uppercase;
+}
+
+.top-bar__sync {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top-bar__source {
+  --dot-color: var(--color-status-ok);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.3em 0.85em 0.3em 0.7em;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.top-bar__source[data-tone="stale"] {
+  --dot-color: var(--color-status-stale);
+  color: var(--color-stale);
+}
+
+.top-bar__source[data-tone="off"] {
+  --dot-color: var(--color-status-off);
+}
+
+.top-bar__dot {
+  flex: none;
+  inline-size: 0.55em;
+  block-size: 0.55em;
+  border-radius: 50%;
+  background: var(--dot-color);
+}
+
+.top-bar__source:not([data-tone="off"]) .top-bar__dot {
+  box-shadow: 0 0 10px var(--dot-color);
+}
+
+:root[data-effects="full"] .top-bar__source {
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+/* Телефон: само точките, името е в aria-label. */
+@media (max-width: 700px) {
+  .top-bar__name {
+    display: none;
+  }
+
+  .top-bar__source {
+    padding: 0.45em;
+  }
+}
+
+/* Непрекъсната анимация: само на full и без reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-effects="full"]
+    .top-bar__source:not([data-tone="off"])
+    .top-bar__dot {
+    animation: top-bar-pulse 2.4s ease-in-out infinite;
+  }
+
+  :root[data-effects="full"] .top-bar__source[data-tone="stale"] .top-bar__dot {
+    animation-duration: 1s;
+  }
+}
+
+@keyframes top-bar-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

@@ -1,0 +1,91 @@
+.day-ring {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+.day-ring__tick {
+  stroke: var(--color-line);
+  stroke-width: 1;
+}
+
+.day-ring__tick--major {
+  stroke: var(--color-text-muted);
+  stroke-width: 2;
+}
+
+.day-ring__hour {
+  fill: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.day-ring__track {
+  fill: none;
+  stroke: var(--ring-track);
+}
+
+/* Изминалата част от деня: пистата е осветена до „сега“. */
+.day-ring__past {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-opacity: 0.16;
+}
+
+.day-ring__segment {
+  fill: none;
+  stroke: var(--segment-color);
+  stroke-linecap: round;
+}
+
+.day-ring__event--past {
+  opacity: 0.55;
+}
+
+.day-ring__avatar circle {
+  fill: var(--avatar-color);
+  stroke: var(--glass-border);
+  stroke-width: 2;
+}
+
+.day-ring__avatar text {
+  fill: var(--color-person-ink);
+  font-size: 11px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+a.day-ring__event {
+  cursor: pointer;
+}
+
+a.day-ring__event:focus-visible {
+  outline: none;
+}
+
+a.day-ring__event:focus-visible .day-ring__segment {
+  stroke-width: 15;
+}
+
+.day-ring__now line {
+  stroke: var(--ring-now);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.day-ring__now circle {
+  fill: var(--ring-now);
+}
+
+:root[data-effects="full"] .day-ring__segment:not(.day-ring__segment--thin) {
+  filter: drop-shadow(0 0 4px var(--segment-color));
+}
+
+:root[data-effects="full"] .day-ring__now {
+  filter: drop-shadow(0 0 4px var(--ring-now));
+}

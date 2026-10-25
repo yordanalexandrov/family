@@ -1,5 +1,37 @@
+import { calendarColorTokenSchema } from '@family/shared';
 import { z } from 'zod';
 
+/** An optional variable; empty (a blank line in .env) counts as missing. */
+function optional<T extends z.ZodType>(schema: T) {
+  return z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    schema.optional(),
+  );
+}
+
+/** One entry of GOOGLE_CALENDARS: a Google calendar to read as a calendar source. */
+const calendarSourceEnv = z.object({
+  googleCalendarId: z.string().min(1),
+  name: z.string().min(1),
+  /** The person the calendar belongs to; `null` for the family calendar. */
+  ownerUserId: z.uuid().nullable(),
+  colorToken: calendarColorTokenSchema,
+});
+
+export type CalendarSourceConfig = z.infer<typeof calendarSourceEnv>;
+
+/** GOOGLE_CALENDARS: a JSON array of calendar sources. */
+const calendarsJson = z
+  .string()
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'must be JSON' });
+      return z.NEVER;
+    }
+  })
+  .pipe(z.array(calendarSourceEnv).min(1));
 /** The OpenClaw gateway (`/v1/chat/completions`, ADR-0004); also read on its own by `scripts/suggest-smoke.ts`. */
 function openClawFields() {
   return {
@@ -61,6 +93,11 @@ const baseEnv = z.object({
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+  // Google Calendar and Wallet are optional: without them their sync is off and shows as unconfigured.
+  GOOGLE_SERVICE_ACCOUNT_JSON: optional(z.string()),
+  GOOGLE_CALENDARS: optional(calendarsJson),
+  WALLET_API_TOKEN: optional(z.string()),
+  WALLET_BUDGET_ID: optional(z.string()),
   ...openClawFields(),
 });
 
@@ -134,7 +171,23 @@ const envSchema = z
       path: ['OPENCLAW_GATEWAY_PASSWORD'],
       message: 'is required unless AUTH_MODE is dev',
     },
-  );
+  )
+  .transform((env) => ({
+    ...env,
+    /** Google Calendar sync can run: a service account and at least one calendar; otherwise `null`. */
+    googleCalendar:
+      env.GOOGLE_SERVICE_ACCOUNT_JSON && env.GOOGLE_CALENDARS
+        ? {
+            serviceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON,
+            calendars: env.GOOGLE_CALENDARS,
+          }
+        : null,
+    /** Wallet sync can run: a token and the budget to read; otherwise `null`. */
+    wallet:
+      env.WALLET_API_TOKEN && env.WALLET_BUDGET_ID
+        ? { apiToken: env.WALLET_API_TOKEN, budgetId: env.WALLET_BUDGET_ID }
+        : null,
+  }));
 
 export type Config = z.infer<typeof envSchema>;
 

@@ -48,6 +48,7 @@
 - api → OpenClaw: msw `setupServer` (`src/test/openclaw.ts`) отговаря на `TEST_OPENCLAW.url`, по подразбиране със записаната фикстура от `packages/shared/src/contracts/fixtures` (alias `@family/shared/fixtures/*` само за тестовете); spec подменя отговора с `openclaw.use(...)`. Фоновата задача се изчаква през публичния route: `GET /api/recipe-suggestions/requests/:id` се пита на 20 ms, докато статусът не е `pending`; за timeout spec-ът строи app с малък `timeoutMs`.
 - web: React Testing Library + msw; четеш състоянието от DOM-а, не от вътрешни полета; `userEvent` за реални събития.
 - Stub-вай само истинските ръбове: външни HTTP системи (Google Calendar, Wallet, OpenClaw), часовника, env.
+- api и външни системи: `msw/node` (`src/test/msw.ts`, `server.listen({ onUnhandledFrame: 'error' })`, за да не излезе нищо към реалната мрежа) с фикстури в `src/test/fixtures/<система>/`. За Google: `src/test/google.ts` — генериран RSA ключ като `GOOGLE_SERVICE_ACCOUNT_JSON`, mock на token endpoint-а и на `events.list` по календар. За Wallet: `src/test/wallet.ts` — тестов токен, `budgetsHandler()` върху фикстурата `budgets-current.json` (филтрира по `?id=` като истинското API) и `budgetsEndpoint()` за грешки.
 
 ## Защо
 

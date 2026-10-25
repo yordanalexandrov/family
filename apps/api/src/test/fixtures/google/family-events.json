@@ -1,0 +1,16 @@
+{
+  "kind": "calendar#events",
+  "summary": "Семеен",
+  "timeZone": "Europe/Sofia",
+  "items": [
+    {
+      "id": "holiday",
+      "iCalUID": "holiday@google.com",
+      "status": "confirmed",
+      "summary": "Ваканция",
+      "start": { "date": "2026-11-07" },
+      "end": { "date": "2026-11-09" }
+    }
+  ],
+  "nextSyncToken": "sync-token"
+}

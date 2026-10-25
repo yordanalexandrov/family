@@ -1,0 +1,96 @@
+/*
+ * kiosk/TV: цял екран без скрол. Решетката е контейнер с размер, за да вземе ядрото
+ * диаметъра си от свободната височина (cqb) и дял от ширината (cqi). Редовете и
+ * областите идват от dashboard-slots.ts през --rows-narrow / --rows-wide.
+ */
+.kiosk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-gap);
+  block-size: 100dvh;
+  overflow: hidden;
+  padding-block: var(--space-gap);
+  padding-inline: max(var(--space-5), env(safe-area-inset-left))
+    max(var(--space-5), env(safe-area-inset-right));
+  font-size: var(--font-size-md);
+}
+
+.kiosk > .top-bar {
+  flex: none;
+}
+
+.kiosk__grid {
+  flex: 1;
+  min-block-size: 0;
+  display: grid;
+  grid-template: var(--rows-narrow) / auto minmax(0, 1fr);
+  gap: var(--space-gap) clamp(16px, 2vw, 40px);
+  container-type: size;
+}
+
+.kiosk__slot {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+/* Ядрото: по височината, но оставя място за картите вдясно. */
+.kiosk__slot[data-slot="core"] {
+  --core-size: min(100cqb, 58cqi);
+  justify-content: center;
+}
+
+/* TV: три колони, ядрото в средата. Границата е `WIDE_QUERY` от dashboard-slots.ts (CSS не може да я внесе). */
+@media (min-width: 1600px) {
+  .kiosk__grid {
+    grid-template: var(--rows-wide) / minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .kiosk__slot[data-slot="core"] {
+    --core-size: min(100cqb, 45cqi);
+  }
+}
+
+.kiosk__slot--link {
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kiosk__slot--link:active > .card {
+  scale: 0.985;
+}
+
+/* Дискретната икона за настройки в долния десен ъгъл. */
+.kiosk__settings {
+  position: fixed;
+  inset-block-end: max(var(--space-3), env(safe-area-inset-bottom));
+  inset-inline-end: max(var(--space-3), env(safe-area-inset-right));
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+}
+
+.kiosk__settings-icon {
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+/* TV: фокус-рамката на дистанционното е върху картата в слота. */
+.kiosk__slot[tabindex] {
+  outline: none;
+}
+
+.kiosk__slot:focus-visible > .card {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 4px;
+}

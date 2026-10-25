@@ -4,6 +4,7 @@ import {
   apiErrorSchema,
 } from '@family/shared';
 import { readActingUserId } from '../app/acting-user';
+import { readDeviceMode } from '../app/device-mode';
 
 const BASE_PATH = '/api';
 
@@ -14,9 +15,10 @@ export interface Schema<T> {
 
 /**
  * Кодове на самия клиент, когато отговорът не е по договора на api: `http_error` — грешка, чието тяло
- * не е по `apiErrorSchema` (напр. 502 от proxy-то); `invalid_response` — 2xx с тяло извън schema-та на route-а.
+ * не е по `apiErrorSchema` (напр. 502 от proxy-то); `invalid_response` — 2xx с тяло извън schema-та на route-а;
+ * `session_expired` — пренасочване вместо отговор: Cloudflare Access праща изтеклата сесия към входа си.
  */
-type ClientErrorCode = 'http_error' | 'invalid_response';
+type ClientErrorCode = 'http_error' | 'invalid_response' | 'session_expired';
 
 /** Грешка от api по `apiErrorSchema` в shared (`{ error: <code>, message }`) или от самия клиент. */
 export class ApiError extends Error {
@@ -38,9 +40,13 @@ export class ApiError extends Error {
     this.body = body;
   }
 
-  /** 401/403: Cloudflare Access сесията е изтекла; презареждането води до PIN екрана. */
+  /** 401/403 или пренасочване: Cloudflare Access сесията е изтекла; презареждането води до PIN екрана. */
   isSessionExpired(): boolean {
-    return this.status === 401 || this.status === 403;
+    return (
+      this.status === 401 ||
+      this.status === 403 ||
+      this.code === 'session_expired'
+    );
   }
 
   /** Избраният на устройството потребител вече не съществува в api (напр. изтрит). */
@@ -64,13 +70,19 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
-  const actingUserId = readActingUserId();
+  // Само телефонът има действащ потребител; на kiosk/TV останал запис не се праща.
+  const actingUserId = readDeviceMode() === 'phone' ? readActingUserId() : null;
   if (actingUserId) {
     headers.set('X-Acting-User', actingUserId);
   }
 
   const url = new URL(`${BASE_PATH}${path}`, window.location.href);
-  const response = await fetch(url, { ...init, headers });
+  // Без `manual` браузърът следва пренасочването на Access към друг origin и fetch пада с TypeError,
+  // което изглежда като липса на връзка.
+  const response = await fetch(url, { ...init, headers, redirect: 'manual' });
+  if (isRedirect(response)) {
+    throw new ApiError(response.status, 'session_expired', 'Сесията изтече');
+  }
   if (!response.ok) {
     throw await toApiError(response);
   }
@@ -84,6 +96,14 @@ export async function apiFetch<T>(
       'Неочакван отговор от сървъра',
     );
   }
+}
+
+/** Браузърът дава `opaqueredirect` (status 0); Node и тестовете — самия 3xx. */
+function isRedirect(response: Response): boolean {
+  return (
+    response.type === 'opaqueredirect' ||
+    (response.status >= 300 && response.status < 400)
+  );
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
