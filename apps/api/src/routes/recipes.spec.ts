@@ -1,0 +1,371 @@
+import {
+  type Ingredient,
+  ingredientsResponseSchema,
+  type RecipeInput,
+  recipeResponseSchema,
+  recipesResponseSchema,
+} from '@family/shared';
+import type { FastifyInstance } from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { buildTestApp } from '../test/app.js';
+import { DANI } from '../test/users.js';
+
+let app: FastifyInstance;
+
+beforeAll(async () => {
+  app = buildTestApp();
+  await app.ready();
+});
+
+afterAll(() => app.close());
+
+const headers = { 'x-acting-user': DANI.id };
+
+/** A seed ingredient, looked up through the API. */
+async function seedIngredient(name: string): Promise<Ingredient> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/ingredients?q=${encodeURIComponent(name)}`,
+    headers,
+  });
+  const { ingredients } = ingredientsResponseSchema.parse(response.json());
+  const found = ingredients.find((ingredient) => ingredient.name === name);
+  if (!found) {
+    throw new Error(`no seed ingredient ${name}`);
+  }
+  return found;
+}
+
+function recipeInput(overrides: Partial<RecipeInput> = {}): RecipeInput {
+  return {
+    title: 'Печени картофи',
+    servings: 4,
+    steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+    tags: ['dinner'],
+    ingredients: [],
+    ...overrides,
+  };
+}
+
+function createRecipe(payload: object) {
+  return app.inject({ method: 'POST', url: '/api/recipes', headers, payload });
+}
+
+async function createdRecipe(payload: RecipeInput) {
+  const response = await createRecipe(payload);
+  expect(response.statusCode).toBe(201);
+  return recipeResponseSchema.parse(response.json()).recipe;
+}
+
+function getRecipe(id: string) {
+  return app.inject({ method: 'GET', url: `/api/recipes/${id}`, headers });
+}
+
+describe('POST /api/recipes', () => {
+  it('creates a recipe with two ingredients and reads it back with their names, units and aisles', async () => {
+    const potato = await seedIngredient('картоф');
+    const salt = await seedIngredient('сол');
+
+    const created = await createdRecipe(
+      recipeInput({
+        sourceUrl: 'https://recepti.example/pecheni-kartofi',
+        prepMinutes: 50,
+        nutritionPer100g: { kcal: 120, proteinG: 2, fatG: 5, carbsG: 17 },
+        ingredients: [
+          { ingredientId: potato.id, quantity: 1.5, unit: 'kg' },
+          {
+            ingredientId: salt.id,
+            quantity: null,
+            unit: 'pinch',
+            note: 'морска',
+          },
+        ],
+      }),
+    );
+
+    const response = await getRecipe(created.id);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      recipe: {
+        id: created.id,
+        title: 'Печени картофи',
+        servings: 4,
+        steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+        sourceUrl: 'https://recepti.example/pecheni-kartofi',
+        prepMinutes: 50,
+        tags: ['dinner'],
+        nutritionPer100g: { kcal: 120, proteinG: 2, fatG: 5, carbsG: 17 },
+        ingredients: [
+          {
+            ingredientId: potato.id,
+            quantity: 1.5,
+            unit: 'kg',
+            ingredient: potato,
+          },
+          {
+            ingredientId: salt.id,
+            quantity: null,
+            unit: 'pinch',
+            note: 'морска',
+            ingredient: salt,
+          },
+        ],
+        archivedAt: null,
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      },
+    });
+    expect(created).toEqual(response.json().recipe);
+  });
+
+  it('answers 400 invalid_reference for an unknown ingredientId and creates nothing', async () => {
+    const response = await createRecipe(
+      recipeInput({
+        ingredients: [
+          {
+            ingredientId: '99999999-9999-4999-8999-999999999999',
+            quantity: 1,
+            unit: 'pcs',
+          },
+        ],
+      }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: 'invalid_reference',
+      message: expect.any(String),
+    });
+    expect(await listTitles('')).toEqual([]);
+  });
+
+  it('answers 400 validation_error for a recipe without steps', async () => {
+    const response = await createRecipe(recipeInput({ steps: [] }));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'validation_error' });
+  });
+});
+
+async function listTitles(query: string) {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/recipes${query}`,
+    headers,
+  });
+  expect(response.statusCode).toBe(200);
+  return recipesResponseSchema
+    .parse(response.json())
+    .recipes.map((recipe) => recipe.title);
+}
+
+function archive(id: string, action: 'archive' | 'unarchive' = 'archive') {
+  return app.inject({
+    method: 'POST',
+    url: `/api/recipes/${id}/${action}`,
+    headers,
+  });
+}
+
+describe('GET /api/recipes', () => {
+  it('lists summaries ordered by title', async () => {
+    const created = await createdRecipe(
+      recipeInput({ title: 'Таратор', prepMinutes: 10, tags: ['lunch'] }),
+    );
+    await createdRecipe(recipeInput({ title: 'Боб чорба' }));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/recipes',
+      headers,
+    });
+
+    expect(response.json().recipes).toEqual([
+      expect.objectContaining({ title: 'Боб чорба' }),
+      {
+        id: created.id,
+        title: 'Таратор',
+        servings: 4,
+        prepMinutes: 10,
+        tags: ['lunch'],
+        archivedAt: null,
+      },
+    ]);
+  });
+
+  it('finds recipes whose title contains q, ignoring case', async () => {
+    await createdRecipe(recipeInput({ title: 'Пилешка супа' }));
+    await createdRecipe(recipeInput({ title: 'Пиле с ориз' }));
+    await createdRecipe(recipeInput({ title: 'Мусака' }));
+
+    expect(await listTitles(`?q=${encodeURIComponent('ПИЛЕ')}`)).toEqual([
+      'Пиле с ориз',
+      'Пилешка супа',
+    ]);
+  });
+
+  it('keeps only recipes with the given tag', async () => {
+    await createdRecipe(recipeInput({ title: 'Мюсли', tags: ['breakfast'] }));
+    await createdRecipe(
+      recipeInput({ title: 'Палачинки', tags: ['breakfast', 'kid_friendly'] }),
+    );
+    await createdRecipe(recipeInput({ title: 'Мусака', tags: ['dinner'] }));
+
+    expect(await listTitles('?tag=kid_friendly')).toEqual(['Палачинки']);
+    expect(await listTitles('?tag=breakfast')).toEqual(['Мюсли', 'Палачинки']);
+  });
+
+  it('hides archived recipes unless includeArchived=true', async () => {
+    const old = await createdRecipe(recipeInput({ title: 'Стара рецепта' }));
+    await createdRecipe(recipeInput({ title: 'Нова рецепта' }));
+    expect((await archive(old.id)).statusCode).toBe(200);
+
+    expect(await listTitles('')).toEqual(['Нова рецепта']);
+    expect(await listTitles('?includeArchived=false')).toEqual([
+      'Нова рецепта',
+    ]);
+    expect(await listTitles('?includeArchived=true')).toEqual([
+      'Нова рецепта',
+      'Стара рецепта',
+    ]);
+  });
+});
+
+describe('GET /api/recipes/:id', () => {
+  it('answers 404 not_found for an unknown id', async () => {
+    const response = await getRecipe('99999999-9999-4999-8999-999999999999');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({
+      error: 'not_found',
+      message: 'Няма такава рецепта',
+    });
+  });
+});
+
+describe('PUT /api/recipes/:id', () => {
+  it('replaces the recipe and its whole ingredient list', async () => {
+    const potato = await seedIngredient('картоф');
+    const salt = await seedIngredient('сол');
+    const onion = await seedIngredient('лук');
+    const created = await createdRecipe(
+      recipeInput({
+        prepMinutes: 50,
+        ingredients: [
+          { ingredientId: potato.id, quantity: 1, unit: 'kg' },
+          { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+        ],
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}`,
+      headers,
+      payload: recipeInput({
+        title: 'Картофи с лук',
+        servings: 2,
+        ingredients: [
+          { ingredientId: onion.id, quantity: 2, unit: 'pcs', note: 'червен' },
+          { ingredientId: potato.id, quantity: 500, unit: 'g' },
+        ],
+      }),
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { recipe } = recipeResponseSchema.parse(response.json());
+    expect(recipe).toMatchObject({
+      id: created.id,
+      title: 'Картофи с лук',
+      servings: 2,
+      createdAt: created.createdAt,
+    });
+    expect(recipe.prepMinutes).toBeUndefined();
+    expect(recipe.ingredients).toEqual([
+      {
+        ingredientId: onion.id,
+        quantity: 2,
+        unit: 'pcs',
+        note: 'червен',
+        ingredient: onion,
+      },
+      { ingredientId: potato.id, quantity: 500, unit: 'g', ingredient: potato },
+    ]);
+    expect((await getRecipe(created.id)).json()).toEqual({ recipe });
+  });
+
+  it('answers 400 invalid_reference for an unknown ingredientId and keeps the recipe as it was', async () => {
+    const potato = await seedIngredient('картоф');
+    const created = await createdRecipe(
+      recipeInput({
+        ingredients: [{ ingredientId: potato.id, quantity: 1, unit: 'kg' }],
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}`,
+      headers,
+      payload: recipeInput({
+        title: 'Друго',
+        ingredients: [
+          {
+            ingredientId: '99999999-9999-4999-8999-999999999999',
+            quantity: 1,
+            unit: 'pcs',
+          },
+        ],
+      }),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'invalid_reference' });
+    expect((await getRecipe(created.id)).json()).toEqual({ recipe: created });
+  });
+
+  it('answers 404 not_found for an unknown id', async () => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/api/recipes/99999999-9999-4999-8999-999999999999',
+      headers,
+      payload: recipeInput(),
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: 'not_found' });
+  });
+});
+
+describe('POST /api/recipes/:id/archive and /unarchive', () => {
+  it('archives a recipe and brings it back', async () => {
+    const created = await createdRecipe(recipeInput());
+
+    const archived = await archive(created.id);
+    expect(archived.statusCode).toBe(200);
+    const { recipe } = recipeResponseSchema.parse(archived.json());
+    expect(recipe.archivedAt).toEqual(expect.any(String));
+    expect((await getRecipe(created.id)).json()).toEqual({ recipe });
+
+    const restored = await archive(created.id, 'unarchive');
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json().recipe.archivedAt).toBeNull();
+    expect(await listTitles('')).toEqual(['Печени картофи']);
+  });
+
+  it('keeps the first archive date when archived twice', async () => {
+    const created = await createdRecipe(recipeInput());
+    const first = (await archive(created.id)).json().recipe;
+
+    const second = await archive(created.id);
+
+    expect(second.json().recipe.archivedAt).toBe(first.archivedAt);
+  });
+
+  it('answers 404 not_found for an unknown id', async () => {
+    const response = await archive('99999999-9999-4999-8999-999999999999');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: 'not_found' });
+  });
+});

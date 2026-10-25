@@ -13,7 +13,9 @@ import cloudflareAccess, {
 } from './plugins/cloudflare-access.js';
 import errorHandler from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
+import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
+import { recipesRoutes } from './routes/recipes.js';
 import { usersRoutes } from './routes/users.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
@@ -64,6 +66,8 @@ export function buildApp({
   app.register(healthRoutes);
   app.register(usersRoutes);
   app.register(meRoutes);
+  app.register(ingredientsRoutes);
+  app.register(recipesRoutes);
 
   return app;
 }

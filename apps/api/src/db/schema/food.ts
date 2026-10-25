@@ -1,10 +1,15 @@
 import {
+  type Aisle,
   aisleSchema,
+  type BaseUnit,
   baseUnitSchema,
+  type Nutrition,
   recipeSuggestionStatusSchema,
   slotSchema,
   suggestionRequestStatusSchema,
+  type Tag,
   tagSchema,
+  type Unit,
   unitSchema,
 } from '@family/shared';
 import { type SQL, sql } from 'drizzle-orm';
@@ -24,7 +29,7 @@ import {
 import { user } from './user.js';
 
 // Enums are `text` with a `check` against the values in @family/shared, not Postgres enums,
-// so adding a value is a plain constraint swap in a migration.
+// so adding a value is a plain constraint swap in a migration. `$type` gives the columns the shared types.
 
 /** `'a', 'b', …` for `in (…)` and `array[…]`; values are fixed identifiers from shared, never user input. */
 function literals(values: readonly string[]): SQL {
@@ -44,8 +49,8 @@ export const ingredient = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull(),
-    unit: text('unit').notNull(),
-    aisle: text('aisle').notNull(),
+    unit: text('unit').$type<BaseUnit>().notNull(),
+    aisle: text('aisle').$type<Aisle>().notNull(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -65,13 +70,8 @@ export const recipe = pgTable(
     steps: jsonb('steps').$type<string[]>().notNull(),
     sourceUrl: text('source_url'),
     prepMinutes: integer('prep_minutes'),
-    tags: text('tags').array().notNull().default(sql`'{}'`),
-    nutritionPer100g: jsonb('nutrition_per_100g').$type<{
-      kcal: number;
-      proteinG: number;
-      fatG: number;
-      carbsG: number;
-    }>(),
+    tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
+    nutritionPer100g: jsonb('nutrition_per_100g').$type<Nutrition>(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
@@ -102,7 +102,7 @@ export const recipeIngredient = pgTable(
     position: integer('position').notNull(),
     // numeric comes back as a string from pg; map to number in the repository.
     quantity: numeric('quantity'),
-    unit: text('unit').notNull(),
+    unit: text('unit').$type<Unit>().notNull(),
     note: text('note'),
   },
   (t) => [

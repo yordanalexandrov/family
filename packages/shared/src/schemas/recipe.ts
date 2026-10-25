@@ -5,6 +5,7 @@ import {
   quantitySchema,
   unitSchema,
 } from '../food/units.js';
+import { ingredientSchema } from './ingredient.js';
 
 /** Approximate nutrition per 100 g, shown with "≈". */
 export const nutritionSchema = z.object({
@@ -16,14 +17,16 @@ export const nutritionSchema = z.object({
 
 export type Nutrition = z.infer<typeof nutritionSchema>;
 
+const recipeIngredientFields = {
+  ingredientId: z.uuid(),
+  quantity: quantitySchema,
+  unit: unitSchema,
+  note: z.string().optional(),
+};
+
 /** One ingredient line of a recipe; a pinch has `quantity: null`. */
 export const recipeIngredientSchema = z
-  .object({
-    ingredientId: z.uuid(),
-    quantity: quantitySchema,
-    unit: unitSchema,
-    note: z.string().optional(),
-  })
+  .object(recipeIngredientFields)
   .superRefine(checkPinchQuantity);
 
 export type RecipeIngredient = z.infer<typeof recipeIngredientSchema>;
@@ -42,8 +45,20 @@ export const recipeInputSchema = z.object({
 
 export type RecipeInput = z.infer<typeof recipeInputSchema>;
 
+/**
+ * A stored ingredient line with its ingredient (name, base unit, aisle) joined in. It is a superset of
+ * `RecipeIngredient`, so the lines of a fetched recipe can be sent back as input unchanged.
+ */
+export const recipeLineSchema = z.object({
+  ...recipeIngredientFields,
+  ingredient: ingredientSchema,
+});
+
+export type RecipeLine = z.infer<typeof recipeLineSchema>;
+
 /** A recipe in the registry; archived ones keep `archivedAt` and are hidden by default. */
 export const recipeSchema = recipeInputSchema.extend({
+  ingredients: z.array(recipeLineSchema),
   id: z.uuid(),
   archivedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
@@ -51,3 +66,34 @@ export const recipeSchema = recipeInputSchema.extend({
 });
 
 export type Recipe = z.infer<typeof recipeSchema>;
+
+export const recipeResponseSchema = z.object({ recipe: recipeSchema });
+
+export type RecipeResponse = z.infer<typeof recipeResponseSchema>;
+
+/** One row of the registry list, without ingredients and steps. */
+export const recipeSummarySchema = recipeSchema.pick({
+  id: true,
+  title: true,
+  servings: true,
+  prepMinutes: true,
+  tags: true,
+  archivedAt: true,
+});
+
+export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
+
+/** `GET /api/recipes`: `q` matches anywhere in the title ignoring case, `tag` keeps recipes with that tag. */
+export const recipesQuerySchema = z.object({
+  q: z.string().trim().optional(),
+  tag: tagSchema.optional(),
+  includeArchived: z.stringbool().default(false),
+});
+
+export type RecipesQuery = z.infer<typeof recipesQuerySchema>;
+
+export const recipesResponseSchema = z.object({
+  recipes: z.array(recipeSummarySchema),
+});
+
+export type RecipesResponse = z.infer<typeof recipesResponseSchema>;

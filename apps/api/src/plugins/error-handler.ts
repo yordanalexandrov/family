@@ -1,6 +1,11 @@
 import type { ApiErrorCode, ApiErrorResponse } from '@family/shared';
 import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
+import {
+  ConflictError,
+  InvalidReferenceError,
+  NotFoundError,
+} from '../services/errors.js';
 
 /**
  * A refusal the client can act on. The error handler answers it with `statusCode` and
@@ -31,6 +36,11 @@ const errorHandler: FastifyPluginAsync = async (app) => {
       } satisfies ApiErrorResponse);
     }
 
+    const refusal = serviceRefusal(error);
+    if (refusal) {
+      return reply.code(refusal.statusCode).send(refusal.body);
+    }
+
     const statusCode = statusOf(error);
     if (statusCode >= 500) {
       // A bug or an outage: always logged in full.
@@ -46,6 +56,31 @@ const errorHandler: FastifyPluginAsync = async (app) => {
     } satisfies ApiErrorResponse),
   );
 };
+
+/** The status and body of a typed refusal from `services/errors.ts`, or `undefined` for any other error. */
+function serviceRefusal(
+  error: unknown,
+): { statusCode: number; body: ApiErrorResponse } | undefined {
+  if (error instanceof NotFoundError) {
+    return {
+      statusCode: 404,
+      body: { error: 'not_found', message: error.message },
+    };
+  }
+  if (error instanceof ConflictError) {
+    return {
+      statusCode: 409,
+      body: { ...error.details, error: 'conflict', message: error.message },
+    };
+  }
+  if (error instanceof InvalidReferenceError) {
+    return {
+      statusCode: 400,
+      body: { error: 'invalid_reference', message: error.message },
+    };
+  }
+  return undefined;
+}
 
 /** The error's own status when it is an error status (4xx, 5xx); without one the error is a bug: 500. */
 function statusOf(error: FastifyError): number {

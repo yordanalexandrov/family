@@ -19,9 +19,22 @@ const potatoes = {
 };
 
 describe('recipeSchema', () => {
-  it('accepts a stored recipe with its id, dates and archive mark', () => {
+  it('accepts a stored recipe with its id, dates, archive mark and joined ingredients', () => {
     const stored = {
       ...potatoes,
+      ingredients: [
+        {
+          ingredientId: POTATO,
+          quantity: 1,
+          unit: 'kg',
+          ingredient: {
+            id: POTATO,
+            name: 'картоф',
+            unit: 'g',
+            aisle: 'produce',
+          },
+        },
+      ],
       id: '66666666-6666-4666-8666-666666666666',
       archivedAt: null,
       createdAt: '2026-10-25T10:00:00.000Z',
