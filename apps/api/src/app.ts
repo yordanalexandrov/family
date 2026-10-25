@@ -6,15 +6,24 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
+import type { OpenClawConfig } from './config.js';
 import { closeDb, createDb, type Db } from './db/client.js';
+import { createOpenClawClient } from './openclaw/client.js';
 import actingUser from './plugins/acting-user.js';
 import cloudflareAccess, {
   type CloudflareAccessOptions,
 } from './plugins/cloudflare-access.js';
 import errorHandler from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
+import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
+import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
+import { recipesRoutes } from './routes/recipes.js';
 import { usersRoutes } from './routes/users.js';
+import {
+  createRecipeSuggestionsService,
+  type RecipeSuggestionsService,
+} from './services/recipe-suggestions.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
 declare module 'fastify' {
@@ -22,6 +31,8 @@ declare module 'fastify' {
     db: Db;
     /** Shared by the acting-user hook and `GET /api/users`, so both read the same one-minute cache. */
     users: UsersService;
+    /** Keeps the `recipe.suggest` runs in flight; `app.close()` aborts and awaits them before the pool closes. */
+    recipeSuggestions: RecipeSuggestionsService;
   }
 }
 
@@ -33,6 +44,11 @@ export interface BuildAppOptions {
    * (`loadConfig()` refuses dev mode in production), specs go through `buildTestApp()` in `src/test/app.ts`.
    */
   auth: CloudflareAccessOptions;
+  /**
+   * The OpenClaw gateway for AI contracts. In dev mode, without it or without `gatewayPassword`, the client is
+   * disabled and `POST /api/recipe-suggestions/requests` answers 503 `openclaw_unavailable`; any other mode throws.
+   */
+  openclaw?: OpenClawConfig;
 }
 
 /**
@@ -43,7 +59,14 @@ export function buildApp({
   logger = false,
   databaseUrl,
   auth,
+  openclaw,
 }: BuildAppOptions): FastifyInstance {
+  if (auth.mode !== 'dev' && !openclaw?.gatewayPassword) {
+    // `loadConfig()` refuses this too; checked here so no caller can start a disabled OpenClaw outside dev mode.
+    throw new Error(
+      'OpenClaw needs a gateway password unless AUTH_MODE is dev',
+    );
+  }
   const app = Fastify({ logger });
 
   // Route schemas are Zod (from @family/shared): they validate the input and check the output.
@@ -55,7 +78,31 @@ export function buildApp({
   );
   app.decorate('db', db);
   app.decorate('users', createUsersService(db));
-  app.addHook('onClose', () => closeDb(db));
+  const client =
+    openclaw &&
+    createOpenClawClient(openclaw, app.log.child({ module: 'openclaw' }));
+  const recipeSuggestions = createRecipeSuggestionsService({
+    db,
+    openclaw:
+      openclaw && client ? { client, agent: openclaw.recipeAgent } : null,
+    log: app.log,
+  });
+  app.decorate('recipeSuggestions', recipeSuggestions);
+  app.addHook('onClose', async () => {
+    await recipeSuggestions.close();
+    await closeDb(db);
+  });
+  // Runs once the app is ready, i.e. after `server.ts` applied the migrations. Not fatal: the api serves without it.
+  app.addHook('onReady', async () => {
+    try {
+      const failed = await recipeSuggestions.failStaleRequests();
+      if (failed > 0) {
+        app.log.warn({ failed }, 'stale suggestion requests marked failed');
+      }
+    } catch (error) {
+      app.log.error({ err: error }, 'could not fail stale suggestion requests');
+    }
+  });
 
   app.register(errorHandler);
   app.register(cloudflareAccess, auth);
@@ -64,6 +111,9 @@ export function buildApp({
   app.register(healthRoutes);
   app.register(usersRoutes);
   app.register(meRoutes);
+  app.register(ingredientsRoutes);
+  app.register(recipesRoutes);
+  app.register(recipeSuggestionsRoutes);
 
   return app;
 }

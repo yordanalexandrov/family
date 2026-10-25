@@ -2,6 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import {
+  ConflictError,
+  InvalidReferenceError,
+  NotFoundError,
+} from '../services/errors.js';
 import { buildTestApp } from '../test/app.js';
 import { HttpError } from './error-handler.js';
 
@@ -32,6 +37,15 @@ beforeAll(async () => {
       statusCode: 418,
       code: 'teapot',
     });
+  });
+  test.get('/test/missing', async () => {
+    throw new NotFoundError('Няма такова нещо');
+  });
+  test.get('/test/clash', async () => {
+    throw new ConflictError('Вече го има', { thing: { id: 1 } });
+  });
+  test.get('/test/dangling', async () => {
+    throw new InvalidReferenceError('Сочи към нищо');
   });
   test.get(
     '/test/validated',
@@ -99,6 +113,28 @@ describe('error handler', () => {
     expect(response.statusCode).toBe(418);
     expect(response.json()).toEqual({ error: 'error', message: 'Чайник съм' });
   });
+
+  it.each([
+    ['/test/missing', 404, { error: 'not_found', message: 'Няма такова нещо' }],
+    [
+      '/test/clash',
+      409,
+      { error: 'conflict', message: 'Вече го има', thing: { id: 1 } },
+    ],
+    [
+      '/test/dangling',
+      400,
+      { error: 'invalid_reference', message: 'Сочи към нищо' },
+    ],
+  ])(
+    'maps the service refusal from %s to %i with its code, message and details',
+    async (url, status, body) => {
+      const response = await app.inject({ method: 'GET', url });
+
+      expect(response.statusCode).toBe(status);
+      expect(response.json()).toEqual(body);
+    },
+  );
 
   it('answers 400 validation_error with the offending paths when the query does not match its schema', async () => {
     const response = await app.inject({

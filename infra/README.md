@@ -42,7 +42,7 @@ docker compose -p family start api
 |---|---|
 | Rules → Rulesets | Ruleset за `master` (Enforcement status: Active): *Require a pull request before merging* (0 одобрения: авторът не може да одобри свой PR), *Require status checks to pass* с check `ci` и *Require branches to be up to date before merging*, *Block force pushes*. |
 | Actions → General | *Approval for running fork pull request workflows from contributors*: *Require approval for all external contributors* (по-рано „outside collaborators“). |
-| Environments → `production` | Secrets `POSTGRES_PASSWORD`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `ALLOWED_EMAILS`; стойностите са само там. *Deployment branches and tags*: само `master`. |
+| Environments → `production` | Secrets `POSTGRES_PASSWORD`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `ALLOWED_EMAILS`, `OPENCLAW_GATEWAY_PASSWORD` (`gateway.auth.password` на OpenClaw; без него api не тръгва в production); стойностите са само там. *Deployment branches and tags*: само `master`. |
 | Actions → Runners | `homesrv-family` на `homesrv`, процесът е в група `docker`. Labels: `self-hosted`, `Linux`, `X64` + `family`, `homesrv`; `deploy.yml` го иска с `runs-on: [self-hosted, linux, family]`. |
 
 Одобрението на PR от fork е истинската защита: такъв PR може да смени всеки workflow, вкл. `runs-on`, и без одобрение job-ът му би пуснал чужд код на `homesrv` с правата на групата `docker` (на практика root). Стъпката в `ci.yml` ([check-workflows.sh](../.github/scripts/check-workflows.sh)) хваща само грешка в repo-то, защото PR може да промени и нея.

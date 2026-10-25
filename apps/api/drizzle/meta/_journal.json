@@ -15,6 +15,20 @@
       "when": 1792920123074,
       "tag": "0001_seed_users",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792956857533,
+      "tag": "0002_food",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792956882534,
+      "tag": "0003_seed_ingredients",
+      "breakpoints": true
     }
   ]
 }

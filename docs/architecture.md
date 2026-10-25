@@ -50,12 +50,15 @@ import { mealPlanSchema, type MealPlan } from '@family/shared';
 routes/      → Fastify plugins; валидират вход/изход със schema от shared, викат service
 plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler
 services/    → бизнес логика (меню → списък за пазаруване и т.н.); без HTTP детайли
+openclaw/    → клиентът към OpenClaw gateway-а (`/v1/chat/completions`) за AI контрактите: Zod валидация + един retry
 db/          → Drizzle schema, миграции, repository функции
 ```
 
+AI контрактите вървят във фон в процеса на api: `POST` записва заявка `pending` и връща `202`, service-ът (`app.recipeSuggestions`) вика OpenClaw клиента и записва `done`/`failed`, клиентът пита с `GET`. `app.close()` прекъсва и изчаква текущите заявки, а при старт `pending` заявки по-стари от 10 мин стават `failed`/`stale`. Кодовете на `failed` (`error`: `timeout`, `invalid_output`, `http_<status>`, `aborted`, `stale`, `error`) са `suggestionFailureSchema` в shared; api ги записва, web ги превежда на съобщения. Без `OPENCLAW_GATEWAY_PASSWORD` клиентът е изключен и заявката за предложения връща `503 openclaw_unavailable` — позволено само в `AUTH_MODE=dev`; във всеки друг режим api не тръгва.
+
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
-Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`.
+Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`. Service не знае за HTTP и отказва с типизирана грешка от `services/errors.ts` (наследник на `ServiceRefusal`: `NotFoundError` → 404 `not_found`, `ConflictError` → 409 `conflict` с `details` в тялото, `InvalidReferenceError` → 400 `invalid_reference`, `OpenClawUnavailableError` → 503 `openclaw_unavailable`); error handler-ът я мапва на статус по таблица `REFUSALS`, а нов клас се добавя и там.
 
 ## Слоеве в `apps/web`
 

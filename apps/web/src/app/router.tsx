@@ -9,6 +9,15 @@ import {
   useLocation,
 } from '@tanstack/react-router';
 import { HomeScreen } from '../features/home/HomeScreen';
+import {
+  EditRecipeScreen,
+  NewRecipeScreen,
+} from '../features/recipes/RecipeEditor';
+import { RecipeList } from '../features/recipes/RecipeList';
+import { RecipeView } from '../features/recipes/RecipeView';
+import { SuggestionRequestView } from '../features/suggestions/SuggestionRequestView';
+import { SuggestionReview } from '../features/suggestions/SuggestionReview';
+import { SuggestScreen } from '../features/suggestions/SuggestScreen';
 import { WhoScreen } from '../features/who/WhoScreen';
 import { useActingUser } from './acting-user';
 
@@ -53,7 +62,61 @@ const whoRoute = createRoute({
   component: WhoScreen,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, whoRoute]);
+// Регистър рецепти: телефон и таблет; не влиза в kiosk/TV навигацията.
+const recipesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes',
+  component: RecipeList,
+});
+
+const recipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id',
+  component: RecipeView,
+});
+
+const newRecipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/new',
+  component: NewRecipeScreen,
+});
+
+const editRecipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id/edit',
+  component: EditRecipeScreen,
+});
+
+// Предложения за рецепти: заявка, изчакване и резултати, преглед и одобрение.
+const suggestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest',
+  component: SuggestScreen,
+});
+
+const suggestionRequestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest/$requestId',
+  component: SuggestionRequestView,
+});
+
+const suggestionReviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/suggest/$requestId/$suggestionId',
+  component: SuggestionReview,
+});
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  whoRoute,
+  recipesRoute,
+  newRecipeRoute,
+  recipeRoute,
+  editRecipeRoute,
+  suggestRoute,
+  suggestionRequestRoute,
+  suggestionReviewRoute,
+]);
 
 export function createAppRouter(history?: RouterHistory) {
   return createRouter({

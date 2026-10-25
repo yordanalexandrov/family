@@ -2,3 +2,10 @@
   align-items: center;
   text-align: center;
 }
+
+.home__nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+}

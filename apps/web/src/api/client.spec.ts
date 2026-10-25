@@ -37,6 +37,26 @@ describe('apiFetch', () => {
     });
   });
 
+  it('пази суровото тяло на грешката за полета извън `{ error, message }`', async () => {
+    server.use(
+      http.get('/api/me', () =>
+        HttpResponse.json(
+          { error: 'conflict', message: 'Вече има', ingredient: { id: 'x' } },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const error = await apiFetch('/me', meResponseSchema).catch((e) => e);
+
+    expect(error).toMatchObject({ status: 409, code: 'conflict' });
+    expect(error.body).toEqual({
+      error: 'conflict',
+      message: 'Вече има',
+      ingredient: { id: 'x' },
+    });
+  });
+
   it.each([
     [
       'с код извън договора на api',

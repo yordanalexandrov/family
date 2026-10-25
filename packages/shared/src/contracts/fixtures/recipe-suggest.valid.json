@@ -1,0 +1,338 @@
+{
+  "suggestions": [
+    {
+      "title": "Пилешки крилца с четири вида сос",
+      "sourceUrl": "https://www.supichka.com/рецепта/1036/пилешки-крилца-с-четири-вида-сос",
+      "why": "Печени пилешки крилца за вечеря; четирите соса позволяват всеки да избере любимия си вкус.",
+      "prepMinutes": 45,
+      "servings": 4,
+      "tags": ["dinner"],
+      "ingredients": [
+        {
+          "name": "пилешко крилце",
+          "isNew": true,
+          "quantity": 1200,
+          "unit": "g"
+        },
+        {
+          "name": "нишесте",
+          "isNew": false,
+          "quantity": 3,
+          "unit": "tbsp"
+        },
+        {
+          "name": "чесън",
+          "isNew": false,
+          "quantity": 2.5,
+          "unit": "tsp"
+        },
+        {
+          "name": "пушен червен пипер",
+          "isNew": true,
+          "quantity": 1,
+          "unit": "tsp"
+        },
+        {
+          "name": "сол",
+          "isNew": false,
+          "quantity": null,
+          "unit": "pinch"
+        },
+        {
+          "name": "кетчуп",
+          "isNew": false,
+          "quantity": 135,
+          "unit": "ml"
+        },
+        {
+          "name": "масло",
+          "isNew": false,
+          "quantity": 3,
+          "unit": "tbsp"
+        },
+        {
+          "name": "лют червен пипер",
+          "isNew": true,
+          "quantity": 1,
+          "unit": "tsp"
+        },
+        {
+          "name": "оцет",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tbsp"
+        },
+        {
+          "name": "сос уорчестър",
+          "isNew": true,
+          "quantity": 1,
+          "unit": "tbsp"
+        },
+        {
+          "name": "горчица",
+          "isNew": false,
+          "quantity": 120,
+          "unit": "ml"
+        },
+        {
+          "name": "мед",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tbsp"
+        },
+        {
+          "name": "зехтин",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tbsp"
+        },
+        {
+          "name": "майонеза",
+          "isNew": false,
+          "quantity": 240,
+          "unit": "ml"
+        },
+        {
+          "name": "кисело мляко",
+          "isNew": false,
+          "quantity": 2,
+          "unit": "tbsp"
+        },
+        {
+          "name": "магданоз",
+          "isNew": false,
+          "quantity": 3,
+          "unit": "tbsp"
+        },
+        {
+          "name": "лайм",
+          "isNew": true,
+          "quantity": 1,
+          "unit": "tbsp"
+        }
+      ],
+      "steps": [
+        "Подсуши и разполови крилцата; посоли ги и ги оваляй в нишестето, ½ ч.л. чесън и ½ ч.л. пушен пипер.",
+        "Подреди ги в тава и печи на 180 °C около 20 минути; обърни ги и печи още 10 минути.",
+        "За Бъфало соса разтопи маслото и разбъркай с 120 мл кетчуп, лютия пипер, оцета, соса уорчестър, ½ ч.л. чесън и сол.",
+        "За медения сос смеси горчицата, меда, зехтина и сол; за ранч соса смеси 120 мл майонеза, киселото мляко, ½ ч.л. чесън, сока от лайм, магданоза и сол.",
+        "За розовия сос смеси останалата майонеза с 1 с.л. кетчуп, ½ ч.л. пушен пипер, ½ ч.л. чесън и сол; поднеси сосовете с изпечените крилца."
+      ]
+    },
+    {
+      "title": "Сандвичи с дърпано пилешко",
+      "sourceUrl": "https://www.supichka.com/рецепта/1030/сандвичи-с-дърпано-пилешко",
+      "why": "Засищаща вечеря с пилешко филе, пресни зеленчуци и чеснов сос.",
+      "prepMinutes": 45,
+      "servings": 4,
+      "tags": ["dinner"],
+      "ingredients": [
+        {
+          "name": "пилешко филе",
+          "isNew": false,
+          "quantity": 600,
+          "unit": "g"
+        },
+        {
+          "name": "барбекю сос",
+          "isNew": true,
+          "quantity": 3,
+          "unit": "tbsp"
+        },
+        {
+          "name": "чесън",
+          "isNew": false,
+          "quantity": 2,
+          "unit": "tsp"
+        },
+        {
+          "name": "пушен червен пипер",
+          "isNew": true,
+          "quantity": 1,
+          "unit": "tsp"
+        },
+        {
+          "name": "захар",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tsp"
+        },
+        {
+          "name": "сол",
+          "isNew": false,
+          "quantity": null,
+          "unit": "pinch"
+        },
+        {
+          "name": "кисело мляко",
+          "isNew": false,
+          "quantity": 80,
+          "unit": "ml"
+        },
+        {
+          "name": "майонеза",
+          "isNew": false,
+          "quantity": 80,
+          "unit": "ml"
+        },
+        {
+          "name": "лимон",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tbsp"
+        },
+        {
+          "name": "домат",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "pcs"
+        },
+        {
+          "name": "краставица",
+          "isNew": false,
+          "quantity": 0.33,
+          "unit": "pcs"
+        },
+        {
+          "name": "лук",
+          "isNew": false,
+          "quantity": 0.5,
+          "unit": "pcs"
+        },
+        {
+          "name": "маруля",
+          "isNew": false,
+          "quantity": 50,
+          "unit": "g"
+        },
+        {
+          "name": "питка",
+          "isNew": false,
+          "quantity": 4,
+          "unit": "pcs"
+        }
+      ],
+      "steps": [
+        "Свари пилешкото филе в подсолена вода до готовност, остави го леко да изстине и го накъсай с вилица.",
+        "Загрей барбекю соса със захарта, пушения пипер, 1 ч.л. чесън и сол; добави пилето и готви още 2–3 минути.",
+        "Смеси киселото мляко, майонезата, останалия чесън, 1 с.л. лимонов сок и сол; нарежи тънко домата, краставицата и лука.",
+        "Разрежи питките и ги запечи по 2–3 минути от всяка страна.",
+        "Намажи питките с чесновия сос, добави маруля, пилешко и нарязаните зеленчуци и ги затвори."
+      ]
+    },
+    {
+      "title": "Пилешка супа с фиде и застройка",
+      "sourceUrl": "https://recepti.gotvach.bg/r-45917-Пилешка_супа_с_фиде_и_застройка",
+      "why": "Топла домашна вечеря с пилешко и зеленчуци; рецептата е за четири порции.",
+      "prepMinutes": 50,
+      "servings": 4,
+      "tags": ["dinner", "kid_friendly"],
+      "ingredients": [
+        {
+          "name": "пилешко филе",
+          "isNew": false,
+          "quantity": 350,
+          "unit": "g"
+        },
+        {
+          "name": "картоф",
+          "isNew": false,
+          "quantity": 3,
+          "unit": "pcs"
+        },
+        {
+          "name": "морков",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "pcs"
+        },
+        {
+          "name": "лук",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "pcs"
+        },
+        {
+          "name": "фиде",
+          "isNew": false,
+          "quantity": null,
+          "unit": "g"
+        },
+        {
+          "name": "слънчогледово олио",
+          "isNew": false,
+          "quantity": 2,
+          "unit": "tbsp"
+        },
+        {
+          "name": "сол",
+          "isNew": false,
+          "quantity": null,
+          "unit": "pinch"
+        },
+        {
+          "name": "черен пипер",
+          "isNew": false,
+          "quantity": null,
+          "unit": "pinch"
+        },
+        {
+          "name": "чубрица",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tbsp"
+        },
+        {
+          "name": "джоджен",
+          "isNew": true,
+          "quantity": null,
+          "unit": "pinch"
+        },
+        {
+          "name": "девесил",
+          "isNew": true,
+          "quantity": null,
+          "unit": "pinch"
+        },
+        {
+          "name": "магданоз",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tsp"
+        },
+        {
+          "name": "яйце",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "pcs"
+        },
+        {
+          "name": "кисело мляко",
+          "isNew": false,
+          "quantity": 5,
+          "unit": "tbsp"
+        },
+        {
+          "name": "оцет",
+          "isNew": false,
+          "quantity": null,
+          "unit": "ml"
+        },
+        {
+          "name": "вода",
+          "isNew": false,
+          "quantity": 1.5,
+          "unit": "l"
+        }
+      ],
+      "steps": [
+        "Залей филето с водата, обери пяната след завирането и вари около 20 минути.",
+        "Настържи лука и моркова и ги задуши за 2–3 минути с олиото, малко вода и магданоза.",
+        "Извади месото, накъсай го и го върни в тенджерата заедно със зеленчуците и нарязаните на кубчета картофи; вари 15–20 минути.",
+        "Добави фидето, солта, черния пипер, чубрицата, джоджена и девесила и вари до готовност на фидето.",
+        "Разбий жълтъка с киселото мляко и няколко капки оцет; добавяй постепенно горещ бульон при непрекъснато бъркане.",
+        "Върни застройката в супата на тънка струя и загрей за 2–3 минути на слаб огън, без да завира силно."
+      ]
+    }
+  ]
+}
