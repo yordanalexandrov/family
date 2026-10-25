@@ -30,14 +30,14 @@ nav .dots i.on{background:#fff}
 </nav>
 <script>
 const V=[
-  ['13-glass-core','Ядро в центъра'],['14-glass-tile','Пръстен като плоча'],
+  ['13-glass-core','Ядро в центъра'],['14-glass-tile','Пръстен като плоча'],['15-glass-core-lean','Ядро, само смислени кръгове'],
 ];
 const q=new URLSearchParams(location.search).get('variant')||location.hash.slice(1);
 let i=Math.max(0,V.findIndex(v=>v[0]===q||v[0].startsWith(q+'-')));
 const f=document.getElementById('f'),lbl=document.getElementById('lbl'),dots=document.getElementById('dots');
 dots.innerHTML=V.map(()=>'<i></i>').join('');
 function go(n){i=(n+V.length)%V.length;const [file,name]=V[i];f.src=file+'.html';
-  lbl.innerHTML=`<b>${file.slice(0,2)}/${V.length}</b>${name}`;document.title=`${file.slice(0,2)} · ${name}`;
+  lbl.innerHTML=`<b>${i+1}/${V.length}</b>${name}`;document.title=`${file.slice(0,2)} · ${name}`;
   [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===i));
   try{const u=new URL(location);if(u.protocol.startsWith('http')&&!/claude\.ai$/.test(u.hostname)){u.searchParams.set('variant',file.slice(0,2));history.replaceState(null,'',u)}else{history.replaceState(null,'',`#${file.slice(0,2)}`)}}catch(e){}}
 document.getElementById('prev').onclick=()=>go(i-1);document.getElementById('next').onclick=()=>go(i+1);
