@@ -4,7 +4,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from './client.js';
 
 /** `apps/api/drizzle`, both from `src/` (tsx, vitest) and from `dist/` (production). */
-export const MIGRATIONS_FOLDER = fileURLToPath(
+const MIGRATIONS_FOLDER = fileURLToPath(
   new URL('../../drizzle', import.meta.url),
 );
 
@@ -14,7 +14,6 @@ export interface RunMigrationsOptions {
   timeoutMs?: number;
   /** Pause between attempts. */
   intervalMs?: number;
-  migrationsFolder?: string;
 }
 
 const silentLog: NonNullable<RunMigrationsOptions['log']> = {
@@ -32,15 +31,17 @@ export async function runMigrations(
     log = silentLog,
     timeoutMs = 30_000,
     intervalMs = 1_000,
-    migrationsFolder = MIGRATIONS_FOLDER,
   }: RunMigrationsOptions = {},
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 
   for (let attempt = 1; ; attempt++) {
     try {
-      await migrate(db, { migrationsFolder });
-      log.info({ migrationsFolder }, 'database migrations applied');
+      await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+      log.info(
+        { migrationsFolder: MIGRATIONS_FOLDER },
+        'database migrations applied',
+      );
       return;
     } catch (error) {
       if (!isConnectionError(error) || Date.now() + intervalMs > deadline) {
