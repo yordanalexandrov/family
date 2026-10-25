@@ -31,10 +31,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { literals, oneOf } from './checks.js';
+import { createdAt } from './columns.js';
 import { user } from './user.js';
-
-const createdAt = () =>
-  timestamp('created_at', { withTimezone: true }).defaultNow().notNull();
 
 /** A generic ingredient (GLOSSARY: Продукт); the canonical name is unique ignoring case and outer spaces. */
 export const ingredient = pgTable(

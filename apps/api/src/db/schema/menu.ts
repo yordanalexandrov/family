@@ -19,6 +19,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { oneOf } from './checks.js';
+import { createdAt } from './columns.js';
 import { recipe } from './food.js';
 import { user } from './user.js';
 
@@ -30,9 +31,7 @@ export const mealPlan = pgTable('meal_plan', {
   createdBy: uuid('created_by')
     .notNull()
     .references(() => user.id),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
+  createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -89,9 +88,7 @@ export const menuProposalRequest = pgTable(
     planId: uuid('plan_id').references(() => mealPlan.id, {
       onDelete: 'set null',
     }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .defaultNow()
-      .notNull(),
+    createdAt: createdAt(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
   },
   (t) => [
