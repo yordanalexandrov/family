@@ -53,11 +53,18 @@ function toInstant(day: DateKey | Date): Date {
   return typeof day === 'string' ? startOfDayInSofia(day) : day;
 }
 
-/** Сума във валутата на Wallet, без дробна част: „370 €“. Никъде твърдо „лв“. */
+/**
+ * Сума във валутата на Wallet, без дробна част: „370 €“; сума, която би станала 0 (но не е 0), е със стотинки,
+ * „-0,30 €“, за да няма „-0 €“. Никъде твърдо „лв“. Двата лимита на дробната част са
+ * изрично заедно: само `maximumFractionDigits: 0` е RangeError в по-старите браузъри
+ * (TV), защото минимумът по подразбиране за EUR е 2.
+ */
 export function formatMoney(amount: number, currency: string): string {
+  const fractionDigits = amount !== 0 && Math.abs(amount) < 0.5 ? 2 : 0;
   return new Intl.NumberFormat('bg-BG', {
     style: 'currency',
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   }).format(amount);
 }
