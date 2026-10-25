@@ -67,18 +67,19 @@ export function replaceRecipe(
   });
 }
 
-/** Archives (`archived = true`) or brings back a recipe; archiving again keeps the first date. */
-export async function setRecipeArchived(
+/**
+ * Archives (`archived = true`) or brings back a recipe; archiving again keeps the first date. One conditional UPDATE
+ * in a transaction, so concurrent requests cannot overwrite each other's date.
+ */
+export function setRecipeArchived(
   db: Db,
   id: string,
   archived: boolean,
 ): Promise<Recipe> {
-  const current = await getRecipe(db, id);
-  if ((current.archivedAt !== null) === archived) {
-    return current;
-  }
-  await setRecipeArchivedAt(db, id, archived ? new Date() : null);
-  return getRecipe(db, id);
+  return db.transaction(async (tx) => {
+    await setRecipeArchivedAt(tx, id, archived);
+    return getRecipe(tx, id);
+  });
 }
 
 async function checkIngredientsExist(

@@ -5,7 +5,16 @@ import type {
   RecipeLine,
   RecipeSummary,
 } from '@family/shared';
-import { and, arrayContains, asc, eq, ilike, isNull } from 'drizzle-orm';
+import {
+  and,
+  arrayContains,
+  asc,
+  eq,
+  ilike,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
 import { likePattern } from './ingredients.js';
@@ -149,18 +158,27 @@ export async function updateRecipe(
   return rows.length > 0;
 }
 
-/** Sets or clears `archived_at`; `false` when there is no such recipe. */
+/**
+ * Archives (keeping an earlier `archived_at`) or brings back the recipe; `updated_at` moves only when the state changes.
+ * A no-op for an unknown id.
+ */
 export async function setRecipeArchivedAt(
   db: DbExecutor,
   id: string,
-  archivedAt: Date | null,
-): Promise<boolean> {
-  const rows = await db
+  archived: boolean,
+): Promise<void> {
+  await db
     .update(recipe)
-    .set({ archivedAt, updatedAt: new Date() })
-    .where(eq(recipe.id, id))
-    .returning({ id: recipe.id });
-  return rows.length > 0;
+    .set({
+      archivedAt: archived ? sql`now()` : null,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(recipe.id, id),
+        archived ? isNull(recipe.archivedAt) : isNotNull(recipe.archivedAt),
+      ),
+    );
 }
 
 /** Replaces all ingredient lines of a recipe, numbered in the given order; run it in a transaction. */

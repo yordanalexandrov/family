@@ -47,7 +47,10 @@ export async function changeIngredient(
   try {
     updated = await updateIngredient(db, id, changes);
   } catch (error) {
-    throw await conflictOrRethrow(db, error, changes.name ?? '');
+    // Only a new name can clash with the unique index.
+    throw changes.name === undefined
+      ? error
+      : await conflictOrRethrow(db, error, changes.name);
   }
   if (!updated) {
     throw new NotFoundError('Няма такъв продукт');
