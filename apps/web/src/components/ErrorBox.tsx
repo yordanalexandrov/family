@@ -6,11 +6,10 @@ interface ErrorBoxProps {
   onRetry?: () => void;
 }
 
-export const SESSION_EXPIRED_MESSAGE =
-  'Сесията е изтекла, презареди страницата';
+const SESSION_EXPIRED_MESSAGE = 'Сесията е изтекла, презареди страницата';
 
 /** Какво вижда човекът: 401/403 = изтекла Access сесия, друго от api = неговото message. */
-export function describeError(error: unknown): {
+function describeError(error: unknown): {
   message: string;
   sessionExpired: boolean;
 } {
