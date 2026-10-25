@@ -4,18 +4,18 @@ import { dayEventsSchema } from './calendar.js';
 import { dateKeySchema, instantSchema } from './dates.js';
 import { syncStatusSchema } from './sync.js';
 
-/** What is cooked for one meal and who cooks it. */
-export const mealSchema = z.object({
+/** „Днес се готви“ for one slot: the recipe title (or the note of the meal) and who cooks it. */
+export const cookingMealSchema = z.object({
   title: z.string(),
   cookUserId: z.uuid(),
 });
 
-export type Meal = z.infer<typeof mealSchema>;
+export type CookingMeal = z.infer<typeof cookingMealSchema>;
 
 /** „Днес се готви“: always `{ lunch: null, dinner: null }` in Phase 1; the menu epic fills it. */
 export const cookingSchema = z.object({
-  lunch: mealSchema.nullable(),
-  dinner: mealSchema.nullable(),
+  lunch: cookingMealSchema.nullable(),
+  dinner: cookingMealSchema.nullable(),
 });
 
 export type Cooking = z.infer<typeof cookingSchema>;
