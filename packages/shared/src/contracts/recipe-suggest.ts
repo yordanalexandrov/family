@@ -57,8 +57,65 @@ export const suggestionSchema = z.object({
 
 export type Suggestion = z.infer<typeof suggestionSchema>;
 
+/** At most this many suggestions of one answer may come from the same site. */
+export const MAX_SUGGESTIONS_PER_SITE = 2;
+
+/** The site and page of a source URL, ignoring case, `www.`, a trailing slash, query and fragment. */
+function sourceOf(url: string): { site: string; page: string } | null {
+  // `shared` has no DOM or Node types, so no `URL`; the scheme and authority are already checked by `z.url()`.
+  const match =
+    /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/?#]*@)?([^:/?#]+)(?::\d+)?([^?#]*)/i.exec(
+      url,
+    );
+  if (!match) {
+    return null;
+  }
+  const [, host = '', path = ''] = match;
+  const site = host.toLowerCase().replace(/^www\./, '');
+  return { site, page: `${site}${path.replace(/\/+$/, '').toLowerCase()}` };
+}
+
+/** Every suggestion is a different recipe from its own page, and the answer draws on more than one site. */
+function checkDistinctSources(
+  suggestions: Suggestion[],
+  ctx: z.RefinementCtx,
+): void {
+  const pages = new Map<string, number>();
+  const perSite = new Map<string, number>();
+  suggestions.forEach((suggestion, index) => {
+    const source = sourceOf(suggestion.sourceUrl);
+    if (!source) {
+      return;
+    }
+    const path = [index, 'sourceUrl'];
+    const samePage = pages.get(source.page);
+    if (samePage !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path,
+        message: `Същата страница като предложение ${samePage + 1}: всяко предложение е отделна рецепта от своя страница.`,
+      });
+      return;
+    }
+    pages.set(source.page, index);
+    const count = (perSite.get(source.site) ?? 0) + 1;
+    perSite.set(source.site, count);
+    if (count > MAX_SUGGESTIONS_PER_SITE) {
+      ctx.addIssue({
+        code: 'custom',
+        path,
+        message: `Повече от ${MAX_SUGGESTIONS_PER_SITE} предложения от ${source.site}: ползвай различни сайтове.`,
+      });
+    }
+  });
+}
+
 export const recipeSuggestOutputSchema = z.object({
-  suggestions: z.array(suggestionSchema).min(3).max(5),
+  suggestions: z
+    .array(suggestionSchema)
+    .min(3)
+    .max(5)
+    .superRefine(checkDistinctSources),
 });
 
 export type RecipeSuggestOutput = z.infer<typeof recipeSuggestOutputSchema>;

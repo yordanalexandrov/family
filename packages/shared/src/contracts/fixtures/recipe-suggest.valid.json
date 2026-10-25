@@ -45,7 +45,7 @@
     },
     {
       "title": "Леща яхния",
-      "sourceUrl": "https://recepti.example/leshta-yahniya",
+      "sourceUrl": "https://supichki.example/leshta-yahniya",
       "why": "Бърза и евтина, а остава и за обяд на следващия ден.",
       "prepMinutes": 45,
       "servings": 4,
@@ -65,7 +65,7 @@
     },
     {
       "title": "Паста с тиквички, сметана и рикота",
-      "sourceUrl": "https://recepti.example/pasta-s-tikvichki",
+      "sourceUrl": "https://www.zakuski.example/pasta-s-tikvichki",
       "why": "Готова за под 30 минути, подходяща за вечер след работа.",
       "prepMinutes": 25,
       "servings": 3,

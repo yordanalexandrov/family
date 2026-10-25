@@ -43,6 +43,35 @@ describe('recipeSuggestOutputSchema', () => {
     expect(issuePaths(output)).toEqual(['suggestions']);
   });
 
+  it('rejects two suggestions from the same page', () => {
+    const output = validOutput();
+    output.suggestions[2].sourceUrl = `${output.suggestions[0].sourceUrl.toUpperCase().replace('HTTPS://', 'https://www.')}/?utm_source=x#steps`;
+
+    expect(issuePaths(output)).toEqual(['suggestions.2.sourceUrl']);
+  });
+
+  it('rejects more than two suggestions from the same site', () => {
+    const output = validOutput();
+    output.suggestions = output.suggestions.map(
+      (suggestion: { sourceUrl: string }, index: number) => ({
+        ...suggestion,
+        sourceUrl: `https://www.edin-sait.example/recepta-${index}`,
+      }),
+    );
+
+    expect(issuePaths(output)).toEqual(['suggestions.2.sourceUrl']);
+  });
+
+  it('accepts two suggestions from the same site', () => {
+    const output = validOutput();
+    output.suggestions[1].sourceUrl = output.suggestions[0].sourceUrl.replace(
+      /[^/]+$/,
+      'druga-recepta',
+    );
+
+    expect(issuePaths(output)).toEqual([]);
+  });
+
   it('rejects a suggestion without a source URL', () => {
     const output = validOutput();
     delete output.suggestions[1].sourceUrl;
