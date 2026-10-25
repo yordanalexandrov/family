@@ -3,6 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { buildTestApp } from '../test/app.js';
+import { HttpError } from './error-handler.js';
 
 let app: FastifyInstance;
 
@@ -13,6 +14,10 @@ beforeAll(async () => {
   test.get('/test/boom', async () => {
     throw new Error('secret details');
   });
+  test.get('/test/refused', async () => {
+    throw new HttpError(403, 'forbidden', 'Нямаш достъп до това');
+  });
+  // Like Fastify's own refusals (e.g. FST_ERR_CTP_INVALID_MEDIA_TYPE): a status and a code outside the contract.
   test.get('/test/teapot', async () => {
     throw Object.assign(new Error('Чайник съм'), {
       statusCode: 418,
@@ -42,11 +47,21 @@ describe('error handler', () => {
     expect(response.body).not.toContain('stack');
   });
 
-  it('keeps the status and code of an error that carries them', async () => {
+  it('answers an HttpError with its status, code and message', async () => {
+    const response = await app.inject({ method: 'GET', url: '/test/refused' });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      error: 'forbidden',
+      message: 'Нямаш достъп до това',
+    });
+  });
+
+  it('keeps the status and message of another error with a status, under the generic code error', async () => {
     const response = await app.inject({ method: 'GET', url: '/test/teapot' });
 
     expect(response.statusCode).toBe(418);
-    expect(response.json()).toEqual({ error: 'teapot', message: 'Чайник съм' });
+    expect(response.json()).toEqual({ error: 'error', message: 'Чайник съм' });
   });
 
   it('answers 400 validation_error with the offending paths when the query does not match its schema', async () => {
