@@ -3,6 +3,7 @@ import type { CalendarEvent, DayEvents } from '../schemas/calendar.js';
 import {
   addDays,
   dateKeyInSofia,
+  daysBetween,
   groupEventsByDay,
   startOfDayInSofia,
   themeForHour,
@@ -67,6 +68,18 @@ describe('addDays', () => {
     expect(startOfDayInSofia(addDays('2026-03-28', 2)).toISOString()).toBe(
       '2026-03-29T21:00:00.000Z',
     );
+  });
+});
+
+describe('daysBetween', () => {
+  it('counts calendar days, across a month end and the night summer time ends', () => {
+    expect(daysBetween('2026-10-25', '2026-10-31')).toBe(6);
+    expect(daysBetween('2026-10-24', '2026-11-02')).toBe(9);
+  });
+
+  it('is zero for the same day and negative for an earlier one', () => {
+    expect(daysBetween('2026-11-02', '2026-11-02')).toBe(0);
+    expect(daysBetween('2026-11-05', '2026-11-02')).toBe(-3);
   });
 });
 

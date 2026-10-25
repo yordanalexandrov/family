@@ -4,7 +4,7 @@ import {
   calendarEventsQuerySchema,
   calendarEventsResponseSchema,
   dateKeyInSofia,
-  utcMidnightOf,
+  daysBetween,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { HttpError } from '../plugins/error-handler.js';
@@ -25,7 +25,7 @@ export const calendarEventsRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => {
       const from = request.query.from ?? dateKeyInSofia(app.now());
       const to = request.query.to ?? addDays(from, CALENDAR_MAX_DAYS);
-      const days = (utcMidnightOf(to) - utcMidnightOf(from)) / 86_400_000;
+      const days = daysBetween(from, to);
       if (days < 1 || days > CALENDAR_MAX_DAYS) {
         throw new HttpError(
           400,

@@ -2,9 +2,9 @@ import {
   type BudgetSnapshot,
   dailyPace,
   dateKeyInSofia,
+  daysBetween,
   isOverBudget,
   type SyncStatus,
-  utcMidnightOf,
 } from '@family/shared';
 import type { CSSProperties } from 'react';
 import { Card } from '../../components/Card';
@@ -19,17 +19,14 @@ interface BudgetPanelProps {
   index?: number;
 }
 
-const DAY_MS = 86_400_000;
-
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
 /** Докъде в периода е краят на днешния ден, 0–1. */
 function dayFraction(budget: BudgetSnapshot, today: string): number {
-  const start = utcMidnightOf(budget.periodStart);
-  const days = (utcMidnightOf(budget.periodEnd) - start) / DAY_MS + 1;
-  const passed = (utcMidnightOf(today) - start) / DAY_MS + 1;
+  const days = daysBetween(budget.periodStart, budget.periodEnd) + 1;
+  const passed = daysBetween(budget.periodStart, today) + 1;
   return clamp(passed / days);
 }
 

@@ -53,6 +53,14 @@ export function utcMidnightOf(key: DateKey): number {
   return Date.parse(`${key}T00:00:00Z`);
 }
 
+/** Milliseconds in a day of 24 hours. */
+export const DAY_MS = 86_400_000;
+
+/** Calendar days from `from` to `to`: 0 for the same day, negative when `to` is earlier. */
+export function daysBetween(from: DateKey, to: DateKey): number {
+  return (utcMidnightOf(to) - utcMidnightOf(from)) / DAY_MS;
+}
+
 /** The Sofia calendar date of `date`. */
 export function dateKeyInSofia(date: Date): DateKey {
   const { year, month, day } = wallClockInSofia(date);
