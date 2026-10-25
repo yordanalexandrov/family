@@ -18,19 +18,10 @@ function openClawFields() {
   };
 }
 
-const openClawEnv = z.object(openClawFields()).transform(toOpenClawConfig);
+type OpenClawEnv = z.infer<z.ZodObject<ReturnType<typeof openClawFields>>>;
 
-/** Settings of the OpenClaw client (`src/openclaw/client.ts`); no `gatewayPassword` = disabled. */
-export type OpenClawConfig = {
-  url: string;
-  gatewayPassword: string | undefined;
-  recipeAgent: string;
-  timeoutMs: number;
-};
-
-function toOpenClawConfig(
-  env: z.infer<z.ZodObject<ReturnType<typeof openClawFields>>>,
-): OpenClawConfig {
+/** The OPENCLAW_* variables as the client's settings; a new variable is added here and in `openClawFields`. */
+function toOpenClawConfig(env: OpenClawEnv) {
   return {
     url: env.OPENCLAW_URL,
     gatewayPassword: env.OPENCLAW_GATEWAY_PASSWORD,
@@ -39,24 +30,24 @@ function toOpenClawConfig(
   };
 }
 
+/** Settings of the OpenClaw client (`src/openclaw/client.ts`); no `gatewayPassword` = disabled. */
+export type OpenClawConfig = ReturnType<typeof toOpenClawConfig>;
+
+const OPENCLAW_KEYS = Object.keys(openClawFields()) as (keyof OpenClawEnv)[];
+
+const openClawEnv = z.object(openClawFields()).transform(toOpenClawConfig);
+
 /** Splits the OPENCLAW_* variables off an env object into `openclaw`. */
-function withOpenClaw<
-  T extends z.infer<z.ZodObject<ReturnType<typeof openClawFields>>>,
->({
-  OPENCLAW_URL,
-  OPENCLAW_GATEWAY_PASSWORD,
-  OPENCLAW_RECIPE_AGENT,
-  OPENCLAW_TIMEOUT_MS,
-  ...env
-}: T) {
+function withOpenClaw<T extends OpenClawEnv>(
+  env: T,
+): Omit<T, keyof OpenClawEnv> & { openclaw: OpenClawConfig } {
+  const rest: Partial<T> = { ...env };
+  for (const key of OPENCLAW_KEYS) {
+    delete rest[key];
+  }
   return {
-    ...env,
-    openclaw: toOpenClawConfig({
-      OPENCLAW_URL,
-      OPENCLAW_GATEWAY_PASSWORD,
-      OPENCLAW_RECIPE_AGENT,
-      OPENCLAW_TIMEOUT_MS,
-    }),
+    ...(rest as Omit<T, keyof OpenClawEnv>),
+    openclaw: toOpenClawConfig(env),
   };
 }
 
