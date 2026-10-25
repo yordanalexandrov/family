@@ -1,5 +1,5 @@
 import { FAMILY_TIME_ZONE } from '@family/shared';
-import { formatTime } from '../calendar/format';
+import { formatTime } from '../../lib/format';
 import { useNow } from './use-now';
 
 const secondsFormat = new Intl.DateTimeFormat('bg-BG', {

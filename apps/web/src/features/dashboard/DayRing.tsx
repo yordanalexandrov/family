@@ -1,6 +1,6 @@
 import type { CalendarEvent } from '@family/shared';
 import type { CSSProperties, MouseEvent } from 'react';
-import { formatTime } from '../calendar/format';
+import { formatTime } from '../../lib/format';
 import { eventColor, useSourceAvatars } from '../calendar/SourceAvatars';
 import { dayRingSegments, type RingSegment, ringAngle } from './day-ring';
 import './DayRing.css';

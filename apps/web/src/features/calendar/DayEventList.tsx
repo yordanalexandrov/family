@@ -4,7 +4,7 @@ import {
   dateKeyInSofia,
   startOfDayInSofia,
 } from '@family/shared';
-import { formatTime } from './format';
+import { formatTime } from '../../lib/format';
 import { SourceAvatars } from './SourceAvatars';
 import './DayEventList.css';
 

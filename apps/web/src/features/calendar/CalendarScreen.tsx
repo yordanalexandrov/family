@@ -17,10 +17,10 @@ import { Card } from '../../components/Card';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
-import { staleNote, unconfiguredNote } from '../dashboard/stale';
+import { formatDayLong } from '../../lib/format';
+import { syncNotes } from '../../lib/sync-notes';
 import { useNow } from '../dashboard/use-now';
 import { DayEventList } from './DayEventList';
-import { formatDayLong } from './format';
 import './CalendarScreen.css';
 
 const SYNC_MESSAGES: Record<SyncRunResult['status'], string> = {
@@ -59,7 +59,8 @@ export function CalendarScreen() {
     });
   }
 
-  const note = sync && (unconfiguredNote(sync) ?? staleNote(sync, now));
+  const notes = sync && syncNotes(sync, now);
+  const note = notes?.unconfigured ?? notes?.stale;
 
   return (
     <main className={`calendar${mode === 'kiosk' ? ' calendar--kiosk' : ''}`}>

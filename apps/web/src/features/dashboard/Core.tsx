@@ -1,10 +1,10 @@
 import type { Cooking, DayEvents, SyncStatus } from '@family/shared';
 import { Card } from '../../components/Card';
-import { formatDayLong, formatTime } from '../calendar/format';
+import { formatDayLong, formatTime } from '../../lib/format';
+import { syncNotes } from '../../lib/sync-notes';
 import { SourceAvatars } from '../calendar/SourceAvatars';
 import { Clock } from './Clock';
 import { DayRing } from './DayRing';
-import { staleNote, unconfiguredNote } from './stale';
 import './Core.css';
 
 /*
@@ -44,7 +44,7 @@ export function Core({
   showHiddenCount = false,
   onSelectEvent,
 }: CoreProps) {
-  const unconfigured = unconfiguredNote(sync);
+  const { unconfigured, stale } = syncNotes(sync, now);
   const events = unconfigured ? [] : today.events;
   const allDay = events.filter((event) => event.allDay);
   const allUpcoming = events.filter(
@@ -58,7 +58,7 @@ export function Core({
     <Card
       className="core"
       aria-label="Днес накратко"
-      stale={showStale ? staleNote(sync, now) : undefined}
+      stale={showStale ? stale : undefined}
     >
       <DayRing events={events} now={now} onSelect={onSelectEvent} />
       <div className="core__inner">

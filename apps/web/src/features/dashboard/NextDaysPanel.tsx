@@ -1,9 +1,9 @@
 import type { DayEvents, SyncStatus } from '@family/shared';
 import type { CSSProperties } from 'react';
 import { Card } from '../../components/Card';
+import { formatDate, formatWeekday } from '../../lib/format';
+import { syncNotes } from '../../lib/sync-notes';
 import { DayEventList } from '../calendar/DayEventList';
-import { formatDate, formatWeekday } from '../calendar/format';
-import { staleNote, unconfiguredNote } from './stale';
 import './NextDaysPanel.css';
 
 interface NextDaysPanelProps {
@@ -23,12 +23,12 @@ export function NextDaysPanel({
   index = 3,
   maxEventsPerDay,
 }: NextDaysPanelProps) {
-  const unconfigured = unconfiguredNote(sync);
+  const { unconfigured, stale } = syncNotes(sync, now);
   return (
     <Card
       title="Следващите дни"
       aria-label="Следващите дни"
-      stale={staleNote(sync, now)}
+      stale={stale}
       style={{ '--card-index': index } as CSSProperties}
     >
       {unconfigured ? (

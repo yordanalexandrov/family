@@ -1,8 +1,8 @@
 import type { DayEvents, SyncStatus } from '@family/shared';
 import type { CSSProperties } from 'react';
 import { Card } from '../../components/Card';
+import { syncNotes } from '../../lib/sync-notes';
 import { DayEventList } from '../calendar/DayEventList';
-import { staleNote, unconfiguredNote } from './stale';
 
 /** id на реда в „Днес“; пръстенът превърта до него. */
 export function todayItemId(eventId: string): string {
@@ -17,12 +17,12 @@ interface TodayListProps {
 }
 
 export function TodayList({ today, now, sync, index = 1 }: TodayListProps) {
-  const unconfigured = unconfiguredNote(sync);
+  const { unconfigured, stale } = syncNotes(sync, now);
   return (
     <Card
       title="Днес"
       aria-label="Днес"
-      stale={staleNote(sync, now)}
+      stale={stale}
       style={{ '--card-index': index } as CSSProperties}
     >
       {unconfigured ? (

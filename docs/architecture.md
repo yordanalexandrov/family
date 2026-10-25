@@ -55,7 +55,7 @@ db/          → Drizzle schema, миграции, repository функции
 scripts/     → ръчни инструменти през `tsx` (напр. `calendar:probe` срещу реалния Google)
 ```
 
-Синхронизациите с външни системи вървят сами: `plugins/scheduler.ts` пуска всяка задача 5 с след `ready`, после през интервала ± 25 % jitter (`setTimeout` верига) и я спира при затваряне, като изчаква текущото пускане. Задача се регистрира само ако системата е конфигурирана; иначе се логва „calendar sync: unconfigured“ и `app.calendarSync` е `null`. Ръчното пускане (`POST /api/sync/calendar`) и кронът минават през един и същ service с mutex, затова второ пускане по време на първото връща `running`. `buildApp()` получава клиента (`googleCalendar`), часовника (`now`) и `scheduler` отвън: `server.ts` ги строи от config, а spec-овете подават клиент с генериран ключ срещу msw, фиксиран часовник и без scheduler.
+Синхронизациите с външни системи вървят сами: `plugins/scheduler.ts` пуска всяка задача 5 с след `ready`, после през интервала ± 25 % jitter (`setTimeout` верига) и я спира при затваряне, като изчаква текущото пускане. Задача се регистрира само ако системата е конфигурирана; иначе се логва „calendar sync: unconfigured“ и `app.calendarSync` е `null`. Ръчното пускане (`POST /api/sync/calendar`) и кронът минават през един и същ service с mutex, затова второ пускане по време на първото връща `running`. `buildApp()` получава клиента (`googleCalendar`), календарите от GOOGLE_CALENDARS (`calendarSources`, upsert-ват се в `onReady`), часовника (`now`) и `scheduler` отвън: `server.ts` ги строи от config, а spec-овете подават клиент с генериран ключ срещу msw, фиксиран часовник и без scheduler.
 
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
@@ -68,6 +68,7 @@ app/              → композиция: code-based маршрути (TanStac
 features/<име>/   → екран + hooks + компоненти за една функционалност (device, who, dashboard, calendar, settings; после menu, shopping, recipes)
 api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User`, Zod, `ApiError`) + TanStack Query hooks (`queries.ts`)
 components/       → споделени UI компоненти без бизнес логика (Card, Aurora, TopBar, Avatar, Spinner, ErrorBox, Toast)
+lib/              → общи чисти помощници за няколко features: форматиране на час, дата и пари (`format.ts`), надписите за остарели или липсващи данни (`sync-notes.ts`)
 styles/           → design tokens на „Стъкло“ (`tokens.css`, `data-theme`, `data-effects`), шрифтът Inter (`fonts.css`) и глобални стилове
 logger.ts         → единственият изход към конзолата
 ```

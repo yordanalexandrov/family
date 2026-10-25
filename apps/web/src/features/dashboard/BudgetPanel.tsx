@@ -8,8 +8,8 @@ import {
 } from '@family/shared';
 import type { CSSProperties } from 'react';
 import { Card } from '../../components/Card';
-import { formatDate, formatMoney } from '../calendar/format';
-import { staleNote, unconfiguredNote } from './stale';
+import { formatDate, formatMoney } from '../../lib/format';
+import { syncNotes } from '../../lib/sync-notes';
 import './BudgetPanel.css';
 
 interface BudgetPanelProps {
@@ -41,17 +41,12 @@ export function BudgetPanel({
   sync,
   index = 2,
 }: BudgetPanelProps) {
-  const unconfigured = unconfiguredNote(sync);
+  const { unconfigured, stale } = syncNotes(sync, now);
   const style = { '--card-index': index } as CSSProperties;
 
   if (unconfigured || budget === null) {
     return (
-      <Card
-        title="Бюджет"
-        aria-label="Бюджет"
-        stale={staleNote(sync, now)}
-        style={style}
-      >
+      <Card title="Бюджет" aria-label="Бюджет" stale={stale} style={style}>
         <p className="budget__amount">—</p>
         <p className="dashboard__note">
           {unconfigured ?? 'няма данни от Wallet'}
@@ -74,7 +69,7 @@ export function BudgetPanel({
       title="Бюджет"
       aria-label="Бюджет"
       aside={`остават до ${formatDate(budget.periodEnd)}`}
-      stale={staleNote(sync, now)}
+      stale={stale}
       style={style}
     >
       <div className="budget__top">
