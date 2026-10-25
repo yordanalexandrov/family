@@ -64,11 +64,11 @@ Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest`
 ## Слоеве в `apps/web`
 
 ```
-app/              → композиция: code-based маршрути (TanStack Router), QueryClient, действащ потребител (localStorage), тема
+app/              → композиция: code-based маршрути (TanStack Router), QueryClient, действащ потребител (localStorage), тема, ниво на ефектите
 features/<име>/   → екран + hooks + компоненти за една функционалност (who, home; после dashboard, menu, shopping, recipes)
 api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User`, Zod, `ApiError`) + TanStack Query hooks (`queries.ts`)
-components/       → споделени UI компоненти без бизнес логика (Avatar, Spinner, ErrorBox)
-styles/           → design tokens (`tokens.css`, `data-theme`) и глобални стилове
+components/       → споделени UI компоненти без бизнес логика (Card, Aurora, TopBar, Avatar, Spinner, ErrorBox)
+styles/           → design tokens на „Стъкло“ (`tokens.css`, `data-theme`, `data-effects`), шрифтът Inter (`fonts.css`) и глобални стилове
 logger.ts         → единственият изход към конзолата
 ```
 

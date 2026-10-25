@@ -1,0 +1,98 @@
+/*
+ * Слоят е fixed и с z-index -1 под #root. Петната са radial-gradient към прозрачно,
+ * затова на lite изглеждат като статичен градиент и без filter; full добавя
+ * размазване на целия слой (не се анимира) и бавно движение на петната.
+ */
+.aurora {
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  overflow: hidden;
+  opacity: var(--aurora-opacity);
+  pointer-events: none;
+}
+
+.aurora i {
+  position: absolute;
+  inline-size: 48vmax;
+  block-size: 48vmax;
+  border-radius: 50%;
+}
+
+.aurora i:nth-child(1) {
+  top: 5%;
+  left: 5%;
+  background: radial-gradient(circle, var(--aurora-1) 0, transparent 65%);
+}
+
+.aurora i:nth-child(2) {
+  top: 20%;
+  right: 0;
+  background: radial-gradient(circle, var(--aurora-2) 0, transparent 65%);
+}
+
+.aurora i:nth-child(3) {
+  bottom: 0;
+  left: 30%;
+  background: radial-gradient(circle, var(--aurora-3) 0, transparent 65%);
+}
+
+.aurora i:nth-child(4) {
+  right: 25%;
+  bottom: 10%;
+  inline-size: 36vmax;
+  block-size: 36vmax;
+  background: radial-gradient(circle, var(--aurora-4) 0, transparent 65%);
+}
+
+:root[data-effects="full"] .aurora {
+  filter: blur(var(--aurora-blur)) saturate(1.2);
+}
+
+:root[data-effects="full"] .aurora i {
+  mix-blend-mode: var(--aurora-blend);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-effects="full"] .aurora i {
+    will-change: transform;
+    animation: aurora-1 34s ease-in-out infinite alternate;
+  }
+
+  :root[data-effects="full"] .aurora i:nth-child(2) {
+    animation-name: aurora-2;
+    animation-duration: 41s;
+  }
+
+  :root[data-effects="full"] .aurora i:nth-child(3) {
+    animation-name: aurora-3;
+    animation-duration: 37s;
+  }
+
+  :root[data-effects="full"] .aurora i:nth-child(4) {
+    animation-duration: 29s;
+    animation-direction: alternate-reverse;
+  }
+
+  :root[data-effects="full"] .aurora[data-paused] i:nth-child(n) {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes aurora-1 {
+  to {
+    transform: translate(28vw, 18vh) scale(1.25);
+  }
+}
+
+@keyframes aurora-2 {
+  to {
+    transform: translate(-30vw, 22vh) scale(0.85);
+  }
+}
+
+@keyframes aurora-3 {
+  to {
+    transform: translate(18vw, -26vh) scale(1.15);
+  }
+}

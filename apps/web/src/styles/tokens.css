@@ -1,30 +1,78 @@
 /*
- * Design tokens. Стойностите са от вариант A на прототипа на дашборда (#5):
- * person-1 = Дани, person-2 = Поли. Светла тема по подразбиране; тъмната идва
- * от `data-theme="dark"` на <html> (localStorage `family.theme`) или от
- * системата, когда няма изрична тема.
+ * Design tokens на дизайн системата „Стъкло“ (#45, #46). Еталонът за тъмната
+ * тема е prototypes/dashboard-styles/15-glass-core-lean.html; светлата е неин
+ * вариант: бледа аурора върху почти бял фон, бяло матово стъкло, тъмен текст.
+ *
+ * Светла тема по подразбиране; тъмната идва от `data-theme="dark"` на <html>
+ * (localStorage `family.theme`) или от системата, когато няма изрична тема.
+ * Блокът за системата повтаря тъмния; tokens.spec.ts пази двата еднакви и
+ * проверява контраста на текста и цветовете на хората (≥ 4.5:1) в двете теми.
+ *
+ * person-1 = Дани, person-2 = Поли, person-family = семейният календар.
  */
 :root {
   color-scheme: light;
 
-  --color-bg: #eef1f4;
+  /* Роли */
+  --color-bg: #eef1f8;
   --color-surface: #ffffff;
-  --color-surface-2: #e3e8ee;
-  --color-text: #17202b;
-  --color-text-muted: #5b6b7c;
-  --color-line: #cfd7e0;
-  --color-accent: #0f6f6a;
+  --color-surface-2: #e4e8f2;
+  --color-text: #141826;
+  --color-text-muted: #4c5570;
+  --color-line: rgba(20, 24, 38, 0.12);
+  --color-accent: #0b6e78;
   --color-accent-ink: #ffffff;
-  --color-success: #1b7f3b;
-  --color-warning: #b06a00;
-  --color-danger: #b8231f;
-  --color-person-1: #2457d6;
-  --color-person-2: #b4541a;
-  --color-person-family: #6b3fc7;
+  --color-success: #16804a;
+  --color-warning: #8a5a00;
+  --color-danger: #b8233a;
+  --color-stale: #855400;
+  --color-person-1: #1d5bd0;
+  --color-person-2: #b2440e;
+  --color-person-family: #7a3ccc;
   --color-person-ink: #ffffff;
-  --shadow: 0 1px 2px rgba(20, 30, 40, 0.06), 0 6px 20px rgba(20, 30, 40, 0.06);
+  --color-status-ok: #1fa463;
+  --color-status-stale: #e0a100;
+  --color-status-off: rgba(20, 24, 38, 0.28);
+  --shadow:
+    0 1px 2px rgba(30, 40, 80, 0.06), 0 18px 40px -18px rgba(30, 40, 80, 0.22);
 
-  --radius: 14px;
+  /* Стъкло */
+  --glass-bg: rgba(255, 255, 255, 0.5);
+  --glass-bg-strong: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --glass-sheen: rgba(255, 255, 255, 0.55);
+  --glass-blur: 26px;
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 24px 60px -24px rgba(40, 50, 100, 0.28);
+
+  /* Аурора: пастелни петна */
+  --aurora-1: #86a8ff;
+  --aurora-2: #dc9cff;
+  --aurora-3: #6fe3d4;
+  --aurora-4: #ffa6c4;
+  --aurora-opacity: 0.7;
+  --aurora-blend: multiply;
+  --aurora-blur: 90px;
+
+  /* Движение */
+  --motion-fast: 150ms;
+  --motion-base: 300ms;
+  --motion-slow: 800ms;
+  --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Пръстен на деня (Дашборд 4) */
+  --ring-width: 26px;
+  --ring-lane-gap: 4px;
+  --ring-now: #141826;
+  --ring-track: rgba(20, 24, 38, 0.07);
+
+  /* Форма */
+  --radius-sm: 10px;
+  --radius-md: clamp(14px, 1.1vw, 20px);
+  --radius-lg: clamp(18px, 1.4vw, 28px);
+  --radius-pill: 999px;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -32,57 +80,112 @@
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
+  --space-gap: clamp(10px, 0.75vw, 14px);
+  --space-pad: clamp(14px, 1vw, 20px);
 
+  /*
+   * Типография по изглед: на TV (≥ 1600 px) основният текст (md) е 22 px,
+   * вторичният (sm) 20 px, както в прототипа; под 1600 px и на телефона мащабът
+   * слиза през clamp(). display е за часовника и остатъка от бюджета.
+   */
   --font-body:
-    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
-  --font-size-sm: 0.875rem;
-  --font-size-md: 1rem;
-  --font-size-lg: 1.25rem;
-  --font-size-xl: 1.5rem;
-  --font-size-display: clamp(2rem, 1.25rem + 2.5vw, 3.5rem);
+    "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-size-xs: clamp(0.75rem, 0.5rem + 0.5vw, 1rem);
+  --font-size-sm: clamp(0.875rem, 0.5rem + 0.75vw, 1.25rem);
+  --font-size-md: clamp(1rem, 0.6rem + 0.775vw, 1.375rem);
+  --font-size-lg: clamp(1.125rem, 0.625rem + 1vw, 1.625rem);
+  --font-size-xl: clamp(1.375rem, 0.75rem + 1.25vw, 2rem);
+  --font-size-display: clamp(2.5rem, 1rem + 3.5vw, 4.5rem);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg: #0e1319;
-  --color-surface: #171e27;
-  --color-surface-2: #212a35;
-  --color-text: #e8eef4;
-  --color-text-muted: #93a3b4;
-  --color-line: #2b3643;
-  --color-accent: #4cc3b8;
-  --color-accent-ink: #06211f;
-  --color-success: #5ad07c;
-  --color-warning: #f2b74a;
-  --color-danger: #ff7b74;
-  --color-person-1: #7fa3ff;
-  --color-person-2: #f0a26b;
-  --color-person-family: #b89cff;
-  --color-person-ink: #0e1319;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --color-bg: #07080f;
+  --color-surface: #161823;
+  --color-surface-2: #1f2230;
+  --color-text: #f3f5ff;
+  --color-text-muted: #a2a6b8;
+  --color-line: rgba(255, 255, 255, 0.14);
+  --color-accent: #5fe0e8;
+  --color-accent-ink: #07080f;
+  --color-success: #5ee8a5;
+  --color-warning: #ffd166;
+  --color-danger: #ff6b7a;
+  --color-stale: #ffd166;
+  --color-person-1: #4fa3ff;
+  --color-person-2: #ff9a5c;
+  --color-person-family: #c58dff;
+  --color-person-ink: #0b0c14;
+  --color-status-ok: #5ee8a5;
+  --color-status-stale: #ffd166;
+  --color-status-off: rgba(255, 255, 255, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-highlight: rgba(255, 255, 255, 0.22);
+  --glass-sheen: rgba(255, 255, 255, 0.14);
+  --glass-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 24px 60px -20px rgba(0, 0, 0, 0.6);
+
+  --aurora-1: #2a4dff;
+  --aurora-2: #c43fff;
+  --aurora-3: #00d5c8;
+  --aurora-4: #ff6a9a;
+  --aurora-opacity: 0.8;
+  --aurora-blend: screen;
+
+  --ring-now: #ffffff;
+  --ring-track: rgba(255, 255, 255, 0.07);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --color-bg: #0e1319;
-    --color-surface: #171e27;
-    --color-surface-2: #212a35;
-    --color-text: #e8eef4;
-    --color-text-muted: #93a3b4;
-    --color-line: #2b3643;
-    --color-accent: #4cc3b8;
-    --color-accent-ink: #06211f;
-    --color-success: #5ad07c;
-    --color-warning: #f2b74a;
-    --color-danger: #ff7b74;
-    --color-person-1: #7fa3ff;
-    --color-person-2: #f0a26b;
-    --color-person-family: #b89cff;
-    --color-person-ink: #0e1319;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --color-bg: #07080f;
+    --color-surface: #161823;
+    --color-surface-2: #1f2230;
+    --color-text: #f3f5ff;
+    --color-text-muted: #a2a6b8;
+    --color-line: rgba(255, 255, 255, 0.14);
+    --color-accent: #5fe0e8;
+    --color-accent-ink: #07080f;
+    --color-success: #5ee8a5;
+    --color-warning: #ffd166;
+    --color-danger: #ff6b7a;
+    --color-stale: #ffd166;
+    --color-person-1: #4fa3ff;
+    --color-person-2: #ff9a5c;
+    --color-person-family: #c58dff;
+    --color-person-ink: #0b0c14;
+    --color-status-ok: #5ee8a5;
+    --color-status-stale: #ffd166;
+    --color-status-off: rgba(255, 255, 255, 0.3);
+    --shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+
+    --glass-bg: rgba(255, 255, 255, 0.06);
+    --glass-bg-strong: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --glass-highlight: rgba(255, 255, 255, 0.22);
+    --glass-sheen: rgba(255, 255, 255, 0.14);
+    --glass-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.22) inset,
+      0 24px 60px -20px rgba(0, 0, 0, 0.6);
+
+    --aurora-1: #2a4dff;
+    --aurora-2: #c43fff;
+    --aurora-3: #00d5c8;
+    --aurora-4: #ff6a9a;
+    --aurora-opacity: 0.8;
+    --aurora-blend: screen;
+
+    --ring-now: #ffffff;
+    --ring-track: rgba(255, 255, 255, 0.07);
   }
 }
