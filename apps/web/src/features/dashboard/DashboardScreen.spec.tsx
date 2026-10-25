@@ -7,9 +7,9 @@ import {
   apiError,
   dani,
   dashboard,
-  poli,
   dashboardWith,
   fixtureNow,
+  poli,
   server,
 } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -137,6 +137,17 @@ describe('DashboardScreen', () => {
       expect(row.queryByText(/порци/)).not.toBeInTheDocument();
     });
 
+    it('докосване на „Днес се готви“ отваря менюто', async () => {
+      const user = userEvent.setup();
+      const { router } = renderApp('/');
+
+      await user.click(
+        (await core()).getByRole('link', { name: /Днес се готви/ }),
+      );
+
+      expect(router.state.location.pathname).toBe('/menu');
+    });
+
     it('бележка без готвач → бележката, без аватар', async () => {
       respondWith(
         dashboardWith({
@@ -152,7 +163,9 @@ describe('DashboardScreen', () => {
       expect(row.getByText('ядем навън')).toBeInTheDocument();
       expect(row.queryByText(/^готви /)).not.toBeInTheDocument();
       expect(
-        (await core()).getByText('ядем навън').closest('.core__cooking')
+        (await core())
+          .getByText('ядем навън')
+          .closest('.core__cooking')
           ?.querySelector('.avatar'),
       ).toBeNull();
     });

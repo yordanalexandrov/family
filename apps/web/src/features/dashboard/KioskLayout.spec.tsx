@@ -89,7 +89,7 @@ describe('KioskLayout', () => {
     renderApp('/');
 
     await user.click(
-      (await region('Днес накратко')).getByText('Днес се готви'),
+      (await region('Днес накратко')).getByRole('link', { name: 'Календар' }),
     );
 
     expect(
@@ -97,6 +97,27 @@ describe('KioskLayout', () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Назад' }));
     expect(await region('Днес накратко')).toBeTruthy();
+  });
+
+  it('докосване на „Днес се готви“ в ядрото отваря менюто, не календара', async () => {
+    const user = userEvent.setup();
+    respondWith(
+      dashboardWith({
+        cooking: {
+          lunch: null,
+          dinner: { title: 'Мусака', cookUserId: null },
+        },
+      }),
+    );
+    const { router } = renderApp('/');
+
+    await user.click(
+      (await region('Днес накратко')).getByRole('link', {
+        name: /Днес се готви/,
+      }),
+    );
+
+    expect(router.state.location.pathname).toBe('/menu');
   });
 
   it('докосване на „Следващите дни“ отваря календара', async () => {

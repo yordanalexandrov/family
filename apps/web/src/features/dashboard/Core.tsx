@@ -1,4 +1,5 @@
 import type { Cooking, DayEvents, SyncStatus } from '@family/shared';
+import { Link } from '@tanstack/react-router';
 import { Card } from '../../components/Card';
 import { formatDayLong, formatTime } from '../../lib/format';
 import { syncNotes } from '../../lib/sync-notes';
@@ -32,6 +33,10 @@ interface CoreProps {
   showHiddenCount?: boolean;
   /** Докосване на сегмент от пръстена. */
   onSelectEvent?: (eventId: string) => void;
+  /** kiosk, телефон: „Днес се готви“ води към менюто. */
+  opensMenu?: boolean;
+  /** kiosk: останалото ядро води към календара (връзка под съдържанието, по целия кръг). */
+  opensCalendar?: boolean;
 }
 
 export function Core({
@@ -44,6 +49,8 @@ export function Core({
   maxEvents = 1,
   showHiddenCount = false,
   onSelectEvent,
+  opensMenu = false,
+  opensCalendar = false,
 }: CoreProps) {
   const { unconfigured, stale } = syncNotes(sync, now);
   const events = unconfigured ? [] : today.events;
@@ -57,11 +64,18 @@ export function Core({
 
   return (
     <Card
-      className="core"
+      className={opensCalendar ? 'core core--links' : 'core'}
       aria-label="Днес накратко"
       stale={showStale ? stale : undefined}
     >
       <DayRing events={events} now={now} onSelect={onSelectEvent} />
+      {opensCalendar && (
+        <Link
+          to="/calendar"
+          className="core__calendar-link"
+          aria-label="Календар"
+        />
+      )}
       <div className="core__inner">
         {allDay.length > 0 && (
           <ul className="core__chips">
@@ -98,7 +112,7 @@ export function Core({
             )}
           </ul>
         )}
-        <TodayCooking dinner={cooking.dinner} />
+        <TodayCooking dinner={cooking.dinner} opensMenu={opensMenu} />
       </div>
     </Card>
   );
