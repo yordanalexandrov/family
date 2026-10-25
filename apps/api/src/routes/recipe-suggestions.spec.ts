@@ -11,6 +11,7 @@ import type { FastifyInstance } from 'fastify';
 import { delay, HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { recipeSuggestionRequest } from '../db/schema/food.js';
+import type { CloudflareAccessOptions } from '../plugins/cloudflare-access.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import {
@@ -325,7 +326,25 @@ describe('the recipe.suggest run', () => {
 });
 
 describe('without a gateway password', () => {
-  it('answers 503 openclaw_unavailable and stores no request', async () => {
+  it('is refused outside dev mode: only AUTH_MODE=dev may run with OpenClaw disabled', () => {
+    const cloudflare: CloudflareAccessOptions = {
+      mode: 'cloudflare',
+      teamDomain: 'https://family-test.cloudflareaccess.com',
+      audience: 'aud-tag',
+      allowedEmails: ['dani@example.com'],
+    };
+
+    for (const openclaw of [
+      { ...TEST_OPENCLAW, gatewayPassword: undefined },
+      undefined,
+    ]) {
+      expect(() => buildTestApp({ auth: cloudflare, openclaw })).toThrow(
+        /OpenClaw/,
+      );
+    }
+  });
+
+  it('answers 503 openclaw_unavailable in dev mode and stores no request', async () => {
     const disabled = buildTestApp({
       openclaw: { ...TEST_OPENCLAW, gatewayPassword: undefined },
     });

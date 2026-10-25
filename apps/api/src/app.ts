@@ -45,8 +45,8 @@ export interface BuildAppOptions {
    */
   auth: CloudflareAccessOptions;
   /**
-   * The OpenClaw gateway for AI contracts. Without it, or without `gatewayPassword`, the client is disabled and
-   * `POST /api/recipe-suggestions/requests` answers 503 `openclaw_unavailable`.
+   * The OpenClaw gateway for AI contracts. In dev mode, without it or without `gatewayPassword`, the client is
+   * disabled and `POST /api/recipe-suggestions/requests` answers 503 `openclaw_unavailable`; any other mode throws.
    */
   openclaw?: OpenClawConfig;
 }
@@ -61,6 +61,12 @@ export function buildApp({
   auth,
   openclaw,
 }: BuildAppOptions): FastifyInstance {
+  if (auth.mode !== 'dev' && !openclaw?.gatewayPassword) {
+    // `loadConfig()` refuses this too; checked here so no caller can start a disabled OpenClaw outside dev mode.
+    throw new Error(
+      'OpenClaw needs a gateway password unless AUTH_MODE is dev',
+    );
+  }
   const app = Fastify({ logger });
 
   // Route schemas are Zod (from @family/shared): they validate the input and check the output.

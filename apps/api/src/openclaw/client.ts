@@ -78,8 +78,9 @@ const completionSchema = z.object({
 });
 
 /**
- * The client for `config`, or `null` when there is no gateway password (local dev): then the routes that need
- * OpenClaw answer 503 `openclaw_unavailable`. `log` gets duration and token usage, never the request headers.
+ * The client for `config`, or `null` when there is no gateway password, which only AUTH_MODE=dev allows (`loadConfig()`
+ * and `buildApp()` refuse it otherwise): then the routes that need OpenClaw answer 503 `openclaw_unavailable`.
+ * `log` gets duration and token usage, never the request headers.
  */
 export function createOpenClawClient(
   config: OpenClawConfig,

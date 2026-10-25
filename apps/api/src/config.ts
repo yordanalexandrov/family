@@ -8,7 +8,7 @@ function openClawFields() {
       .default('http://127.0.0.1:18789')
       .transform((url) => url.replace(/\/+$/, '')),
     // The bearer of `gateway.auth.password`: full operator access, so it is never logged or echoed.
-    // Empty = none; without it the OpenClaw client is disabled (refused in production).
+    // Empty = none; without it the OpenClaw client is disabled, which only AUTH_MODE=dev allows.
     OPENCLAW_GATEWAY_PASSWORD: z
       .string()
       .optional()
@@ -134,13 +134,14 @@ const devEnv = baseEnv
 
 const envSchema = z
   .discriminatedUnion('AUTH_MODE', [cloudflareEnv, devEnv])
+  // Only dev mode may run with OpenClaw disabled; production is always cloudflare mode, so it is covered too.
   .refine(
     (config) =>
-      config.NODE_ENV !== 'production' ||
+      config.auth.mode === 'dev' ||
       config.openclaw.gatewayPassword !== undefined,
     {
       path: ['OPENCLAW_GATEWAY_PASSWORD'],
-      message: 'is required when NODE_ENV is production',
+      message: 'is required unless AUTH_MODE is dev',
     },
   );
 

@@ -12,6 +12,7 @@ const cloudflare = {
   CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN,
   CF_ACCESS_AUD: 'aud-tag',
   ALLOWED_EMAILS: 'dani@example.com, Poli@Example.com',
+  OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
 };
 
 const defaults = {
@@ -74,16 +75,22 @@ describe('loadConfig', () => {
       });
     });
 
-    it('treats an empty password as none, so OpenClaw stays disabled outside production', () => {
+    it('treats an empty password as none, so OpenClaw stays disabled in dev mode', () => {
       expect(
         loadConfig({ ...dev, OPENCLAW_GATEWAY_PASSWORD: '' }),
       ).toMatchObject({ openclaw: { gatewayPassword: undefined } });
     });
 
-    it('requires the gateway password in production', () => {
-      expect(() =>
-        loadConfig({ ...cloudflare, NODE_ENV: 'production' }),
-      ).toThrow(/OPENCLAW_GATEWAY_PASSWORD/);
+    it('requires the gateway password outside dev mode, in production and out of it', () => {
+      for (const NODE_ENV of ['production', 'development']) {
+        expect(() =>
+          loadConfig({
+            ...cloudflare,
+            NODE_ENV,
+            OPENCLAW_GATEWAY_PASSWORD: '',
+          }),
+        ).toThrow(/OPENCLAW_GATEWAY_PASSWORD/);
+      }
     });
 
     it('never puts the password into the error message', () => {
@@ -130,6 +137,7 @@ describe('loadConfig', () => {
     it('in cloudflare mode splits ALLOWED_EMAILS on commas, trimmed and lowercased', () => {
       expect(loadConfig(cloudflare)).toEqual({
         ...defaults,
+        openclaw: { ...defaults.openclaw, gatewayPassword: 'gateway-secret' },
         auth: {
           mode: 'cloudflare',
           teamDomain: TEAM_DOMAIN,

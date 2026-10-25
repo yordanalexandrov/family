@@ -54,7 +54,7 @@ openclaw/    → клиентът към OpenClaw gateway-а (`/v1/chat/completi
 db/          → Drizzle schema, миграции, repository функции
 ```
 
-AI контрактите вървят във фон в процеса на api: `POST` записва заявка `pending` и връща `202`, service-ът (`app.recipeSuggestions`) вика OpenClaw клиента и записва `done`/`failed`, клиентът пита с `GET`. `app.close()` прекъсва и изчаква текущите заявки, а при старт `pending` заявки по-стари от 10 мин стават `failed`/`stale`. Без `OPENCLAW_GATEWAY_PASSWORD` (локално) клиентът е изключен и заявката за предложения връща `503 openclaw_unavailable`.
+AI контрактите вървят във фон в процеса на api: `POST` записва заявка `pending` и връща `202`, service-ът (`app.recipeSuggestions`) вика OpenClaw клиента и записва `done`/`failed`, клиентът пита с `GET`. `app.close()` прекъсва и изчаква текущите заявки, а при старт `pending` заявки по-стари от 10 мин стават `failed`/`stale`. Без `OPENCLAW_GATEWAY_PASSWORD` клиентът е изключен и заявката за предложения връща `503 openclaw_unavailable` — позволено само в `AUTH_MODE=dev`; във всеки друг режим api не тръгва.
 
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
