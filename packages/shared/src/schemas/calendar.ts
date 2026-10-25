@@ -56,3 +56,17 @@ export const calendarEventsResponseSchema = z.object({
 export type CalendarEventsResponse = z.infer<
   typeof calendarEventsResponseSchema
 >;
+
+/** The most days `GET /api/calendar/events` answers at once: the sync window. */
+export const CALENDAR_MAX_DAYS = 14;
+
+/**
+ * Query of `GET /api/calendar/events`: `to` is exclusive; by default today and `CALENDAR_MAX_DAYS` days on.
+ * The api also refuses `to` not after `from` or more than `CALENDAR_MAX_DAYS` days apart.
+ */
+export const calendarEventsQuerySchema = z.object({
+  from: dateKeySchema.optional(),
+  to: dateKeySchema.optional(),
+});
+
+export type CalendarEventsQuery = z.infer<typeof calendarEventsQuerySchema>;

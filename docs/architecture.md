@@ -48,10 +48,14 @@ import { mealPlanSchema, type MealPlan } from '@family/shared';
 
 ```
 routes/      → Fastify plugins; валидират вход/изход със schema от shared, викат service
-plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler
-services/    → бизнес логика (меню → списък за пазаруване и т.н.); без HTTP детайли
+plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler; `scheduler` — кронът на api
+services/    → бизнес логика (меню → списък за пазаруване, синхронизация на календара и т.н.); без HTTP детайли
+integrations/→ клиенти на външни системи (`google-calendar/`): само HTTP и auth към тях, без база
 db/          → Drizzle schema, миграции, repository функции
+scripts/     → ръчни инструменти през `tsx` (напр. `calendar:probe` срещу реалния Google)
 ```
+
+Синхронизациите с външни системи вървят сами: `plugins/scheduler.ts` пуска всяка задача 5 с след `ready`, после през интервала ± 25 % jitter (`setTimeout` верига) и я спира при затваряне, като изчаква текущото пускане. Задача се регистрира само ако системата е конфигурирана; иначе се логва „calendar sync: unconfigured“ и `app.calendarSync` е `null`. Ръчното пускане (`POST /api/sync/calendar`) и кронът минават през един и същ service с mutex, затова второ пускане по време на първото връща `running`. `buildApp()` получава клиента (`googleCalendar`), часовника (`now`) и `scheduler` отвън: `server.ts` ги строи от config, а spec-овете подават клиент с генериран ключ срещу msw, фиксиран часовник и без scheduler.
 
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
