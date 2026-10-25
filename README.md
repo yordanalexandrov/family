@@ -30,4 +30,5 @@ Deploy-ите вървят един по един (`concurrency: deploy-producti
 
 - **Ръчно:** Actions → deploy → Run workflow на `master` (`workflow_dispatch`) или `gh workflow run deploy.yml --ref master`. Deploy-ва отново върха на `master`, например след смяна на secret; за друг клон job-ът се пропуска.
 - **Логове:** на `homesrv` `docker compose -p family logs -f api` (или `caddy`, `postgres`, `backup`), състоянието с `docker compose -p family ps`. Логът на самия deploy е в Actions и е публичен като repo-то, затова в него не се печатат secrets.
+- **Проверка след deploy:** в лога на стъпката Deploy `family-postgres-1` трябва да е `Running`, не `Recreate`, тоест базата не е рестартирана. На `homesrv` `docker inspect -f '{{.State.StartedAt}}' family-postgres-1` показва кога е стартирала.
 - **Назад:** `git revert` на commit-а в PR + merge, и deploy-ът на revert-а връща предишното състояние. `workflow_dispatch` пуска само върха на клон, не стар commit; re-run на стар успешен run връща кода, но `master` остава на счупения commit и следващият merge го deploy-ва пак. Миграция не се връща с revert: промяната в схемата остава и се оправя с нова миграция.
