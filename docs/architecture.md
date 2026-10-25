@@ -10,7 +10,21 @@
 | `apps/api` | Fastify + TypeScript + Drizzle | REST/JSON API, auth, бизнес логика, единственият писач в Postgres |
 | `packages/shared` | Framework-agnostic TypeScript | Типове, Zod schemas за API и AI контрактите, чисти помощни функции |
 
-Инфраструктура: `docker-compose.yml` (postgres, api, caddy, backup); `api` и `caddy` вървят на host мрежата на Docker само на loopback ([ADR-0005](adr/0005-api-and-caddy-on-host-network.md)). OpenClaw е външен и говори само с api; n8n отсъства във Фаза 1 ([ADR-0001](adr/0001-no-n8n-in-phase-1.md)).
+## Инфраструктура
+
+Продукцията е един Compose проект на `homesrv`: `docker compose -p family up -d --build` от корена на репото с `.env` до него (на сървъра го пише `deploy.yml`). Образите идват от `Dockerfile` в корена: target `api` (`node:24-alpine`, само production зависимостите, `USER node`) и target `web` (`caddy:2-alpine` със статиката от `apps/web/dist`).
+
+| Service | Мрежа | Порт | Роля |
+|---|---|---|---|
+| `caddy` | host | `127.0.0.1:18090` | статиката на PWA-то; `/api/*` и `/healthz` → api. cloudflared сочи тук |
+| `api` | host | `127.0.0.1:18091` | прилага миграциите при старт, после приема заявки |
+| `postgres` | bridge | `127.0.0.1:5432` | данните, във volume `pgdata` (оцелява `down`/`up`) |
+| `backup` | bridge | — | `pg_dump` всяка нощ в 03:00 (`TZ`) в `/srv/family/backups`, пази 14 дни |
+| `postgres-test` | bridge, профил `test` | `127.0.0.1:5433` | тестовата база за `pnpm test`, tmpfs |
+
+`api` и `caddy` вървят на host мрежата на Docker и слушат само на loopback ([ADR-0005](adr/0005-api-and-caddy-on-host-network.md)): от LAN не се вижда нищо, cloudflared стига Caddy по loopback, а api може да вика OpenClaw на `127.0.0.1:18789`. Помежду си говорят по фиксираните портове, не по имена от compose мрежата. TLS терминира Cloudflare. OpenClaw е външен и говори само с api; n8n отсъства във Фаза 1 ([ADR-0001](adr/0001-no-n8n-in-phase-1.md)).
+
+`infra/` държи конфигурацията извън пакетите: `caddy/Caddyfile` (влиза в образа `web`), `backup/backup.sh` (монтира се read-only в `backup`) и [README.md](../infra/README.md): портове, пълният стек локално, ръчен backup и възстановяване.
 
 ## Правила за границите
 

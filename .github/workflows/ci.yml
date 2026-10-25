@@ -44,3 +44,21 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      # Образите от Dockerfile-а (docker-compose.yml): само build, без push; кешът на слоевете е в GitHub Actions cache.
+      - uses: docker/setup-buildx-action@v4
+      - name: docker build --target api
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: api
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: docker build --target web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: web
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
