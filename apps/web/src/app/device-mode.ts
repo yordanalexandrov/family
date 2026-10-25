@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { logger } from '../logger';
+import { storedSetting } from './stored-setting';
 
 /*
  * Режим на устройството (GLOSSARY: device mode), настройка на самото устройство в
@@ -16,38 +16,17 @@ export function parseDeviceMode(value: unknown): DeviceMode | null {
   return DEVICE_MODES.find((mode) => mode === value) ?? null;
 }
 
-const listeners = new Set<() => void>();
+const deviceMode = storedSetting<DeviceMode | null>({
+  key: DEVICE_MODE_KEY,
+  parse: parseDeviceMode,
+  unset: null,
+});
 
-export function readDeviceMode(): DeviceMode | null {
-  try {
-    return parseDeviceMode(localStorage.getItem(DEVICE_MODE_KEY));
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-    return null;
-  }
-}
-
-export function writeDeviceMode(mode: DeviceMode): void {
-  try {
-    localStorage.setItem(DEVICE_MODE_KEY, mode);
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-  }
-  for (const listener of listeners) {
-    listener();
-  }
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  window.addEventListener('storage', listener);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener('storage', listener);
-  };
-}
+export const readDeviceMode = deviceMode.read;
 
 export function useDeviceMode() {
-  const mode = useSyncExternalStore(subscribe, readDeviceMode);
-  return { mode, setMode: writeDeviceMode };
+  return {
+    mode: useSyncExternalStore(deviceMode.subscribe, deviceMode.read),
+    setMode: deviceMode.write,
+  };
 }

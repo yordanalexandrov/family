@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { logger } from '../logger';
+import { storedSetting } from './stored-setting';
 
 /*
  * Ниво на ефектите (GLOSSARY: effects level), настройка на устройството.
@@ -17,17 +17,12 @@ export const EFFECTS_KEY = 'family.effects';
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
-const listeners = new Set<() => void>();
-
-function readSetting(): EffectsSetting {
-  try {
-    const value = localStorage.getItem(EFFECTS_KEY);
-    return value === 'full' || value === 'lite' ? value : 'auto';
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-    return 'auto';
-  }
-}
+const effects = storedSetting<EffectsSetting>({
+  key: EFFECTS_KEY,
+  parse: (raw) => (raw === 'full' || raw === 'lite' ? raw : 'auto'),
+  unset: 'auto',
+  onChange: () => applyStoredEffects(),
+});
 
 /** Дали браузърът размазва зад елемент; без това нивото е винаги lite. */
 export function supportsBlur(): boolean {
@@ -59,51 +54,28 @@ function apply(setting: EffectsSetting): void {
 }
 
 export function applyStoredEffects(): void {
-  apply(readSetting());
-}
-
-function writeSetting(setting: EffectsSetting): void {
-  try {
-    if (setting === 'auto') {
-      localStorage.removeItem(EFFECTS_KEY);
-    } else {
-      localStorage.setItem(EFFECTS_KEY, setting);
-    }
-  } catch (error) {
-    logger.warn('localStorage недостъпен', error);
-  }
-  notify();
-}
-
-function notify(): void {
-  applyStoredEffects();
-  for (const listener of listeners) {
-    listener();
-  }
+  apply(effects.read());
 }
 
 function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  // Смяна от друг таб или на системното предпочитание за движение.
-  const onChange = () => notify();
-  window.addEventListener('storage', onChange);
+  const unsubscribe = effects.subscribe(listener);
+  // И смяна на системното предпочитание за движение.
   const media =
     typeof matchMedia === 'function' ? matchMedia(REDUCED_MOTION) : null;
-  media?.addEventListener('change', onChange);
+  media?.addEventListener('change', effects.notify);
   return () => {
-    listeners.delete(listener);
-    window.removeEventListener('storage', onChange);
-    media?.removeEventListener('change', onChange);
+    unsubscribe();
+    media?.removeEventListener('change', effects.notify);
   };
 }
 
 export function useEffectsLevel() {
-  const setting = useSyncExternalStore(subscribe, readSetting);
+  const setting = useSyncExternalStore(subscribe, effects.read);
   return {
     /** Действащото ниво след автоматичните правила. */
     level: resolveLevel(setting),
     /** Какво е избрано на устройството; `auto` = без изрична настройка. */
     setting,
-    setEffects: writeSetting,
+    setEffects: effects.write,
   };
 }
