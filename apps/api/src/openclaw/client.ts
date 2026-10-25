@@ -18,7 +18,7 @@ export class OpenClawHttpError extends Error {
   }
 }
 
-/** No answer within `timeoutMs`; the request was aborted, which also cancels the agent run. */
+/** No valid answer within `timeoutMs` (the whole call, retry included); the request was aborted, which also cancels the agent run. */
 export class OpenClawTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`OpenClaw did not answer within ${timeoutMs} ms`);
@@ -45,7 +45,7 @@ export interface CompleteOptions<T> {
   outputSchema: ZodType<T>;
   /** `response_format.json_schema`: best effort on the gateway's side, so the output is still parsed with `outputSchema`. */
   jsonSchema: { name: string; schema: Record<string, unknown> };
-  /** Defaults to the client's `timeoutMs`; covers each attempt. */
+  /** Defaults to the client's `timeoutMs`; one budget for the whole call, the retry included. */
   timeoutMs?: number;
   /** Aborting it (e.g. the app shutting down) cancels the request like a timeout does. */
   signal?: AbortSignal;
@@ -90,13 +90,13 @@ export function createOpenClawClient(
     return null;
   }
 
+  /** One attempt; `timeout` is the signal of the whole call, so a retry gets only what is left of the budget. */
   async function send<T>(
     options: CompleteOptions<T>,
     messages: Message[],
     attempt: number,
+    { timeout, timeoutMs }: { timeout: AbortSignal; timeoutMs: number },
   ): Promise<string> {
-    const timeoutMs = options.timeoutMs ?? config.timeoutMs;
-    const timeout = AbortSignal.timeout(timeoutMs);
     const signal = options.signal
       ? AbortSignal.any([timeout, options.signal])
       : timeout;
@@ -162,11 +162,13 @@ export function createOpenClawClient(
 
   return {
     async complete(options) {
+      const timeoutMs = options.timeoutMs ?? config.timeoutMs;
+      const budget = { timeout: AbortSignal.timeout(timeoutMs), timeoutMs };
       const messages: Message[] = [
         { role: 'user', content: JSON.stringify(options.input) },
       ];
 
-      const first = await send(options, messages, 1);
+      const first = await send(options, messages, 1, budget);
       const firstResult = parseOutput(first, options.outputSchema);
       if (firstResult.ok) {
         return firstResult.value;
@@ -183,7 +185,7 @@ export function createOpenClawClient(
           content: `Отговорът не мина валидация: ${firstResult.issues}. Върни само валиден JSON.`,
         },
       );
-      const second = await send(options, messages, 2);
+      const second = await send(options, messages, 2, budget);
       const secondResult = parseOutput(second, options.outputSchema);
       if (secondResult.ok) {
         return secondResult.value;

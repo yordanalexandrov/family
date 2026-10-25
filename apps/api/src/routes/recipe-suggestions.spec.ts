@@ -276,6 +276,38 @@ describe('the recipe.suggest run', () => {
     }
   });
 
+  it('counts the timeout for the whole call, the retry included', async () => {
+    const slow = buildTestApp({
+      openclaw: { ...TEST_OPENCLAW, timeoutMs: 300 },
+    });
+    await slow.ready();
+    const answers = [TOO_FEW(), VALID()];
+    let calls = 0;
+    openclaw.use(
+      // Each attempt alone fits in 300 ms, both together do not.
+      http.post(CHAT_COMPLETIONS_URL, async () => {
+        const content = answers[calls] ?? VALID();
+        calls += 1;
+        await delay(200);
+        return HttpResponse.json(completion(content));
+      }),
+    );
+    try {
+      const body = await finished(
+        await requested({ slot: 'dinner' }, slow),
+        slow,
+      );
+
+      expect(calls).toBe(2);
+      expect(body.request).toMatchObject({
+        status: 'failed',
+        error: 'timeout',
+      });
+    } finally {
+      await slow.close();
+    }
+  });
+
   it('fails with http_<status> when the gateway answers an error', async () => {
     openclaw.use(
       http.post(CHAT_COMPLETIONS_URL, () =>
