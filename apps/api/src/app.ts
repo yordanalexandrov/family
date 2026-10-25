@@ -2,7 +2,12 @@ import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
 } from 'fastify';
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from 'fastify-type-provider-zod';
 import { closeDb, createDb, type Db } from './db/client.js';
+import errorHandler from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
 
 declare module 'fastify' {
@@ -26,12 +31,17 @@ export function buildApp({
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({ logger });
 
+  // Route schemas are Zod (from @family/shared): they validate the input and check the output.
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+
   const db = createDb(databaseUrl, (error) =>
     app.log.error({ err: error }, 'postgres pool error'),
   );
   app.decorate('db', db);
   app.addHook('onClose', () => closeDb(db));
 
+  app.register(errorHandler);
   app.register(healthRoutes);
 
   return app;
