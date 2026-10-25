@@ -20,3 +20,18 @@ try {
   await app.close().catch(() => undefined);
   process.exit(1);
 }
+
+// In the container node is PID 1 and gets no default signal handling: without this,
+// `docker compose stop` waits 10 s and kills it. Closing lets in-flight requests finish and ends the pool.
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    app.log.info({ signal }, 'api shutting down');
+    app.close().then(
+      () => process.exit(0),
+      (error: unknown) => {
+        app.log.error({ err: error }, 'api did not shut down cleanly');
+        process.exit(1);
+      },
+    );
+  });
+}
