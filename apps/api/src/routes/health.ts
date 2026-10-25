@@ -8,7 +8,15 @@ export const healthRoutes: FastifyPluginAsyncZod = async (app) => {
     '/healthz',
     { schema: { response: { 200: healthSchema, 503: healthSchema } } },
     async (request, reply) => {
-      const health = await checkHealth(app.db, request.log);
+      const health = await checkHealth(
+        app.db,
+        request.log,
+        {
+          calendar: app.calendarSync !== null,
+          budget: app.budgetSync !== null,
+        },
+        app.now(),
+      );
       return reply.code(health.status === 'ok' ? 200 : 503).send(health);
     },
   );

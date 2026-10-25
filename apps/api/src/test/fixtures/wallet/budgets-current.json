@@ -1,0 +1,89 @@
+{
+  "budgets": [
+    {
+      "id": "test-budget-other",
+      "name": "Храна",
+      "type": "BUDGET_INTERVAL_MONTH",
+      "currencyCode": "EUR",
+      "limit": 600,
+      "limitOverrides": [],
+      "pastLimitOverrides": [],
+      "accountIds": [],
+      "categoryIds": ["test-category-groceries"],
+      "labelIds": [],
+      "closed": false,
+      "createdAt": "2026-01-03T10:00:00.000Z",
+      "updatedAt": "2026-10-01T08:00:00.000Z",
+      "spending": {
+        "computedAt": "2026-11-02T07:55:00.000Z",
+        "current": {
+          "period": "2026-11",
+          "periodStart": "2026-11-01",
+          "periodEnd": "2026-11-30",
+          "effectiveLimit": 600,
+          "spent": 48.2,
+          "remaining": 551.8,
+          "overspent": 0,
+          "progress": 0.0803,
+          "totalExpenses": 48.2,
+          "totalIncomes": 0,
+          "recordCount": 3,
+          "convertedCurrencies": [],
+          "incomplete": false
+        },
+        "past": []
+      }
+    },
+    {
+      "id": "test-budget-family",
+      "name": "Общ месечен бюджет",
+      "type": "BUDGET_INTERVAL_MONTH",
+      "currencyCode": "EUR",
+      "limit": 3000,
+      "limitOverrides": [
+        {
+          "limit": 3200,
+          "period": "2026-11",
+          "periodStart": "2026-11-01",
+          "createdAt": "2026-10-30T18:00:00.000Z"
+        }
+      ],
+      "pastLimitOverrides": [],
+      "accountIds": [],
+      "categoryIds": [],
+      "labelIds": [],
+      "closed": false,
+      "createdAt": "2026-01-03T10:00:00.000Z",
+      "updatedAt": "2026-10-01T08:00:00.000Z",
+      "spending": {
+        "computedAt": "2026-11-02T07:55:00.000Z",
+        "current": {
+          "period": "2026-11",
+          "periodStart": "2026-11-01",
+          "periodEnd": "2026-11-30",
+          "effectiveLimit": 3200,
+          "spent": 412.35,
+          "remaining": 2787.65,
+          "overspent": 0,
+          "progress": 0.1289,
+          "totalExpenses": 430.35,
+          "totalIncomes": 18,
+          "recordCount": 21,
+          "convertedCurrencies": [],
+          "incomplete": false,
+          "excluded": {
+            "debts": 0,
+            "incomeCategories": 1,
+            "total": 3,
+            "totalAmountSum": 1520,
+            "transfers": 2,
+            "unknownCategories": 0
+          }
+        },
+        "past": []
+      }
+    }
+  ],
+  "limit": 30,
+  "offset": 0
+}

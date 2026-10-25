@@ -8,6 +8,7 @@ import {
 } from 'fastify-type-provider-zod';
 import { closeDb, createDb, type Db } from './db/client.js';
 import type { GoogleCalendarClient } from './integrations/google-calendar/client.js';
+import type { WalletClient } from './integrations/wallet/client.js';
 import actingUser from './plugins/acting-user.js';
 import cloudflareAccess, {
   type CloudflareAccessOptions,
@@ -15,14 +16,14 @@ import cloudflareAccess, {
 import errorHandler from './plugins/error-handler.js';
 import scheduler, { type SchedulerOptions } from './plugins/scheduler.js';
 import { calendarEventsRoutes } from './routes/calendar-events.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
-import {
-  type CalendarSync,
-  createCalendarSync,
-} from './services/calendar-sync.js';
+import { createBudgetSync } from './services/budget-sync.js';
+import { createCalendarSync } from './services/calendar-sync.js';
+import type { Sync } from './services/sync-mutex.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
 declare module 'fastify' {
@@ -31,7 +32,9 @@ declare module 'fastify' {
     /** Shared by the acting-user hook and `GET /api/users`, so both read the same one-minute cache. */
     users: UsersService;
     /** `null` when Google Calendar is not configured: nothing syncs and the calendar shows as unconfigured. */
-    calendarSync: CalendarSync | null;
+    calendarSync: Sync | null;
+    /** `null` when Wallet is not configured: nothing syncs and the budget shows as unconfigured. */
+    budgetSync: Sync | null;
     /** The clock of the app; specs fix it. */
     now: () => Date;
   }
@@ -47,6 +50,8 @@ export interface BuildAppOptions {
   auth: CloudflareAccessOptions;
   /** Google Calendar access (`server.ts` builds it from GOOGLE_SERVICE_ACCOUNT_JSON); without it the sync is off. */
   googleCalendar?: GoogleCalendarClient;
+  /** Wallet access and the family budget (`server.ts` builds it from WALLET_*); without it the sync is off. */
+  wallet?: { client: WalletClient; budgetId: string };
   /** The clock for "today" and for sync runs; specs fix it. */
   now?: () => Date;
   /** Runs the periodic syncs (`server.ts`); specs leave it out and sync by hand. */
@@ -62,6 +67,7 @@ export function buildApp({
   databaseUrl,
   auth,
   googleCalendar,
+  wallet,
   now = () => new Date(),
   scheduler: schedulerOptions,
 }: BuildAppOptions): FastifyInstance {
@@ -83,6 +89,17 @@ export function buildApp({
       ? createCalendarSync({ db, listEvents: googleCalendar.listEvents, now })
       : null,
   );
+  app.decorate(
+    'budgetSync',
+    wallet
+      ? createBudgetSync({
+          db,
+          wallet: wallet.client,
+          budgetId: wallet.budgetId,
+          now,
+        })
+      : null,
+  );
   app.addHook('onClose', () => closeDb(db));
 
   app.register(errorHandler);
@@ -97,6 +114,7 @@ export function buildApp({
   app.register(meRoutes);
   app.register(syncRoutes);
   app.register(calendarEventsRoutes);
+  app.register(dashboardRoutes);
 
   return app;
 }

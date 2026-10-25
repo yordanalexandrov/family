@@ -4,6 +4,7 @@ import { pruneRuns } from '../db/repositories/sync-runs.js';
 
 const MINUTE_MS = 60_000;
 const CALENDAR_INTERVAL_MS = 5 * MINUTE_MS;
+const BUDGET_INTERVAL_MS = 60 * MINUTE_MS;
 const PRUNE_INTERVAL_MS = 24 * 60 * MINUTE_MS;
 /** Days of `sync_run` history kept (the last success of each source is always kept). */
 const KEEP_RUNS_DAYS = 7;
@@ -87,6 +88,17 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
     });
   } else {
     app.log.info('calendar sync: unconfigured');
+  }
+
+  const { budgetSync } = app;
+  if (budgetSync) {
+    schedule({
+      name: 'budget',
+      intervalMs: BUDGET_INTERVAL_MS,
+      run: () => budgetSync.run(),
+    });
+  } else {
+    app.log.info('budget sync: unconfigured');
   }
 
   schedule({

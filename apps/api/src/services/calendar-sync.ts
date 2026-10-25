@@ -22,6 +22,7 @@ import type {
   GoogleEventTime,
   ListEvents,
 } from '../integrations/google-calendar/client.js';
+import { oneAtATime, type Sync } from './sync-mutex.js';
 
 /** Title of an event the service account may not see the details of (a private one). */
 const BUSY_TITLE = 'Заето';
@@ -124,29 +125,15 @@ export async function syncCalendars({
 }
 
 /** The calendar sync of the app: one run at a time, whether started by the scheduler or by hand. */
-export interface CalendarSync {
-  /** Runs a sync, or answers `running` without starting one when a sync is already under way. */
-  run(): Promise<SyncRunResult>;
-}
+export type CalendarSync = Sync;
 
 export function createCalendarSync(deps: {
   db: Db;
   listEvents: ListEvents;
   now: () => Date;
 }): CalendarSync {
-  let running = false;
-  return {
-    async run() {
-      if (running) {
-        return { source: 'calendar', status: 'running' };
-      }
-      running = true;
-      try {
-        const sources = await listEnabledSources(deps.db);
-        return await syncCalendars({ ...deps, sources });
-      } finally {
-        running = false;
-      }
-    },
-  };
+  return oneAtATime('calendar', async () => {
+    const sources = await listEnabledSources(deps.db);
+    return syncCalendars({ ...deps, sources });
+  });
 }

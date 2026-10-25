@@ -3,6 +3,7 @@ import { loadConfig } from './config.js';
 import { runMigrations } from './db/migrate.js';
 import { upsertCalendarSources } from './db/repositories/calendar-sources.js';
 import { createCalendarClient } from './integrations/google-calendar/client.js';
+import { createWalletClient } from './integrations/wallet/client.js';
 import { loggerOptions } from './logger.js';
 
 const config = loadConfig();
@@ -13,6 +14,13 @@ const app = buildApp({
   googleCalendar:
     config.calendarConfigured && config.GOOGLE_SERVICE_ACCOUNT_JSON
       ? createCalendarClient(config.GOOGLE_SERVICE_ACCOUNT_JSON)
+      : undefined,
+  wallet:
+    config.WALLET_API_TOKEN && config.WALLET_BUDGET_ID
+      ? {
+          client: createWalletClient(config.WALLET_API_TOKEN),
+          budgetId: config.WALLET_BUDGET_ID,
+        }
       : undefined,
   scheduler: {},
 });
