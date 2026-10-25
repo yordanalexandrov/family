@@ -9,10 +9,12 @@
   ПРОТОТИП, НЕ ПРОДУКЦИОНЕН КОД. Продължение на dashboard-visual-style.html (билет #12):
   от трите стила победи A „Холограма“, с интерес към централното ядро от C.
   Въпрос: „Коя СТРУКТУРА на холограмния дашборд работи най-добре с всички фичъри?“
-  Три варианта в същия визуален език, превключвани с ?variant=1|2|3 (или #A1|#A2|#A3) и стрелки ← →:
+  Три варианта в същия визуален език, превключвани с ?variant=1|2|3|4 (или #A1…#A4) и стрелки ← →:
     A1 · Команден център — мрежата от панели (оригиналният A, лек полиш).
     A2 · Ядро           — централно кръгло ядро с днешния ден (идеята от C), спътници = събитията,
                            панелите по орбита около него; менюто на цял ред отдолу.
+    A4 · OS + Ядро      — обединение по избор на Дако: мрежата и панелите на A1, ядрото на A2 в центъра,
+                           радарът се слива в ядрото. Тегло и тренировка на долен ред.
     A3 · Мост           — часова ос за днес по човек (Д / С / общо) с линия „сега“ и ястията като
                            блокове; инструменти (LED бюджет, тегло, тренировка) в лява колона;
                            „палуба“, която сама се върти между меню / пазаруване / задачи на 9 с.
@@ -254,6 +256,23 @@ canvas.bgfx{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-even
 @media (max-width:640px){.v3 .pane .list{columns:1}}
 .v3 .boot{font-family:var(--f-mono);font-size:.72rem;color:var(--mute);letter-spacing:.06em;min-height:1.2em}
 .v3 .boot::after{content:"▌";animation:ablink 1s infinite;color:var(--cy)}
+
+/* =================================================================================
+   A4 · OS + ЯДРО — мрежата и панелите на A1, ядрото на A2 в центъра; радарът живее в ядрото
+   ================================================================================= */
+.v4 .org{grid-template-columns:minmax(0,1fr) minmax(300px,440px) minmax(0,1fr);grid-template-rows:auto auto;align-items:stretch}
+.v4 .core{grid-row:1/3;align-self:center}
+.v4 .core .sweep{position:absolute;inset:14%;border-radius:50%;overflow:hidden;pointer-events:none}
+.v4 .core .sweep::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(56,224,255,.35),rgba(56,224,255,0) 60deg);animation:aspin 6s linear infinite}
+.v4 .core .sweep::after{content:"";position:absolute;inset:0;border-radius:50%;background:repeating-radial-gradient(circle,transparent 0 24%,var(--line) 24% calc(24% + 1px))}
+.v4 .core .inner{padding-top:.4rem}
+.v4 .core h3{margin-top:.55rem}
+.v4 .p2{display:flex;flex-direction:column}
+.v4 .p2 .days{gap:.4rem}
+.v4 .wchart{max-width:460px}
+.v4 .p2.full+.p2 .big{font-size:1.9rem}
+@media (max-width:1100px){.v4 .org{grid-template-columns:1fr 1fr}.v4 .core{grid-column:1/-1;grid-row:1}}
+@media (max-width:640px){.v4 .org{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -533,11 +552,44 @@ function after3(){
   deckTimer=setInterval(()=>{if(cur!=='3'||deckPaused)return;deckTab=(deckTab+1)%DECK.length;softRender()},9000);
 }
 
+
+/* ---------------- A4 · OS + ЯДРО ---------------- */
+function render4(){
+  const sats=CAL[0].ev.map((e,i)=>`<span class="sat" style="--c:${P[e.w].c};--a:${(parseInt(e.t)-7)/16*360-90}deg;--r:calc(50% - 6%)" title="${e.t} ${esc(e.n)}"></span>`).join('');
+  const cell=(row,col,title,sub,body,extra='')=>`<article class="p p2 ${extra}" style="--row:${row};--col:${col};--i:${row*2+col}"><h2>${title} <span>${sub}</span></h2>${body}</article>`;
+  return `<section class="vA v2 v4" style="min-height:100%">
+  <header class="top"><div><div class="brand" data-t="FAMILY · OS">FAMILY · OS</div>${statusBar()}</div>
+    <div class="status" style="font-size:.7rem">${dateStr()}</div></header>
+  <div class="org">
+    <div class="core">
+      <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div><div class="ring r4"></div><div class="sweep"></div>${sats}
+      <div class="inner">
+        <div class="clk num" data-clock>${clockStr()}</div><div class="dt">${DOWL[TODAY.getDay()]} · ${TODAY.getDate()} ${MON[TODAY.getMonth()]}</div>
+        <h3>Днес</h3>
+        ${CAL[0].ev.map(e=>`<div class="ev"><time>${e.t}</time><span class="av" style="--c:${P[e.w].c}">${P[e.w].i}</span>${esc(e.n)}</div>`).join('')}
+        <h3>Днес се готви</h3>
+        <div class="ln">☼ ${MENU[0].l} <small>· 13:00 · batch</small></div>
+        <div class="dn">${MENU[0].dn}</div>
+        <small>19:30 · <span class="av" style="--c:${P[MENU[0].cook].c}">${P[MENU[0].cook].i}</span> ${P[MENU[0].cook].n} · 4 порции · 45 мин</small>
+      </div>
+    </div>
+    ${cell(1,1,'Бюджет · октомври','wallet',`<div class="gauge">${gaugeSVG()}${budgetText()}</div>`)}
+    ${cell(2,1,'Следващи дни','+3 · google calendar',`<div class="days">${CAL.slice(1).map(d=>{const dt=addD(TODAY,d.o);return `<div class="day"><div class="d">${DOW[dt.getDay()]}<b class="num">${dt.getDate()}</b></div><div>${d.ev.map(e=>`<div class="ev"><time>${e.t}</time><span class="av" style="--c:${P[e.w].c}">${P[e.w].i}</span>${esc(e.n)}</div>`).join('')}</div></div>`}).join('')}</div>`)}
+    ${cell(1,3,'Пазаруване','от менюто',shopList())}
+    ${cell(2,3,'Задачи',`${TASKS.filter(t=>!t.ck).length} отворени`,taskList())}
+    ${cell(3,'1 / -1','Седмично меню','чернова · гласуване до неделя 20:00',weekGrid(),'full')}
+    ${cell(4,'1 / 3','Тегло · Дако',`цел ${WEIGHT.goal} кг`,`<div class="big num">${WEIGHT.pts.at(-1).toFixed(1)}<small>кг · −${(WEIGHT.pts[0]-WEIGHT.pts.at(-1)).toFixed(1)} за 8 седм.</small></div>${weightSVG('ag4')}`)}
+    ${cell(4,'3 / 4','Тренировка',`${WORK.filter(w=>w.ck).length}/${WORK.length} · сутрин · ластици и тежести`,workList())}
+  </div>
+  ${ticker()}</section>`;
+}
+
 /* ---------------- СЦЕНА И ПРЕВКЛЮЧВАТЕЛ ---------------- */
 const VARIANTS={
   '1':{name:'Команден център',render:renderA,after:afterA},
   '2':{name:'Ядро',render:render2,after:afterA},
   '3':{name:'Мост',render:render3,after:after3},
+  '4':{name:'OS + Ядро',render:render4,after:afterA},
 };
 const KEYS=Object.keys(VARIANTS);
 function currentKey(){const q=new URLSearchParams(location.search).get('variant');const h=location.hash.replace('#','').replace(/^A/,'');return KEYS.includes(q)?q:KEYS.includes(h)?h:'1'}
