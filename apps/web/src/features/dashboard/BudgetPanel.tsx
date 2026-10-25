@@ -32,7 +32,8 @@ function dayFraction(budget: BudgetSnapshot, today: string): number {
 
 /**
  * Остатъкът от месечния бюджет на Wallet: числото едро, лента похарчено/лимит с
- * маркер „днес“, похарчени и темпо до края. Превишен бюджет оцветява само числото и лентата.
+ * маркер „днес“, похарчени и темпо до края. Превишен бюджет оцветява числото и лентата, а
+ * вместо темпото казва с колко е превишен.
  */
 export function BudgetPanel({
   budget,
@@ -84,9 +85,15 @@ export function BudgetPanel({
           <span>
             похарчени <b>{money(budget.spent)}</b> от {money(budget.limit)}
           </span>
-          <span>
-            ~<b>{money(dailyPace(budget, today))}/ден</b> до края
-          </span>
+          {over ? (
+            <span>
+              превишен с <b>{money(-budget.remaining)}</b>
+            </span>
+          ) : (
+            <span>
+              ~<b>{money(dailyPace(budget, today))}/ден</b> до края
+            </span>
+          )}
         </div>
       </div>
       <div

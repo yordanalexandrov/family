@@ -148,7 +148,7 @@ describe('DashboardScreen', () => {
     ).toBeInTheDocument();
   });
 
-  it('превишен бюджет → числото и лентата са в цвета за опасност', async () => {
+  it('превишен бюджет → числото и лентата в цвета за опасност, „превишен с 50 €“ вместо темпото', async () => {
     const budget = dashboard.budget;
     if (!budget) throw new Error('фикстурата има бюджет');
     respondWith(
@@ -165,6 +165,8 @@ describe('DashboardScreen', () => {
     expect(panel.getByRole('meter').closest('.budget__bar')).toHaveClass(
       'budget__bar--danger',
     );
+    expect(panel.getByText(/превишен/)).toHaveTextContent(/^превишен с 50\s€$/);
+    expect(panel.queryByText(/до края/)).not.toBeInTheDocument();
   });
 
   it('budget: null → „—“ и „няма данни от Wallet“', async () => {

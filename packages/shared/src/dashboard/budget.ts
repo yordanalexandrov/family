@@ -4,6 +4,7 @@ import { type DateKey, daysBetween } from './time.js';
 /**
  * How much can be spent per day for the rest of the period: the remainder over the days from `today`
  * to `periodEnd`, both included. On the last day, or once the period is over, it is the whole remainder.
+ * Negative once the budget is overspent; the screens then show the overrun instead of a pace.
  */
 export function dailyPace(snapshot: BudgetSnapshot, today: DateKey): number {
   const daysLeft = daysBetween(today, snapshot.periodEnd) + 1;
