@@ -12,20 +12,20 @@ function print(line: string) {
   process.stdout.write(`${line}\n`);
 }
 
-const config = loadConfig();
-if (!config.GOOGLE_SERVICE_ACCOUNT_JSON || !config.GOOGLE_CALENDARS) {
+const { googleCalendar } = loadConfig();
+if (!googleCalendar) {
   print(
     'calendar sync: unconfigured (GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_CALENDARS)',
   );
   process.exit(1);
 }
 
-const client = createCalendarClient(config.GOOGLE_SERVICE_ACCOUNT_JSON);
+const client = createCalendarClient(googleCalendar.serviceAccountJson);
 const window = syncWindow(new Date());
 print(`window: ${window.from.toISOString()} .. ${window.to.toISOString()}`);
 
 let failed = false;
-for (const calendar of config.GOOGLE_CALENDARS) {
+for (const calendar of googleCalendar.calendars) {
   try {
     const events = await client.listEvents(
       calendar.googleCalendarId,

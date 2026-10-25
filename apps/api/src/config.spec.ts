@@ -20,8 +20,8 @@ const defaults = {
   API_PORT: 18091,
   LOG_LEVEL: 'info',
   DATABASE_URL,
-  calendarConfigured: false,
-  budgetConfigured: false,
+  googleCalendar: null,
+  wallet: null,
 };
 
 const calendars = [
@@ -140,8 +140,8 @@ describe('loadConfig', () => {
   describe('Google Calendar and Wallet', () => {
     it('are optional: without them the api starts with both sources unconfigured', () => {
       expect(loadConfig(dev)).toMatchObject({
-        calendarConfigured: false,
-        budgetConfigured: false,
+        googleCalendar: null,
+        wallet: null,
       });
     });
 
@@ -154,7 +154,7 @@ describe('loadConfig', () => {
           WALLET_API_TOKEN: '',
           WALLET_BUDGET_ID: '',
         }),
-      ).toMatchObject({ calendarConfigured: false, budgetConfigured: false });
+      ).toMatchObject({ googleCalendar: null, wallet: null });
     });
 
     it('parse GOOGLE_CALENDARS as a JSON list of calendar sources', () => {
@@ -164,19 +164,21 @@ describe('loadConfig', () => {
         GOOGLE_CALENDARS: JSON.stringify(calendars),
       });
 
-      expect(config.GOOGLE_CALENDARS).toEqual(calendars);
-      expect(config.calendarConfigured).toBe(true);
+      expect(config.googleCalendar).toEqual({
+        serviceAccountJson: '{"type":"service_account"}',
+        calendars,
+      });
     });
 
     it('need both the service account and the calendars for the calendar to be configured', () => {
       expect(
         loadConfig({ ...dev, GOOGLE_CALENDARS: JSON.stringify(calendars) })
-          .calendarConfigured,
-      ).toBe(false);
+          .googleCalendar,
+      ).toBeNull();
       expect(
         loadConfig({ ...dev, GOOGLE_SERVICE_ACCOUNT_JSON: '{}' })
-          .calendarConfigured,
-      ).toBe(false);
+          .googleCalendar,
+      ).toBeNull();
     });
 
     it('reject GOOGLE_CALENDARS that is not JSON', () => {
@@ -198,8 +200,8 @@ describe('loadConfig', () => {
 
     it('need both the Wallet token and the budget id for the budget to be configured', () => {
       expect(
-        loadConfig({ ...dev, WALLET_API_TOKEN: 'token' }).budgetConfigured,
-      ).toBe(false);
+        loadConfig({ ...dev, WALLET_API_TOKEN: 'token' }).wallet,
+      ).toBeNull();
       expect(
         loadConfig({
           ...dev,
@@ -207,9 +209,7 @@ describe('loadConfig', () => {
           WALLET_BUDGET_ID: 'budget-1',
         }),
       ).toMatchObject({
-        WALLET_API_TOKEN: 'token',
-        WALLET_BUDGET_ID: 'budget-1',
-        budgetConfigured: true,
+        wallet: { apiToken: 'token', budgetId: 'budget-1' },
       });
     });
   });

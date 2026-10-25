@@ -6,7 +6,9 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
+import type { CalendarSourceConfig } from './config.js';
 import { closeDb, createDb, type Db } from './db/client.js';
+import { upsertCalendarSources } from './db/repositories/calendar-sources.js';
 import type { GoogleCalendarClient } from './integrations/google-calendar/client.js';
 import type { WalletClient } from './integrations/wallet/client.js';
 import actingUser from './plugins/acting-user.js';
@@ -48,6 +50,11 @@ export interface BuildAppOptions {
    * (`loadConfig()` refuses dev mode in production), specs go through `buildTestApp()` in `src/test/app.ts`.
    */
   auth: CloudflareAccessOptions;
+  /**
+   * GOOGLE_CALENDARS: made the enabled calendar sources once the app is ready (after `server.ts` has run the
+   * migrations), so a calendar no longer listed stops showing. Left out, the table is not touched.
+   */
+  calendarSources?: CalendarSourceConfig[];
   /** Google Calendar access (`server.ts` builds it from GOOGLE_SERVICE_ACCOUNT_JSON); without it the sync is off. */
   googleCalendar?: GoogleCalendarClient;
   /** Wallet access and the family budget (`server.ts` builds it from WALLET_*); without it the sync is off. */
@@ -66,6 +73,7 @@ export function buildApp({
   logger = false,
   databaseUrl,
   auth,
+  calendarSources,
   googleCalendar,
   wallet,
   now = () => new Date(),
@@ -100,6 +108,9 @@ export function buildApp({
         })
       : null,
   );
+  if (calendarSources) {
+    app.addHook('onReady', () => upsertCalendarSources(db, calendarSources));
+  }
   app.addHook('onClose', () => closeDb(db));
 
   app.register(errorHandler);

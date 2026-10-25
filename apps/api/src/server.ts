@@ -1,7 +1,6 @@
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { runMigrations } from './db/migrate.js';
-import { upsertCalendarSources } from './db/repositories/calendar-sources.js';
 import { createCalendarClient } from './integrations/google-calendar/client.js';
 import { createWalletClient } from './integrations/wallet/client.js';
 import { loggerOptions } from './logger.js';
@@ -11,26 +10,23 @@ const app = buildApp({
   logger: loggerOptions(config),
   databaseUrl: config.DATABASE_URL,
   auth: config.auth,
-  googleCalendar:
-    config.calendarConfigured && config.GOOGLE_SERVICE_ACCOUNT_JSON
-      ? createCalendarClient(config.GOOGLE_SERVICE_ACCOUNT_JSON)
-      : undefined,
-  wallet:
-    config.WALLET_API_TOKEN && config.WALLET_BUDGET_ID
-      ? {
-          client: createWalletClient(config.WALLET_API_TOKEN),
-          budgetId: config.WALLET_BUDGET_ID,
-        }
-      : undefined,
+  calendarSources: config.GOOGLE_CALENDARS,
+  googleCalendar: config.googleCalendar
+    ? createCalendarClient(config.googleCalendar.serviceAccountJson)
+    : undefined,
+  wallet: config.wallet
+    ? {
+        client: createWalletClient(config.wallet.apiToken),
+        budgetId: config.wallet.budgetId,
+      }
+    : undefined,
   scheduler: {},
 });
 
 try {
   // Migrations run before the first request is accepted; failing to apply them is fatal.
+  // Calendar sources are upserted in `onReady`, i.e. inside `listen`, after them.
   await runMigrations(app.db, { log: app.log });
-  if (config.GOOGLE_CALENDARS) {
-    await upsertCalendarSources(app.db, config.GOOGLE_CALENDARS);
-  }
   await app.listen({ host: config.API_HOST, port: config.API_PORT });
 } catch (error) {
   app.log.fatal({ err: error }, 'api failed to start');

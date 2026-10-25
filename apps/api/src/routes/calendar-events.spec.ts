@@ -9,13 +9,17 @@ import {
   expect,
   it,
 } from 'vitest';
+import type { CalendarSourceConfig } from '../config.js';
 import { upsertCalendarSources } from '../db/repositories/calendar-sources.js';
 import { createCalendarClient } from '../integrations/google-calendar/client.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import {
+  DANI_CALENDAR,
   eventsHandler,
+  FAMILY_CALENDAR,
   FIXTURE_PAGES,
+  POLI_CALENDAR,
   TEST_CALENDARS,
   TEST_SERVICE_ACCOUNT_JSON,
   tokenHandler,
@@ -176,5 +180,75 @@ describe('GET /api/calendar/events', () => {
     } finally {
       await unconfigured.close();
     }
+  });
+});
+
+/** The api started again with GOOGLE_CALENDARS set to `calendars`. */
+async function restartWith(calendars: CalendarSourceConfig[]) {
+  const restarted = buildTestApp({
+    calendarSources: calendars,
+    now: () => NOW,
+  });
+  await restarted.ready();
+  await restarted.close();
+}
+
+/** The names of the calendars whose events the 14 days show. */
+async function shownSources() {
+  const body = calendarEventsResponseSchema.parse((await getEvents()).json());
+  const names = body.days.flatMap((entry) =>
+    entry.events.flatMap((event) => event.sources.map((source) => source.name)),
+  );
+  return [...new Set(names)].sort();
+}
+
+describe('calendar sources from GOOGLE_CALENDARS at start', () => {
+  it('stops showing a calendar that is no longer listed', async () => {
+    await restartWith([DANI_CALENDAR, POLI_CALENDAR]);
+
+    expect(await shownSources()).toEqual(['Дани', 'Поли']);
+  });
+
+  it('shows the cached events of a calendar again when it comes back', async () => {
+    await restartWith([DANI_CALENDAR, POLI_CALENDAR]);
+
+    await restartWith(TEST_CALENDARS);
+
+    expect(await shownSources()).toEqual(['Дани', 'Поли', 'Семеен']);
+  });
+
+  it('keeps the source of a calendar and updates its name and colour', async () => {
+    const before = day((await getEvents()).json(), '2026-11-02').events[0]
+      ?.sources[0];
+
+    await restartWith([
+      { ...DANI_CALENDAR, name: 'Дани (работа)', colorToken: 'person-2' },
+      POLI_CALENDAR,
+      FAMILY_CALENDAR,
+    ]);
+
+    expect(
+      day((await getEvents()).json(), '2026-11-02').events[0]?.sources,
+    ).toEqual([
+      {
+        id: before?.id,
+        name: 'Дани (работа)',
+        ownerUserId: DANI.id,
+        colorToken: 'person-2',
+        kind: 'person',
+      },
+    ]);
+  });
+
+  it('marks the family calendar, the one without an owner, as family', async () => {
+    const holiday = day((await getEvents()).json(), '2026-11-07').events[0];
+
+    expect(holiday?.sources).toEqual([
+      expect.objectContaining({
+        name: 'Семеен',
+        ownerUserId: null,
+        kind: 'family',
+      }),
+    ]);
   });
 });

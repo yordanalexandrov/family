@@ -113,12 +113,19 @@ const envSchema = z
   .discriminatedUnion('AUTH_MODE', [cloudflareEnv, devEnv])
   .transform((env) => ({
     ...env,
-    /** Google Calendar sync can run: a service account and at least one calendar. */
-    calendarConfigured: Boolean(
-      env.GOOGLE_SERVICE_ACCOUNT_JSON && env.GOOGLE_CALENDARS,
-    ),
-    /** Wallet sync can run: a token and the budget to read. */
-    budgetConfigured: Boolean(env.WALLET_API_TOKEN && env.WALLET_BUDGET_ID),
+    /** Google Calendar sync can run: a service account and at least one calendar; otherwise `null`. */
+    googleCalendar:
+      env.GOOGLE_SERVICE_ACCOUNT_JSON && env.GOOGLE_CALENDARS
+        ? {
+            serviceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON,
+            calendars: env.GOOGLE_CALENDARS,
+          }
+        : null,
+    /** Wallet sync can run: a token and the budget to read; otherwise `null`. */
+    wallet:
+      env.WALLET_API_TOKEN && env.WALLET_BUDGET_ID
+        ? { apiToken: env.WALLET_API_TOKEN, budgetId: env.WALLET_BUDGET_ID }
+        : null,
   }));
 
 export type Config = z.infer<typeof envSchema>;
