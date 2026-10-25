@@ -6,6 +6,16 @@
     "rules": {
       "suspicious": {
         "noConsole": "error"
+      },
+      "style": {
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": {
+              "fetch": "HTTP в web минава през apiFetch от src/api/client.ts (docs/architecture.md)."
+            }
+          }
+        }
       }
     }
   },
@@ -16,6 +26,21 @@
         "rules": {
           "suspicious": {
             "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "src/api/client.ts",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "src/test/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": "off"
           }
         }
       }

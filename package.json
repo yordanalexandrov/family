@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel dev",
-    "lint": "biome ci .",
+    "lint": "biome ci . && sh .github/scripts/check-css-vars.sh && sh .github/scripts/check-spec-layout.sh",
     "lint:fix": "biome check --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

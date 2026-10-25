@@ -6,7 +6,7 @@ import pg from 'pg';
 import { closeDb, createDb, type Db } from '../db/client.js';
 import { dataMigrations } from '../db/seed/migrations.js';
 
-/** The throwaway Postgres server from `docker compose --profile test up -d postgres-test`. */
+/** The throwaway Postgres server from `docker compose -p family-test --profile test up -d postgres-test`. */
 const TEST_SERVER_URL =
   process.env.DATABASE_URL_TEST ??
   'postgres://family:test@127.0.0.1:5433/family';
