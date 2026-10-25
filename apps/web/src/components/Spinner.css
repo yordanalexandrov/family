@@ -1,0 +1,26 @@
+.spinner {
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+}
+
+.spinner__ring {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 50%;
+  border: 0.25rem solid var(--color-line);
+  border-top-color: var(--color-accent);
+  animation: spinner-turn 0.8s linear infinite;
+}
+
+@keyframes spinner-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner__ring {
+    animation-duration: 2s;
+  }
+}
