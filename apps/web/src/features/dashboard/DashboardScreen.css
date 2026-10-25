@@ -11,12 +11,6 @@
     max(var(--space-4), env(safe-area-inset-right));
 }
 
-/* Временно (до Дашборд 5): kiosk и TV показват телефонния поток на цялата ширина. */
-.dashboard--wide {
-  --core-size: min(100vw - 32px, 480px);
-  max-inline-size: none;
-}
-
 .dashboard > .core {
   align-self: center;
 }

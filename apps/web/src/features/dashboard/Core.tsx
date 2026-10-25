@@ -22,6 +22,8 @@ interface CoreProps {
   seconds?: boolean;
   /** Колко от предстоящите днес събития да се покажат (телефон: 1). */
   maxEvents?: number;
+  /** „+N още“ под събитията, ако предстоящите са повече от `maxEvents` (kiosk, TV). */
+  showHiddenCount?: boolean;
   /** Докосване на сегмент от пръстена. */
   onSelectEvent?: (eventId: string) => void;
 }
@@ -32,12 +34,15 @@ export function Core({
   cooking,
   seconds = false,
   maxEvents = 1,
+  showHiddenCount = false,
   onSelectEvent,
 }: CoreProps) {
   const allDay = today.events.filter((event) => event.allDay);
-  const upcoming = today.events
-    .filter((event) => !event.allDay && Date.parse(event.start) > now.getTime())
-    .slice(0, maxEvents);
+  const allUpcoming = today.events.filter(
+    (event) => !event.allDay && Date.parse(event.start) > now.getTime(),
+  );
+  const upcoming = allUpcoming.slice(0, maxEvents);
+  const hiddenEvents = showHiddenCount ? allUpcoming.length - maxEvents : 0;
   const hiddenChips = allDay.length - MAX_CHIPS;
 
   return (
@@ -71,6 +76,11 @@ export function Core({
                 </span>
               </li>
             ))}
+            {hiddenEvents > 0 && (
+              <li className="core__event core__event--more">
+                +{hiddenEvents} още
+              </li>
+            )}
           </ul>
         )}
         <div className="core__cooking">

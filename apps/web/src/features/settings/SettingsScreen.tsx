@@ -9,6 +9,7 @@ import {
 } from '../../app/effects';
 import { type ThemeSetting, useTheme } from '../../app/theme';
 import { Avatar } from '../../components/Avatar';
+import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { DEVICE_CHOICES } from '../device/DeviceScreen';
 import './SettingsScreen.css';
@@ -33,8 +34,11 @@ export function SettingsScreen() {
   const blur = supportsBlur();
 
   return (
-    <main className="settings">
-      <h1 className="settings__title">Настройки</h1>
+    <main className={`settings${mode === 'phone' ? '' : ' settings--wide'}`}>
+      <header className="settings__header">
+        {mode === 'kiosk' && <BackLink />}
+        <h1 className="settings__title">Настройки</h1>
+      </header>
 
       <Section title="Тема" index={0}>
         <Choices

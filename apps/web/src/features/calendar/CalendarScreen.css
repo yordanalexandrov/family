@@ -27,3 +27,18 @@
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
+
+/* kiosk: без долна навигация, по-широко и с по-едри редове, „Назад“ вляво от заглавието. */
+.calendar--kiosk {
+  max-inline-size: 60rem;
+  padding-block-end: var(--space-5);
+  font-size: var(--font-size-lg);
+}
+
+.calendar--kiosk .calendar__header {
+  justify-content: flex-start;
+}
+
+.calendar--kiosk .day-events__item {
+  padding-block: 0.5em;
+}

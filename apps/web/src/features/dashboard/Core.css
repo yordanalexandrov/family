@@ -139,3 +139,10 @@
   font-weight: 700;
   line-height: 1.1;
 }
+
+.core__event--more {
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+  font-weight: 600;
+}

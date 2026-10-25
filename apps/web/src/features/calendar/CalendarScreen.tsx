@@ -12,6 +12,7 @@ import {
   useSyncCalendar,
 } from '../../api/queries';
 import { useDeviceMode } from '../../app/device-mode';
+import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
@@ -36,7 +37,7 @@ function syncMessage(result: SyncRunResult): string {
     : message;
 }
 
-/** Пълният календар: 14 дни по дни, по общите правила на календара. */
+/** Пълният календар: 14 дни по дни, по общите правила на календара. kiosk: едри редове и „Назад“. */
 export function CalendarScreen() {
   const now = useNow(30_000);
   const today = dateKeyInSofia(now);
@@ -61,8 +62,9 @@ export function CalendarScreen() {
   const note = sync && (unconfiguredNote(sync) ?? staleNote(sync, now));
 
   return (
-    <main className="calendar">
+    <main className={`calendar${mode === 'kiosk' ? ' calendar--kiosk' : ''}`}>
       <header className="calendar__header">
+        {mode === 'kiosk' && <BackLink />}
         <h1 className="calendar__title">Календар</h1>
         {mode === 'phone' && (
           <button

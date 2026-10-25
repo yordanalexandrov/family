@@ -20,6 +20,8 @@ interface DayEventListProps {
   /** id на елемента за всяко събитие, за да може пръстенът да превърти до него. */
   itemId?: (eventId: string) => string;
   compact?: boolean;
+  /** Най-много толкова събития + ред „+N“ за останалите (kiosk/TV, „Следващите дни“). */
+  maxEvents?: number;
 }
 
 type EventState = 'past' | 'next' | undefined;
@@ -58,15 +60,17 @@ export function DayEventList({
   now,
   itemId,
   compact = false,
+  maxEvents = Number.POSITIVE_INFINITY,
 }: DayEventListProps) {
   if (day.events.length === 0) {
     return <p className="day-events__empty">Нищо планирано</p>;
   }
   const dayStart = startOfDayInSofia(day.date);
   const states = eventStates(day, now);
+  const hidden = day.events.length - maxEvents;
   return (
     <ul className={`day-events${compact ? ' day-events--compact' : ''}`}>
-      {day.events.map((event) => {
+      {day.events.slice(0, maxEvents).map((event) => {
         const state = states.get(event.id);
         return (
           <li
@@ -86,6 +90,7 @@ export function DayEventList({
           </li>
         );
       })}
+      {hidden > 0 && <li className="day-events__more">+{hidden}</li>}
     </ul>
   );
 }

@@ -80,3 +80,14 @@
 .settings__version {
   text-align: center;
 }
+
+.settings__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* kiosk/TV: без долна навигация. */
+.settings--wide {
+  padding-block-end: var(--space-5);
+}

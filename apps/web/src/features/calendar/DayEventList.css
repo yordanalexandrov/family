@@ -71,3 +71,10 @@
   margin: 0;
   color: var(--color-text-muted);
 }
+
+.day-events__more {
+  padding-inline: 0.45em;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}

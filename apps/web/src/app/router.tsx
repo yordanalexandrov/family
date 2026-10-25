@@ -20,7 +20,9 @@ import { WhoScreen } from '../features/who/WhoScreen';
 import { useActingUser } from './acting-user';
 import { BottomNav } from './BottomNav';
 import { type DeviceMode, parseDeviceMode, useDeviceMode } from './device-mode';
+import { IdleReturn } from './IdleReturn';
 import { useAutoTheme } from './theme';
+import { useWakeLock } from './wake-lock';
 
 const WHO_PATH = '/who';
 const DEVICE_PATH = '/device';
@@ -30,11 +32,13 @@ const DEVICE_PARAM = 'device';
 /**
  * Аурората е фонът на всички екрани. `?device=` записва режима на устройството и
  * се маха от адреса. Без режим всичко води към „Какво е това устройство?“; в режим
- * `phone` без действащ потребител — към „Кой си?“. kiosk и TV нямат потребител.
+ * `phone` без действащ потребител — към „Кой си?“. kiosk и TV нямат потребител и
+ * държат екрана включен.
  */
 function RootLayout() {
   useAutoTheme();
   const { mode } = useDeviceMode();
+  useWakeLock(mode === 'kiosk' || mode === 'tv');
   const { actingUserId } = useActingUser();
   const { pathname, searchStr } = useLocation({
     select: ({ pathname, searchStr }) => ({ pathname, searchStr }),
@@ -83,10 +87,13 @@ function Screen({
   if (mode === 'phone' && !hasActingUser) {
     return <Navigate to={WHO_PATH} replace />;
   }
+  // Долната навигация е само на телефона; kiosk стига до календара и настройките
+  // от дашборда, TV няма навигация (GLOSSARY: kiosk, TV).
   return (
     <>
       <Outlet />
-      <BottomNav />
+      {mode === 'phone' && <BottomNav />}
+      {mode === 'kiosk' && pathname !== '/' && <IdleReturn key={pathname} />}
     </>
   );
 }

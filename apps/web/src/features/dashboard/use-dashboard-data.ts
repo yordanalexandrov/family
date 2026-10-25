@@ -7,9 +7,14 @@ import { readDashboardCache, writeDashboardCache } from './cache';
 export type DashboardData =
   | { status: 'pending' }
   | { status: 'error'; error: unknown; retry: () => void }
-  | { status: 'ok'; data: DashboardResponse }
+  | { status: 'ok'; data: DashboardResponse; refetch: () => void }
   /** Сървърът не отговаря: последният успешен отговор от кеша. */
-  | { status: 'offline'; data: DashboardResponse; fetchedAt: Date };
+  | {
+      status: 'offline';
+      data: DashboardResponse;
+      fetchedAt: Date;
+      refetch: () => void;
+    };
 
 /** Мрежова грешка или 5xx: същата заявка може да мине след малко; 4xx няма да мине. */
 function isConnectionError(error: unknown): boolean {
@@ -39,13 +44,14 @@ export function useDashboardData(): DashboardData {
       status: 'offline',
       data: cached.data,
       fetchedAt: cached.fetchedAt,
+      refetch: () => void refetch(),
     };
   }
   if (query.isError) {
     return { status: 'error', error, retry: () => void refetch() };
   }
   if (data) {
-    return { status: 'ok', data };
+    return { status: 'ok', data, refetch: () => void refetch() };
   }
   return { status: 'pending' };
 }

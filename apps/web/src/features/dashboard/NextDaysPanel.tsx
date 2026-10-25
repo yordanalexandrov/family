@@ -11,6 +11,8 @@ interface NextDaysPanelProps {
   now: Date;
   sync: SyncStatus;
   index?: number;
+  /** kiosk/TV: до толкова събития на ден + „+N“. */
+  maxEventsPerDay?: number;
 }
 
 /** Следващите дни компактно: ден и дата вляво, събитията вдясно. */
@@ -19,6 +21,7 @@ export function NextDaysPanel({
   now,
   sync,
   index = 3,
+  maxEventsPerDay,
 }: NextDaysPanelProps) {
   const unconfigured = unconfiguredNote(sync);
   return (
@@ -38,7 +41,12 @@ export function NextDaysPanel({
                 <b>{formatWeekday(day.date)}</b>
                 <span>{formatDate(day.date)}</span>
               </h3>
-              <DayEventList day={day} now={now} compact />
+              <DayEventList
+                day={day}
+                now={now}
+                compact
+                maxEvents={maxEventsPerDay}
+              />
             </li>
           ))}
         </ul>

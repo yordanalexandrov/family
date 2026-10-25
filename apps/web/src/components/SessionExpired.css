@@ -1,0 +1,23 @@
+.session-expired {
+  display: grid;
+  block-size: 100dvh;
+  padding: var(--space-5);
+}
+
+.session-expired__button {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  color: var(--color-text);
+  padding: var(--space-5);
+  font-size: var(--font-size-display);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+
+.session-expired__button:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: -6px;
+}
