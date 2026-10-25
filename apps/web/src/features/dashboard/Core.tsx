@@ -5,6 +5,7 @@ import { syncNotes } from '../../lib/sync-notes';
 import { SourceAvatars } from '../calendar/SourceAvatars';
 import { Clock } from './Clock';
 import { DayRing } from './DayRing';
+import { TodayCooking } from './TodayCooking';
 import './Core.css';
 
 /*
@@ -97,10 +98,7 @@ export function Core({
             )}
           </ul>
         )}
-        <div className="core__cooking">
-          <small>Днес се готви</small>
-          <b>{cooking.dinner?.title ?? '—'}</b>
-        </div>
+        <TodayCooking dinner={cooking.dinner} />
       </div>
     </Card>
   );

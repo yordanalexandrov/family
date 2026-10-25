@@ -140,6 +140,39 @@
   line-height: 1.1;
 }
 
+.core__cooking-meal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.core__cooking-meal .avatar {
+  flex: none;
+}
+
+.core__cooking-meal b {
+  display: -webkit-box;
+  min-inline-size: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.core__cooking-servings {
+  color: var(--color-text-muted);
+  font-size: max(11px, 3.4cqi);
+  font-weight: 600;
+}
+
+.core__cooking-empty {
+  color: var(--color-text-muted);
+  font-size: max(12px, 4cqi);
+}
+
 .core__event--more {
   justify-content: center;
   color: var(--color-text-muted);
