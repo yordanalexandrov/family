@@ -10,7 +10,7 @@
 | `apps/api` | Fastify + TypeScript + Drizzle | REST/JSON API, auth, бизнес логика, единственият писач в Postgres |
 | `packages/shared` | Framework-agnostic TypeScript | Типове, Zod schemas за API и AI контрактите, чисти помощни функции |
 
-Инфраструктура: `docker-compose.yml` (api, postgres, caddy), n8n и OpenClaw са външни и говорят само с api.
+Инфраструктура: `docker-compose.yml` (postgres, api, caddy, backup); `api` и `caddy` вървят на host мрежата на Docker само на loopback ([ADR-0005](adr/0005-api-and-caddy-on-host-network.md)). OpenClaw е външен и говори само с api; n8n отсъства във Фаза 1 ([ADR-0001](adr/0001-no-n8n-in-phase-1.md)).
 
 ## Правила за границите
 
@@ -27,6 +27,8 @@
 ```typescript
 import { mealPlanSchema, type MealPlan } from '@family/shared';
 ```
+
+В dev и тестове (`tsx`, Vitest, Vite) alias-ът сочи към `packages/shared/src` (tsconfig `paths` / Vite `resolve.alias`), затова shared не се build-ва предварително. Production build-овете (`tsc -b` в api, `node dist/server.js`) го резолвват през `exports` на пакета към `packages/shared/dist`, който `pnpm build` произвежда първи.
 
 ## Слоеве в `apps/api`
 
