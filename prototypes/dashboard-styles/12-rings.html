@@ -1,0 +1,322 @@
+<!-- ПРОТОТИП (throwaway): вариант 12 · Пръстени -->
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12 · Пръстени</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15171c; --bg2:#1b1e25; --ln:rgba(255,255,255,.08); --ln2:rgba(255,255,255,.16);
+  --tx:#e9ecf2; --tx2:#9aa3b5; --tx3:#5d6678;
+  --cy:#5ad1ff; --cy2:rgba(90,209,255,.18); --ok:#4ce0a0; --am:#ffb648; --bad:#ff5e6c;
+  --fs:clamp(14px, 1.15vw, 22px); --fsS:clamp(12px, .9vw, 17px);
+  --gap:clamp(8px, .8vw, 16px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--tx);font-family:"Onest",system-ui,sans-serif;font-size:var(--fs);line-height:1.25;font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+body{min-height:100vh;padding:var(--gap);overflow-x:hidden;
+  background-image:repeating-radial-gradient(circle at 50% 46%, transparent 0 58px, rgba(255,255,255,.035) 58px 59px),repeating-conic-gradient(from 0deg at 50% 46%, rgba(255,255,255,.025) 0 .4deg, transparent .4deg 15deg);}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block;overflow:visible}
+text{font-family:"Onest",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+
+/* --- мрежа --- */
+.cockpit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.15fr);gap:var(--gap);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--gap);min-width:0}
+.top{display:flex;align-items:center;gap:1.2em;margin-bottom:var(--gap);padding:0 .4em;color:var(--tx2);font-size:var(--fsS);letter-spacing:.06em;text-transform:uppercase}
+.top b{color:var(--tx);font-weight:600;letter-spacing:.12em}
+.top .sp{flex:1}
+.sy{display:inline-flex;align-items:center;gap:.5em;white-space:nowrap}
+.sy svg{width:1.1em;height:1.1em}
+.sy.warn{color:var(--am)}
+
+/* --- измервателни панели --- */
+.inst{display:flex;gap:var(--gap);align-items:center;min-width:0;padding:.4em;border:1px solid var(--ln);border-radius:14px;background:rgba(27,30,37,.55);backdrop-filter:blur(2px);opacity:0;animation:in 500ms ease forwards}
+.inst .gauge{flex:none;width:clamp(120px, 10vw, 192px);transition:transform 250ms ease}
+.inst:hover .gauge{transform:scale(1.04)}
+.inst:hover .spin{animation-play-state:paused}
+.inst .rd{flex:1;min-width:0;display:flex;flex-direction:column;gap:.15em}
+.inst h3{font-size:var(--fsS);text-transform:uppercase;letter-spacing:.12em;color:var(--tx2);font-weight:500;display:flex;gap:.6em;align-items:baseline}
+.inst h3 span{margin-left:auto;color:var(--tx3);letter-spacing:0;text-transform:none}
+@keyframes in{to{opacity:1}}
+.row{display:flex;align-items:center;gap:.5em;min-height:1.65em;border-bottom:1px solid var(--ln);min-width:0;opacity:0;animation:in 300ms ease forwards}
+.row:last-child{border-bottom:0}
+.row .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .q{color:var(--tx3);font-size:.85em;white-space:nowrap}
+.row.done .n{color:var(--tx3);text-decoration:line-through}
+.row:hover{background:rgba(255,255,255,.03)}
+.ck{width:1.05em;height:1.05em;border-radius:50%;border:1.5px solid var(--ln2);display:inline-flex;align-items:center;justify-content:center;flex:none;transition:border-color 160ms,background 160ms,transform 160ms}
+.ck::after{content:"";width:.45em;height:.45em;border-radius:50%;background:var(--ok);transform:scale(0);transition:transform 300ms cubic-bezier(.2,1.7,.4,1)}
+.done .ck{border-color:var(--ok)}
+.done .ck::after{transform:scale(1)}
+.ckb{display:inline-flex;padding:.25em;margin:-.25em}
+.ckb:active .ck{transform:scale(.85)}
+.av{display:inline-flex;align-items:center;justify-content:center;width:1.35em;height:1.35em;border-radius:50%;font-size:.8em;font-weight:700;color:#0d0f13;flex:none}
+.tag{font-size:.68em;padding:.05em .45em;border:1px solid var(--ln2);border-radius:99px;color:var(--tx2);white-space:nowrap}
+.tag.ok{color:var(--ok);border-color:rgba(76,224,160,.4)}
+.tag.am{color:var(--am);border-color:rgba(255,182,72,.4)}
+.ok{color:var(--ok)}.am{color:var(--am)}.cy{color:var(--cy)}.dim{color:var(--tx2)}.dim2{color:var(--tx3)}
+
+/* --- SVG части --- */
+.tk{stroke:var(--ln2);stroke-width:1}
+.tk.mj{stroke:var(--tx2);stroke-width:1.5}
+.tl{fill:var(--tx3);font-size:11px;text-anchor:middle;dominant-baseline:middle;letter-spacing:.04em}
+.track{fill:none;stroke:rgba(255,255,255,.07);stroke-linecap:round}
+.val{fill:none;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.3s cubic-bezier(.3,.7,.2,1) forwards .2s}
+@keyframes draw{to{stroke-dashoffset:0}}
+.spin{transform-box:fill-box;transform-origin:center;animation:spin 60s linear infinite}
+.spin.rev{animation-direction:reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+.big{fill:var(--tx);font-weight:600;text-anchor:middle;dominant-baseline:middle;letter-spacing:-.02em}
+.unit{fill:var(--tx2);text-anchor:middle;dominant-baseline:middle;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.mk{fill:#fff}
+
+/* --- център: часовник --- */
+.center{position:relative;min-width:0;width:min(100%, 50vh);margin:0 auto}
+.center>svg{width:100%;height:auto}
+.ctr{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56%;text-align:center;display:flex;flex-direction:column;align-items:center;gap:.1em;pointer-events:none}
+.ctr .time{font-size:clamp(40px, 3.2vw, 64px);font-weight:600;letter-spacing:-.03em;line-height:1}
+.ctr .time small{font-size:.42em;color:var(--tx3);font-weight:500}
+.ctr .date{color:var(--tx2);font-size:var(--fsS);letter-spacing:.1em;text-transform:uppercase}
+.ctr .lbl{margin-top:.5em;color:var(--tx3);font-size:var(--fsS);letter-spacing:.1em;text-transform:uppercase}
+.ctr .dish{font-size:clamp(16px, 1.35vw, 26px);font-weight:600;line-height:1.1}
+.ctr .lunch{color:var(--tx2);font-size:.95em}
+.ctr .cook{display:flex;align-items:center;gap:.4em;margin-top:.5em;color:var(--tx2);font-size:.9em}
+.ev-seg{stroke-width:14;fill:none;stroke-linecap:butt}
+.now-l{stroke:#fff;stroke-width:2}
+.orbit{transform-box:fill-box;transform-origin:center;animation:spin 140s linear infinite}
+.sat{transform-box:fill-box;transform-origin:center;animation:spin 140s linear infinite reverse}
+.sat circle{fill:var(--bg2);stroke:var(--ln2);stroke-width:1.5}
+.sat text{text-anchor:middle;dominant-baseline:middle}
+.sat .s1{fill:var(--tx);font-weight:600;font-size:14px}
+.sat .s2{fill:var(--am);font-weight:700;font-size:16px}
+.sat .s3{fill:var(--tx2);font-size:11px}
+.center:hover .orbit,.center:hover .sat{animation-play-state:paused}
+.days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap)}
+.day{display:flex;gap:.4em;align-items:center;min-width:0;opacity:0;animation:in 500ms ease forwards .4s}
+.day svg{width:clamp(70px, 5.2vw, 100px);flex:none}
+.day .ev{font-size:.82em;min-width:0;flex:1}
+.day .ev div{display:flex;flex-wrap:wrap;gap:0 .35em;align-items:baseline;line-height:1.15;margin-bottom:.3em}
+.day .ev div span:last-child{flex-basis:100%}
+.day .ev div span:last-child{min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.day .ev .t{color:var(--tx2)}
+.day .ev .av{width:1.25em;height:1.25em;font-size:.75em}
+
+/* --- меню: ветрило --- */
+.menu{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr);gap:var(--gap);align-items:center;border:1px solid var(--ln);border-radius:14px;background:rgba(27,30,37,.55);padding:.4em;opacity:0;animation:in 500ms ease forwards .3s}
+.menu svg{width:100%;height:auto}
+.seg{fill:rgba(255,255,255,.06);stroke:var(--bg);stroke-width:2;cursor:pointer;transition:fill 200ms}
+.seg:hover,.seg.sel{fill:var(--cy2)}
+.seg.today{fill:rgba(90,209,255,.28)}
+.segt{fill:var(--tx);font-size:16px;text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-weight:600}
+.mrow{display:grid;grid-template-columns:2em 1fr auto auto;gap:.4em;align-items:center;min-height:1.65em;border-bottom:1px solid var(--ln);opacity:0;animation:in 300ms ease forwards;padding:0 .2em;border-radius:6px}
+.mrow:last-child{border-bottom:0}
+.mrow.sel{background:rgba(90,209,255,.08)}
+.mrow .d{color:var(--tx2);font-weight:600}
+.mrow.today .d{color:var(--cy)}
+.mrow .dish{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .dish small{color:var(--tx3);font-size:.78em;margin-left:.3em}
+.vote{display:inline-flex;align-items:center;gap:.2em}
+.vote button{width:1.4em;height:1.4em;border-radius:50%;border:1.5px solid var(--ln2);color:var(--tx3);font-size:.8em;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:all 150ms}
+.vote button:hover{border-color:var(--tx2);color:var(--tx)}
+.vote button:active{transform:scale(.85)}
+.vote button.on.up{background:var(--ok);border-color:var(--ok);color:#0d0f13}
+.vote button.on.dn{background:var(--bad);border-color:var(--bad);color:#0d0f13}
+
+/* --- екрани --- */
+@media (max-width:1280px){
+  :root{--fs:clamp(13px,1.5vw,17px);--fsS:13px}
+  .cockpit{grid-template-columns:1fr 1fr}
+  .center-col{grid-column:1/-1;order:-1}
+}
+@media (max-width:720px){
+  :root{--fs:15px;--fsS:12px;--gap:8px}
+  .cockpit{grid-template-columns:1fr}
+  .top{flex-wrap:wrap;gap:.4em .9em}
+  .top .sp{display:none}
+  .col{display:contents}
+  .center{order:1}#budget{order:2}.days{order:3}.menu{order:4}#weight{order:5}#recipes{order:6}#shop{order:7}#tasks{order:8}#work{order:9}
+  .menu{grid-template-columns:1fr}
+  .menu svg{max-width:320px;margin:0 auto}
+  .days{grid-template-columns:1fr}
+  .inst .gauge{width:118px}
+  .ctr .time{font-size:36px}
+  .ctr .dish{font-size:15px}
+  .ctr .lbl{margin-top:.3em}
+  .ctr{width:48%}
+  .ctr .date,.ctr .lbl{font-size:10px;letter-spacing:.05em}
+  .center{width:100%}
+  .sat .s3{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .spin,.orbit,.sat{animation:none}
+  .val{animation:none;stroke-dashoffset:0}
+  .inst,.row,.day,.menu,.mrow{animation:none;opacity:1}
+}
+</style>
+</head>
+<body>
+<header class="top"><b>Кокпит · Семейство</b><span id="date"></span><span class="sp"></span><span id="syncs" style="display:flex;gap:1.2em;flex-wrap:wrap"></span></header>
+<main class="cockpit" id="root">
+  <div class="col colL" id="L"></div>
+  <div class="col center-col" id="C"></div>
+  <div class="col colR" id="R"></div>
+</main>
+
+<script src="data.js"></script>
+<script>
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const rad=a=>(a-90)*Math.PI/180;
+const pt=(cx,cy,r,a)=>[cx+r*Math.cos(rad(a)),cy+r*Math.sin(rad(a))];
+const f1=n=>n.toFixed(1);
+function arc(cx,cy,r,a0,a1){const [x0,y0]=pt(cx,cy,r,a0),[x1,y1]=pt(cx,cy,r,a1);const big=(a1-a0)>180?1:0;return `M${f1(x0)} ${f1(y0)}A${r} ${r} 0 ${big} 1 ${f1(x1)} ${f1(y1)}`}
+function wedge(cx,cy,r0,r1,a0,a1){const [ax,ay]=pt(cx,cy,r1,a0),[bx,by]=pt(cx,cy,r1,a1),[cx1,cy1]=pt(cx,cy,r0,a1),[dx,dy]=pt(cx,cy,r0,a0);const big=(a1-a0)>180?1:0;return `M${f1(ax)} ${f1(ay)}A${r1} ${r1} 0 ${big} 1 ${f1(bx)} ${f1(by)}L${f1(cx1)} ${f1(cy1)}A${r0} ${r0} 0 ${big} 0 ${f1(dx)} ${f1(dy)}Z`}
+function ticks(cx,cy,R,start,sweep,n,major,labels,inset=0){let s='';for(let i=0;i<=n;i++){if(sweep===360&&i===n)break;const a=start+sweep*i/n,mj=i%major===0,[x0,y0]=pt(cx,cy,R-(mj?10:5),a),[x1,y1]=pt(cx,cy,R,a);s+=`<line class="tk ${mj?'mj':''}" x1="${f1(x0)}" y1="${f1(y0)}" x2="${f1(x1)}" y2="${f1(y1)}"/>`;if(mj&&labels){const l=labels[i/major];if(l!=null){const [lx,ly]=pt(cx,cy,R-22-inset,a);s+=`<text class="tl" x="${f1(lx)}" y="${f1(ly)}">${l}</text>`}}}return s}
+const av=w=>`<span class="av" style="background:${P[w].c}">${P[w].i}</span>`;
+const spd=()=>RM?'':`style="animation-duration:${40+Math.round(Math.random()*60)}s"`;
+
+/* --- измервателен пръстен (270°) --- */
+function gauge(o){
+  const S=220,c=S/2,R=c-16,st=135,sw=270,fr=Math.max(0,Math.min(1,o.frac));
+  const col=o.color||'var(--cy)';
+  let s=`<svg class="gauge" viewBox="0 0 ${S} ${S}" aria-label="${o.label}">`;
+  s+=`<circle class="spin" cx="${c}" cy="${c}" r="${R+6}" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="1" stroke-dasharray="2 9" ${spd()}/>`;
+  s+=ticks(c,c,R,st,sw,o.ticks||36,(o.ticks||36)/4,o.labels||['0','25','50','75','100']);
+  s+=`<path class="track" d="${arc(c,c,R-30,st,st+sw)}" stroke-width="7"/>`;
+  if(fr>0)s+=`<path class="val" pathLength="1" d="${arc(c,c,R-30,st,st+sw*fr)}" stroke="${col}" stroke-width="7" style="filter:drop-shadow(0 0 5px ${col})"/>`;
+  if(o.marker!=null){const a=st+sw*o.marker,[x0,y0]=pt(c,c,R-40,a),[x1,y1]=pt(c,c,R-20,a);s+=`<line x1="${f1(x0)}" y1="${f1(y0)}" x2="${f1(x1)}" y2="${f1(y1)}" stroke="#fff" stroke-width="2.5"/>`}
+  s+=`<text class="big" x="${c}" y="${c-4}" font-size="${o.fs||40}" ${o.vcol?`fill="${o.vcol}"`:''}>${o.value}</text>`;
+  s+=`<text class="unit" x="${c}" y="${c+24}">${o.unit||''}</text>`;
+  if(o.foot)s+=`<text class="unit" x="${c}" y="${c+R-6}" font-size="11" fill="var(--tx3)">${o.foot}</text>`;
+  return s+'</svg>';
+}
+const inst=(id,gaugeHtml,title,sub,rows,delay=0)=>`<section class="inst" id="${id}" style="animation-delay:${delay}ms">${gaugeHtml}<div class="rd"><h3>${title}<span>${sub||''}</span></h3>${rows}</div></section>`;
+const dl=i=>`style="animation-delay:${400+i*60}ms"`;
+
+/* --- горна лента --- */
+$('#date').textContent=`${DOWL[TODAY.getDay()]} · ${TODAY.getDate()} ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
+const syRing=(ok)=>`<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="${ok?'var(--ok)':'var(--am)'}" stroke-width="2" stroke-dasharray="${ok?'0':'4 3'}" class="spin" style="animation-duration:${ok?8:3}s"/><circle cx="10" cy="10" r="2.5" fill="${ok?'var(--ok)':'var(--am)'}"/></svg>`;
+$('#syncs').innerHTML=`<span class="sy">${syRing(1)}Календар · ${SYNC.cal}</span><span class="sy warn">${syRing(0)}Wallet не отговаря · данни от ${SYNC.wallet}</span><span class="sy">${syRing(1)}Промоции · ${SYNC.promo}</span>`;
+
+/* ================= ЦЕНТЪР: 24-часов пръстен ================= */
+const CS=640,cc=CS/2,CR=cc-70;
+const hm=t=>{const [h,m]=t.split(':').map(Number);return h+m/60};
+function clockRing(){
+  let s=`<svg viewBox="0 0 ${CS} ${CS}" id="clk">`;
+  /* орбита на промоциите */
+  s+=`<circle cx="${cc}" cy="${cc}" r="${CR+42}" fill="none" stroke="rgba(255,255,255,.07)" stroke-dasharray="1 6"/>`;
+  s+=`<g class="orbit">${PROMO.map((p,i)=>{const a=i*90+20,[x,y]=pt(cc,cc,CR+42,a);return `<g class="sat" transform="translate(${f1(x-30)} ${f1(y-30)})"><circle cx="30" cy="30" r="29"/><text class="s1" x="30" y="19">${esc(p.s)}</text><text class="s2" x="30" y="35">${p.p}</text><text class="s3" x="30" y="48">${esc(p.n)}</text><title>${esc(p.s)} · ${esc(p.n)} ${p.p} · ${p.until}</title></g>`}).join('')}</g>`;
+  /* външен пръстен с деления */
+  s+=`<circle cx="${cc}" cy="${cc}" r="${CR}" fill="rgba(27,30,37,.7)" stroke="var(--ln2)"/>`;
+  s+=ticks(cc,cc,CR,0,360,96,12,[...Array(8)].map((_,i)=>String(i*3).padStart(2,'0')),2);
+  for(let i=0;i<96;i+=4){if(i%12)continue;}
+  s+=`<circle cx="${cc}" cy="${cc}" r="${CR-38}" fill="none" stroke="var(--ln)"/>`;
+  s+=`<path class="track" d="${arc(cc,cc,CR-50,0,359.9)}" stroke-width="14"/>`;
+  /* събития като сегменти */
+  CAL[0].ev.forEach((e,i)=>{const h=hm(e.t),a0=h/24*360,a1=a0+1.5/24*360,col=P[e.w].c;
+    s+=`<path class="val ev-seg" pathLength="1" d="${arc(cc,cc,CR-50,a0,a1)}" stroke="${col}" style="animation-delay:${300+i*150}ms;filter:drop-shadow(0 0 6px ${col})"/>`;
+    const [x,y]=pt(cc,cc,CR-50,a0);s+=`<circle cx="${f1(x)}" cy="${f1(y)}" r="13" fill="${col}" stroke="var(--bg)" stroke-width="2"/><text x="${f1(x)}" y="${f1(y)+1}" font-size="13" font-weight="700" fill="#0d0f13" text-anchor="middle" dominant-baseline="middle">${P[e.w].i}</text>`;
+    const [lx,ly]=pt(cc,cc,CR-80,a0+5);s+=`<text x="${f1(lx)}" y="${f1(ly)}" font-size="13" fill="var(--tx2)" text-anchor="middle" dominant-baseline="middle">${e.t}</text>`;});
+  /* вътрешни декоративни пръстени */
+  s+=`<circle class="spin" cx="${cc}" cy="${cc}" r="${CR-100}" fill="none" stroke="rgba(255,255,255,.1)" stroke-dasharray="30 12 4 12" ${RM?'':'style="animation-duration:90s"'}/>`;
+  s+=`<circle class="spin rev" cx="${cc}" cy="${cc}" r="${CR-108}" fill="none" stroke="rgba(90,209,255,.25)" stroke-dasharray="2 10" ${RM?'':'style="animation-duration:50s"'}/>`;
+  /* линия „сега“ */
+  s+=`<g id="now"><line class="now-l" x1="${cc}" y1="${cc-CR+2}" x2="${cc}" y2="${cc-CR+100}"/><circle cx="${cc}" cy="${cc-CR+2}" r="4" fill="#fff"/><polygon points="${cc-5},${cc-CR-8} ${cc+5},${cc-CR-8} ${cc},${cc-CR}" fill="#fff"/></g>`;
+  return s+'</svg>';
+}
+const m0=MENU[0];
+$('#C').innerHTML=`<div class="center">${clockRing()}
+  <div class="ctr"><div class="time" id="clock"></div><div class="date">${DOW[TODAY.getDay()]} ${TODAY.getDate()} ${MON[TODAY.getMonth()]} · ${CAL[0].ev.length} събития</div>
+    <div class="lbl">днес се готви · вечеря</div><div class="dish">${esc(m0.dn)}</div><div class="lunch">обяд · ${esc(m0.l)}</div><div class="cook">${av(m0.cook)}готви ${P[m0.cook].n}</div></div></div>
+  <div class="days" id="days"></div><div class="menu" id="menu"></div>`;
+
+/* следващите 3 дни като мини-пръстени */
+function miniRing(c){
+  const S=110,m=S/2,R=m-6;let s=`<svg viewBox="0 0 ${S} ${S}">`;
+  s+=`<circle cx="${m}" cy="${m}" r="${R}" fill="rgba(27,30,37,.7)" stroke="var(--ln2)"/>`+ticks(m,m,R,0,360,24,6);
+  s+=`<path class="track" d="${arc(m,m,R-14,0,359.9)}" stroke-width="6"/>`;
+  c.ev.forEach((e,i)=>{const a0=hm(e.t)/24*360,col=P[e.w].c;s+=`<path class="val" pathLength="1" d="${arc(m,m,R-14,a0,a0+1.5/24*360)}" stroke="${col}" stroke-width="6" style="animation-delay:${600+i*120}ms"/>`;});
+  const d=addD(TODAY,c.o);
+  s+=`<text class="big" x="${m}" y="${m-5}" font-size="18">${DOW[d.getDay()]}</text><text class="unit" x="${m}" y="${m+12}" font-size="11">${d.getDate()} ${MON[d.getMonth()]}</text>`;
+  return s+'</svg>';
+}
+$('#days').innerHTML=CAL.slice(1).map(c=>`<div class="day">${miniRing(c)}<div class="ev">${c.ev.map(e=>`<div>${av(e.w)}<span class="t">${e.t}</span><span>${esc(e.n)}</span></div>`).join('')}</div></div>`).join('');
+
+/* меню: ветрило от 7 сегмента + readout */
+function menuFan(){
+  const W=360,H=200,cx=W/2,cy=H-6,r0=92,r1=172,n=MENU.length,sw=180/n;
+  let s=`<svg viewBox="0 0 ${W} ${H}" id="fan">`;
+  s+=`<circle class="spin" cx="${cx}" cy="${cy}" r="${r1+10}" fill="none" stroke="rgba(255,255,255,.12)" stroke-dasharray="2 8" ${spd()}/>`;
+  s+=ticks(cx,cy,r1+8,-90,180,n*4,4,null);
+  MENU.forEach((m,i)=>{const a0=-90+i*sw,a1=a0+sw,am=(a0+a1)/2,[tx,ty]=pt(cx,cy,(r0+r1)/2+8,am),[ax,ay]=pt(cx,cy,r0+18,am);
+    s+=`<path class="seg ${i===0?'today':''}" data-i="${i}" d="${wedge(cx,cy,r0,r1,a0,a1)}"><title>${esc(m.dn)}</title></path>`;
+    s+=`<text class="segt" x="${f1(tx)}" y="${f1(ty)}">${m.d}</text>`;
+    s+=`<circle cx="${f1(ax)}" cy="${f1(ay)}" r="9" fill="${P[m.cook].c}"/><text x="${f1(ax)}" y="${f1(ay)+1}" font-size="10" font-weight="700" fill="#0d0f13" text-anchor="middle" dominant-baseline="middle" pointer-events="none">${P[m.cook].i}</text>`;});
+  s+=`<text class="unit" x="${cx}" y="${cy-30}" font-size="12">седмично меню</text><text class="big" x="${cx}" y="${cy-56}" font-size="22">7 дни</text>`;
+  return s+'</svg>';
+}
+const vb=(i,w)=>{const v=STATE.votes[i][w];return `<span class="vote">${av(w)}<button class="up ${v===1?'on':''}" data-i="${i}" data-w="${w}" data-v="1" title="${P[w].n}: харесва">👍</button><button class="dn ${v===-1?'on':''}" data-i="${i}" data-w="${w}" data-v="-1" title="${P[w].n}: не харесва">👎</button></span>`};
+$('#menu').innerHTML=menuFan()+`<div id="mrows">${MENU.map((m,i)=>`<div class="mrow ${i===0?'today sel':''}" data-i="${i}" ${dl(i)}><span class="d">${m.d}</span><span class="dish">${esc(m.dn)}<small>· обяд: ${esc(m.l)}</small></span>${vb(i,'D')}${vb(i,'S')}</div>`).join('')}</div>`;
+
+/* ================= ЛЯВО: бюджет, тегло, рецепти ================= */
+$('#L').innerHTML=
+ inst('budget',gauge({frac:pct/100,marker:dayPct/100,color:over?'var(--bad)':'var(--cy)',value:fmt(BUDGET.rem),unit:'лв остават',fs:38,labels:['0','','50','','100%'],foot:`ден ${BUDGET.day}/${BUDGET.days}`,vcol:over?'var(--bad)':''}),
+  'Бюджет · октомври',`${pct}%`,
+  `<div class="row" ${dl(0)}><span class="n">похарчени <b>${fmt(BUDGET.spent)}</b></span><span class="q">/ ${fmt(BUDGET.limit)} лв</span></div>
+   <div class="row" ${dl(1)}><span class="n">до края <b>~${fmt(BUDGET.pace)}</b></span><span class="q">лв/ден</span></div>
+   <div class="row" ${dl(2)}><span class="n dim">маркер = днес</span><span class="q">${dayPct}%</span></div>
+   <div class="row" ${dl(3)}><span class="tag am">Wallet · данни от ${SYNC.wallet}</span></div>`,100)
+ +(()=>{const pts=WEIGHT.pts,w0=pts[0],wl=pts[pts.length-1],prog=(w0-wl)/(w0-WEIGHT.goal);
+   const spark=(()=>{const W=160,H=40,mn=Math.min(...pts),mx=Math.max(...pts),r=mx-mn||1;const d=pts.map((v,i)=>`${f1(i/(pts.length-1)*(W-6)+3)},${f1(H-4-(v-mn)/r*(H-8))}`);return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:200px;height:auto"><path class="val" pathLength="1" d="M${d.join('L')}" stroke="var(--ok)" stroke-width="2" fill="none" style="animation-delay:.6s"/><circle cx="${d[d.length-1].split(',')[0]}" cy="${d[d.length-1].split(',')[1]}" r="3" fill="var(--ok)"/></svg>`})();
+   return inst('weight',gauge({frac:prog,color:'var(--ok)',value:fmt(wl),unit:'кг',fs:38,labels:[String(w0),'','','',String(WEIGHT.goal)],foot:`цел ${WEIGHT.goal} кг`}),
+   'Тегло','8 седм.',
+   `<div class="row" ${dl(0)}><span class="n">от старта</span><b class="ok">${f1(wl-w0).replace('.',',')}</b><span class="q">кг</span></div>
+    <div class="row" ${dl(1)}><span class="n">до целта</span><b>${f1(wl-WEIGHT.goal).replace('.',',')}</b><span class="q">кг · ${Math.round(prog*100)}%</span></div>
+    <div class="row" ${dl(2)} style="border:0">${spark}</div>`,200)})()
+ +inst('recipes',gauge({frac:RECIPES.fresh/RECIPES.total*4,color:'var(--am)',value:RECIPES.total,unit:'рецепти',fs:44,ticks:42,labels:['','','','',''],foot:`${RECIPES.fresh} нови`}),
+  'Рецепти','AI',
+  `<div class="row" ${dl(0)}><span class="n">в библиотеката</span><b>${RECIPES.total}</b></div>
+   <div class="row" ${dl(1)}><span class="n">нови предложения</span><b class="am">${RECIPES.fresh}</b></div>
+   <div class="row" ${dl(2)}><span class="n dim">последно: печена сьомга с картофи</span></div>`,300);
+
+/* ================= ДЯСНО: пазаруване, задачи, тренировка ================= */
+const ckRow=(k,i,inner)=>`<div class="row ${STATE[k][i]?'done':''}" data-k="${k}" data-i="${i}" ${dl(i)}><button class="ckb" data-k="${k}" data-i="${i}" aria-label="отметни"><span class="ck"></span></button>${inner}</div>`;
+function rightCol(){
+  const sN=STATE.shop.filter(Boolean).length,tN=STATE.tasks.filter(Boolean).length,wN=STATE.work.filter(Boolean).length;
+  $('#R').innerHTML=
+   inst('shop',gauge({frac:sN/SHOP.length,color:'var(--ok)',value:`${sN}/${SHOP.length}`,unit:'в количката',fs:34,ticks:SHOP.length*2,labels:['0','','','',String(SHOP.length)]}),
+    'Пазаруване',`${SHOP.length - sN} остават`,
+    SHOP.map((s,i)=>ckRow('shop',i,`<span class="n">${esc(s.n)} <span class="q">${s.q}</span></span>${s.promo?`<span class="tag ok">${esc(s.promo)}</span>`:`<span class="q">${s.a}</span>`}`)).join(''),150)
+   +inst('tasks',gauge({frac:tN/TASKS.length,color:'var(--cy)',value:`${tN}/${TASKS.length}`,unit:'готови',fs:34,ticks:TASKS.length*4,labels:['0','','','',String(TASKS.length)]}),
+    'Задачи','',
+    TASKS.map((t,i)=>ckRow('tasks',i,`<span class="n">${esc(t.n)}</span>${av(t.w)}<span class="${t.due==='днес'?'tag am':'q'}">${t.due}</span>`)).join(''),250)
+   +inst('work',gauge({frac:wN/WORK.length,color:'var(--am)',value:`${Math.round(wN/WORK.length*100)}%`,unit:'тренировка',fs:34,ticks:WORK.length*4,labels:['0','','','',String(WORK.length)]}),
+    'Тренировка · днес',`${wN}/${WORK.length}`,
+    WORK.map((w,i)=>ckRow('work',i,`<span class="n">${esc(w.n)}</span><span class="q">${w.s}</span>`)).join(''),350);
+}
+rightCol();
+
+/* ================= часовник + линия „сега“ ================= */
+function tick(){const d=new Date();$('#clock').innerHTML=`${clockStr()}<small>:${String(d.getSeconds()).padStart(2,'0')}</small>`;
+  const a=(d.getHours()+d.getMinutes()/60+d.getSeconds()/3600)/24*360;$('#now').setAttribute('transform',`rotate(${f1(a)} ${cc} ${cc})`);}
+tick();setInterval(tick,1000);
+
+/* ================= взаимодействие ================= */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.ckb');
+  if(b){const k=b.dataset.k,i=+b.dataset.i;STATE[k][i]=!STATE[k][i];
+    /* пререндираме колоната без повторна анимация на редовете */
+    const sc=scrollY;rightCol();document.querySelectorAll('#R .inst,#R .row').forEach(el=>{el.style.animation='none';el.style.opacity=1});document.querySelectorAll('#R .val').forEach(el=>{el.style.animation='none';el.style.strokeDashoffset=0});scrollTo(0,sc);return}
+  const v=e.target.closest('.vote button');
+  if(v){const i=+v.dataset.i,w=v.dataset.w,val=+v.dataset.v;STATE.votes[i][w]=STATE.votes[i][w]===val?0:val;
+    const p=v.parentElement;p.querySelector('.up').classList.toggle('on',STATE.votes[i][w]===1);p.querySelector('.dn').classList.toggle('on',STATE.votes[i][w]===-1);return}
+  const sg=e.target.closest('.seg');const mr=e.target.closest('.mrow');
+  const sel=sg?+sg.dataset.i:mr?+mr.dataset.i:null;
+  if(sel!=null){document.querySelectorAll('.seg,.mrow').forEach(el=>el.classList.toggle('sel',+el.dataset.i===sel))}
+});
+</script>
+</body>
+</html>

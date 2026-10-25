@@ -1,0 +1,385 @@
+<!-- ПРОТОТИП (throwaway): вариант 09 · Коркова дъска -->
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>09 · Коркова дъска</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=PT+Mono&family=Shantell+Sans:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --hand:Caveat,"Shantell Sans","Segoe Print",cursive; --type:"PT Mono","Courier New",monospace;
+  --ink:#2b2420; --blue:#1f3f8f; --red:#d8342c; --green:#2f8f4e; --marker:rgba(230,50,40,.8);
+  --fs:26px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{color:var(--ink);font-family:var(--hand);font-size:var(--fs);line-height:1.2;overflow-x:hidden}
+body{background:
+  radial-gradient(circle at 30% 40%,rgba(92,52,20,.28) 0 1px,transparent 2px) 0 0/13px 11px,
+  radial-gradient(circle at 70% 60%,rgba(255,232,190,.35) 0 1px,transparent 2px) 3px 5px/17px 13px,
+  radial-gradient(circle at 40% 80%,rgba(80,40,10,.22) 0 1.5px,transparent 3px) 7px 2px/23px 19px,
+  radial-gradient(circle at 80% 20%,rgba(60,30,10,.2) 0 1px,transparent 2.5px) 11px 9px/29px 31px,
+  radial-gradient(circle at 50% 50%,rgba(255,220,170,.18) 0 2px,transparent 4px) 5px 13px/41px 37px,
+  linear-gradient(135deg,#c89a5e,#d6a96b 40%,#c3914f 100%)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;border:16px solid transparent;
+  border-image:repeating-linear-gradient(90deg,#6b3f1f 0 3px,#8a552c 3px 7px,#75452a 7px 12px) 16;box-shadow:inset 0 0 60px rgba(60,30,10,.35)}
+main{position:relative;display:grid;gap:22px 30px;padding:26px 44px 36px;min-height:100vh;align-content:start;
+  grid-template-columns:1fr .85fr 1.75fr .95fr 1.05fr;
+  grid-template-areas:"hdr hdr hdr hdr hdr" "c1 c2 c3 c4 c5"}
+.col{display:flex;flex-direction:column;gap:30px}
+.c1{grid-area:c1}.c2{grid-area:c2}.c3{grid-area:c3}.c4{grid-area:c4}.c5{grid-area:c5}.hdr{grid-area:hdr}
+/* ---- хартия ---- */
+.paper{position:relative;--r:0deg;rotate:var(--r);transform-origin:50% 0;
+  box-shadow:2px 4px 10px rgba(50,25,5,.35),0 1px 2px rgba(0,0,0,.15);
+  animation:pinin .7s cubic-bezier(.3,1.4,.5,1) both,sway 7s ease-in-out .7s infinite;
+  transition:translate .3s,box-shadow .3s}
+.paper:hover{translate:0 -6px;box-shadow:6px 16px 28px rgba(50,25,5,.45),0 2px 4px rgba(0,0,0,.2);animation-play-state:paused,paused;z-index:5}
+@keyframes pinin{from{opacity:0;transform:translateY(-28px) scale(1.12)}55%{transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes sway{0%,100%{rotate:calc(var(--r) - .5deg)}50%{rotate:calc(var(--r) + .5deg)}}
+.note{padding:18px 20px 20px;background:linear-gradient(170deg,#fff6a0,#ffe96b 90%,#f2d94e)}
+.note.pink{background:linear-gradient(170deg,#ffc8d8,#ffb0c6 90%,#f29bb4)}
+.note.green{background:linear-gradient(170deg,#d7f7b6,#c3f09b 90%,#aedd84)}
+.note.blue{background:linear-gradient(170deg,#cfe8ff,#b9dcff 90%,#a2cbf5)}
+.note::after{content:"";position:absolute;right:0;bottom:0;width:0;height:0;border-style:solid;border-width:0 0 26px 26px;border-color:transparent transparent rgba(0,0,0,.12) transparent;filter:drop-shadow(-2px -2px 2px rgba(0,0,0,.1))}
+.white{background:#fffdf7;padding:16px 18px 18px}
+.kraft{background:linear-gradient(160deg,#e3c08a,#d4ac72);padding:18px 20px}
+.lined{background:#fffdf7 repeating-linear-gradient(180deg,transparent 0 38px,#9cc3e8 38px 39px);padding:16px 18px 18px 46px}
+.lined::before{content:"";position:absolute;left:32px;top:0;bottom:0;width:2px;background:#f0a1a1}
+.pin{position:absolute;top:-10px;left:50%;width:22px;height:22px;border-radius:50%;z-index:2;transform:translateX(-50%);
+  background:radial-gradient(circle at 35% 30%,#ff8b8b,#d8342c 55%,#8e1d17);box-shadow:0 3px 4px rgba(0,0,0,.4),inset -2px -2px 3px rgba(0,0,0,.25)}
+.pin.b{background:radial-gradient(circle at 35% 30%,#8fb8ff,#2b63d6 55%,#17388a)}
+.pin.g{background:radial-gradient(circle at 35% 30%,#a7f0b8,#2f9f4e 55%,#1b6230)}
+.pin.l{left:22px}.pin.rr{left:auto;right:12px}
+.tape{position:absolute;top:-12px;left:50%;width:120px;height:30px;transform:translateX(-50%) rotate(-3deg);z-index:2;
+  background:rgba(255,255,255,.45);border-left:2px dashed rgba(255,255,255,.7);border-right:2px dashed rgba(255,255,255,.7);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tape.l{left:30px;transform:rotate(-28deg)}.tape.rr{left:auto;right:-30px;transform:rotate(32deg)}
+h2{font-family:var(--hand);font-weight:700;font-size:1.25em;margin-bottom:8px;color:var(--blue)}
+h2 small{font-weight:400;font-size:.75em;color:#6a5a4a}
+.type{font-family:var(--type);font-size:.78em;line-height:1.35}
+.big{font-size:2.8em;font-weight:700;line-height:1;color:var(--red)}
+.big small{font-size:.4em;font-weight:400;color:var(--ink)}
+.dim{color:#6a5a4a}
+.av{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;font-weight:700;font-size:.72em;color:#fff;background:var(--pc);border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.3);font-style:normal;flex:none;vertical-align:middle}
+/* ---- заглавие: стенен часовник + бележки ---- */
+.hdr{display:flex;align-items:center;gap:40px;flex-wrap:wrap}
+.clockwrap{display:flex;align-items:center;gap:22px}
+.wall{width:124px;height:124px;border-radius:50%;background:#fffdf7;border:10px solid #5a3a1e;box-shadow:0 6px 14px rgba(40,20,5,.4),inset 0 0 0 3px #e8dcc5;position:relative;flex:none}
+.wall i{position:absolute;left:50%;top:50%;transform-origin:50% 100%;border-radius:4px;background:var(--ink)}
+.wall .h{width:7px;height:32px;margin:-32px 0 0 -3.5px}
+.wall .m{width:5px;height:44px;margin:-44px 0 0 -2.5px}
+.wall .s{width:2px;height:50px;margin:-50px 0 0 -1px;background:var(--red)}
+.wall b{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--red)}
+.wall em{position:absolute;left:50%;top:50%;width:4px;height:10px;margin:-52px 0 0 -2px;background:var(--ink);transform-origin:50% 52px;border-radius:2px}
+.digital{font-size:2.6em;font-weight:700;line-height:1;color:var(--ink)}
+.digital small{font-size:.5em;font-weight:400;color:var(--red)}
+.date{font-size:1.25em;color:#5a3a1e}
+.sync{display:flex;gap:22px;flex-wrap:wrap;margin-left:auto}
+.sync .note{padding:8px 14px 10px;font-size:.85em;width:auto}
+.sync .ok{color:var(--green);font-weight:700}
+.sync .warn{color:var(--red);font-weight:700}
+/* ---- календар: листчета от пирамидка ---- */
+.leaf{background:#fffdf7;clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),97% 100%,93% calc(100% - 7px),88% 100%,83% calc(100% - 6px),78% 100%,73% calc(100% - 8px),68% 100%,62% calc(100% - 6px),57% 100%,52% calc(100% - 8px),47% 100%,42% calc(100% - 6px),37% 100%,32% calc(100% - 8px),27% 100%,22% calc(100% - 6px),17% 100%,12% calc(100% - 7px),7% 100%,3% calc(100% - 6px),0 100%);padding-bottom:18px}
+.leaf .band{background:var(--red);color:#fff;font-family:var(--type);font-size:.72em;letter-spacing:.14em;text-transform:uppercase;text-align:center;padding:5px 8px;position:relative}
+.leaf .band::before,.leaf .band::after{content:"";position:absolute;top:4px;width:10px;height:10px;border-radius:50%;background:#fffdf7;box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+.leaf .band::before{left:12px}.leaf .band::after{right:12px}
+.leaf .num{font-family:var(--type);font-weight:700;text-align:center;line-height:1;padding:8px 0 2px}
+.leaf.today .num{font-size:4.4em}.leaf .num{font-size:2.2em}
+.leaf .mon{text-align:center;font-family:var(--type);font-size:.7em;color:#6a5a4a;text-transform:uppercase;letter-spacing:.1em}
+.leaf .evs{padding:8px 14px 0}
+.ev{display:flex;align-items:center;gap:10px;padding:3px 0}
+.ev .t{font-family:var(--type);font-size:.72em;color:var(--blue);min-width:3.6em}
+.ev .n{flex:1;font-weight:600;line-height:1.1}
+.leaf.today .ev .n{font-size:1.1em}
+.leaf.today .ev.next .n{color:var(--red);position:relative}
+.leaf.today .ev.next .n::before{content:"";position:absolute;left:-6px;right:-6px;top:-2px;bottom:-2px;border:3px solid var(--marker);border-radius:50% 45% 48% 52%/60% 40% 55% 45%;transform:rotate(-1.5deg);animation:circle 1.2s .9s both}
+@keyframes circle{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}}
+.leaves{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
+.leaves .leaf{font-size:.86em}
+.leaves .ev{flex-direction:column;align-items:flex-start;gap:0}
+/* ---- бюджет: картон + термометър ---- */
+.thermo{position:relative;height:34px;margin:30px 0 30px;background:#fffdf7;border:2px solid var(--ink);border-radius:20px;padding:5px;box-shadow:inset 0 2px 4px rgba(0,0,0,.15)}
+.thermo i{display:block;height:100%;width:0;border-radius:14px;background:repeating-linear-gradient(90deg,#e4433a 0 14px,#f06a5f 14px 18px);transition:width 1.8s cubic-bezier(.2,.8,.2,1)}
+.thermo .tk{position:absolute;top:-16px;width:3px;height:70px;background:var(--blue);transform:translateX(-50%)}
+.thermo .tk em{position:absolute;left:6px;top:50px;font-style:normal;font-size:.9em;color:var(--blue);white-space:nowrap;font-weight:700}
+.thermo .lab{position:absolute;top:-26px;font-family:var(--type);font-size:.6em;color:#6a5a4a}
+.bud.over .big{animation:shake .5s 3}
+@keyframes shake{25%{translate:-3px 0}75%{translate:3px 0}}
+/* ---- рецептна картичка ---- */
+.card{background:#fffdf7 repeating-linear-gradient(180deg,transparent 0 34px,#c9d9e8 34px 35px);padding:14px 18px 16px;border-top:6px solid var(--red)}
+.card .dn{font-size:1.7em;font-weight:700;line-height:1.05;color:var(--ink)}
+.card .l{margin-top:6px}
+.card .who{display:flex;align-items:center;gap:8px;margin-top:8px;color:#6a5a4a}
+/* ---- меню: лист от тетрадка ---- */
+.lined .mrow{display:grid;grid-template-columns:1.9em 1fr auto;align-items:center;gap:6px;height:39px}
+.lined .mrow .d{font-family:var(--type);font-size:.7em;color:var(--red);text-transform:uppercase}
+.lined .mrow .dn{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lined .mrow .dn small{font-weight:400;color:#6a5a4a;font-size:.72em}
+@media (min-width:1501px){.lined .mrow .dn small{display:none}}
+.lined .mrow.today .dn{color:var(--blue);font-weight:700}
+.votes{display:flex;gap:6px;align-items:center}
+.vote{display:flex;align-items:center;gap:1px}
+.vote .av{width:20px;height:20px;font-size:.55em;border-width:1px}
+.vb{width:24px;height:24px;display:grid;place-items:center;cursor:pointer;font-size:15px;opacity:.4;filter:grayscale(1);border:3px solid transparent;border-radius:48% 52% 45% 55%/55% 45% 58% 42%;transition:.2s;user-select:none}
+.vb:hover{opacity:.9;filter:none;transform:scale(1.15)}
+.vb.on{opacity:1;filter:none;border-color:var(--green);transform:rotate(-4deg)}
+.vb.on.dn{border-color:var(--red)}
+/* ---- касова бележка ---- */
+.receipt{background:#fffdf7;font-family:var(--type);font-size:.72em;line-height:1.3;padding:20px 16px 22px;
+  clip-path:polygon(0 8px,4% 0,8% 8px,12% 0,16% 8px,20% 0,24% 8px,28% 0,32% 8px,36% 0,40% 8px,44% 0,48% 8px,52% 0,56% 8px,60% 0,64% 8px,68% 0,72% 8px,76% 0,80% 8px,84% 0,88% 8px,92% 0,96% 8px,100% 0,100% calc(100% - 8px),96% 100%,92% calc(100% - 8px),88% 100%,84% calc(100% - 8px),80% 100%,76% calc(100% - 8px),72% 100%,68% calc(100% - 8px),64% 100%,60% calc(100% - 8px),56% 100%,52% calc(100% - 8px),48% 100%,44% calc(100% - 8px),40% 100%,36% calc(100% - 8px),32% 100%,28% calc(100% - 8px),24% 100%,20% calc(100% - 8px),16% 100%,12% calc(100% - 8px),8% 100%,4% calc(100% - 8px),0 100%)}
+.receipt .head{text-align:center;text-transform:uppercase;letter-spacing:.12em;border-bottom:1px dashed #999;padding-bottom:6px;margin-bottom:6px}
+.receipt .head b{display:block;font-size:1.25em}
+.receipt .foot{border-top:1px dashed #999;margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;font-weight:700}
+.row{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer}
+.row .bx{width:20px;height:20px;border:2px solid var(--ink);flex:none;display:grid;place-items:center;position:relative;background:#fff}
+.row.on .bx::after{content:"";position:absolute;left:3px;top:-6px;width:8px;height:16px;border-right:4px solid var(--green);border-bottom:4px solid var(--green);transform:rotate(40deg)}
+.row .n{flex:1;position:relative}
+.row .n::after{content:"";position:absolute;left:-3px;top:52%;height:5px;width:0;background:var(--marker);border-radius:3px;transform:rotate(-1deg);transition:width .45s cubic-bezier(.3,.9,.4,1)}
+.row.on .n::after{width:103%}
+.row.on .n{color:#8a7b6b}
+.row .q{color:#6a5a4a}
+.row .m{color:#6a5a4a;font-size:.8em;white-space:nowrap}
+.stamp{font-family:var(--hand);font-weight:700;font-size:1em;color:var(--red);border:2px solid var(--red);border-radius:4px;padding:0 5px;rotate:-6deg;opacity:.85;white-space:nowrap;line-height:1.3}
+/* ---- задачи / тренировка ---- */
+.todo .row{font-size:.95em;padding:3px 0}
+.todo .row .bx{width:24px;height:24px;border-radius:3px 5px 4px 6px}
+.todo .row .n{font-weight:600}
+.sq{display:flex;gap:8px;margin-top:10px}
+.sq i{flex:1;height:18px;border:2px solid var(--ink);background:#fff;transition:background .4s}
+.sq i.on{background:var(--green)}
+/* ---- милиметрова хартия ---- */
+.graph{background:#fffdf7
+  linear-gradient(90deg,rgba(80,160,220,.5) 0 1px,transparent 1px) 0 0/50px 50px,
+  linear-gradient(180deg,rgba(80,160,220,.5) 0 1px,transparent 1px) 0 0/50px 50px,
+  linear-gradient(90deg,rgba(80,160,220,.22) 0 1px,transparent 1px) 0 0/10px 10px,
+  linear-gradient(180deg,rgba(80,160,220,.22) 0 1px,transparent 1px) 0 0/10px 10px;padding:14px 16px 10px}
+.graph svg{width:100%;height:auto;display:block;overflow:visible}
+.graph .big{font-size:2.4em;color:var(--blue)}
+/* ---- купони ---- */
+.coupons{display:flex;flex-direction:column;gap:6px}
+.coupon{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fffdf7;border:2px dashed #b89a7a;padding:2px 10px;font-size:.84em;white-space:nowrap;rotate:var(--cr)}
+.coupon b{font-family:var(--type);font-size:.75em;text-transform:uppercase}
+.coupon .p{color:var(--red);font-weight:700;font-size:1.2em}
+.coupon .u{color:#6a5a4a;font-size:.8em;font-family:var(--type)}
+/* ---- рецепти ---- */
+.rec .big{font-size:2.6em;color:var(--blue)}
+/* ---- таблет ---- */
+@media (max-width:1500px){
+  :root{--fs:22px}
+  .col{display:contents}
+  main{grid-template-columns:1fr 1fr;grid-template-areas:"hdr hdr" "cal bud" "cal cook" "menu menu" "shop task" "shop work" "wt rec" "wt promo";gap:28px;padding:28px}
+  .cal{grid-area:cal}.bud{grid-area:bud}.cook{grid-area:cook}.menu{grid-area:menu}.shop{grid-area:shop}.task{grid-area:task}.wt{grid-area:wt}.work{grid-area:work}.rec{grid-area:rec}.promo{grid-area:promo}
+}
+/* ---- телефон ---- */
+@media (max-width:760px){
+  :root{--fs:20px}
+  main{display:flex;flex-direction:column;gap:30px;padding:28px 22px 40px}
+  .hdr{order:0}.cal{order:1}.bud{order:2}.cook{order:3}.menu{order:4}.shop{order:5}.task{order:6}.work{order:7}.wt{order:8}.rec{order:9}.promo{order:10}
+  .paper{--r:0deg!important}
+  .wall{width:110px;height:110px;border-width:8px}.wall .h{height:28px;margin-top:-28px}.wall .m{height:40px;margin-top:-40px}.wall .s{height:44px;margin-top:-44px}.wall em{margin-top:-48px;transform-origin:50% 48px;height:9px}
+  .digital{font-size:2.1em}.sync{margin-left:0}
+  .leaves{grid-template-columns:1fr;gap:18px}.leaves .ev{flex-direction:row;align-items:center;gap:10px}
+  .lined{padding-left:40px}.lined .mrow{height:auto;min-height:39px;grid-template-columns:2.2em 1fr;grid-template-areas:"d dn" "d v";padding:4px 0}
+  .lined .mrow .d{grid-area:d}.lined .mrow .dn{grid-area:dn;white-space:normal}.votes{grid-area:v}
+  .lined{background-size:auto;background-image:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01s!important;animation-iteration-count:1!important;transition-duration:.01s!important}
+}
+/* ?static – само за headless снимки */
+html.static *{animation:none!important;transition:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header class="hdr">
+    <div class="clockwrap">
+      <div class="wall" id="wall"><em style="transform:rotate(0deg)"></em><em style="transform:rotate(90deg)"></em><em style="transform:rotate(180deg)"></em><em style="transform:rotate(270deg)"></em><i class="h" id="hh"></i><i class="m" id="mh"></i><i class="s" id="sh"></i><b></b></div>
+      <div><div class="digital" id="clock"></div><div class="date" id="date"></div></div>
+    </div>
+    <div class="sync" id="sync"></div>
+  </header>
+
+  <div class="col c1">
+    <section class="paper leaf today cal" style="--r:-1.2deg"><i class="pin"></i>
+      <div class="band" id="tband"></div>
+      <div class="num" id="tnum"></div>
+      <div class="mon" id="tmon"></div>
+      <div class="evs" id="tevs"></div>
+      <div class="leaves" id="leaves"></div>
+    </section>
+  </div>
+
+  <div class="col c2">
+    <section class="paper kraft bud" id="bud" style="--r:1.6deg"><i class="tape"></i>
+      <h2>Бюджет <small>· остават този месец</small></h2>
+      <div class="big"><span id="rem">0</span> <small>лв</small></div>
+      <div class="thermo"><i id="therm"></i><span class="tk" id="dmark"><em>днес</em></span><span class="lab" style="left:0">0</span><span class="lab" style="right:0" id="lim"></span></div>
+      <div class="dim" id="bsub"></div>
+    </section>
+    <section class="paper card cook" style="--r:-.8deg"><i class="pin b rr"></i>
+      <h2>Днес се готви</h2>
+      <div class="dn" id="cdn"></div>
+      <div class="l">обяд: <b id="cl"></b></div>
+      <div class="who" id="cwho"></div>
+    </section>
+    <section class="paper note green rec" style="--r:2.2deg"><i class="pin g l"></i>
+      <h2>Рецепти</h2>
+      <div class="big"><span id="recn">0</span></div>
+      <div><b style="color:var(--green)" id="recf"></b> нови предложения тази седмица</div>
+    </section>
+  </div>
+
+  <div class="col c3">
+    <section class="paper lined menu" style="--r:.6deg"><i class="tape l"></i><i class="tape rr"></i>
+      <h2>Седмично меню <small>· гласувай</small></h2>
+      <div id="menu"></div>
+    </section>
+    <section class="paper graph wt" style="--r:-1.4deg"><i class="pin b"></i>
+      <h2>Тегло <small>· последните 8 седмици</small></h2>
+      <div class="big"><span id="wnow">0</span> <small>кг</small></div>
+      <svg id="wsvg" viewBox="0 0 400 150" preserveAspectRatio="none"></svg>
+      <div class="dim" id="wgoal"></div>
+    </section>
+  </div>
+
+  <div class="col c4">
+    <section class="paper receipt shop" style="--r:1.1deg"><i class="pin"></i>
+      <div class="head"><b>Списък за пазаруване</b><span id="shopn"></span></div>
+      <div id="shop"></div>
+      <div class="foot"><span>Остават</span><span id="shopl"></span></div>
+    </section>
+    <section class="paper note blue promo" style="--r:-2deg"><i class="pin b"></i>
+      <h2>Промоции</h2>
+      <div class="coupons" id="promo"></div>
+    </section>
+  </div>
+
+  <div class="col c5">
+    <section class="paper note todo task" style="--r:1.4deg"><i class="pin"></i>
+      <h2>Задачи <small id="taskn"></small></h2>
+      <div id="tasks"></div>
+    </section>
+    <section class="paper note pink todo work" style="--r:-1.8deg"><i class="tape"></i>
+      <h2>Тренировка <small id="workn"></small></h2>
+      <div id="work"></div>
+      <div class="sq" id="wsq"></div>
+    </section>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script>
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STATIC = location.search.includes('static');
+if(STATIC)document.documentElement.classList.add('static');
+const av=w=>`<i class="av" style="--pc:${P[w].c}">${P[w].i}</i>`;
+function countUp(el,to,dec=0,ms=1400){
+  const out=v=>el.textContent=dec?v.toLocaleString('bg-BG',{minimumFractionDigits:dec,maximumFractionDigits:dec}):fmt(Math.round(v));
+  if(RM||STATIC){out(to);return}
+  const t0=performance.now();
+  (function st(now){const k=Math.min(1,(now-t0)/ms);out(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(st)})(t0);
+}
+document.querySelectorAll('.paper').forEach((p,i)=>{p.style.animationDelay=(i*.12)+'s,'+(i*.12+.7)+'s';p.style.animationDuration='.7s,'+(6+i*.9)+'s'});
+
+/* часовник */
+function tick(){
+  const d=new Date(),s=d.getSeconds(),m=d.getMinutes(),h=d.getHours()%12;
+  $('#sh').style.transform=`rotate(${s*6}deg)`;$('#mh').style.transform=`rotate(${m*6+s*.1}deg)`;$('#hh').style.transform=`rotate(${h*30+m*.5}deg)`;
+  $('#clock').innerHTML=`${clockStr()} <small>${String(s).padStart(2,'0')}</small>`;
+}
+tick();setInterval(tick,1000);
+$('#date').textContent=`${DOWL[TODAY.getDay()]}, ${TODAY.getDate()} ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
+
+/* синхронизация */
+$('#sync').innerHTML=`<div class="paper note green" style="--r:-2deg"><i class="pin g"></i><span class="ok">✓</span> Календар · ${SYNC.cal}</div>
+  <div class="paper note" style="--r:1.5deg"><i class="pin"></i><span class="warn">⚠ Wallet не отговаря</span><br>данни от ${SYNC.wallet}</div>
+  <div class="paper note green" style="--r:-1deg"><i class="pin g"></i><span class="ok">✓</span> Промоции · ${SYNC.promo}</div>`;
+
+/* календар */
+const nowMin=new Date().getHours()*60+new Date().getMinutes();let marked=false;
+$('#tband').textContent=DOWL[TODAY.getDay()];
+$('#tnum').textContent=TODAY.getDate();
+$('#tmon').textContent=`${MON[TODAY.getMonth()]} ${TODAY.getFullYear()} · днес`;
+$('#tevs').innerHTML=CAL[0].ev.map(e=>{const [h,m]=e.t.split(':').map(Number);const nx=!marked&&h*60+m>=nowMin;if(nx)marked=true;
+  return `<div class="ev${nx?' next':''}"><span class="t">${e.t}</span><span class="n">${esc(e.n)}</span>${av(e.w)}</div>`}).join('');
+if(!marked){const f=document.querySelector('#tevs .ev');if(f)f.classList.add('next')}
+$('#leaves').innerHTML=CAL.slice(1).map((d,i)=>{const dt=addD(TODAY,d.o);
+  return `<div class="paper leaf" style="--r:${[-1.5,1,-.6][i]}deg"><i class="pin ${['b','g',''][i]}"></i><div class="band">${DOW[dt.getDay()]}</div><div class="num">${dt.getDate()}</div><div class="mon">${MON[dt.getMonth()]}</div>
+    <div class="evs">${d.ev.map(e=>`<div class="ev"><span class="t">${e.t}</span><span class="n">${esc(e.n)} ${av(e.w)}</span></div>`).join('')}</div></div>`}).join('');
+
+/* бюджет */
+countUp($('#rem'),BUDGET.rem);
+if(over)$('#bud').classList.add('over');
+$('#dmark').style.left=`calc(5px + (100% - 10px) * ${dayPct/100})`;
+$('#lim').textContent=fmt(BUDGET.limit);
+$('#bsub').innerHTML=`похарчени <b>${fmt(BUDGET.spent)}</b> лв · ~<b>${fmt(BUDGET.pace)}</b> лв/ден до края`;
+const goT=()=>$('#therm').style.width=pct+'%';
+if(RM||STATIC)goT();else setTimeout(goT,400);
+
+/* готвене */
+$('#cdn').textContent=MENU[0].dn;$('#cl').textContent=MENU[0].l;
+$('#cwho').innerHTML=`${av(MENU[0].cook)} готви ${esc(P[MENU[0].cook].n)}`;
+
+/* меню */
+function renderMenu(){
+  $('#menu').innerHTML=MENU.map((m,i)=>`<div class="mrow${i===0?' today':''}">
+    <span class="d">${m.d}</span>
+    <span class="dn">${esc(m.dn)} <small>· обяд: ${esc(m.l)} · ${esc(P[m.cook].n)}</small></span>
+    <span class="votes">${['D','S'].map(w=>`<span class="vote">${av(w)}
+      <span class="vb up${STATE.votes[i][w]===1?' on':''}" data-i="${i}" data-w="${w}" data-v="1">👍</span>
+      <span class="vb dn${STATE.votes[i][w]===-1?' on':''}" data-i="${i}" data-w="${w}" data-v="-1">👎</span></span>`).join('')}</span>
+  </div>`).join('');
+}
+renderMenu();
+$('#menu').onclick=e=>{const s=e.target.closest('.vb');if(!s)return;const {i,w,v}=s.dataset;STATE.votes[i][w]=STATE.votes[i][w]===+v?0:+v;renderMenu()};
+
+/* списъци */
+function renderShop(){
+  $('#shop').innerHTML=SHOP.map((x,i)=>`<div class="row${STATE.shop[i]?' on':''}" data-i="${i}"><i class="bx"></i>
+    <span class="n">${esc(x.n)} <span class="q">${esc(x.q)}</span></span>${x.promo?`<span class="stamp">${esc(x.promo)}</span>`:`<span class="m">${esc(x.a)}</span>`}</div>`).join('');
+  const d=STATE.shop.filter(Boolean).length;
+  $('#shopn').textContent=`${TODAY.getDate()}.${String(TODAY.getMonth()+1).padStart(2,'0')}.${TODAY.getFullYear()} · ${d}/${SHOP.length}`;
+  $('#shopl').textContent=`${SHOP.length-d} арт.`;
+}
+function renderTasks(){
+  $('#tasks').innerHTML=TASKS.map((x,i)=>`<div class="row${STATE.tasks[i]?' on':''}" data-i="${i}"><i class="bx"></i>
+    <span class="n">${esc(x.n)}</span><span class="m">${esc(x.due)}</span>${av(x.w)}</div>`).join('');
+  $('#taskn').textContent=`· ${STATE.tasks.filter(Boolean).length}/${TASKS.length}`;
+}
+function renderWork(){
+  $('#work').innerHTML=WORK.map((x,i)=>`<div class="row${STATE.work[i]?' on':''}" data-i="${i}"><i class="bx"></i>
+    <span class="n">${esc(x.n)}</span><span class="m">${esc(x.s)}</span></div>`).join('');
+  const d=STATE.work.filter(Boolean).length;
+  $('#workn').textContent=`· ${d}/${WORK.length}`;
+  $('#wsq').innerHTML=WORK.map((_,i)=>`<i class="${i<d?'on':''}"></i>`).join('');
+}
+renderShop();renderTasks();renderWork();
+const tog=(id,arr,fn)=>$(id).onclick=e=>{const r=e.target.closest('.row');if(!r)return;arr[r.dataset.i]=!arr[r.dataset.i];fn()};
+tog('#shop',STATE.shop,renderShop);tog('#tasks',STATE.tasks,renderTasks);tog('#work',STATE.work,renderWork);
+
+/* рецепти */
+countUp($('#recn'),RECIPES.total);$('#recf').textContent='+'+RECIPES.fresh;
+
+/* тегло – милиметрова хартия */
+(function(){
+  const pts=WEIGHT.pts,n=pts.length,W=400,H=150,top=18,bot=118,lo=WEIGHT.goal,hi=Math.max(...pts)+.5;
+  const X=i=>14+i*(W-28)/(n-1),Y=v=>top+(hi-v)/(hi-lo)*(bot-top);
+  const d=pts.map((v,i)=>`${i?'L':'M'}${X(i)},${Y(v)}`).join(' ');
+  $('#wsvg').innerHTML=`
+    <line x1="0" x2="${W}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="#2f8f4e" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="${W-2}" y="${Y(lo)+22}" font-family="Caveat" font-size="22" fill="#2f8f4e" text-anchor="end">цел ${WEIGHT.goal} кг</text>
+    <path id="wline" d="${d}" fill="none" stroke="#1f3f8f" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${pts.map((v,i)=>`<circle cx="${X(i)}" cy="${Y(v)}" r="4.5" fill="#fffdf7" stroke="#1f3f8f" stroke-width="3"/>`).join('')}
+    <text x="${X(n-1)}" y="${Y(pts[n-1])-12}" font-family="Caveat" font-size="24" font-weight="700" fill="#d8342c" text-anchor="end">${pts[n-1].toFixed(1).replace('.',',')}</text>`;
+  const ln=$('#wline'),L=ln.getTotalLength();
+  if(!RM&&!STATIC){ln.style.strokeDasharray=L;ln.style.strokeDashoffset=L;ln.style.transition='stroke-dashoffset 2.4s ease-out .6s';requestAnimationFrame(()=>requestAnimationFrame(()=>ln.style.strokeDashoffset=0))}
+  countUp($('#wnow'),pts[n-1],1);
+  $('#wgoal').innerHTML=`<b style="color:var(--green)">${(pts[n-1]-pts[0]).toFixed(1).replace('.',',')} кг</b> за 8 седмици · до целта още ${(pts[n-1]-WEIGHT.goal).toFixed(1).replace('.',',')} кг`;
+})();
+
+/* промоции – купони */
+$('#promo').innerHTML=PROMO.map((x,i)=>`<div class="coupon" style="--cr:${[-1,.8,-.5,1.2][i]}deg"><b>${esc(x.s)}</b><span>${esc(x.n)}</span><span class="p">${esc(x.p)}</span><span class="u">${esc(x.until)}</span></div>`).join('');
+</script>
+</body>
+</html>

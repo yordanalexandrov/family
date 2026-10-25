@@ -1,0 +1,412 @@
+<!-- ПРОТОТИП (throwaway): вариант 07 · Аурора -->
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>07 · Аурора</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#eef3ff; --dim:rgba(238,243,255,.62); --faint:rgba(238,243,255,.34); --ghost:rgba(238,243,255,.16);
+  --g:#3cffc0; --v:#b08cff; --c:#5ad8ff; --warn:#ffd166; --bad:#ff6b8a;
+  --fs:22px; --lbl:17px; --big:92px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#050b1e;color:var(--ink);font-family:Manrope,"Segoe UI",system-ui,sans-serif;font-size:var(--fs);line-height:1.3;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+#sky{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;filter:blur(28px) saturate(1.25);transform:scale(1.08)}
+main{position:relative;z-index:1;display:grid;gap:20px 36px;padding:18px 48px 24px;min-height:100vh;align-content:start;
+  grid-template-columns:1.1fr 1fr 1.3fr 1.1fr .95fr;
+  grid-template-areas:"hdr hdr hdr hdr hdr" "c1 c2 c3 c4 c5" "menu menu menu menu menu"}
+.col{display:flex;flex-direction:column;gap:28px}
+.c1{grid-area:c1}.c2{grid-area:c2}.c3{grid-area:c3}.c4{grid-area:c4}.c5{grid-area:c5}
+.s{position:relative;opacity:0;animation:focus 1.3s cubic-bezier(.2,.7,.2,1) both}
+.s::before{content:"";position:absolute;inset:-28px -32px;border-radius:50%;pointer-events:none;z-index:-1;opacity:0;transition:opacity .7s;
+  background:radial-gradient(closest-side,rgba(90,255,200,.14),rgba(160,120,255,.07) 55%,transparent)}
+.s:hover::before{opacity:1}
+.s:hover .lbl{color:var(--v);text-shadow:0 0 14px rgba(176,140,255,.7)}
+@keyframes focus{from{opacity:0;filter:blur(16px);transform:translateY(10px)}to{opacity:1;filter:blur(0);transform:none}}
+.hdr{grid-area:hdr;display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap}
+.hdr>div:first-child{display:flex;align-items:baseline;gap:28px;flex-wrap:wrap}
+.cal{grid-area:cal}.bud{grid-area:bud}.cook{grid-area:cook}.shop{grid-area:shop}.task{grid-area:task}
+.rec{grid-area:rec}.wt{grid-area:wt}.work{grid-area:work}.promo{grid-area:promo}.menu{grid-area:menu}
+.lbl{font-weight:200;font-size:var(--lbl);letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-bottom:14px;transition:.5s}
+.lbl b{font-weight:600;color:var(--ink)}
+.big{font-weight:800;font-size:var(--big);line-height:1;letter-spacing:-.03em;text-shadow:0 0 40px rgba(90,255,200,.35)}
+.big small{font-weight:200;font-size:.38em;letter-spacing:0;margin-left:.15em;color:var(--dim)}
+.sub{font-weight:300;color:var(--dim);font-size:.92em;margin-top:12px}
+.thin{font-weight:200}
+/* заглавие */
+.clock{font-weight:200;font-size:80px;line-height:.95;letter-spacing:-.04em;text-shadow:0 0 60px rgba(90,216,255,.45)}
+.clock i{font-style:normal;font-size:.42em;color:var(--dim);margin-left:.1em;vertical-align:.22em}
+.clock b{font-weight:200;animation:blink 1s steps(2) infinite}
+@keyframes blink{to{opacity:.25}}
+.date{font-weight:300;font-size:30px;color:var(--dim)}
+.date b{font-weight:600;color:var(--ink)}
+.sync{display:flex;flex-direction:column;gap:6px;font-size:.86em;font-weight:300;color:var(--dim)}
+.sync div{display:flex;align-items:center;gap:12px}
+.sync i{width:10px;height:10px;border-radius:50%;background:var(--g);box-shadow:0 0 12px var(--g);animation:breathe 3s ease-in-out infinite}
+.sync .w i{background:var(--warn);box-shadow:0 0 14px var(--warn);animation-duration:1.2s}
+.sync .w{color:var(--warn)}
+@keyframes breathe{50%{opacity:.45}}
+/* календар – светлинна нишка */
+.thread{position:relative;padding-left:58px}
+.thread::before{content:"";position:absolute;left:19px;top:14px;bottom:10px;width:2px;border-radius:2px;
+  background:linear-gradient(to bottom,var(--g),var(--c) 35%,var(--v) 75%,transparent);box-shadow:0 0 16px rgba(90,216,255,.7),0 0 40px rgba(176,140,255,.35);
+  animation:flow 6s linear infinite;background-size:100% 300%}
+@keyframes flow{to{background-position:0 300%}}
+.day{margin-bottom:14px;position:relative}
+.dh{font-weight:200;font-size:.9em;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px;position:relative}
+.dh::before{content:"";position:absolute;left:-44px;top:50%;width:14px;height:2px;background:var(--faint)}
+.dh b{font-weight:600;color:var(--dim)}
+.day.today .dh{color:var(--g);font-size:1em}.day.today .dh b{color:var(--g);text-shadow:0 0 16px var(--g)}
+.ev{position:relative;display:flex;align-items:baseline;gap:14px;padding:5px 0;transition:.4s}
+.ev:hover{transform:translateX(6px)}
+.ev .av{position:absolute;left:-52px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  font-weight:800;font-size:15px;color:#061020;background:var(--pc);box-shadow:0 0 18px var(--pc),0 0 4px #fff inset}
+.day.today .ev .av{width:36px;height:36px;left:-55px;font-size:17px}
+.ev .t{font-weight:200;color:var(--dim);font-variant-numeric:tabular-nums;min-width:3.2em}
+.ev .n{font-weight:400}
+.day.today .ev{font-size:1.22em}.day.today .ev .n{font-weight:600;text-shadow:0 0 18px rgba(238,243,255,.35)}
+.ev.next .av{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 34px var(--pc),0 0 6px #fff inset;transform:translateY(-50%) scale(1.14)}}
+/* бюджет – хоризонт */
+.horizon{position:relative;height:60px;margin:18px 0 4px}
+.horizon .base{position:absolute;left:0;right:0;top:30px;height:2px;background:var(--ghost)}
+.horizon .lit{position:absolute;left:0;top:29px;height:4px;width:0;border-radius:4px;transition:width 2s cubic-bezier(.2,.8,.2,1);
+  background:linear-gradient(90deg,var(--v),var(--c),var(--g));box-shadow:0 0 14px 3px rgba(60,255,192,.55),0 0 50px 8px rgba(60,255,192,.25);animation:glow 3.4s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:0 0 22px 5px rgba(60,255,192,.8),0 0 70px 12px rgba(60,255,192,.35)}}
+.horizon .lit::after{content:"";position:absolute;right:-26px;top:-24px;width:52px;height:52px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.95),rgba(60,255,192,.6) 30%,transparent 70%)}
+.horizon .today{position:absolute;top:8px;width:2px;height:44px;background:var(--ink);opacity:.8;transform:translateX(-50%)}
+.horizon .today em{position:absolute;left:50%;top:-28px;transform:translateX(-50%);font-style:normal;font-weight:200;font-size:.7em;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.bud.over .big{color:var(--bad);text-shadow:0 0 40px rgba(255,107,138,.6)}
+.bud.over .lit{background:var(--bad);box-shadow:0 0 20px var(--bad)}
+/* готвене */
+.cook .dn{font-weight:800;font-size:40px;line-height:1.08;letter-spacing:-.02em;text-shadow:0 0 30px rgba(176,140,255,.4)}
+.cook .l{font-weight:300;color:var(--dim);margin-top:10px}
+.cook .l b{font-weight:600;color:var(--ink)}
+.who{display:inline-flex;align-items:center;gap:10px;margin-top:14px;font-weight:300;color:var(--dim)}
+.who i{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:14px;color:#061020;background:var(--pc);box-shadow:0 0 16px var(--pc)}
+/* списъци */
+.list{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:12px;padding:4px 0;cursor:pointer;transition:.35s;font-weight:400}
+.row:hover{transform:translateX(5px);text-shadow:0 0 14px rgba(238,243,255,.45)}
+.row .ck{width:18px;height:18px;border-radius:50%;flex:none;background:var(--ghost);box-shadow:0 0 0 2px rgba(238,243,255,.12);transition:.4s}
+.row.on .ck{background:var(--g);box-shadow:0 0 16px var(--g),0 0 4px #fff inset}
+.row.on .n{color:var(--faint);text-decoration:line-through;text-decoration-color:rgba(60,255,192,.6)}
+.row .n{flex:1}
+.row .m{font-weight:200;color:var(--faint);font-size:.8em;letter-spacing:.04em;white-space:nowrap}
+.row .tag{font-weight:600;font-size:.7em;letter-spacing:.1em;color:var(--warn);text-shadow:0 0 12px rgba(255,209,102,.6);white-space:nowrap}
+.row .av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;color:#061020;background:var(--pc);box-shadow:0 0 12px var(--pc);flex:none}
+/* рецепти */
+.rec .big{font-size:72px}
+.rec .fresh{color:var(--g);font-weight:600;text-shadow:0 0 16px rgba(60,255,192,.6)}
+/* тегло */
+.wt svg{width:100%;height:auto;display:block;overflow:visible}
+.wt .big{font-size:64px}
+.wt .delta{color:var(--g);font-weight:600}
+.wt .goal{font-weight:200;color:var(--dim)}
+/* тренировка */
+.prog{position:relative;height:2px;background:var(--ghost);margin:14px 0 6px}
+.prog i{position:absolute;left:0;top:-1px;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--c),var(--g));box-shadow:0 0 14px var(--g);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+/* промо */
+.promo .row{cursor:default}.promo .row:hover{transform:none}
+.promo .s{font-weight:600;min-width:4.6em}.promo .n{font-size:.95em}
+.promo .p{font-weight:800;color:var(--g);text-shadow:0 0 12px rgba(60,255,192,.6)}
+/* меню – капки */
+.drops{display:grid;grid-template-columns:repeat(7,1fr);gap:18px}
+.drop{text-align:center;padding:4px 6px;transition:.4s}
+.drop:hover{transform:translateY(-4px)}
+.orb{width:66px;height:66px;margin:0 auto 10px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:22px;letter-spacing:.08em;text-transform:uppercase;color:#061020;
+  background:radial-gradient(circle at 38% 32%,#fff,rgba(120,255,210,.85) 28%,rgba(176,140,255,.55) 68%,rgba(176,140,255,0) 72%);
+  box-shadow:0 0 34px rgba(90,255,200,.45),0 0 70px rgba(176,140,255,.25);animation:bob 5s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+.drop.today .orb{width:80px;height:80px;font-size:25px;box-shadow:0 0 44px rgba(90,255,200,.75),0 0 100px rgba(176,140,255,.4)}
+.drop .dn{font-weight:600;line-height:1.15}
+.drop.today .dn{text-shadow:0 0 18px rgba(238,243,255,.5)}
+.drop .l{font-weight:200;color:var(--faint);font-size:.8em;margin-top:6px}
+.drop .c{font-weight:300;color:var(--dim);font-size:.78em;margin-top:6px;letter-spacing:.08em}
+.drop .c i{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;font-style:normal;font-weight:800;font-size:11px;color:#061020;background:var(--pc);box-shadow:0 0 10px var(--pc);vertical-align:-3px}
+.votes{display:flex;justify-content:center;gap:14px;margin-top:10px}
+.vote{display:flex;align-items:center;gap:4px;font-size:.82em}
+.vote b{font-weight:800;color:var(--pc);text-shadow:0 0 10px var(--pc)}
+.vote span{cursor:pointer;opacity:.35;filter:grayscale(1);transition:.3s;padding:2px}
+.vote span:hover{opacity:.8;transform:scale(1.2)}
+.vote span.on{opacity:1;filter:none;text-shadow:0 0 14px var(--g),0 0 26px var(--g);transform:scale(1.18)}
+.vote span.on.dn{text-shadow:0 0 14px var(--bad),0 0 26px var(--bad)}
+/* таблет */
+@media (max-width:1500px){
+  :root{--fs:20px;--lbl:16px;--big:76px}
+  .col{display:contents}
+  main{grid-template-columns:1fr 1fr;gap:30px 36px;padding:26px 32px;
+    grid-template-areas:"hdr hdr" "cal bud" "cal cook" "shop task" "wt work" "rec promo" "menu menu"}
+  .clock{font-size:76px}.date{font-size:26px}.cook .dn{font-size:36px}
+  .drops{grid-template-columns:repeat(4,1fr)}
+}
+/* телефон */
+@media (max-width:760px){
+  :root{--fs:18px;--lbl:14px;--big:64px}
+  .col{display:contents}
+  main{display:flex;flex-direction:column;gap:34px;padding:22px 20px 40px}
+  .hdr{order:0}.cal{order:1}.bud{order:2}.cook{order:3}.menu{order:4}.shop{order:5}.task{order:6}.work{order:7}.wt{order:8}.rec{order:9}.promo{order:10}
+  .clock{font-size:64px}.date{font-size:20px}.cook .dn{font-size:30px}
+  .thread{padding-left:48px}.day.today .ev{font-size:1.1em}.ev .av{left:-44px}.day.today .ev .av{left:-47px;width:32px;height:32px}
+  .drops{display:flex;flex-direction:column;gap:12px}
+  .drop{display:grid;grid-template-columns:64px 1fr;grid-template-areas:"o dn" "o l" "o c" "o v";text-align:left;column-gap:16px;align-items:center}
+  .orb{grid-area:o;width:56px;height:56px;margin:0;font-size:16px}.drop.today .orb{width:64px;height:64px;font-size:18px}
+  .drop .dn{grid-area:dn;min-height:0}.drop .l{grid-area:l}.drop .c{grid-area:c}.votes{grid-area:v;justify-content:flex-start;margin-top:4px}
+  .s::before{inset:-10px -16px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01s!important;animation-iteration-count:1!important;transition-duration:.01s!important}
+  .s{opacity:1}
+}
+/* ?static – само за headless снимки: без анимации */
+html.static *{animation:none!important;transition:none!important}
+html.static .s{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<main>
+  <header class="s hdr">
+    <div>
+      <div class="clock" id="clock"></div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="sync" id="sync"></div>
+  </header>
+
+  <div class="col c1">
+  <section class="s cal">
+    <div class="lbl">Календар · <b>следващи дни</b></div>
+    <div class="thread" id="thread"></div>
+  </section>
+  </div>
+
+  <div class="col c2">
+  <section class="s bud" id="bud">
+    <div class="lbl">Бюджет · <b>остават</b></div>
+    <div class="big"><span id="rem">0</span><small>лв</small></div>
+    <div class="horizon"><div class="base"></div><div class="lit" id="lit"></div><div class="today" id="dmark"><em>днес</em></div></div>
+    <div class="sub" id="bsub"></div>
+  </section>
+
+  <section class="s cook">
+    <div class="lbl">Днес <b>се готви</b></div>
+    <div class="dn" id="cdn"></div>
+    <div class="l" id="cl"></div>
+    <div class="who" id="cwho"></div>
+  </section>
+  </div>
+
+  <div class="col c3">
+  <section class="s shop">
+    <div class="lbl">Пазаруване · <b id="shopn"></b></div>
+    <div class="list" id="shop"></div>
+  </section>
+
+  <section class="s promo">
+    <div class="lbl">Промоции</div>
+    <div class="list" id="promo"></div>
+  </section>
+  </div>
+
+  <div class="col c4">
+  <section class="s task">
+    <div class="lbl">Задачи · <b id="taskn"></b></div>
+    <div class="list" id="tasks"></div>
+  </section>
+
+  <section class="s rec">
+    <div class="lbl">Рецепти</div>
+    <div class="big"><span id="recn">0</span></div>
+    <div class="sub"><span class="fresh" id="recf"></span> нови предложения от седмицата</div>
+  </section>
+  </div>
+
+  <div class="col c5">
+  <section class="s wt">
+    <div class="lbl">Тегло</div>
+    <div class="big"><span id="wnow">0</span><small>кг</small></div>
+    <div class="sub"><span class="delta" id="wdelta"></span> · <span class="goal" id="wgoal"></span></div>
+    <svg id="wsvg" viewBox="0 0 400 150" preserveAspectRatio="none"></svg>
+  </section>
+
+  <section class="s work">
+    <div class="lbl">Тренировка · <b id="workn"></b></div>
+    <div class="list" id="work"></div>
+    <div class="prog"><i id="wprog"></i></div>
+  </section>
+  </div>
+
+  <section class="s menu">
+    <div class="lbl">Седмично меню · <b>гласувай</b></div>
+    <div class="drops" id="drops"></div>
+  </section>
+</main>
+
+<script src="data.js"></script>
+<script>
+/* ---------- небе: аурора на canvas ---------- */
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STATIC = location.search.includes('static');
+if(STATIC)document.documentElement.classList.add('static');
+const cv = $('#sky'), cx = cv.getContext('2d');
+const BL = [
+  {c:'60,255,192', r:.55, x:.18, y:.22, sx:.00009, sy:.00006, ph:0,   sq:.42},
+  {c:'140,90,255', r:.6,  x:.72, y:.3,  sx:.00007, sy:.00011, ph:1.7, sq:.5},
+  {c:'90,216,255', r:.45, x:.45, y:.7,  sx:.00012, sy:.00005, ph:3.1, sq:.36},
+  {c:'60,255,192', r:.5,  x:.85, y:.8,  sx:.00006, sy:.00009, ph:4.4, sq:.6},
+  {c:'200,100,255',r:.4,  x:.1,  y:.85, sx:.00010, sy:.00008, ph:5.6, sq:.4},
+];
+function sizeSky(){cv.width=Math.max(120,Math.round(innerWidth/5));cv.height=Math.max(80,Math.round(innerHeight/5))}
+function drawSky(t){
+  const w=cv.width,h=cv.height;
+  cx.globalCompositeOperation='source-over';
+  cx.fillStyle='#050b1e';cx.fillRect(0,0,w,h);
+  cx.globalCompositeOperation='lighter';
+  for(const b of BL){
+    const x=(b.x+Math.sin(t*b.sx+b.ph)*.16)*w, y=(b.y+Math.cos(t*b.sy+b.ph)*.12)*h;
+    const rr=b.r*w*(1+Math.sin(t*.0003+b.ph)*.12);
+    cx.save();cx.translate(x,y);cx.scale(1,b.sq);cx.rotate(Math.sin(t*.00004+b.ph)*.5);
+    const g=cx.createRadialGradient(0,0,0,0,0,rr);
+    g.addColorStop(0,`rgba(${b.c},.5)`);g.addColorStop(.45,`rgba(${b.c},.18)`);g.addColorStop(1,`rgba(${b.c},0)`);
+    cx.fillStyle=g;cx.beginPath();cx.arc(0,0,rr,0,Math.PI*2);cx.fill();cx.restore();
+  }
+}
+sizeSky();addEventListener('resize',sizeSky);
+if(RM){drawSky(120000)}else{(function loop(t){drawSky(t);requestAnimationFrame(loop)})(0)}
+
+/* ---------- помощни ---------- */
+const av=(w,cls='av')=>`<i class="${cls}" style="--pc:${P[w].c}">${P[w].i}</i>`;
+function countUp(el,to,dec=0,ms=1500){
+  if(RM||STATIC){el.textContent=dec?to.toLocaleString('bg-BG',{minimumFractionDigits:dec}):fmt(Math.round(to));return}
+  const t0=performance.now();
+  (function st(now){const k=Math.min(1,(now-t0)/ms),e=1-Math.pow(1-k,3),v=to*e;
+    el.textContent=dec?v.toLocaleString('bg-BG',{minimumFractionDigits:dec,maximumFractionDigits:dec}):fmt(Math.round(v));
+    if(k<1)requestAnimationFrame(st)})(t0);
+}
+/* стъпаловидна поява */
+document.querySelectorAll('.s').forEach((s,i)=>s.style.animationDelay=(i*.13)+'s');
+
+/* ---------- часовник ---------- */
+function tick(){
+  const d=new Date();
+  $('#clock').innerHTML=`${clockStr()}<i><b>:</b>${String(d.getSeconds()).padStart(2,'0')}</i>`;
+}
+tick();setInterval(tick,1000);
+$('#date').innerHTML=`<b>${DOWL[TODAY.getDay()]}</b>, ${TODAY.getDate()} ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
+
+/* ---------- синхронизация ---------- */
+$('#sync').innerHTML=`
+  <div><i></i>Календар · ${SYNC.cal}</div>
+  <div class="w"><i></i>Wallet не отговаря · данни от ${SYNC.wallet}</div>
+  <div><i></i>Промоции · ${SYNC.promo}</div>`;
+
+/* ---------- календар ---------- */
+const nowMin=new Date().getHours()*60+new Date().getMinutes();
+let nextMarked=false;
+$('#thread').innerHTML=CAL.map(d=>{
+  const dt=addD(TODAY,d.o);
+  return `<div class="day${d.o===0?' today':''}">
+    <div class="dh"><b>${d.o===0?'днес':DOWL[dt.getDay()]}</b> · ${dt.getDate()} ${MON[dt.getMonth()]}</div>
+    ${d.ev.map(e=>{
+      const [h,m]=e.t.split(':').map(Number);
+      const isNext=d.o===0&&!nextMarked&&h*60+m>=nowMin; if(isNext)nextMarked=true;
+      return `<div class="ev${isNext?' next':''}">${av(e.w)}<span class="t">${e.t}</span><span class="n">${esc(e.n)}</span></div>`}).join('')}
+  </div>`}).join('');
+if(!nextMarked){const f=document.querySelector('.day.today .ev');if(f)f.classList.add('next')}
+
+/* ---------- бюджет ---------- */
+countUp($('#rem'),BUDGET.rem);
+if(over)$('#bud').classList.add('over');
+$('#bsub').innerHTML=`похарчени <b>${fmt(BUDGET.spent)}</b> от ${fmt(BUDGET.limit)} лв · ~<b>${fmt(BUDGET.pace)}</b> лв/ден до края`;
+$('#dmark').style.left=dayPct+'%';
+requestAnimationFrame(()=>requestAnimationFrame(()=>{$('#lit').style.width=pct+'%'}));
+
+/* ---------- готвене ---------- */
+$('#cdn').textContent=MENU[0].dn;
+$('#cl').innerHTML=`обяд · <b>${esc(MENU[0].l)}</b>`;
+$('#cwho').innerHTML=`${av(MENU[0].cook,'')}готви ${esc(P[MENU[0].cook].n)}`;
+
+/* ---------- списъци с отметки ---------- */
+function renderShop(){
+  $('#shop').innerHTML=SHOP.map((x,i)=>`<div class="row${STATE.shop[i]?' on':''}" data-i="${i}">
+    <i class="ck"></i><span class="n">${esc(x.n)} <span class="m">${esc(x.q)}</span></span>
+    <span class="m">${esc(x.a)}</span>${x.promo?`<span class="tag">${esc(x.promo)}</span>`:''}</div>`).join('');
+  $('#shopn').textContent=`${STATE.shop.filter(Boolean).length}/${SHOP.length}`;
+}
+function renderTasks(){
+  $('#tasks').innerHTML=TASKS.map((x,i)=>`<div class="row${STATE.tasks[i]?' on':''}" data-i="${i}">
+    <i class="ck"></i><span class="n">${esc(x.n)}</span><span class="m">${esc(x.due)}</span>${av(x.w)}</div>`).join('');
+  $('#taskn').textContent=`${STATE.tasks.filter(Boolean).length}/${TASKS.length}`;
+}
+function renderWork(){
+  $('#work').innerHTML=WORK.map((x,i)=>`<div class="row${STATE.work[i]?' on':''}" data-i="${i}">
+    <i class="ck"></i><span class="n">${esc(x.n)}</span><span class="m">${esc(x.s)}</span></div>`).join('');
+  const d=STATE.work.filter(Boolean).length;
+  $('#workn').textContent=`${d}/${WORK.length}`;
+  $('#wprog').style.width=Math.round(d/WORK.length*100)+'%';
+}
+renderShop();renderTasks();renderWork();
+$('#shop').onclick=e=>{const r=e.target.closest('.row');if(!r)return;STATE.shop[r.dataset.i]=!STATE.shop[r.dataset.i];renderShop()};
+$('#tasks').onclick=e=>{const r=e.target.closest('.row');if(!r)return;STATE.tasks[r.dataset.i]=!STATE.tasks[r.dataset.i];renderTasks()};
+$('#work').onclick=e=>{const r=e.target.closest('.row');if(!r)return;STATE.work[r.dataset.i]=!STATE.work[r.dataset.i];renderWork()};
+
+/* ---------- рецепти ---------- */
+countUp($('#recn'),RECIPES.total);
+$('#recf').textContent='+'+RECIPES.fresh;
+
+/* ---------- тегло – сияеща крива ---------- */
+(function(){
+  const pts=WEIGHT.pts, n=pts.length, W=400, H=150, top=14, bot=128;
+  const lo=WEIGHT.goal, hi=Math.max(...pts)+.4;
+  const X=i=>8+i*(W-16)/(n-1), Y=v=>top+(hi-v)/(hi-lo)*(bot-top);
+  let d=`M${X(0)},${Y(pts[0])}`;
+  for(let i=1;i<n;i++){const x0=X(i-1),y0=Y(pts[i-1]),x1=X(i),y1=Y(pts[i]);const c=(x0+x1)/2;d+=` C${c},${y0} ${c},${y1} ${x1},${y1}`}
+  const last=pts[n-1];
+  $('#wsvg').innerHTML=`
+    <defs><filter id="gl" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#b08cff"/><stop offset="1" stop-color="#3cffc0"/></linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3cffc0" stop-opacity=".25"/><stop offset="1" stop-color="#3cffc0" stop-opacity="0"/></linearGradient></defs>
+    <path d="${d} L${X(n-1)},${bot} L${X(0)},${bot} Z" fill="url(#fade)"/>
+    <line x1="0" x2="${W}" y1="${Y(lo)}" y2="${Y(lo)}" stroke="rgba(238,243,255,.25)" stroke-dasharray="4 6" stroke-width="1"/>
+    <text x="${W-4}" y="${Y(lo)+16}" fill="rgba(238,243,255,.45)" font-size="17" text-anchor="end" font-weight="300">цел ${WEIGHT.goal} кг</text>
+    <path id="wline" d="${d}" fill="none" stroke="url(#lg)" stroke-width="3" stroke-linecap="round" filter="url(#gl)"/>
+    <circle cx="${X(n-1)}" cy="${Y(last)}" r="6" fill="#fff" filter="url(#gl)"><animate attributeName="r" values="5;8;5" dur="2.4s" repeatCount="${RM?1:'indefinite'}"/></circle>`;
+  const ln=$('#wline'),L=ln.getTotalLength();
+  if(!RM){ln.style.strokeDasharray=L;ln.style.strokeDashoffset=L;ln.style.transition='stroke-dashoffset 2.2s cubic-bezier(.2,.8,.2,1)';requestAnimationFrame(()=>requestAnimationFrame(()=>ln.style.strokeDashoffset=0))}
+  countUp($('#wnow'),last,1);
+  const dl=last-pts[0];
+  $('#wdelta').textContent=(dl<0?'−':'+')+Math.abs(dl).toFixed(1).replace('.',',')+' кг за 8 седмици';
+  $('#wgoal').textContent='до целта още '+(last-WEIGHT.goal).toFixed(1).replace('.',',')+' кг';
+})();
+
+/* ---------- промоции ---------- */
+$('#promo').innerHTML=PROMO.map(x=>`<div class="row"><span class="s">${esc(x.s)}</span><span class="n">${esc(x.n)}</span><span class="p">${esc(x.p)}</span><span class="m">${esc(x.until)}</span></div>`).join('');
+
+/* ---------- седмично меню – капки с гласуване ---------- */
+function renderMenu(){
+  $('#drops').innerHTML=MENU.map((m,i)=>`<div class="drop${i===0?' today':''}">
+    <div class="orb" style="animation-delay:${-i*.7}s">${m.d}</div>
+    <div class="dn">${esc(m.dn)}</div>
+    <div class="l">обяд · ${esc(m.l)}</div>
+    <div class="c">${av(m.cook,'')} ${esc(P[m.cook].n)}</div>
+    <div class="votes">${['D','S'].map(w=>`<div class="vote" style="--pc:${P[w].c}"><b>${P[w].i}</b>
+      <span class="up${STATE.votes[i][w]===1?' on':''}" data-i="${i}" data-w="${w}" data-v="1">👍</span>
+      <span class="dn${STATE.votes[i][w]===-1?' on':''}" data-i="${i}" data-w="${w}" data-v="-1">👎</span></div>`).join('')}</div>
+  </div>`).join('');
+}
+renderMenu();
+$('#drops').onclick=e=>{
+  const s=e.target.closest('span[data-v]');if(!s)return;
+  const {i,w,v}=s.dataset;const cur=STATE.votes[i][w];
+  STATE.votes[i][w]=cur===+v?0:+v;
+  renderMenu();
+};
+</script>
+</body>
+</html>

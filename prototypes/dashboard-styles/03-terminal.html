@@ -1,0 +1,273 @@
+<!doctype html>
+<!-- ПРОТОТИП (throwaway): вариант 03 · Терминал / CRT -->
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>03 · Терминал</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#020804; --ph:#39ff7a; --dim:#1d9a48; --dark:#0d4a22; --amb:#ffb000; --red:#ff4d4d;
+  --fs:clamp(13px,1.1vw,22px);
+  --f:"JetBrains Mono","DejaVu Sans Mono","Liberation Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:#000;color:var(--ph);font-family:var(--f);font-size:var(--fs);line-height:1.2;overflow-x:hidden;
+  padding:clamp(6px,.8vw,16px)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;letter-spacing:inherit;-webkit-tap-highlight-color:transparent}
+button:hover,button:focus-visible{background:var(--ph);color:#000;outline:0;text-shadow:none}
+
+/* ---------- CRT стъкло ---------- */
+.crt{position:relative;background:radial-gradient(ellipse at center,#06160a 0,var(--bg) 75%,#000 100%);border-radius:clamp(14px,2vw,40px);
+  padding:clamp(10px,1.2vw,28px) clamp(8px,1.4vw,32px);min-height:calc(100vh - 2*clamp(6px,.8vw,16px));
+  box-shadow:inset 0 0 0 2px #0a2a14,inset 0 0 90px rgba(0,0,0,.9),0 0 40px rgba(57,255,122,.08);overflow:hidden;
+  text-shadow:0 0 5px rgba(57,255,122,.55),0 0 14px rgba(57,255,122,.18)}
+.crt::before{content:"";position:absolute;inset:0;z-index:5;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.28) 2px 4px);mix-blend-mode:multiply}
+.crt::after{content:"";position:absolute;inset:0;z-index:6;pointer-events:none;border-radius:inherit;
+  background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.55) 100%),linear-gradient(90deg,rgba(0,0,0,.25),transparent 8%,transparent 92%,rgba(0,0,0,.25))}
+.roll{position:absolute;left:0;right:0;height:14vh;z-index:4;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(57,255,122,.07) 50%,transparent);animation:roll 9s linear infinite}
+@keyframes roll{from{top:-15vh}to{top:105vh}}
+.screen{position:relative;z-index:1;animation:flicker 5s steps(1) infinite}
+@keyframes flicker{0%,100%{opacity:1}31%{opacity:.985}32%{opacity:1}67%{opacity:.97}68%{opacity:1}89%{opacity:.99}}
+.boot .screen{animation:flicker 5s steps(1) infinite,warm 1.2s ease-out both}
+@keyframes warm{0%{opacity:0;filter:brightness(4) blur(2px);transform:scaleY(.02)}40%{opacity:1;transform:scaleY(1);filter:brightness(2)}100%{filter:none}}
+
+/* ---------- редове ---------- */
+pre{margin:0;font:inherit;white-space:pre}
+.ln{display:block;white-space:pre;clip-path:inset(0 100% 0 0);animation:type .22s steps(22) forwards;animation-delay:var(--d,0ms)}
+@keyframes type{to{clip-path:inset(0 -2px 0 0)}}
+.booted .ln,.ln.i{animation:none;clip-path:none}
+.hd{color:var(--ph);font-weight:700}
+.dim{color:var(--dim)}
+.amb{color:var(--amb);text-shadow:0 0 6px rgba(255,176,0,.6)}
+.red{color:var(--red)}
+.b{font-weight:700}
+.inv{background:var(--ph);color:#000;text-shadow:none;font-weight:700}
+.on{background:var(--ph);color:#000;text-shadow:none}
+.on.neg{background:var(--amb)}
+.D{color:#6fc0ff}.S{color:#ffb070}.F{color:#d9a8ff}
+.done{color:var(--dim);text-decoration:line-through}
+
+/* ---------- заглавка ---------- */
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1ch 3ch;margin-bottom:.6lh;border-bottom:1px dashed var(--dark);padding-bottom:.4lh}
+.bigclock{display:flex;align-items:flex-start;gap:0;line-height:1.1}
+.bigclock .colon{animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.15}}
+.cur{display:inline-block;width:1ch;background:var(--ph);animation:blink 1s steps(2) infinite;vertical-align:text-bottom;height:1em}
+
+/* ---------- панели в колони ---------- */
+.cols{column-width:44ch;column-gap:3ch}
+.panel{break-inside:avoid;margin-bottom:.7lh;display:inline-block;width:44ch;max-width:100%}
+.log{margin-top:.5lh;border-top:1px dashed var(--dark);padding-top:.4lh;color:var(--dim)}
+.log .new{color:var(--ph);animation:fadein .4s both}
+@keyframes fadein{from{opacity:0}}
+
+@media (max-width:700px){:root{--fs:13px}body{padding:4px}.crt{padding:10px 6px;border-radius:10px}.cols{column-width:auto;column-count:1}.panel{width:100%}.ln{letter-spacing:-.01em}#statline{white-space:pre-wrap}}
+@media (prefers-reduced-motion:reduce){
+  .ln{animation:none;clip-path:none}
+  .screen,.roll,.cur,.bigclock .colon,.log .new{animation:none!important}
+  .roll{display:none}
+}
+</style>
+</head>
+<body class="boot">
+<div class="crt">
+  <div class="roll" aria-hidden="true"></div>
+  <div class="screen">
+    <div class="head">
+      <div><pre id="sysline"></pre><pre id="dateline"></pre><pre id="statline"></pre></div>
+      <div class="bigclock" id="bigclock" aria-live="off"></div>
+    </div>
+    <div class="cols" id="cols"></div>
+    <div class="log"><pre id="log"></pre><pre id="prompt"></pre></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+/* ПРОТОТИП — вариант „Терминал / CRT“. Всичко живее в паметта на страницата. */
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const walletStale = /ч/.test(SYNC.wallet);
+const W = 44, IN = W - 4;          /* ширина на панел и на вътрешния ред в знаци */
+let booted = reduce, T = 0;
+const nextD = () => booted ? 0 : (T += 28);
+
+/* --- текстови помощници --- */
+const pad = (s,n) => { s=String(s); return s.length>n ? s.slice(0,n-1)+'…' : s+' '.repeat(n-s.length) };
+const padL = (s,n) => { s=String(s); return s.length>=n ? s : ' '.repeat(n-s.length)+s };
+const ini = w => w==='F' ? '*' : P[w].i;                /* ✦ не е моноширинен — замяна */
+const seg = (t,c,extra) => ({t,c,extra});                /* оцветен сегмент */
+const btn = (t,c,extra) => ({t,c,extra,b:1});            /* бутон */
+function ln(segs, cls){
+  let vis=0, html='';
+  for(const s of [].concat(segs)){
+    if(typeof s==='string'){ vis+=s.length; html+=esc(s); }
+    else { vis+=s.t.length; html+= s.b ? `<button class="${s.c||''}" ${s.extra||''}>${esc(s.t)}</button>` : `<span class="${s.c||''}">${esc(s.t)}</span>`; }
+  }
+  return `<span class="ln ${cls||''}" style="--d:${nextD()}ms">│ ${html}${' '.repeat(Math.max(0,IN-vis))} │</span>`;
+}
+const raw = (s,cls) => `<span class="ln ${cls||''}" style="--d:${nextD()}ms">${s}</span>`;
+const sep = () => raw('├'+'─'.repeat(W-2)+'┤','dim');
+function box(title, lines){
+  const t = title.toUpperCase();
+  return `<pre class="panel" id="p-${title.replace(/\W/g,'')}">${raw(`┌─ <span class="hd">${esc(t)}</span> ${'─'.repeat(Math.max(0,W-5-t.length))}┐`)}${lines.join('')}${raw('└'+'─'.repeat(W-2)+'┘')}</pre>`;
+}
+const bar = (p,w) => { const f=Math.round(p/100*w); return '█'.repeat(f)+'░'.repeat(w-f) };
+const DIG={'0':['███','█ █','█ █','█ █','███'],'1':[' █ ','██ ',' █ ',' █ ','███'],'2':['███','  █','███','█  ','███'],'3':['███','  █','███','  █','███'],
+  '4':['█ █','█ █','███','  █','  █'],'5':['███','█  ','███','  █','███'],'6':['███','█  ','███','█ █','███'],'7':['███','  █','  █','  █','  █'],
+  '8':['███','█ █','███','█ █','███'],'9':['███','█ █','███','  █','███'],':':['   ',' ▀ ','   ',' ▄ ','   '],' ':['   ','   ','   ','   ','   ']};
+const big = s => [0,1,2,3,4].map(r => [...String(s)].map(c => (DIG[c]||DIG[' '])[r]).join(' '));
+
+/* --- заглавка --- */
+$('#sysline').innerHTML = `<span class="hd">FAMILY-OS</span> <span class="dim">v0.4 · tty1 · uptime 3d 07:12</span>`;
+$('#dateline').textContent = `${DOWL[TODAY.getDay()]}, ${TODAY.getDate()} ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
+$('#statline').innerHTML = [['cal',SYNC.cal,false],['wallet',SYNC.wallet,walletStale],['promo',SYNC.promo,false]]
+  .map(([n,t,w]) => `[${n} <span class="${w?'amb':'hd'}">${w?'WARN':'OK'}</span> <span class="dim">${esc(t)}</span>]`).join(' ');
+function clock(){
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  const H=big(p(d.getHours())), C=big(':'), M=big(p(d.getMinutes()));
+  $('#bigclock').innerHTML = `<pre>${H.join('\n')}</pre><pre class="colon">${C.join('\n')}</pre><pre>${M.join('\n')}</pre><pre class="dim"> ${p(d.getSeconds())}</pre>`;
+}
+clock(); setInterval(clock,1000);
+
+/* --- панели --- */
+function pCal(){
+  const L=[];
+  CAL.forEach((c,k)=>{
+    const d=addD(TODAY,c.o);
+    if(k) L.push(ln([seg(`── ${DOW[d.getDay()]} ${padL(d.getDate(),2)} `,'dim'),seg('─'.repeat(IN-9),'dim')]));
+    else L.push(ln([seg('ДНЕС','inv'),seg(`  ${DOWL[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`,'b'),seg(`   ${c.ev.length} събития`,'dim')]));
+    c.ev.forEach(e => L.push(ln([k?'  ':'',seg(e.t,'b'),'  ',seg(ini(e.w),e.w),' ',pad(e.n, IN-9-(k?2:0))])));
+  });
+  return box('календар',L);
+}
+function pBud(){
+  const L=[];
+  L.push(ln([seg('остават до края на месеца','dim')]));
+  big(BUDGET.rem).forEach(r => L.push(ln([seg(r,over?'red':'hd')])));
+  L.push(ln([seg(`${' '.repeat(String(BUDGET.rem).length*4)}лв`,'dim')]));
+  L.push(ln(['']));
+  const BW=IN-8, f=Math.round(pct/100*BW);
+  L.push(ln(['[',seg('█'.repeat(f),over?'red':'hd'),seg('░'.repeat(BW-f),'dim'),'] ',padL(pct+'%',4)]));
+  const mk=Math.round(dayPct/100*BW);
+  L.push(ln([' '.repeat(1+mk),seg('^ ден '+BUDGET.day,'amb')]));
+  L.push(ln(['похарчени ',seg(fmt(BUDGET.spent),'b'),` от ${fmt(BUDGET.limit)} лв`]));
+  L.push(ln(['~',seg(fmt(BUDGET.pace),'b'),' лв/ден до края']));
+  if(walletStale){ L.push(sep()); L.push(ln([seg('! WALLET не отговаря','amb')])); L.push(ln([seg(`  данни от ${SYNC.wallet}`,'amb')])); }
+  return box('бюджет',L);
+}
+function pCook(){
+  const m=MENU[0];
+  return box('днес се готви',[
+    ln([seg('ВЕЧЕРЯ ','dim'),seg(' '+pad(m.dn,IN-9)+' ','inv')]),
+    ln([seg('ОБЯД   ','dim'),seg(pad(m.l,IN-7),'b')]),
+    ln([seg('ГОТВИ  ','dim'),seg(ini(m.cook),m.cook),' ',P[m.cook].n]),
+  ]);
+}
+function vote(i,w){
+  const v=STATE.votes[i][w];
+  return [seg(P[w].i,w),btn('+1',v===1?'on':'',`data-i="${i}" data-w="${w}" data-v="1" aria-label="${P[w].n} харесва"`),' ',btn('-1',v===-1?'on neg':'',`data-i="${i}" data-w="${w}" data-v="-1" aria-label="${P[w].n} не харесва"`)];
+}
+function pMenu(){
+  const L=[ln([seg('ден  вечеря / обяд','dim'),' '.repeat(IN-18-12),seg('гот. гласове','dim')])];
+  MENU.forEach((m,i)=>{
+    L.push(ln([seg(pad(m.d,4),i?'b':'inv'),' ',seg(pad(m.dn,IN-7),i?'b':'hd'),' ',seg(ini(m.cook),m.cook)]));
+    L.push(ln(['     ',seg(pad(m.l,IN-22),'dim'),' ',...vote(i,'D'),'  ',...vote(i,'S')]));
+  });
+  return box('меню · седмица',L);
+}
+function chk(l,i){ return btn(STATE[l][i]?'[x]':'[ ]',STATE[l][i]?'hd':'',`data-l="${l}" data-i="${i}" aria-label="отметка"`) }
+function pShop(){
+  const done=STATE.shop.filter(Boolean).length, L=[];
+  L.push(ln([seg(`${done}/${SHOP.length} взети   `,'dim'),'[',seg(bar(done/SHOP.length*100,IN-19),'hd'),']']));
+  SHOP.forEach((x,i)=>{
+    const on=STATE.shop[i];
+    L.push(ln([chk('shop',i),' ',seg(pad(x.n,15),on?'done':''),' ',seg(padL(x.q,6),'dim'),' ',x.promo?seg(pad('%'+x.promo,13),'amb'):seg(pad(x.a,13),'dim')]));
+  });
+  return box('пазаруване',L);
+}
+function pTasks(){
+  const L=[];
+  TASKS.forEach((x,i)=>{
+    const on=STATE.tasks[i];
+    L.push(ln([chk('tasks',i),' ',seg(pad(x.n,IN-13),on?'done':''),' ',seg(ini(x.w),x.w),'  ',seg(pad(x.due,5),x.due==='днес'?'amb':'dim')]));
+  });
+  return box('задачи',L);
+}
+function pWork(){
+  const done=STATE.work.filter(Boolean).length, L=[];
+  WORK.forEach((x,i)=>L.push(ln([chk('work',i),' ',seg(pad(x.n,IN-13),STATE.work[i]?'done':''),' ',seg(padL(x.s,8),'dim')])));
+  L.push(sep());
+  L.push(ln(['напредък [',seg(bar(done/WORK.length*100,IN-16),'hd'),'] ',`${done}/${WORK.length}`]));
+  return box('тренировка',L);
+}
+function pWeight(){
+  const pts=WEIGHT.pts, lo=Math.floor(Math.min(...pts)), hi=Math.ceil(Math.max(...pts)), ROWS=6, L=[];
+  const h=v=>Math.max(1,Math.round((v-lo)/(hi-lo)*ROWS));
+  const last=pts[pts.length-1], diff=(last-WEIGHT.goal).toFixed(1), delta=(last-pts[0]).toFixed(1);
+  L.push(ln([seg('сега ','dim'),seg(last+' кг','hd b'),seg(`  ${delta} кг / 8 седм.`,'dim'),seg(`  цел ${WEIGHT.goal}`,'amb')]));
+  for(let r=ROWS;r>=1;r--){
+    const lbl = r===ROWS ? padL(hi,4) : r===1 ? padL(lo,4) : '    ';
+    L.push(ln([seg(lbl+' ┤','dim'),seg(pts.map(v=>h(v)>=r?'███':'   ').join(' '),'hd')]));
+  }
+  L.push(ln([seg('     └'+'─'.repeat(pts.length*4-1),'dim')]));
+  L.push(ln([seg('      '+pts.map((v,i)=>i===pts.length-1?'сега':pad(`-${pts.length-1-i}с`,4)).join(''),'dim')]));
+  L.push(ln([seg(`      още ${diff} кг до целта`,'amb')]));
+  return box('тегло',L);
+}
+function pPromo(){
+  return box('промоции',PROMO.map(p=>ln([seg(pad(p.s,9),'b'),' ',pad(p.n,15),' ',seg(padL(p.p,5),'amb'),' ',seg(pad(p.until,7),'dim')])));
+}
+function pRecipes(){
+  const L=[];
+  const rows=big(RECIPES.total);
+  rows.forEach((r,i)=>L.push(ln([seg(r,'hd'),i===2?seg('  рецепти в базата','dim'):i===3?seg(`  +${RECIPES.fresh} нови предложения`,'amb'):''])));
+  return box('рецепти',L);
+}
+function pSync(){
+  const L=[];
+  [['cal','календар',SYNC.cal,false],['wallet','Wallet',SYNC.wallet,walletStale],['promo','промоции',SYNC.promo,false]].forEach(([k,n,t,w])=>{
+    L.push(ln([seg(pad(k,7),'b'),seg(w?'WARN':'OK  ','' + (w?'amb':'hd')),'  ',pad(n,10),' ',seg(pad(t,12),w?'amb':'dim')]));
+    if(w){ L.push(ln(['        ',seg('└ Wallet не отговаря','amb')])); L.push(ln(['          ',seg(`данни от ${t}`,'amb')])); }
+  });
+  return box('синхронизация',L);
+}
+
+const PANELS = [pCal,pBud,pCook,pMenu,pShop,pTasks,pWork,pWeight,pRecipes,pPromo,pSync];
+function renderAll(){ $('#cols').innerHTML = PANELS.map(f=>f()).join(''); }
+function rerender(f){ const tmp=document.createElement('div'); tmp.innerHTML=f(); const n=tmp.firstChild; const o=document.getElementById(n.id); if(o) o.replaceWith(n); }
+renderAll();
+
+/* взаимодействие */
+document.addEventListener('click',e=>{
+  const v=e.target.closest('button[data-v]');
+  if(v){ const {i,w}=v.dataset, n=+v.dataset.v; STATE.votes[i][w] = STATE.votes[i][w]===n?0:n; rerender(pMenu); addLog(`vote ${w}:${MENU[i].d} ${STATE.votes[i][w]>0?'+1':STATE.votes[i][w]<0?'-1':'0'}`); return; }
+  const c=e.target.closest('button[data-l]');
+  if(c){ const {l,i}=c.dataset; STATE[l][i]=!STATE[l][i]; rerender({shop:pShop,tasks:pTasks,work:pWork}[l]); addLog(`${l}[${i}] ${STATE[l][i]?'done':'open'}`); }
+});
+
+/* лог и подкана */
+const LOGS=['cal: ping ok (41ms)','wallet: timeout, retry','promo: idle','cal: 0 changes','wallet: ECONNREFUSED','menu: votes synced','promo: 4 offers cached','weight: scale idle'];
+let li=0; const logLines=[];
+function addLog(msg,cls){
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  logLines.push(`<span class="${cls||'new'}">[${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}] ${esc(msg)}</span>`);
+  while(logLines.length>4) logLines.shift();
+  $('#log').innerHTML = logLines.map((l,i)=>i<logLines.length-1?l.replace('class="new"','class=""'):l).join('\n');
+}
+function bootDone(){
+  booted=true; document.body.classList.add('booted'); document.body.classList.remove('boot');
+  addLog('boot complete · всички модули заредени');
+  $('#prompt').innerHTML = `<span class="hd">family@homesrv</span>:~$ <span class="cur"></span>`;
+  if(!reduce) setInterval(()=>{ const m=LOGS[li++%LOGS.length]; addLog(m, /timeout|ECONN/.test(m)?'amb':'new'); }, 4500);
+}
+if(reduce) bootDone(); else { $('#prompt').innerHTML = `<span class="dim">loading modules</span><span class="cur"></span>`; setTimeout(bootDone, T+400); }
+</script>
+</body>
+</html>

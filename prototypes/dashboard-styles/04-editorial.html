@@ -1,0 +1,456 @@
+<!-- ПРОТОТИП (throwaway): вариант 04 · Вестник / швейцарска типография -->
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 · Вестник</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f3efe6; --paper2:#ebe6da; --ink:#161513; --ink2:#3a3733; --mute:#6f6960;
+  --rule:#b9b2a3; --rule2:#d8d2c4; --red:#c1121f; --yellow:#f6e27a;
+  --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+  --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:22px;line-height:1.3;-webkit-font-smoothing:antialiased}
+body{overflow-x:hidden;background-image:radial-gradient(circle at 20% 0,rgba(255,255,255,.5),transparent 55%),radial-gradient(circle at 80% 100%,rgba(0,0,0,.035),transparent 50%)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+ul{list-style:none}
+.tab{font-variant-numeric:tabular-nums}
+.sheet{display:grid;grid-template-columns:repeat(12,1fr);column-gap:32px;row-gap:0;padding:12px 40px 0;height:100vh;
+  grid-template-areas:
+   "head head head head head head head head head head head head"
+   "cal cal cal cal cal bud bud bud bud cook cook cook"
+   "menu menu menu menu shop shop shop task task task side side"
+   "promo promo promo promo promo promo promo promo promo promo side side"
+   "foot foot foot foot foot foot foot foot foot foot foot foot";
+  grid-template-rows:auto minmax(0,1.02fr) minmax(0,.98fr) auto auto}
+.sec{min-height:0;overflow:hidden;padding:12px 0 14px;border-top:1px solid var(--ink);position:relative}
+.sec.c{box-shadow:-16px 0 0 -15px var(--rule)}
+.rub{font:600 13px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--ink2);display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.rub b{font-family:var(--serif);font-weight:900;font-size:15px;letter-spacing:0;margin-right:10px;color:var(--ink)}
+.rub .r{font-weight:500;letter-spacing:.06em;text-transform:none;color:var(--mute);font-size:13px}
+/* ---- masthead ---- */
+.head{grid-area:head;border-bottom:3px double var(--ink);padding-bottom:8px;margin-bottom:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:end;gap:20px}
+.head .issue{font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);line-height:1.5}
+.head .issue b{color:var(--ink)}
+.head h1{font:900 58px/1 var(--serif);letter-spacing:-.01em;text-align:center;white-space:nowrap}
+.head h1 i{font-weight:400;font-style:italic}
+.head .clock{text-align:right;font:700 44px/1 var(--serif);letter-spacing:.02em}
+.head .clock small{display:block;font:500 14px/1.5 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:4px}
+.head .clock .s{display:inline-block;min-width:1.4em;text-align:left;color:var(--red);font-size:22px;vertical-align:baseline}
+/* ---- rows / lists ---- */
+.row{display:flex;align-items:baseline;gap:12px;padding:4px 0;border-bottom:1px solid var(--rule2);line-height:1.25}
+.row:last-child{border-bottom:0}
+.ink{background-image:linear-gradient(var(--ink),var(--ink));background-repeat:no-repeat;background-size:0 2px;background-position:0 100%;transition:background-size .35s cubic-bezier(.2,.7,.2,1);padding-bottom:1px}
+.row:hover .ink,button:hover .ink{background-size:100% 2px}
+.t{font-weight:600;min-width:3em;letter-spacing:.02em}
+.av{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;border:2px solid var(--c);color:var(--c);font:700 15px/1 var(--sans);flex:none;transform:translateY(5px)}
+.n{flex:1;font-family:var(--serif);font-weight:700;font-size:24px}
+.sm{font-size:14px;color:var(--mute);letter-spacing:.04em;text-transform:uppercase;font-weight:500}
+.chk{width:22px;height:22px;border:2px solid var(--ink);flex:none;position:relative;transform:translateY(3px)}
+.chk::after{content:'';position:absolute;inset:3px;background:var(--ink);transform:scale(0);transition:transform .25s cubic-bezier(.3,1.6,.4,1)}
+.done .chk::after{transform:scale(1)}
+.done .n{color:var(--mute);background-image:linear-gradient(var(--ink2),var(--ink2));background-size:100% 2px;background-position:0 55%;background-repeat:no-repeat}
+.row.btn{width:100%;text-align:left}
+.row.btn:active{transform:translateX(2px)}
+/* ---- calendar ---- */
+.cal{grid-area:cal}
+.today{display:grid;grid-template-columns:auto 1fr;gap:0 24px;align-items:start}
+.bigdate{font:900 124px/.85 var(--serif);letter-spacing:-.04em;margin-top:6px}
+.dmeta{font:400 22px/1.3 var(--sans);color:var(--ink2);margin-top:4px}
+.dmeta b{display:block;font:italic 700 32px/1.1 var(--serif);color:var(--ink);text-transform:capitalize}
+.dmeta .sm{display:block;margin-top:6px}
+.axis{position:relative;height:40px;margin:10px 0 6px;border-bottom:1px solid var(--ink)}
+.axis .tick{position:absolute;bottom:-1px;width:1px;height:8px;background:var(--ink)}
+.axis .tick i{position:absolute;top:-20px;left:-10px;font:500 12px/1 var(--sans);color:var(--mute);font-style:normal}
+.axis .tick:nth-child(7) i{left:auto;right:0}
+.axis .ev{position:absolute;bottom:6px;width:12px;height:12px;border-radius:50%;background:var(--c);transform:translateX(-50%)}
+.axis .now{position:absolute;top:-6px;bottom:-10px;width:2px;background:var(--red);transform:translateX(-50%);transition:left 1s linear}
+.axis .now::after{content:'сега';position:absolute;top:-16px;left:4px;font:700 11px/1 var(--sans);color:var(--red);letter-spacing:.14em;text-transform:uppercase}
+.next{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 20px;margin-top:4px}
+.next .d{box-shadow:-11px 0 0 -10px var(--rule)}.next .d:first-child{box-shadow:none}
+.next h4{font:700 15px/1.3 var(--sans);letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--ink);padding-bottom:4px;margin-bottom:4px}
+.next h4 span{font-family:var(--serif);font-size:28px;font-weight:900;letter-spacing:0;margin-right:6px}
+.next .row{padding:2px 0;gap:8px}.next .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.next .n{font-size:20px}.next .t{font-size:16px;min-width:3.2em}.next .av{width:24px;height:24px;font-size:12px;transform:translateY(3px)}
+/* ---- budget ---- */
+.bud{grid-area:bud}
+.huge{font:900 190px/.85 var(--serif);letter-spacing:-.06em;margin:4px 0 0 -6px;display:flex;align-items:baseline;gap:14px}
+.huge small{font:italic 400 40px/1 var(--serif);letter-spacing:0}
+.bud .lead{font:italic 400 26px/1.2 var(--serif);color:var(--ink2);margin:8px 0 18px}
+.bar{position:relative;height:18px;background:var(--paper2);border:1px solid var(--ink);margin:22px 0 10px}
+.bar .fill{position:absolute;inset:0;width:0;background:var(--ink);transition:width 1.6s cubic-bezier(.2,.7,.2,1)}
+.bar .day{position:absolute;top:-24px;bottom:-14px;width:2px;background:var(--red);transform:translateX(-50%)}
+.bar .day::before{content:'днес ·';position:absolute;top:-2px;right:6px;font:700 12px/1 var(--sans);color:var(--red);letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.bar .day::after{content:'';position:absolute;bottom:-4px;left:-5px;border:6px solid transparent;border-bottom-color:var(--red);border-top:0}
+.bud .meta{display:flex;justify-content:space-between;gap:16px;font-size:20px;color:var(--ink2);flex-wrap:wrap}
+.bud .meta b{color:var(--ink);font-weight:600}
+.over .huge,.over .lead{color:var(--red)}.over .bar .fill{background:var(--red)}
+mark{background:var(--yellow);color:var(--ink);padding:1px 6px;font-weight:600;display:inline-block}
+/* ---- cook ---- */
+.cook{grid-area:cook}
+.dish{font:900 46px/1.05 var(--serif);letter-spacing:-.01em;margin:4px 0 10px}
+.cook .lunch{font:italic 400 26px/1.25 var(--serif);color:var(--ink2);border-top:1px solid var(--rule);padding-top:10px}
+.cook .lunch b{font-style:normal;font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;display:block;color:var(--mute);margin-bottom:4px}
+.cook .who{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:20px}
+.cook .who .av{transform:none}
+.cook .orn{font:italic 400 15px/1.4 var(--serif);color:var(--mute);margin-top:14px;border-top:1px dotted var(--rule);padding-top:8px}
+/* ---- menu ---- */
+.menu{grid-area:menu}
+.mrow{display:grid;grid-template-columns:3em 1fr auto;gap:0 12px;align-items:start;padding:3px 0;border-bottom:1px solid var(--rule2)}
+.mrow:last-child{border-bottom:0}
+.mrow .dw{font:900 22px/1.2 var(--serif);text-transform:uppercase;letter-spacing:.04em}
+.mrow .dw.td{color:var(--red)}
+.mrow .dn{font:700 22px/1.1 var(--serif)}
+.mrow .dn::before{content:'■ ';font-size:12px;vertical-align:middle;color:var(--ink)}
+.mrow .l{font:italic 400 14px/1.2 var(--serif);color:var(--mute)}
+.mrow .l .av{width:18px;height:18px;font-size:10px;border-width:1.5px;transform:translateY(3px);margin-left:4px}
+.votes{display:flex;gap:10px}
+.vg{display:flex;align-items:center;gap:2px;font:600 12px/1 var(--sans);color:var(--mute)}
+.vg i{font-style:normal;color:var(--c);font-weight:700;margin-right:3px}
+.vg button{width:26px;height:26px;border:1px solid var(--rule);font-size:11px;line-height:1;color:var(--mute);transition:all .2s}
+.vg button:hover{border-color:var(--ink);color:var(--ink);transform:translateY(-1px)}
+.vg button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.vg button.on.vd{background:var(--red);border-color:var(--red)}
+.vg button:active{transform:scale(.9)}
+/* ---- shop / tasks ---- */
+.shop{grid-area:shop}.task{grid-area:task}
+.shop .row{padding:3px 0}.shop .n{font-size:22px}
+.q{font-size:15px;color:var(--ink2);white-space:nowrap}
+.promo-t{font:600 12px/1 var(--sans);color:var(--red);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;border:1px solid var(--red);padding:3px 5px}
+.task .n{font-size:23px}
+.due{font:italic 700 18px/1 var(--serif);color:var(--ink2);min-width:3em;text-align:right}
+/* ---- side column ---- */
+.side{grid-area:side;display:flex;flex-direction:column;gap:8px}
+.side .sub{border-top:1px solid var(--rule);padding-top:6px}
+.side .sub:first-child{border-top:0;padding-top:0}
+.wnum{font:900 64px/1 var(--serif);letter-spacing:-.03em;display:flex;align-items:baseline;gap:10px}
+.wnum small{font:italic 400 18px/1.2 var(--serif);color:var(--mute);letter-spacing:0}
+.wchart{width:100%;height:auto;display:block;margin-top:6px}
+.wchart .ln{fill:none;stroke:var(--ink);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.wchart .goal{stroke:var(--red);stroke-width:1.5;stroke-dasharray:4 5}
+.wchart text{font:600 12px var(--sans);fill:var(--mute)}
+.wchart .pt{fill:var(--paper);stroke:var(--ink);stroke-width:2}
+.wchart .last{fill:var(--red);stroke:var(--red)}
+.work .row{padding:2px 0}.work .n{font-size:21px}
+.prog{height:6px;background:var(--paper2);border:1px solid var(--ink);margin:6px 0 0;position:relative}
+.prog i{position:absolute;inset:0;width:0;background:var(--ink);transition:width .8s cubic-bezier(.2,.7,.2,1)}
+.rec{display:flex;align-items:center;gap:14px}.side .rub{margin-bottom:4px}
+.rec .wnum{font-size:56px}
+.rec p{font:italic 400 18px/1.2 var(--serif);color:var(--ink2)}
+.rec p b{font-style:normal;color:var(--red)}
+/* ---- promo ---- */
+.promo{grid-area:promo}
+.ads{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 24px}
+.ad{border:1px solid var(--ink);outline:1px solid var(--ink);outline-offset:3px;padding:8px 14px;display:flex;align-items:baseline;gap:10px;transition:transform .3s,box-shadow .3s;background:var(--paper)}
+.ad:hover{transform:translateY(-3px);box-shadow:0 10px 24px -14px rgba(0,0,0,.5)}
+.ad .s{font:600 12px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--mute);white-space:nowrap}
+.ad .n{font-size:22px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ad .p{font:900 34px/1 var(--serif);letter-spacing:-.04em;color:var(--red)}
+.ad .u{font:italic 400 15px/1 var(--serif);color:var(--ink2);white-space:nowrap}
+/* ---- foot / ticker ---- */
+.foot{grid-area:foot;border-top:1px solid var(--ink);border-bottom:3px double var(--ink);margin-top:8px;margin-bottom:8px;padding:5px 0;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;overflow:hidden;font-size:15px}
+.foot .lab{font:700 12px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;white-space:nowrap}
+.tk{overflow:hidden;white-space:nowrap;mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
+.tk .tr{display:inline-block;animation:tick 48s linear infinite;padding-right:60px}
+.tk span{margin-right:60px;letter-spacing:.02em}
+.tk .ok{color:var(--ink2)}.tk .ok::before{content:'✓ ';font-weight:700;color:var(--ink)}
+@keyframes tick{to{transform:translateX(-50%)}}
+/* ---- animations ---- */
+.set{opacity:0;animation:set .55s cubic-bezier(.2,.7,.2,1) both}
+@keyframes set{from{opacity:0;transform:translateY(10px);filter:blur(2px)}to{opacity:1;transform:none;filter:blur(0)}}
+.print{animation:print 1.4s cubic-bezier(.2,.7,.2,1) both}
+@keyframes print{from{opacity:0;filter:blur(6px);letter-spacing:.1em}60%{opacity:1}to{filter:blur(0)}}
+.draw{stroke-dasharray:1000;stroke-dashoffset:1000;animation:draw 2s 1s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.bigdate{animation:stamp 1s .3s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes stamp{from{opacity:0;transform:scale(1.25) rotate(-1.5deg)}70%{opacity:1}to{transform:none}}
+.flash{animation:flash .4s}
+@keyframes flash{0%{background:var(--yellow)}100%{background:transparent}}
+@media (prefers-reduced-motion:reduce){
+  .tk .tr{animation:none}.set,.print,.bigdate{animation:none;opacity:1}.draw{animation:none;stroke-dashoffset:0}
+  .axis .now,.bar .fill,.prog i{transition:none}
+}
+/* ---- tablet ---- */
+@media (max-width:1599px){
+  .sheet{padding:12px 28px 0;column-gap:28px;grid-template-rows:auto;height:auto;min-height:100vh;
+    grid-template-areas:
+     "head head head head head head head head head head head head"
+     "cal cal cal cal cal cal cal bud bud bud bud bud"
+     "cook cook cook cook cook menu menu menu menu menu menu menu"
+     "shop shop shop shop shop shop task task task task task task"
+     "side side side side side promo promo promo promo promo promo promo"
+     "foot foot foot foot foot foot foot foot foot foot foot foot"}
+  .sec.c{box-shadow:none}
+  .sheet > .c:nth-child(2n+1){box-shadow:-15px 0 0 -14px var(--rule)}
+  .bud.c,.menu.c,.task.c,.promo.c{box-shadow:-15px 0 0 -14px var(--rule)}
+  .cal.c,.cook.c,.shop.c,.side.c{box-shadow:none}
+  .head h1{font-size:52px}.huge{font-size:170px}.bigdate{font-size:130px}
+  .ads{grid-template-columns:repeat(2,1fr)}
+  .mrow{padding:6px 0}
+}
+/* ---- phone ---- */
+@media (max-width:899px){
+  html,body{font-size:18px}
+  .sheet{padding:10px 16px 0;display:flex;flex-direction:column}
+  .sec,.sec.c,.bud.c,.menu.c,.task.c,.promo.c,.sheet > .c:nth-child(2n+1){box-shadow:none}
+  .head{grid-template-columns:1fr auto;grid-template-areas:"issue clock" "title title";gap:6px 10px}
+  .head .issue{grid-area:issue;font-size:11px}.head .clock{grid-area:clock;font-size:30px}.head .clock .s{font-size:16px}
+  .head h1{grid-area:title;font-size:40px;text-align:left;white-space:normal;line-height:.95;padding-top:6px}
+  .today{grid-template-columns:auto 1fr;gap:0 14px}
+  .bigdate{font-size:96px}.dmeta b{font-size:26px}.dmeta{font-size:16px}
+  .next{grid-template-columns:1fr;gap:6px}.next .d{box-shadow:none}.next .n{white-space:normal}.today .row .sm{display:none}
+  .axis{margin-top:30px}.bar{margin-top:34px}
+  .huge{font-size:120px;letter-spacing:-.05em}.huge small{font-size:28px}
+  .bud .lead{font-size:20px}.bud .meta{font-size:16px}
+  .dish{font-size:34px}.cook .lunch{font-size:20px}
+  .n{font-size:20px}.mrow .dn{font-size:19px}.mrow{grid-template-columns:2.6em 1fr;}
+  .votes{grid-column:2;margin-top:4px}
+  .ads{grid-template-columns:1fr;gap:12px}.ad{padding:8px 10px;flex-wrap:wrap}.ad .n{font-size:18px;flex-basis:100%;order:-1}.ad .p{font-size:28px}
+  .rec .wnum{font-size:56px}
+  .foot{grid-template-columns:1fr;gap:6px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<div class="sheet" id="sheet">
+  <header class="head set">
+    <div class="issue">Брой <b id="issueNo"></b> · Година II<br><b id="dateLine"></b></div>
+    <h1>Семеен <i>Вестник</i></h1>
+    <div class="clock"><span id="clk" class="tab">--:--</span><span id="sec" class="s tab"></span><small>Последна редакция · сега</small></div>
+  </header>
+
+  <section class="sec cal set" id="cal">
+    <div class="rub"><span><b>01</b>Календар</span><span class="r">днес и следващите три дни</span></div>
+    <div id="calBody"></div>
+  </section>
+
+  <section class="sec bud c set" id="bud">
+    <div class="rub"><span><b>02</b>Бюджет · октомври</span><span class="r"><mark>Wallet · данни от преди 2 ч</mark></span></div>
+    <div id="budBody"></div>
+  </section>
+
+  <section class="sec cook c set" id="cook">
+    <div class="rub"><span><b>03</b>Днес се готви</span><span class="r">вечеря · обяд</span></div>
+    <div id="cookBody"></div>
+  </section>
+
+  <section class="sec menu set" id="menu">
+    <div class="rub"><span><b>04</b>Седмично меню</span><span class="r">▲ харесва · ▼ не</span></div>
+    <div id="menuBody"></div>
+  </section>
+
+  <section class="sec shop c set" id="shop">
+    <div class="rub"><span><b>05</b>Списък за пазаруване</span><span class="r" id="shopCnt"></span></div>
+    <div id="shopBody"></div>
+  </section>
+
+  <section class="sec task c set" id="task">
+    <div class="rub"><span><b>06</b>Задачи</span><span class="r" id="taskCnt"></span></div>
+    <div id="taskBody"></div>
+  </section>
+
+  <aside class="sec side c set" id="side">
+    <div class="sub">
+      <div class="rub"><span><b>07</b>Тегло · Дако</span><span class="r">цел 85 кг</span></div>
+      <div id="wBody"></div>
+    </div>
+    <div class="sub work">
+      <div class="rub"><span><b>08</b>Тренировка</span><span class="r" id="workCnt"></span></div>
+      <div id="workBody"></div>
+    </div>
+    <div class="sub">
+      <div class="rub"><span><b>09</b>Рецепти</span><span class="r">сборник</span></div>
+      <div class="rec"><div class="wnum print"><span class="count" data-to="42">0</span></div><p>рецепти в сборника,<br><b id="fresh"></b> нови предложения</p></div>
+    </div>
+  </aside>
+
+  <section class="sec promo set" id="promo">
+    <div class="rub"><span><b>10</b>Обяви · промоции</span><span class="r">от листовките на магазините</span></div>
+    <div class="ads" id="ads"></div>
+  </section>
+
+  <footer class="foot set">
+    <span class="lab">11 · Колофон · синхронизация</span>
+    <div class="tk"><div class="tr" id="ticker"></div></div>
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function(){
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const avt = (w,cls='av')=>`<span class="${cls}" style="--c:${P[w].c}" title="${esc(P[w].n)}">${P[w].i}</span>`;
+  const dateBg = d=>`${DOWL[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`;
+
+  /* masthead */
+  const dayOfYear = Math.floor((TODAY-new Date(TODAY.getFullYear(),0,1))/864e5)+1;
+  $('#issueNo').textContent = '№ '+dayOfYear;
+  $('#dateLine').textContent = dateBg(TODAY);
+  function clock(){
+    const d=new Date();
+    $('#clk').textContent = clockStr();
+    $('#sec').textContent = ':'+String(d.getSeconds()).padStart(2,'0');
+    nowLine();
+  }
+  function nowLine(){
+    const el=$('#nowLine'); if(!el) return;
+    const d=new Date(); const h=d.getHours()+d.getMinutes()/60;
+    const p=Math.max(0,Math.min(100,(h-6)/18*100));
+    el.style.left=p+'%';
+  }
+
+  /* 01 календар */
+  function renderCal(){
+    const t=CAL[0];
+    const ticks=[6,9,12,15,18,21,24].map(h=>`<span class="tick" style="left:${(h-6)/18*100}%"><i>${h}</i></span>`).join('');
+    const marks=t.ev.map(e=>{const [h,m]=e.t.split(':').map(Number);return `<span class="ev" style="left:${(h+m/60-6)/18*100}%;--c:${P[e.w].c}" title="${esc(e.n)}"></span>`}).join('');
+    const next=CAL.slice(1).map(d=>{
+      const dt=addD(TODAY,d.o);
+      return `<div class="d set"><h4><span>${dt.getDate()}</span>${DOWL[dt.getDay()]}</h4>
+        ${d.ev.map(e=>`<div class="row set"><span class="t tab">${e.t}</span>${avt(e.w)}<span class="n ink">${esc(e.n)}</span></div>`).join('')}</div>`;
+    }).join('');
+    $('#calBody').innerHTML = `
+      <div class="today">
+        <div class="bigdate tab">${TODAY.getDate()}</div>
+        <div class="dmeta"><b>${DOWL[TODAY.getDay()]}</b>${MON[TODAY.getMonth()]} ${TODAY.getFullYear()} · ${t.ev.length} събития
+          <ul class="rows">${t.ev.map(e=>`<li class="row set"><span class="t tab">${e.t}</span>${avt(e.w)}<span class="n ink">${esc(e.n)}</span><span class="sm">${esc(P[e.w].n)}</span></li>`).join('')}</ul>
+        </div>
+      </div>
+      <div class="axis set">${ticks}${marks}<span class="now" id="nowLine" style="left:0"></span></div>
+      <div class="next">${next}</div>`;
+  }
+
+  /* 02 бюджет */
+  function renderBud(){
+    $('#bud').classList.toggle('over',over);
+    $('#budBody').innerHTML = `
+      <div class="huge print tab"><span class="count" data-to="${BUDGET.rem}">0</span><small>лв</small></div>
+      <div class="lead">${over?'надхвърлен лимит за месеца':'остават до края на октомври'}</div>
+      <div class="bar set"><span class="fill" id="fill"></span><span class="day" style="left:${dayPct}%"></span></div>
+      <div class="meta set"><span>похарчени <b class="tab">${fmt(BUDGET.spent)}</b> от <b class="tab">${fmt(BUDGET.limit)}</b> лв · <b class="tab">${pct}%</b></span><span>~<b class="tab">${fmt(BUDGET.pace)}</b> лв/ден до края · ${BUDGET.days-BUDGET.day+1} дни</span></div>`;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ $('#fill').style.width=pct+'%'; }));
+  }
+
+  /* 03 готвене */
+  function renderCook(){
+    const m=MENU[0];
+    $('#cookBody').innerHTML = `
+      <div class="dish print">${esc(m.dn)}</div>
+      <div class="lunch set"><b>На обяд</b>${esc(m.l)}</div>
+      <div class="who set">${avt(m.cook)}<span>Готви <b>${esc(P[m.cook].n)}</b></span></div>
+      <div class="orn set">„Най-добрите вечери започват с едно решение, взето сутринта.“</div>`;
+  }
+
+  /* 04 меню */
+  function voteBtn(i,w,v){
+    const on = STATE.votes[i][w]===v;
+    return `<button class="${on?'on':''} ${v<0?'vd':'vu'}" data-i="${i}" data-w="${w}" data-v="${v}" aria-label="${v>0?'харесва':'не харесва'}" title="${esc(P[w].n)}">${v>0?'▲':'▼'}</button>`;
+  }
+  function renderMenu(){
+    $('#menuBody').innerHTML = MENU.map((m,i)=>`
+      <div class="mrow set">
+        <span class="dw ${i===0?'td':''}">${m.d}</span>
+        <div><div class="dn ink">${esc(m.dn)}</div><div class="l">обяд: ${esc(m.l)} · готви ${avt(m.cook)}</div></div>
+        <div class="votes" id="v${i}">${['D','S'].map(w=>`<span class="vg" style="--c:${P[w].c}"><i>${P[w].i}</i>${voteBtn(i,w,1)}${voteBtn(i,w,-1)}</span>`).join('')}</div>
+      </div>`).join('');
+  }
+  $('#menuBody').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-v]'); if(!b) return;
+    const i=+b.dataset.i,w=b.dataset.w,v=+b.dataset.v;
+    STATE.votes[i][w] = STATE.votes[i][w]===v ? 0 : v;
+    $('#v'+i).querySelectorAll('button').forEach(x=>x.classList.toggle('on',STATE.votes[i][x.dataset.w]===+x.dataset.v));
+    b.closest('.mrow').classList.remove('flash'); void b.offsetWidth; b.closest('.mrow').classList.add('flash');
+  });
+
+  /* 05 / 06 / 08 — списъци с отметки */
+  function listRow(kind,i,inner){
+    return `<button class="row btn ${STATE[kind][i]?'done':''}" data-k="${kind}" data-i="${i}" aria-pressed="${STATE[kind][i]}"><span class="chk"></span>${inner}</button>`;
+  }
+  function counts(){
+    const c=(k)=>STATE[k].filter(Boolean).length;
+    $('#shopCnt').textContent = `${c('shop')} от ${SHOP.length} в кошницата`;
+    $('#taskCnt').textContent = `${c('tasks')} от ${TASKS.length} готови`;
+    $('#workCnt').textContent = `${c('work')} от ${WORK.length} упражнения`;
+    const p=$('#workProg'); if(p) p.style.width = (c('work')/WORK.length*100)+'%';
+  }
+  function renderShop(){
+    $('#shopBody').innerHTML = SHOP.map((s,i)=>listRow('shop',i,
+      `<span class="n ink">${esc(s.n)}</span><span class="q tab">${esc(s.q)}</span><span class="sm">${esc(s.a)}</span>${s.promo?`<span class="promo-t">${esc(s.promo)}</span>`:''}`)).join('');
+  }
+  function renderTasks(){
+    $('#taskBody').innerHTML = TASKS.map((t,i)=>listRow('tasks',i,
+      `${avt(t.w)}<span class="n ink">${esc(t.n)}</span><span class="due">${esc(t.due)}</span>`)).join('');
+  }
+  function renderWork(){
+    $('#workBody').innerHTML = WORK.map((w,i)=>listRow('work',i,
+      `<span class="n ink">${esc(w.n)}</span><span class="q tab">${esc(w.s)}</span>`)).join('')
+      + `<div class="prog set"><i id="workProg"></i></div>`;
+  }
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('button.row[data-k]'); if(!b) return;
+    const k=b.dataset.k,i=+b.dataset.i;
+    STATE[k][i]=!STATE[k][i];
+    b.classList.toggle('done',STATE[k][i]); b.setAttribute('aria-pressed',STATE[k][i]);
+    counts();
+  });
+
+  /* 07 тегло */
+  function renderWeight(){
+    const pts=WEIGHT.pts, W=300,H=94, px=20, py=15;
+    const lo=Math.min(WEIGHT.goal,...pts)-1, hi=Math.max(...pts)+1;
+    const X=i=>px+i*(W-2*px)/(pts.length-1), Y=v=>H-py-(v-lo)/(hi-lo)*(H-2*py);
+    const d=pts.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' ');
+    const gy=Y(WEIGHT.goal).toFixed(1);
+    const last=pts[pts.length-1], diff=(last-pts[0]).toFixed(1);
+    $('#wBody').innerHTML = `
+      <div class="wnum print tab"><span class="count" data-to="${last}" data-dec="1">0</span><small>кг · ${diff} от първото мерене</small></div>
+      <svg class="wchart set" viewBox="0 0 ${W} ${H}" aria-label="тегло по седмици">
+        <line class="goal" x1="${px}" x2="${W-px}" y1="${gy}" y2="${gy}"/><text x="${W-px}" y="${gy-5}" text-anchor="end">цел ${WEIGHT.goal}</text>
+        <path class="ln draw" d="${d}"/>
+        ${pts.map((v,i)=>`<circle class="pt ${i===pts.length-1?'last':''}" cx="${X(i)}" cy="${Y(v)}" r="${i===pts.length-1?5:3.5}"/>`).join('')}
+        ${pts.map((v,i)=>i%2?'':`<text x="${X(i)}" y="${H-3}" text-anchor="middle">${i+1}</text>`).join('')}
+        <text x="${px}" y="${Y(pts[0])-9}">${pts[0].toLocaleString('bg-BG')}</text>
+        <text x="${X(pts.length-1)}" y="${Y(last)-10}" text-anchor="end" font-weight="700">${last.toLocaleString('bg-BG')}</text>
+      </svg>`;
+  }
+
+  /* 10 промоции */
+  function renderPromo(){
+    $('#ads').innerHTML = PROMO.map(p=>`<div class="ad set"><span class="s">${esc(p.s)}</span><span class="n ink">${esc(p.n)}</span><span class="p tab">${esc(p.p)}</span><span class="u">${esc(p.until)}</span></div>`).join('');
+  }
+
+  /* 11 синхронизация */
+  function renderSync(){
+    const items = `<span class="ok">Календар · ${SYNC.cal}</span><span class="ok">Промоции · ${SYNC.promo}</span><span><mark>⚠ Wallet не отговаря · данни от преди ${SYNC.wallet.replace('преди ','')}</mark></span><span class="ok">Рецепти · ${RECIPES.total} в сборника, ${RECIPES.fresh} нови</span><span class="ok">Меню · гласуването е отворено до петък</span>`;
+    $('#ticker').innerHTML = items+items;
+  }
+
+  /* броячи на числа — „отпечатване“ */
+  function countUp(){
+    document.querySelectorAll('.count').forEach((el,k)=>{
+      const to=+el.dataset.to, dec=+(el.dataset.dec||0);
+      const show=v=>{ el.textContent = dec ? v.toLocaleString('bg-BG',{minimumFractionDigits:dec,maximumFractionDigits:dec}) : fmt(Math.round(v)); };
+      if(reduced){ show(to); return; }
+      const dur=1500, t0=performance.now()+k*120;
+      const step=now=>{ const t=Math.max(0,Math.min(1,(now-t0)/dur)); const e=1-Math.pow(1-t,3); show(to*e); if(t<1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+  }
+  function stagger(){
+    let i=0;
+    document.querySelectorAll('.set').forEach(el=>{ el.style.animationDelay = Math.min(i++*28,1800)+'ms'; });
+  }
+
+  renderCal(); renderBud(); renderCook(); renderMenu(); renderShop(); renderTasks(); renderWeight(); renderWork(); renderPromo(); renderSync();
+  $('#fresh').textContent = RECIPES.fresh;
+  counts(); stagger(); countUp(); clock();
+  setInterval(clock,1000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!-- ПРОТОТИП (throwaway): вариант 05 · Клей / claymorphism -->
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 · Клей</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#efe9fb; --ink:#4a3f6b; --ink2:#7a6f98; --mute:#9d94b8;
+  --lav:#e6dcff; --peach:#ffe2d0; --mint:#d9f5e6; --lemon:#fff2bf; --sky:#d9ecff; --rose:#ffdfe9; --white:#fffaf5;
+  --shadow:14px 18px 34px rgba(100,70,150,.22);
+  --in:inset 8px 8px 16px rgba(255,255,255,.8), inset -10px -10px 22px rgba(110,80,160,.16);
+  --sunk:inset 6px 6px 14px rgba(110,80,160,.22), inset -6px -6px 12px rgba(255,255,255,.7);
+  --round:'M PLUS Rounded 1c',system-ui,sans-serif; --body:'Nunito',system-ui,sans-serif;
+  --green:#5ccf8a; --amber:#ffc24b; --red:#ff6b7a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:22px;line-height:1.3;font-weight:700}
+body{overflow-x:hidden;min-height:100vh;position:relative}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.blob{position:fixed;border-radius:50%;filter:blur(70px);opacity:.55;pointer-events:none;z-index:0;animation:drift 26s ease-in-out infinite alternate}
+.blob.b1{width:50vw;height:50vw;left:-12vw;top:-18vw;background:#f7c8ff}
+.blob.b2{width:44vw;height:44vw;right:-14vw;top:18vh;background:#ffd3b8;animation-delay:-9s}
+.blob.b3{width:46vw;height:46vw;left:28vw;bottom:-24vw;background:#b9f0d4;animation-delay:-17s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(6vw,4vh) scale(1.12)}}
+.grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px;padding:18px;height:100vh;
+  grid-template-rows:minmax(0,1.3fr) auto minmax(0,1fr);
+  grid-template-areas:
+   "cal cal cal cal cal bud bud bud cook cook wt wt"
+   "menu menu menu menu menu menu menu menu menu rec rec rec"
+   "shop shop shop shop shop task task task fit fit promo promo"}
+.tile{background:var(--tc,var(--white));border-radius:38px;padding:20px 24px;box-shadow:var(--in),var(--shadow);min-height:0;overflow:hidden;position:relative;animation:breathe 7s ease-in-out infinite}
+.tile:nth-child(2n){animation-delay:-2.3s}.tile:nth-child(3n){animation-delay:-4.1s}.tile:nth-child(5n){animation-duration:8.5s}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.01)}}
+.h{font:600 24px/1 var(--round);display:flex;align-items:center;gap:10px;margin-bottom:12px;color:var(--ink)}
+.h .dot{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 32% 30%,#fff,var(--c) 40%,color-mix(in srgb,var(--c),#000 25%))}
+.h .r{margin-left:auto;font:800 15px/1 var(--body);color:var(--ink2);white-space:nowrap}
+.ball{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;flex:none;color:#fff;font:600 16px/1 var(--round);text-shadow:0 1px 2px rgba(0,0,0,.25);
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.95),var(--c) 40%,color-mix(in srgb,var(--c),#000 28%) 100%);box-shadow:3px 4px 8px rgba(80,50,120,.25)}
+/* chips */
+.chip{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:7px 14px 7px 10px;border-radius:999px;background:rgba(255,255,255,.55);
+  box-shadow:inset 4px 4px 8px rgba(255,255,255,.9),inset -4px -4px 8px rgba(110,80,160,.1),5px 7px 14px rgba(100,70,150,.14);transition:transform .15s,box-shadow .2s}
+.chip:hover{transform:translateY(-2px)}
+.chip:active,.chip.on{box-shadow:var(--sunk);transform:scale(.985)}
+.chip .box{width:30px;height:30px;border-radius:50%;flex:none;background:rgba(255,255,255,.7);box-shadow:var(--sunk);display:grid;place-items:center;transition:background .25s}
+.chip .box::after{content:'✓';font:700 18px/1 var(--round);color:#fff;transform:scale(0);transition:transform .3s cubic-bezier(.3,1.7,.4,1)}
+.chip.on .box{background:radial-gradient(circle at 32% 28%,#fff,var(--green) 40%,#2f9c5e);box-shadow:3px 3px 6px rgba(0,0,0,.15)}
+.chip.on .box::after{transform:scale(1)}
+.chip .n{flex:1;font-weight:800;min-width:0}
+.chip.on .n{color:var(--mute);text-decoration:line-through;text-decoration-thickness:3px;text-decoration-color:var(--green)}
+.chip .q{font-size:16px;color:var(--ink2);white-space:nowrap}
+.tag{font:800 13px/1 var(--body);padding:5px 9px;border-radius:999px;background:var(--lemon);color:#7a5a00;white-space:nowrap;box-shadow:2px 3px 6px rgba(100,70,150,.15)}
+.tag.a{background:rgba(255,255,255,.6);color:var(--ink2)}
+.pop{opacity:0;animation:pop .6s cubic-bezier(.3,1.5,.5,1) both}
+@keyframes pop{from{opacity:0;transform:scale(.6) translateY(14px)}to{opacity:1;transform:none}}
+/* calendar */
+.cal{grid-area:cal;--tc:var(--lav)}
+.cal .top{display:grid;grid-template-columns:auto 1fr auto;gap:0 18px;align-items:center}
+.cal .big{font:700 110px/.9 var(--round);color:#6b4fd8;text-shadow:4px 6px 0 rgba(255,255,255,.7),8px 12px 20px rgba(107,79,216,.25)}
+.cal .dn{font:600 34px/1.05 var(--round)}
+.cal .dn small{display:block;font:800 17px/1.4 var(--body);color:var(--ink2);text-transform:none}
+.clock{font:700 50px/1 var(--round);color:#6b4fd8;text-align:right;letter-spacing:.02em}
+.clock b{display:inline-block;animation:blink 1s steps(1) infinite;font-weight:inherit}
+.clock small{display:block;font:800 14px/1.6 var(--body);color:var(--ink2);letter-spacing:.06em}
+@keyframes blink{50%{opacity:.15}}
+.evs{display:flex;flex-direction:column;gap:7px;margin:10px 0}
+.ev{display:flex;align-items:center;gap:10px;padding:5px 12px 5px 8px;border-radius:999px;background:rgba(255,255,255,.5);box-shadow:inset 3px 3px 6px rgba(255,255,255,.9),inset -3px -3px 6px rgba(110,80,160,.08);transition:transform .2s}
+.ev:hover{transform:translateX(4px)}
+.ev .t{font:600 20px/1 var(--round);color:#6b4fd8;min-width:3em}
+.ev .n{flex:1;font-weight:800}
+.ev .w{font-size:14px;color:var(--ink2)}
+.days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.day{border-radius:26px;background:rgba(255,255,255,.45);padding:10px 12px;box-shadow:var(--in);min-width:0}
+.day h4{font:600 20px/1 var(--round);margin-bottom:6px;display:flex;align-items:baseline;gap:6px}
+.day h4 b{font-size:30px;color:#6b4fd8}
+.day .ev{padding:3px 8px 3px 4px;margin-top:4px;gap:6px;background:none;box-shadow:none}
+.day .ev .n{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.day .ev .t{font-size:16px;min-width:2.6em}.day .ball{width:24px;height:24px;font-size:12px}
+/* budget */
+.bud{grid-area:bud;--tc:var(--peach)}
+.bud .num{font:700 128px/1 var(--round);color:#e0693a;text-shadow:4px 6px 0 rgba(255,255,255,.75),10px 14px 24px rgba(224,105,58,.25);display:flex;align-items:baseline;gap:12px;margin-top:4px}
+.bud .num small{font-size:40px}
+.bud .lead{font-size:22px;color:var(--ink2);margin:2px 0 26px}
+.tube{position:relative;height:66px;border-radius:999px;background:#fff1e6;box-shadow:inset 8px 8px 16px rgba(170,90,50,.22),inset -6px -6px 12px rgba(255,255,255,.9);overflow:visible;margin:0 10px 28px 0}
+.tube .liq{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px;background:linear-gradient(180deg,#ffa36b,#ff6f3c 60%,#e55a2a);box-shadow:inset 0 -10px 16px rgba(0,0,0,.12),inset 0 10px 14px rgba(255,255,255,.35);transition:width 2s cubic-bezier(.2,.8,.2,1);overflow:hidden}
+.tube .liq::after{content:'';position:absolute;top:-6px;right:-30px;width:60px;height:60px;border-radius:45%;background:rgba(255,255,255,.35);animation:slosh 3.2s ease-in-out infinite}
+@keyframes slosh{0%,100%{transform:translateX(0) rotate(0)}50%{transform:translateX(-8px) rotate(180deg)}}
+.tube .lab{position:absolute;left:14px;top:50%;transform:translateY(-50%);font:600 22px/1 var(--round);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.tube .pin{position:absolute;top:-26px;width:4px;height:118px;background:#6b4fd8;border-radius:4px;transform:translateX(-50%)}
+.tube .pin::before{content:'';position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:24px;height:24px;border-radius:50%;background:radial-gradient(circle at 32% 28%,#fff,#8a6ff2 40%,#4a30b0)}
+.tube .pin::after{content:'днес';position:absolute;bottom:-4px;left:12px;font:800 14px/1 var(--body);color:#6b4fd8;white-space:nowrap}
+.bud .meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:20px;color:var(--ink2)}
+.bud .meta b{color:var(--ink);font-size:24px}
+.over .num{color:var(--red)}.over .tube .liq{background:linear-gradient(180deg,#ff8c99,#ff5566 60%,#d93a4b)}
+/* cook */
+.cook{grid-area:cook;--tc:var(--mint)}
+.plate{width:100%;aspect-ratio:1/1;max-width:250px;margin:0 auto;border-radius:50%;background:#fffaf5;box-shadow:inset 10px 10px 20px rgba(255,255,255,.9),inset -12px -12px 24px rgba(60,140,100,.18),10px 14px 28px rgba(60,120,90,.22);display:grid;place-items:center;padding:12%;text-align:center;position:relative;animation:breathe 5s ease-in-out infinite reverse}
+.plate::before{content:'';position:absolute;inset:11%;border-radius:50%;box-shadow:inset 4px 4px 10px rgba(60,140,100,.15),inset -4px -4px 10px rgba(255,255,255,.9)}
+.plate .dish{font:600 24px/1.1 var(--round);color:#2b7a56;position:relative}
+.plate .dish small{display:block;font:800 14px/1.8 var(--body);color:var(--ink2);text-transform:uppercase;letter-spacing:.08em}
+.cook .lunch{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:20px}
+.cook .lunch .tag{font-size:14px}
+.cook .who{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:20px;color:var(--ink2)}
+.cook .who b{color:var(--ink)}
+/* menu */
+.menu{grid-area:menu;--tc:var(--sky)}
+.pillows{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px}
+.pw{border-radius:26px;padding:10px 12px 9px;background:rgba(255,255,255,.55);box-shadow:inset 5px 5px 10px rgba(255,255,255,.95),inset -6px -6px 12px rgba(80,120,170,.12),6px 8px 16px rgba(80,110,160,.16);min-width:0;display:flex;flex-direction:column;transition:transform .2s}
+.pw:hover{transform:translateY(-4px)}
+.pw.td{background:#fff;outline:4px solid #7fb6ff;outline-offset:-4px}
+.pw .d{font:600 17px/1 var(--round);color:#2f6fc4;text-transform:uppercase;letter-spacing:.08em;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.pw .d .ball{width:24px;height:24px;font-size:12px;margin-left:auto}
+.pw .dn{font:600 19px/1.15 var(--round);min-height:2.3em}
+.pw .l{font-size:14px;color:var(--ink2);margin:3px 0 6px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vote{display:flex;align-items:center;gap:4px;margin-top:auto}
+.vote .ball{width:22px;height:22px;font-size:11px;margin-right:2px}
+.vote .ball+ .ball{margin-left:8px}
+.vb{width:28px;height:28px;border-radius:50%;font-size:13px;background:rgba(255,255,255,.75);box-shadow:3px 3px 6px rgba(80,110,160,.18),inset 2px 2px 4px #fff;transition:transform .15s,box-shadow .2s;display:grid;place-items:center}
+.vb:active{transform:scale(.85)}
+.vb.on{box-shadow:var(--sunk);background:#c9f3dd}.vb.on.no{background:#ffd3da}
+/* shop / tasks */
+.shop{grid-area:shop;--tc:var(--rose)}
+.shop .list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.shop .chip{padding:4px 10px 4px 6px;gap:7px}.shop .chip .n{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.shop .chip .q{font-size:13px}.shop .tag{font-size:11px;padding:4px 7px}.shop .chip .box{width:26px;height:26px}
+.task{grid-area:task;--tc:var(--lemon)}
+.task .list{display:flex;flex-direction:column;gap:7px}
+.task .chip{padding:4px 10px 4px 7px}.task .chip .n{font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.due{font:600 15px/1 var(--round);padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.7);color:#8a6a00;box-shadow:var(--sunk)}
+/* weight */
+.wt{grid-area:wt;--tc:var(--mint)}
+.wt .num{font:700 64px/1 var(--round);color:#2b7a56;display:flex;align-items:baseline;gap:10px}
+.wt .num small{font:800 16px/1.3 var(--body);color:var(--ink2)}
+.wave{width:100%;height:auto;display:block;margin-top:6px;filter:drop-shadow(4px 6px 6px rgba(60,120,90,.2));animation:bob 5s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.wave .area{fill:url(#wg)}.wave .ln{fill:none;stroke:#2b7a56;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.wave .goal{stroke:#e0693a;stroke-width:3;stroke-dasharray:2 9;stroke-linecap:round;fill:none}
+.wave text{font:800 15px var(--body);fill:var(--ink2)}
+/* workout + recipes */
+.fit{grid-area:fit;--tc:var(--sky)}
+.fit .wrap{display:grid;grid-template-columns:1fr;gap:10px;justify-items:center}
+.fit .list{display:flex;flex-direction:column;gap:6px;width:100%}
+.fit .chip{padding:4px 12px 4px 7px}.fit .chip .n{font-size:19px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ring{width:92px;height:92px;border-radius:50%;background:conic-gradient(var(--green) var(--p,0%),rgba(255,255,255,.5) 0);box-shadow:var(--shadow);display:grid;place-items:center;transition:--p 1s;position:relative}
+.ring::before{content:'';position:absolute;inset:13px;border-radius:50%;background:var(--sky);box-shadow:var(--sunk)}
+.ring span{position:relative;font:700 24px/1 var(--round);color:#2f6fc4}
+.ring span small{display:block;font:800 11px/1.4 var(--body);color:var(--ink2);text-align:center}
+.rec{grid-area:rec;--tc:var(--peach)}.rec .wrap{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.cookie{position:relative;width:118px;aspect-ratio:1;margin:0 auto;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe7c9,#f3b376 70%,#d8904f);box-shadow:var(--shadow),inset 6px 6px 12px rgba(255,255,255,.6);display:grid;place-items:center}
+.cookie .n{font:700 52px/1 var(--round);color:#7a3e0c;text-shadow:2px 3px 0 rgba(255,255,255,.5)}
+.cookie .n small{display:block;font:800 13px/1.2 var(--body);color:#8a5a2b;text-align:center}
+.cookie .badge{position:absolute;top:-6px;right:-16px;background:var(--red);color:#fff;font:600 14px/1 var(--round);padding:7px 10px;border-radius:999px;box-shadow:4px 6px 12px rgba(255,80,100,.4);animation:bounce 2.4s ease-in-out infinite}
+@keyframes bounce{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-8px) rotate(4deg)}}
+/* promo */
+.promo{grid-area:promo;--tc:var(--lav)}
+.tags{display:grid;grid-template-columns:1fr;gap:9px}
+.ptag{position:relative;border-radius:22px;background:rgba(255,255,255,.6);padding:7px 12px 7px 34px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 8px;box-shadow:var(--in),6px 8px 16px rgba(100,70,150,.16);transition:transform .25s;min-width:0}
+.ptag:hover{transform:rotate(-2deg) translateY(-3px)}
+.ptag::before{content:'';position:absolute;left:14px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:var(--lav);box-shadow:var(--sunk)}
+.ptag .s{font:800 12px/1.2 var(--body);color:var(--ink2);text-transform:uppercase;letter-spacing:.08em}
+.ptag .n{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ptag .p{font:700 28px/1 var(--round);color:#e0693a;grid-row:1/3;grid-column:2;text-align:right}
+.ptag .p small{display:block;font:800 12px/1.2 var(--body);color:var(--ink2)}
+/* sync */
+.sync .list{display:flex;flex-direction:column;gap:6px;min-width:0}
+.st{display:flex;align-items:center;gap:10px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.6);box-shadow:var(--in);font-size:15px;font-weight:800;line-height:1.2}
+.st .led{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 32% 28%,#fff,var(--green) 40%,#2f9c5e);flex:none;animation:glow 2s ease-in-out infinite}
+.st.warn{background:var(--lemon);color:#6a4c00}
+.st.warn .led{background:radial-gradient(circle at 32% 28%,#fff,var(--amber) 40%,#c98400);animation-duration:.9s}
+@keyframes glow{50%{box-shadow:0 0 0 5px rgba(92,207,138,.25)}}
+@media (prefers-reduced-motion:reduce){
+  .blob,.tile,.plate,.wave,.cookie .badge,.st .led,.clock b,.tube .liq::after{animation:none}
+  .pop{animation:none;opacity:1}.tube .liq{transition:none}
+}
+/* tablet */
+@media (max-width:1599px){
+  .grid{height:auto;min-height:100vh;grid-template-rows:auto;
+    grid-template-areas:
+     "cal cal cal cal cal cal cal bud bud bud bud bud"
+     "cook cook cook cook wt wt wt wt rec rec rec rec"
+     "menu menu menu menu menu menu menu menu menu menu menu menu"
+     "shop shop shop shop shop shop task task task task task task"
+     "fit fit fit fit promo promo promo promo promo promo promo promo"}
+  .pillows{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .cal .big{font-size:100px}.bud .num{font-size:110px}
+  .tags{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rec .wrap{grid-template-columns:auto 1fr}
+  .shop .list{grid-template-columns:1fr}.day .ev .n{white-space:normal}
+}
+/* phone */
+@media (max-width:899px){
+  html,body{font-size:18px}
+  .grid{display:flex;flex-direction:column;gap:14px;padding:14px}
+  .tile{border-radius:30px;padding:16px 18px}
+  .cal .top{grid-template-columns:auto 1fr;grid-template-areas:"big dn" "clock clock"}
+  .cal .big{font-size:88px;grid-area:big}.cal .dn{grid-area:dn;font-size:26px}
+  .clock{grid-area:clock;text-align:left;font-size:40px;margin-top:4px}
+  .days{grid-template-columns:1fr}.day .ev .n{white-space:normal}
+  .bud .num{font-size:88px}.bud .num small{font-size:28px}.bud .lead{font-size:18px}.bud .meta{font-size:16px}.bud .meta b{font-size:20px}
+  .tube{height:52px}.tube .pin{height:100px;top:-22px}
+  .plate{max-height:none;width:min(100%,260px)}.plate .dish{font-size:26px}
+  .pillows{grid-template-columns:1fr}.pw .dn{min-height:0}
+  .shop .list{grid-template-columns:1fr}.shop .chip .n{white-space:normal}.task .chip .n{white-space:normal}
+  
+  .tags{grid-template-columns:1fr}.ptag .n{white-space:normal}
+  .rec .wrap{grid-template-columns:1fr;justify-items:center}.rec .list{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+<main class="grid">
+  <section class="tile cal pop"><div class="h"><span class="dot" style="--c:#8a6ff2"></span>Календар<span class="r" id="calR"></span></div><div id="calBody"></div></section>
+  <section class="tile bud pop" id="bud"><div class="h"><span class="dot" style="--c:#ff8a5c"></span>Бюджет · октомври<span class="r">остатък</span></div><div id="budBody"></div></section>
+  <section class="tile cook pop"><div class="h"><span class="dot" style="--c:#5ccf8a"></span>Днес се готви</div><div id="cookBody"></div></section>
+  <section class="tile menu pop"><div class="h"><span class="dot" style="--c:#7fb6ff"></span>Седмично меню<span class="r">👍 / 👎 на всяко ястие</span></div><div class="pillows" id="pillows"></div></section>
+  <section class="tile shop pop"><div class="h"><span class="dot" style="--c:#ff8fb1"></span>Пазаруване<span class="r" id="shopR"></span></div><div class="list" id="shopList"></div></section>
+  <section class="tile task pop"><div class="h"><span class="dot" style="--c:#ffd24b"></span>Задачи<span class="r" id="taskR"></span></div><div class="list" id="taskList"></div></section>
+  <section class="tile wt pop"><div class="h"><span class="dot" style="--c:#5ccf8a"></span>Тегло<span class="r">Дако · цел 85 кг</span></div><div id="wtBody"></div></section>
+  <section class="tile fit pop"><div class="h"><span class="dot" style="--c:#7fb6ff"></span>Тренировка<span class="r" id="fitR"></span></div>
+    <div class="wrap"><div class="list" id="fitList"></div><div class="ring" id="ring"><span><b id="ringN"></b><small>готови</small></span></div></div></section>
+  <section class="tile promo pop"><div class="h"><span class="dot" style="--c:#c58dff"></span>Промоции</div><div class="tags" id="tags"></div></section>
+  <section class="tile rec pop"><div class="h"><span class="dot" style="--c:#f3b376"></span>Рецепти<span class="r">синхронизация</span></div>
+    <div class="wrap"><div class="cookie"><div class="n"><span class="count" data-to="42">0</span><small>в сборника</small></div><span class="badge">+<span id="fresh"></span> нови</span></div>
+    <div class="list" id="syncList"></div></div></section>
+</main>
+
+<script src="data.js"></script>
+<script>
+(function(){
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ball=(w,cls='')=>`<span class="ball ${cls}" style="--c:${P[w].c}" title="${esc(P[w].n)}">${P[w].i}</span>`;
+
+  /* календар */
+  function renderCal(){
+    const t=CAL[0];
+    $('#calR').textContent = `${t.ev.length} събития днес`;
+    $('#calBody').innerHTML = `
+      <div class="top">
+        <div class="big pop">${TODAY.getDate()}</div>
+        <div class="dn pop">${DOWL[TODAY.getDay()]}<small>${TODAY.getDate()} ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}</small></div>
+        <div class="clock pop" id="clock"><span id="hh"></span><b>:</b><span id="mm"></span><small id="ss"></small></div>
+      </div>
+      <div class="evs">${t.ev.map(e=>`<div class="ev pop"><span class="t">${e.t}</span>${ball(e.w)}<span class="n">${esc(e.n)}</span><span class="w">${esc(P[e.w].n)}</span></div>`).join('')}</div>
+      <div class="days">${CAL.slice(1).map(d=>{const dt=addD(TODAY,d.o);return `<div class="day pop"><h4><b>${dt.getDate()}</b>${DOWL[dt.getDay()]}</h4>${d.ev.map(e=>`<div class="ev"><span class="t">${e.t}</span>${ball(e.w)}<span class="n">${esc(e.n)}</span></div>`).join('')}</div>`}).join('')}</div>`;
+  }
+  function clock(){
+    const d=new Date(), two=n=>String(n).padStart(2,'0');
+    $('#hh').textContent=two(d.getHours()); $('#mm').textContent=two(d.getMinutes()); $('#ss').textContent=`${two(d.getSeconds())} сек`;
+  }
+
+  /* бюджет */
+  function renderBud(){
+    $('#bud').classList.toggle('over',over);
+    $('#budBody').innerHTML = `
+      <div class="num pop"><span class="count" data-to="${BUDGET.rem}">0</span><small>лв</small></div>
+      <div class="lead pop">${over?'над лимита за месеца!':'остават до края на месеца'}</div>
+      <div class="tube pop"><div class="liq" id="liq"><span class="lab">${pct}%</span></div><span class="pin" style="left:${dayPct}%"></span></div>
+      <div class="meta pop"><span>похарчени <b>${fmt(BUDGET.spent)}</b> от ${fmt(BUDGET.limit)} лв</span><span>~<b>${fmt(BUDGET.pace)}</b> лв/ден до края</span></div>`;
+    setTimeout(()=>{ $('#liq').style.width=pct+'%'; },reduced?0:300);
+  }
+
+  /* готвене */
+  function renderCook(){
+    const m=MENU[0];
+    $('#cookBody').innerHTML = `
+      <div class="plate pop"><div class="dish"><small>вечеря</small>${esc(m.dn)}</div></div>
+      <div class="lunch pop"><span class="tag">обяд</span><span>${esc(m.l)}</span></div>
+      <div class="who pop">${ball(m.cook)}<span>готви <b>${esc(P[m.cook].n)}</b></span></div>`;
+  }
+
+  /* меню + гласуване */
+  const vbtn=(i,w,v)=>`<button class="vb ${v<0?'no':'yes'} ${STATE.votes[i][w]===v?'on':''}" data-i="${i}" data-w="${w}" data-v="${v}" title="${esc(P[w].n)} ${v>0?'харесва':'не харесва'}">${v>0?'👍':'👎'}</button>`;
+  function renderMenu(){
+    $('#pillows').innerHTML = MENU.map((m,i)=>`
+      <div class="pw pop ${i===0?'td':''}" id="pw${i}">
+        <div class="d">${m.d}${i===0?' · днес':''}${ball(m.cook)}</div>
+        <div class="dn">${esc(m.dn)}</div>
+        <div class="l">обяд: ${esc(m.l)}</div>
+        <div class="vote">${['D','S'].map(w=>ball(w)+vbtn(i,w,1)+vbtn(i,w,-1)).join('')}</div>
+      </div>`).join('');
+  }
+  $('#pillows').addEventListener('click',e=>{
+    const b=e.target.closest('.vb'); if(!b) return;
+    const i=+b.dataset.i,w=b.dataset.w,v=+b.dataset.v;
+    STATE.votes[i][w] = STATE.votes[i][w]===v?0:v;
+    $('#pw'+i).querySelectorAll('.vb').forEach(x=>x.classList.toggle('on',STATE.votes[i][x.dataset.w]===+x.dataset.v));
+  });
+
+  /* чипове с отметки */
+  const chip=(k,i,inner)=>`<button class="chip ${STATE[k][i]?'on':''}" data-k="${k}" data-i="${i}" aria-pressed="${STATE[k][i]}"><span class="box"></span>${inner}</button>`;
+  function renderLists(){
+    $('#shopList').innerHTML = SHOP.map((s,i)=>chip('shop',i,`<span class="n">${esc(s.n)}</span><span class="q">${esc(s.q)}</span>${s.promo?`<span class="tag">${esc(s.promo)}</span>`:`<span class="tag a">${esc(s.a)}</span>`}`)).join('');
+    $('#taskList').innerHTML = TASKS.map((t,i)=>chip('tasks',i,`${ball(t.w)}<span class="n">${esc(t.n)}</span><span class="due">${esc(t.due)}</span>`)).join('');
+    $('#fitList').innerHTML = WORK.map((w,i)=>chip('work',i,`<span class="n">${esc(w.n)}</span><span class="q">${esc(w.s)}</span>`)).join('');
+  }
+  function counts(){
+    const c=k=>STATE[k].filter(Boolean).length;
+    $('#shopR').textContent=`${c('shop')}/${SHOP.length} в кошницата`;
+    $('#taskR').textContent=`${c('tasks')}/${TASKS.length} готови`;
+    $('#fitR').textContent=`${c('work')}/${WORK.length}`;
+    $('#ringN').textContent=`${c('work')}/${WORK.length}`;
+    $('#ring').style.setProperty('--p',(c('work')/WORK.length*100)+'%');
+  }
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('.chip[data-k]'); if(!b) return;
+    const k=b.dataset.k,i=+b.dataset.i; STATE[k][i]=!STATE[k][i];
+    b.classList.toggle('on',STATE[k][i]); b.setAttribute('aria-pressed',STATE[k][i]); counts();
+  });
+
+  /* тегло — мека вълна */
+  function renderWeight(){
+    const pts=WEIGHT.pts,W=320,H=130,px=18,py=24;
+    const lo=Math.min(WEIGHT.goal,...pts)-.8, hi=Math.max(...pts)+.8;
+    const X=i=>px+i*(W-2*px)/(pts.length-1), Y=v=>H-py-(v-lo)/(hi-lo)*(H-2*py);
+    let d=`M${X(0)} ${Y(pts[0])}`;
+    for(let i=0;i<pts.length-1;i++){const x0=X(i),y0=Y(pts[i]),x1=X(i+1),y1=Y(pts[i+1]),cx=(x0+x1)/2;d+=` C${cx} ${y0} ${cx} ${y1} ${x1} ${y1}`;}
+    const last=pts[pts.length-1], diff=(last-pts[0]).toFixed(1).replace('.',',');
+    $('#wtBody').innerHTML = `
+      <div class="num pop"><span class="count" data-to="${last}" data-dec="1">0</span><small>кг<br>${diff} кг от началото</small></div>
+      <svg class="wave pop" viewBox="0 0 ${W} ${H}" aria-label="тегло по седмици">
+        <defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ccf8a" stop-opacity=".55"/><stop offset="1" stop-color="#5ccf8a" stop-opacity="0"/></linearGradient></defs>
+        <path class="area" d="${d} L${X(pts.length-1)} ${H} L${X(0)} ${H} Z"/>
+        <path class="goal" d="M${px} ${Y(WEIGHT.goal)} H${W-px}"/><text x="${W-px}" y="${Y(WEIGHT.goal)-6}" text-anchor="end">цел ${WEIGHT.goal}</text>
+        <path class="ln" d="${d}"/>
+        ${pts.map((v,i)=>`<circle cx="${X(i)}" cy="${Y(v)}" r="${i===pts.length-1?8:5}" fill="${i===pts.length-1?'#e0693a':'#fff'}" stroke="#2b7a56" stroke-width="3"/>`).join('')}
+        <text x="${X(0)}" y="${Y(pts[0])-12}" text-anchor="middle">${String(pts[0]).replace('.',',')}</text>
+      </svg>`;
+  }
+
+  /* промоции + синхронизация */
+  function renderPromo(){
+    $('#tags').innerHTML = PROMO.map(p=>`<div class="ptag pop"><div class="s">${esc(p.s)}</div><div class="n">${esc(p.n)}</div><div class="p">${esc(p.p)}<small>${esc(p.until)}</small></div></div>`).join('');
+  }
+  function renderSync(){
+    $('#syncList').innerHTML = `
+      <div class="st pop"><span class="led"></span>Календар · ${SYNC.cal}</div>
+      <div class="st warn pop"><span class="led"></span>Wallet не отговаря · данни от ${SYNC.wallet}</div>
+      <div class="st pop"><span class="led"></span>Промоции · ${SYNC.promo}</div>`;
+  }
+
+  function countUp(){
+    document.querySelectorAll('.count').forEach((el,k)=>{
+      const to=+el.dataset.to, dec=+(el.dataset.dec||0);
+      const show=v=>{ el.textContent = dec ? v.toLocaleString('bg-BG',{minimumFractionDigits:dec,maximumFractionDigits:dec}) : fmt(Math.round(v)); };
+      if(reduced){ show(to); return; }
+      const dur=1600, t0=performance.now()+300+k*150;
+      const step=now=>{ const t=Math.max(0,Math.min(1,(now-t0)/dur)); const e=1-Math.pow(1-t,3); show(to*e); if(t<1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    });
+  }
+  function stagger(){ let i=0; document.querySelectorAll('.pop').forEach(el=>{ el.style.animationDelay=Math.min(i++*40,1600)+'ms'; }); }
+
+  renderCal(); renderBud(); renderCook(); renderMenu(); renderLists(); renderWeight(); renderPromo(); renderSync();
+  $('#fresh').textContent=RECIPES.fresh;
+  counts(); stagger(); countUp(); clock(); setInterval(clock,1000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!-- ПРОТОТИП (throwaway): вариант 08 · Синтуейв -->
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>08 · Синтуейв</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Monoton&family=Rubik+Mono+One&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pink:#ff2bd6; --cyan:#19f0ff; --yel:#ffe14d; --org:#ff7a1a; --red:#ff2d55; --grn:#39ff88;
+  --ink:#fff4fb; --dim:#c9a6e6; --panel:rgba(14,2,38,.74);
+  --fs:21px; --h:17px;
+  --chrome:linear-gradient(180deg,#fff 0%,#e3f6ff 38%,#7fe8ff 49%,#1f6fb0 51%,#9fe0ff 62%,#fff 100%);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#120326;color:var(--ink);font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:var(--fs);line-height:1.3;overflow-x:hidden}
+/* ---- фон: залез, слънце, планини, мрежа ---- */
+.sky{position:fixed;inset:0;z-index:0;background:linear-gradient(180deg,#0b0220 0%,#2a0a5e 28%,#7a1a8c 46%,#d6287f 58%,#ff6a3d 66%,#1a0433 66.5%,#0b0220 100%)}
+.sun{position:fixed;left:50%;top:62%;width:min(44vw,560px);aspect-ratio:1;transform:translate(-50%,-72%);border-radius:50%;z-index:0;
+  background:linear-gradient(180deg,#fff4a8 0%,#ffd23d 28%,#ff6a9c 60%,#ff2bd6 100%);
+  -webkit-mask:repeating-linear-gradient(180deg,#000 0 7.5%,transparent 7.5% 9.5%) ,linear-gradient(#000 0 0);-webkit-mask-composite:source-in;
+  mask:repeating-linear-gradient(180deg,#000 0 7.5%,transparent 7.5% 9.5%);
+  box-shadow:0 0 80px 10px rgba(255,120,80,.45);animation:sun 6s ease-in-out infinite}
+.sun::after{content:"";position:absolute;inset:0;border-radius:50%;background:linear-gradient(180deg,transparent 55%,rgba(26,4,51,.0) 55%)}
+@keyframes sun{50%{transform:translate(-50%,-74%) scale(1.03);box-shadow:0 0 120px 24px rgba(255,120,80,.6)}}
+.mtn{position:fixed;left:0;right:0;top:0;height:100vh;z-index:0;pointer-events:none}
+.mtn svg{position:absolute;left:0;width:100%;top:calc(66% - 14vh);height:14vh;display:block}
+.grid{position:fixed;left:-30%;right:-30%;top:66%;height:60%;z-index:0;transform-origin:50% 0;transform:perspective(520px) rotateX(64deg);
+  background:linear-gradient(to bottom,rgba(25,240,255,0) 0 92%,var(--cyan) 92% 100%) 0 0/100% 70px,
+             linear-gradient(to right,rgba(255,43,214,0) 0 98.4%,var(--pink) 98.4% 100%) 0 0/110px 100%;
+  animation:grid 1.8s linear infinite;box-shadow:0 -40px 60px rgba(255,43,214,.25)}
+@keyframes grid{to{background-position:0 70px,0 0}}
+.scan{position:fixed;inset:0;z-index:3;pointer-events:none;background:repeating-linear-gradient(180deg,rgba(0,0,0,0) 0 3px,rgba(0,0,0,.14) 3px 4px);mix-blend-mode:multiply}
+/* ---- оформление ---- */
+main{position:relative;z-index:2;display:grid;gap:18px;padding:18px 28px 22px;min-height:100vh;align-content:start;
+  grid-template-columns:1.12fr .95fr 1.6fr 1.05fr 1fr;
+  grid-template-areas:"hdr hdr hdr hdr hdr" "c1 c2 c3 c4 c5" "tick tick tick tick tick"}
+.col{display:flex;flex-direction:column;gap:18px}
+.c1{grid-area:c1}.c2{grid-area:c2}.c3{grid-area:c3}.c4{grid-area:c4}.c5{grid-area:c5}.hdr{grid-area:hdr}.tick{grid-area:tick}
+.p{position:relative;background:var(--panel);border:2px solid var(--pink);padding:14px 16px 16px;
+  box-shadow:0 0 14px rgba(255,43,214,.55),inset 0 0 24px rgba(255,43,214,.12);opacity:0;animation:boot .7s cubic-bezier(.2,.9,.3,1.2) both;transition:box-shadow .3s,transform .3s}
+.p.cy{border-color:var(--cyan);box-shadow:0 0 14px rgba(25,240,255,.55),inset 0 0 24px rgba(25,240,255,.12)}
+.p:hover{box-shadow:0 0 28px rgba(255,43,214,.9),inset 0 0 30px rgba(255,43,214,.2);transform:translateY(-2px)}
+.p.cy:hover{box-shadow:0 0 28px rgba(25,240,255,.9),inset 0 0 30px rgba(25,240,255,.2)}
+.p::before{content:"";position:absolute;left:-2px;top:-2px;width:22px;height:22px;border-left:6px solid var(--cyan);border-top:6px solid var(--cyan)}
+.p.cy::before{border-color:var(--pink)}
+@keyframes boot{from{opacity:0;transform:scaleY(.02) translateY(30px);filter:brightness(3)}60%{opacity:1;transform:scaleY(1.04)}to{opacity:1;transform:none}}
+h2{font-family:"Rubik Mono One",Impact,sans-serif;font-weight:400;font-size:var(--h);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;
+  background:var(--chrome);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #4a0a6a) drop-shadow(0 0 8px rgba(25,240,255,.5));animation:flick 7s infinite}
+h2 small{font-family:"JetBrains Mono",monospace;font-size:.8em;letter-spacing:0;text-transform:none}
+@keyframes flick{0%,18%,20%,23%,100%{opacity:1}19%,21.5%{opacity:.55}}
+.mono{font-family:Monoton,"Rubik Mono One",cursive;font-weight:400;line-height:1;letter-spacing:.02em}
+.neon{color:var(--cyan);text-shadow:0 0 6px var(--cyan),0 0 18px var(--cyan),0 0 42px rgba(25,240,255,.6)}
+.neonp{color:var(--pink);text-shadow:0 0 6px var(--pink),0 0 18px var(--pink),0 0 42px rgba(255,43,214,.6)}
+.neony{color:var(--yel);text-shadow:0 0 6px var(--yel),0 0 18px rgba(255,225,77,.7)}
+.dim{color:var(--dim)}
+/* ---- заглавие ---- */
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:6px 0 0}
+.clock{font-size:92px}
+.clock b{font-weight:400;animation:blink 1s steps(2) infinite}
+@keyframes blink{to{opacity:.3}}
+.date{font-family:"Rubik Mono One",Impact,sans-serif;font-size:24px;letter-spacing:.06em;text-transform:uppercase;background:var(--chrome);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #4a0a6a)}
+.leds{display:flex;flex-direction:column;gap:4px;font-size:.84em;text-transform:uppercase;letter-spacing:.06em}
+.leds div{display:flex;align-items:center;gap:10px}
+.leds i{width:14px;height:14px;border-radius:2px;background:var(--grn);box-shadow:0 0 10px var(--grn);animation:breathe 2.6s infinite}
+.leds .w{color:var(--yel)}.leds .w i{background:var(--yel);box-shadow:0 0 12px var(--yel);animation-duration:.8s}
+@keyframes breathe{50%{opacity:.5}}
+/* ---- календар: касета + плейлист ---- */
+.tape{position:relative;background:linear-gradient(180deg,#2b0d55,#160636);border:2px solid var(--cyan);border-radius:10px;padding:10px 12px 12px;margin-bottom:12px;box-shadow:inset 0 0 20px rgba(25,240,255,.2)}
+.tape .lbl{display:flex;justify-content:space-between;align-items:baseline;font-family:"Rubik Mono One",sans-serif;font-size:.78em;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.tape .lbl b{color:var(--yel);text-shadow:0 0 8px var(--yel)}
+.reels{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 14px;background:rgba(0,0,0,.4);border-radius:40px;margin-bottom:10px;border:1px solid rgba(255,43,214,.5)}
+.reel{width:42px;height:42px;border-radius:50%;border:4px dashed var(--cyan);box-shadow:0 0 10px var(--cyan);animation:spin 3s linear infinite}
+.reel.r{animation-duration:4.6s}
+@keyframes spin{to{transform:rotate(360deg)}}
+.reels .win{flex:1;height:10px;background:repeating-linear-gradient(90deg,var(--pink) 0 8px,transparent 8px 14px);opacity:.8}
+.tr{display:flex;align-items:baseline;gap:10px;padding:3px 0;transition:.25s}
+.tr:hover{transform:translateX(6px);text-shadow:0 0 10px var(--cyan)}
+.tr .no{color:var(--pink);font-weight:700;min-width:1.9em;text-shadow:0 0 8px var(--pink)}
+.tr .t{color:var(--dim);min-width:2.6em;font-size:.9em}
+.tr .n{flex:1}
+.av{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:4px;font-weight:700;font-size:14px;color:#1a0433;background:var(--pc);box-shadow:0 0 10px var(--pc);font-style:normal;flex:none;align-self:center}
+.side{font-family:"Rubik Mono One",sans-serif;font-size:.66em;letter-spacing:.08em;color:var(--cyan);text-shadow:0 0 8px var(--cyan);margin:10px 0 4px;text-transform:uppercase}
+.tape .tr{font-size:1.02em}.tape .tr .n{font-weight:700}
+/* ---- бюджет: VU ---- */
+.vu{display:grid;grid-template-columns:repeat(20,1fr);gap:4px;height:46px;margin:10px 0 4px;position:relative}
+.vu i{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);transition:background .2s,box-shadow .2s}
+.vu i.on{background:var(--c);box-shadow:0 0 10px var(--c);border-color:var(--c)}
+.vu i.on:nth-last-child(-n+1){animation:peak .9s infinite}
+@keyframes peak{50%{opacity:.4}}
+.vuscale{position:relative;height:30px;font-size:.72em;color:var(--dim);letter-spacing:.04em}
+.vuscale .d{position:absolute;top:0;transform:translateX(-50%);text-align:center;color:var(--yel);text-shadow:0 0 8px var(--yel);white-space:nowrap}
+.vuscale .d::before{content:"▲";display:block;line-height:.8}
+.vuscale .z{position:absolute;right:0;top:4px}.vuscale .o{position:absolute;left:0;top:4px}
+.bigrow{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.bud .mono{font-size:72px}
+.bud.over .mono{color:var(--red);text-shadow:0 0 10px var(--red),0 0 30px var(--red);animation:alarm .6s steps(2) infinite}
+@keyframes alarm{to{opacity:.5}}
+.sub{color:var(--dim);font-size:.86em;margin-top:6px}
+.sub b{color:var(--ink)}
+/* ---- готвене ---- */
+.cook .dn{font-family:"Rubik Mono One",sans-serif;font-size:26px;line-height:1.15;margin:4px 0 8px;background:linear-gradient(180deg,#fff 0,#ffe14d 45%,#ff7a1a 55%,#fff0c0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #6a0a3a) drop-shadow(0 0 10px rgba(255,122,26,.5))}
+.cook .l b{color:var(--ink)}
+.who{display:flex;align-items:center;gap:10px;margin-top:8px;color:var(--dim)}
+/* ---- меню: тракове ---- */
+.track{display:grid;grid-template-columns:2.4em 1fr auto;align-items:center;gap:6px 12px;padding:5px 0;border-bottom:1px dashed rgba(255,43,214,.35);transition:.25s}
+.track:last-child{border-bottom:0}
+.track:hover{background:rgba(255,43,214,.08)}
+.track .no{font-family:"Rubik Mono One",sans-serif;color:var(--pink);text-shadow:0 0 8px var(--pink);font-size:.9em}
+.track .no small{display:block;font-family:"JetBrains Mono",monospace;font-size:.7em;color:var(--dim);text-shadow:none;text-transform:uppercase}
+.track .dn{font-weight:700;line-height:1.15}
+.track .l{font-size:.74em;color:var(--dim);line-height:1.2}
+.track.now .dn{color:var(--cyan);text-shadow:0 0 10px var(--cyan)}
+.bars{display:inline-flex;gap:2px;align-items:flex-end;height:14px;margin-left:8px;vertical-align:-1px}
+.bars i{width:3px;background:var(--cyan);box-shadow:0 0 6px var(--cyan);animation:eq .7s ease-in-out infinite alternate}
+.bars i:nth-child(2){animation-delay:-.2s}.bars i:nth-child(3){animation-delay:-.45s}.bars i:nth-child(4){animation-delay:-.1s}
+@keyframes eq{from{height:3px}to{height:14px}}
+.votes{display:flex;gap:10px;align-items:center}
+.vote{display:flex;align-items:center;gap:3px}
+.vote .av{width:22px;height:22px;font-size:12px}
+.vb{width:28px;height:26px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.25);border-radius:3px;cursor:pointer;color:var(--dim);font-size:14px;transition:.2s;user-select:none}
+.vb:hover{border-color:var(--cyan);color:var(--cyan)}
+.vb.on{color:#1a0433;background:var(--grn);border-color:var(--grn);box-shadow:0 0 12px var(--grn)}
+.vb.on.dn{background:var(--red);border-color:var(--red);box-shadow:0 0 12px var(--red);color:#fff}
+/* ---- списъци ---- */
+.row{display:flex;align-items:center;gap:10px;padding:4px 0;cursor:pointer;transition:.2s}
+.row:hover{text-shadow:0 0 10px var(--cyan)}
+.ck{width:24px;height:24px;flex:none;border:2px solid var(--cyan);box-shadow:0 0 8px rgba(25,240,255,.5);display:grid;place-items:center;font-size:16px;font-weight:700;color:var(--cyan);transition:.2s}
+.row.on .ck{background:var(--cyan);color:#0b0220;box-shadow:0 0 14px var(--cyan)}
+.row.on .ck::after{content:"✓"}
+.row.on .n{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--pink)}
+.row .n{flex:1;line-height:1.2}
+.row .q{color:var(--dim);font-size:.8em}
+.row .tag{font-size:.7em;color:var(--pink);border:1px solid var(--pink);padding:1px 5px;text-shadow:0 0 6px var(--pink);white-space:nowrap}
+.row .m{color:var(--dim);font-size:.78em;white-space:nowrap;text-transform:uppercase}
+/* ---- тренировка ---- */
+.prog{height:14px;border:1px solid var(--pink);margin-top:10px;background:rgba(0,0,0,.35);position:relative;overflow:hidden}
+.prog i{position:absolute;left:0;top:0;bottom:0;background:repeating-linear-gradient(90deg,var(--pink) 0 10px,transparent 10px 13px);box-shadow:0 0 10px var(--pink);transition:width 1.2s cubic-bezier(.2,.9,.2,1)}
+/* ---- тегло: еквалайзер ---- */
+.eq{display:flex;align-items:flex-end;gap:8px;height:96px;margin-top:8px;padding-bottom:4px;border-bottom:2px solid var(--cyan);box-shadow:0 2px 10px rgba(25,240,255,.4)}
+.eq .b{flex:1;position:relative;height:0;transition:height 1.4s cubic-bezier(.2,.9,.2,1);
+  background:repeating-linear-gradient(180deg,transparent 0 3px,rgba(10,0,30,.9) 3px 5px),linear-gradient(180deg,var(--pink),var(--cyan));background-blend-mode:normal;box-shadow:0 0 10px rgba(255,43,214,.5)}
+.eq .b:first-child::after,.eq .b.last::after{content:attr(data-v);position:absolute;left:50%;top:-22px;transform:translateX(-50%);font-size:.62em;color:var(--dim);white-space:nowrap}
+.eq .b.last{box-shadow:0 0 18px var(--cyan);animation:peak 1.2s infinite}
+.eq .b.last::after{color:var(--cyan);font-weight:700}
+.wt .mono{font-size:52px}
+.wt .goal{font-size:.84em;color:var(--dim);margin-top:6px}
+/* ---- рецепти ---- */
+.rec .mono{font-size:52px}
+/* ---- тикер: промоции ---- */
+.tick{overflow:hidden;border-top:2px solid var(--cyan);border-bottom:2px solid var(--cyan);background:rgba(10,0,30,.8);box-shadow:0 0 16px rgba(25,240,255,.5);padding:8px 0;white-space:nowrap;opacity:0;animation:boot .7s .8s both}
+.tick .m{display:inline-block;animation:marq 28s linear infinite;font-family:"Rubik Mono One",sans-serif;font-size:22px;letter-spacing:.06em;text-transform:uppercase}
+.tick .m span{margin-right:3em}
+.tick .m b{color:var(--yel);text-shadow:0 0 8px var(--yel);font-weight:400}
+.tick .m em{font-style:normal;color:var(--cyan);text-shadow:0 0 8px var(--cyan)}
+.tick:hover .m{animation-play-state:paused}
+@keyframes marq{to{transform:translateX(-50%)}}
+/* ---- таблет ---- */
+@media (max-width:1500px){
+  :root{--fs:19px;--h:15px}
+  .col{display:contents}
+  main{grid-template-columns:1fr 1fr;grid-template-areas:"hdr hdr" "cal bud" "cal cook" "menu menu" "shop task" "wt work" "rec rec" "tick tick";gap:16px;padding:16px 20px}
+  .cal{grid-area:cal}.bud{grid-area:bud}.cook{grid-area:cook}.menu{grid-area:menu}.shop{grid-area:shop}.task{grid-area:task}.wt{grid-area:wt}.work{grid-area:work}.rec{grid-area:rec}
+  .clock{font-size:70px}.date{font-size:20px}.bud .mono{font-size:66px}
+  .sun{top:40%}
+}
+/* ---- телефон ---- */
+@media (max-width:760px){
+  :root{--fs:17px;--h:14px}
+  main{display:flex;flex-direction:column;gap:14px;padding:12px 16px 20px}
+  .hdr{order:0}.cal{order:1}.bud{order:2}.cook{order:3}.menu{order:4}.shop{order:5}.task{order:6}.work{order:7}.wt{order:8}.rec{order:9}.tick{order:10}
+  .clock{font-size:52px}.date{font-size:16px}.bud .mono{font-size:58px}.cook .dn{font-size:24px}
+  .track{grid-template-columns:2.2em 1fr;grid-template-areas:"no dn" "no v"}
+  .track .no{grid-area:no}.track .dn{grid-area:dn}.votes{grid-area:v;justify-content:flex-start}
+  .vu{height:34px;gap:3px}.sun{top:30%;width:70vw}
+  .tick .m{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01s!important;animation-iteration-count:1!important;transition-duration:.01s!important}
+  .p,.tick{opacity:1}
+}
+/* ?static – само за headless снимки */
+html.static *{animation:none!important;transition:none!important}
+html.static .p,html.static .tick{opacity:1}
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<div class="sun"></div>
+<div class="mtn"><svg viewBox="0 0 1920 160" preserveAspectRatio="none"><polygon fill="#1a0433" points="0,160 0,120 140,70 260,110 380,40 520,100 640,60 760,120 900,30 1040,110 1180,70 1320,120 1460,50 1600,100 1740,60 1920,120 1920,160"/><polygon fill="#2a0a5e" opacity=".9" points="0,160 0,140 200,110 360,140 520,100 700,145 860,110 1040,150 1200,120 1380,150 1540,115 1720,145 1920,125 1920,160"/></svg></div>
+<div class="grid"></div>
+<div class="scan"></div>
+
+<main>
+  <header class="hdr">
+    <div class="bigrow">
+      <div class="clock mono neon" id="clock"></div>
+      <div class="date" id="date"></div>
+    </div>
+    <div class="leds" id="sync"></div>
+  </header>
+
+  <div class="col c1">
+    <section class="p cy cal">
+      <h2>Календар <small>· плейлист</small></h2>
+      <div class="tape" id="tape"></div>
+      <div id="next"></div>
+    </section>
+  </div>
+
+  <div class="col c2">
+    <section class="p bud" id="bud">
+      <h2>Бюджет <small>· VU</small></h2>
+      <div class="bigrow"><div class="mono neonp" id="rem">0</div><div class="dim">лв остават</div></div>
+      <div class="vu" id="vu"></div>
+      <div class="vuscale"><span class="o">0</span><span class="d" id="dmark">днес</span><span class="z" id="lim"></span></div>
+      <div class="sub" id="bsub"></div>
+    </section>
+    <section class="p cy cook">
+      <h2>Днес се готви</h2>
+      <div class="dn" id="cdn"></div>
+      <div class="l dim" id="cl"></div>
+      <div class="who" id="cwho"></div>
+    </section>
+    <section class="p wt">
+      <h2>Тегло <small>· еквалайзер</small></h2>
+      <div class="bigrow"><div class="mono neon" id="wnow">0</div><div class="dim">кг</div></div>
+      <div class="eq" id="eq"></div>
+      <div class="goal" id="wgoal"></div>
+    </section>
+  </div>
+
+  <div class="col c3">
+    <section class="p menu">
+      <h2>Седмично меню <small>· 7 трака</small></h2>
+      <div id="tracks"></div>
+    </section>
+  </div>
+
+  <div class="col c4">
+    <section class="p cy shop">
+      <h2>Пазаруване <small id="shopn"></small></h2>
+      <div id="shop"></div>
+    </section>
+  </div>
+
+  <div class="col c5">
+    <section class="p task">
+      <h2>Задачи <small id="taskn"></small></h2>
+      <div id="tasks"></div>
+    </section>
+    <section class="p cy work">
+      <h2>Тренировка <small id="workn"></small></h2>
+      <div id="work"></div>
+      <div class="prog"><i id="wprog"></i></div>
+    </section>
+    <section class="p cy rec">
+      <h2>Рецепти</h2>
+      <div class="bigrow"><div class="mono neon" id="recn">0</div><div><span class="neony" id="recf"></span> нови<br><span class="dim">предложения</span></div></div>
+    </section>
+  </div>
+
+  <div class="tick"><div class="m" id="ticker"></div></div>
+</main>
+
+<script src="data.js"></script>
+<script>
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STATIC = location.search.includes('static');
+if(STATIC)document.documentElement.classList.add('static');
+const av=w=>`<i class="av" style="--pc:${P[w].c}">${P[w].i}</i>`;
+function countUp(el,to,dec=0,ms=1400){
+  const out=v=>el.textContent=dec?v.toLocaleString('bg-BG',{minimumFractionDigits:dec,maximumFractionDigits:dec}):fmt(Math.round(v));
+  if(RM||STATIC){out(to);return}
+  const t0=performance.now();
+  (function st(now){const k=Math.min(1,(now-t0)/ms);out(to*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(st)})(t0);
+}
+document.querySelectorAll('.p').forEach((p,i)=>p.style.animationDelay=(i*.09)+'s');
+
+/* часовник */
+function tick(){const d=new Date();$('#clock').innerHTML=clockStr().replace(':','<b>:</b>')}
+tick();setInterval(tick,1000);
+$('#date').textContent=`${DOWL[TODAY.getDay()]} · ${TODAY.getDate()} ${MON[TODAY.getMonth()]} ${TODAY.getFullYear()}`;
+
+/* синхронизация */
+$('#sync').innerHTML=`<div><i></i>Календар · ${SYNC.cal}</div><div class="w"><i></i>Wallet не отговаря · данни от ${SYNC.wallet}</div><div><i></i>Промоции · ${SYNC.promo}</div>`;
+
+/* календар */
+const td=CAL[0];
+$('#tape').innerHTML=`<div class="lbl"><span>Side A · <b>днес</b></span><span>${TODAY.getDate()} ${MON[TODAY.getMonth()]}</span></div>
+  <div class="reels"><div class="reel"></div><div class="win"></div><div class="reel r"></div></div>
+  ${td.ev.map((e,i)=>`<div class="tr"><span class="no">A${i+1}</span><span class="t">${e.t}</span><span class="n">${esc(e.n)}</span>${av(e.w)}</div>`).join('')}`;
+$('#next').innerHTML=CAL.slice(1).map(d=>{const dt=addD(TODAY,d.o);
+  return `<div class="side">Side B · ${DOWL[dt.getDay()]} ${dt.getDate()} ${MON[dt.getMonth()]}</div>`+
+  d.ev.map((e,i)=>`<div class="tr"><span class="no">B${d.o}${i+1}</span><span class="t">${e.t}</span><span class="n">${esc(e.n)}</span>${av(e.w)}</div>`).join('')}).join('');
+
+/* бюджет */
+countUp($('#rem'),BUDGET.rem);
+if(over)$('#bud').classList.add('over');
+const SEG=20,lit=Math.round(pct/100*SEG);
+$('#vu').innerHTML=Array.from({length:SEG},(_,i)=>{const c=over?'var(--red)':i<12?'var(--grn)':i<16?'var(--yel)':'var(--red)';return `<i style="--c:${c}" data-i="${i}"></i>`}).join('');
+function lightVU(n){document.querySelectorAll('#vu i').forEach((el,i)=>el.classList.toggle('on',i<n))}
+if(RM||STATIC)lightVU(lit);else{let n=0;const iv=setInterval(()=>{n++;lightVU(n);if(n>=lit)clearInterval(iv)},70)}
+$('#dmark').style.left=dayPct+'%';
+$('#lim').textContent=fmt(BUDGET.limit);
+$('#bsub').innerHTML=`похарчени <b>${fmt(BUDGET.spent)}</b> лв · ~<b>${fmt(BUDGET.pace)}</b> лв/ден до края`;
+
+/* готвене */
+$('#cdn').textContent=MENU[0].dn;
+$('#cl').innerHTML=`обяд · <b>${esc(MENU[0].l)}</b>`;
+$('#cwho').innerHTML=`${av(MENU[0].cook)} готви ${esc(P[MENU[0].cook].n)}`;
+
+/* меню – тракове */
+function renderMenu(){
+  $('#tracks').innerHTML=MENU.map((m,i)=>`<div class="track${i===0?' now':''}">
+    <div class="no">${String(i+1).padStart(2,'0')}<small>${m.d}</small></div>
+    <div><div class="dn">${esc(m.dn)}${i===0?'<span class="bars"><i></i><i></i><i></i><i></i></span>':''}</div>
+      <div class="l">обяд · ${esc(m.l)} · готви ${esc(P[m.cook].n)}</div></div>
+    <div class="votes">${['D','S'].map(w=>`<div class="vote">${av(w)}
+      <span class="vb up${STATE.votes[i][w]===1?' on':''}" data-i="${i}" data-w="${w}" data-v="1">▲</span>
+      <span class="vb dn${STATE.votes[i][w]===-1?' on':''}" data-i="${i}" data-w="${w}" data-v="-1">▼</span></div>`).join('')}</div>
+  </div>`).join('');
+}
+renderMenu();
+$('#tracks').onclick=e=>{const s=e.target.closest('.vb');if(!s)return;const {i,w,v}=s.dataset;STATE.votes[i][w]=STATE.votes[i][w]===+v?0:+v;renderMenu()};
+
+/* списъци */
+function renderShop(){
+  $('#shop').innerHTML=SHOP.map((x,i)=>`<div class="row${STATE.shop[i]?' on':''}" data-i="${i}"><i class="ck"></i>
+    <span class="n">${esc(x.n)} <span class="q">${esc(x.q)}</span></span>${x.promo?`<span class="tag">${esc(x.promo)}</span>`:`<span class="m">${esc(x.a)}</span>`}</div>`).join('');
+  $('#shopn').textContent=`· ${STATE.shop.filter(Boolean).length}/${SHOP.length}`;
+}
+function renderTasks(){
+  $('#tasks').innerHTML=TASKS.map((x,i)=>`<div class="row${STATE.tasks[i]?' on':''}" data-i="${i}"><i class="ck"></i>
+    <span class="n">${esc(x.n)}</span><span class="m">${esc(x.due)}</span>${av(x.w)}</div>`).join('');
+  $('#taskn').textContent=`· ${STATE.tasks.filter(Boolean).length}/${TASKS.length}`;
+}
+function renderWork(){
+  $('#work').innerHTML=WORK.map((x,i)=>`<div class="row${STATE.work[i]?' on':''}" data-i="${i}"><i class="ck"></i>
+    <span class="n">${esc(x.n)}</span><span class="m">${esc(x.s)}</span></div>`).join('');
+  const d=STATE.work.filter(Boolean).length;
+  $('#workn').textContent=`· ${d}/${WORK.length}`;
+  $('#wprog').style.width=Math.round(d/WORK.length*100)+'%';
+}
+renderShop();renderTasks();renderWork();
+const tog=(id,arr,fn)=>$(id).onclick=e=>{const r=e.target.closest('.row');if(!r)return;arr[r.dataset.i]=!arr[r.dataset.i];fn()};
+tog('#shop',STATE.shop,renderShop);tog('#tasks',STATE.tasks,renderTasks);tog('#work',STATE.work,renderWork);
+
+/* рецепти */
+countUp($('#recn'),RECIPES.total);$('#recf').textContent='+'+RECIPES.fresh;
+
+/* тегло – еквалайзер */
+(function(){
+  const pts=WEIGHT.pts,last=pts[pts.length-1],lo=WEIGHT.goal-1,hi=Math.max(...pts)+.3;
+  $('#eq').innerHTML=pts.map((v,i)=>`<div class="b${i===pts.length-1?' last':''}" data-v="${v.toFixed(1).replace('.',',')}" data-h="${Math.round((v-lo)/(hi-lo)*100)}"></div>`).join('');
+  const go=()=>document.querySelectorAll('.eq .b').forEach(b=>b.style.height=b.dataset.h+'%');
+  if(RM||STATIC)go();else requestAnimationFrame(()=>requestAnimationFrame(go));
+  countUp($('#wnow'),last,1);
+  $('#wgoal').innerHTML=`цел <b class="neonp">${WEIGHT.goal} кг</b> · още ${(last-WEIGHT.goal).toFixed(1).replace('.',',')} кг · <b class="neon">${(last-pts[0]).toFixed(1).replace('.',',')}</b> кг за 8 седм.`;
+})();
+
+/* промоции – тикер */
+const items=PROMO.map(x=>`<span><em>${esc(x.s)}</em> ${esc(x.n)} <b>${esc(x.p)}</b> ${esc(x.until)}</span>`).join('');
+$('#ticker').innerHTML=items+items;
+</script>
+</body>
+</html>
