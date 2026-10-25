@@ -20,7 +20,24 @@ const defaults = {
   API_PORT: 18091,
   LOG_LEVEL: 'info',
   DATABASE_URL,
+  calendarConfigured: false,
+  budgetConfigured: false,
 };
+
+const calendars = [
+  {
+    googleCalendarId: 'dani@example.com',
+    name: 'Дани',
+    ownerUserId: '11111111-1111-4111-8111-111111111111',
+    colorToken: 'person-1',
+  },
+  {
+    googleCalendarId: 'family@group.calendar.google.com',
+    name: 'Семеен',
+    ownerUserId: null,
+    colorToken: 'family',
+  },
+];
 
 describe('loadConfig', () => {
   it('falls back to loopback defaults when only the required variables are given', () => {
@@ -117,6 +134,83 @@ describe('loadConfig', () => {
       expect(
         loadConfig({ ...cloudflare, NODE_ENV: 'production' }),
       ).toMatchObject({ NODE_ENV: 'production', auth: { mode: 'cloudflare' } });
+    });
+  });
+
+  describe('Google Calendar and Wallet', () => {
+    it('are optional: without them the api starts with both sources unconfigured', () => {
+      expect(loadConfig(dev)).toMatchObject({
+        calendarConfigured: false,
+        budgetConfigured: false,
+      });
+    });
+
+    it('treat empty values (blank lines in .env) as missing', () => {
+      expect(
+        loadConfig({
+          ...dev,
+          GOOGLE_SERVICE_ACCOUNT_JSON: '',
+          GOOGLE_CALENDARS: '',
+          WALLET_API_TOKEN: '',
+          WALLET_BUDGET_ID: '',
+        }),
+      ).toMatchObject({ calendarConfigured: false, budgetConfigured: false });
+    });
+
+    it('parse GOOGLE_CALENDARS as a JSON list of calendar sources', () => {
+      const config = loadConfig({
+        ...dev,
+        GOOGLE_SERVICE_ACCOUNT_JSON: '{"type":"service_account"}',
+        GOOGLE_CALENDARS: JSON.stringify(calendars),
+      });
+
+      expect(config.GOOGLE_CALENDARS).toEqual(calendars);
+      expect(config.calendarConfigured).toBe(true);
+    });
+
+    it('need both the service account and the calendars for the calendar to be configured', () => {
+      expect(
+        loadConfig({ ...dev, GOOGLE_CALENDARS: JSON.stringify(calendars) })
+          .calendarConfigured,
+      ).toBe(false);
+      expect(
+        loadConfig({ ...dev, GOOGLE_SERVICE_ACCOUNT_JSON: '{}' })
+          .calendarConfigured,
+      ).toBe(false);
+    });
+
+    it('reject GOOGLE_CALENDARS that is not JSON', () => {
+      expect(() =>
+        loadConfig({ ...dev, GOOGLE_CALENDARS: '[{googleCalendarId:' }),
+      ).toThrow(/GOOGLE_CALENDARS/);
+    });
+
+    it('reject a calendar with a colour that is not a calendar token', () => {
+      expect(() =>
+        loadConfig({
+          ...dev,
+          GOOGLE_CALENDARS: JSON.stringify([
+            { ...calendars[0], colorToken: '#d9480f' },
+          ]),
+        }),
+      ).toThrow(/GOOGLE_CALENDARS/);
+    });
+
+    it('need both the Wallet token and the budget id for the budget to be configured', () => {
+      expect(
+        loadConfig({ ...dev, WALLET_API_TOKEN: 'token' }).budgetConfigured,
+      ).toBe(false);
+      expect(
+        loadConfig({
+          ...dev,
+          WALLET_API_TOKEN: 'token',
+          WALLET_BUDGET_ID: 'budget-1',
+        }),
+      ).toMatchObject({
+        WALLET_API_TOKEN: 'token',
+        WALLET_BUDGET_ID: 'budget-1',
+        budgetConfigured: true,
+      });
     });
   });
 });
