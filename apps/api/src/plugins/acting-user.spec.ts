@@ -49,6 +49,13 @@ describe('acting user (X-Acting-User)', () => {
     expect(response.json()).toMatchObject({ error: 'unknown_acting_user' });
   });
 
+  it('lets an unknown /api route answer 404 not_found without an acting user', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/nope' });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: 'not_found' });
+  });
+
   it('GET /api/me returns the acting user together with the Access e-mail', async () => {
     const response = await getMe(DANI.id);
 
