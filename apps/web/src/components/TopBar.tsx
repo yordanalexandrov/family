@@ -1,14 +1,12 @@
+import type { Freshness, SyncSource } from '@family/shared';
 import './TopBar.css';
 
 /*
  * Горната лента на дашборда: вляво датата, вдясно по една точка за всеки източник.
- * `sync` е обектът от `GET /api/dashboard` (Дашборд 1); тук се ползва само `status`,
- * за да не зависи лентата от останалите полета.
+ * `sync` е обектът от `GET /api/dashboard`; тук се ползва само `status`, затова и
+ * по-тесен обект (витрината в /dev/glass) става.
  */
-type SyncState = 'ok' | 'stale' | 'failed' | 'unconfigured';
-type SyncSource = 'calendar' | 'budget';
-
-export type TopBarSync = Record<SyncSource, { status: SyncState }>;
+export type TopBarSync = Record<SyncSource, { status: Freshness }>;
 
 interface TopBarProps {
   now: Date;
@@ -21,7 +19,7 @@ const SOURCES: { source: SyncSource; name: string }[] = [
 ];
 
 const STATES: Record<
-  SyncState,
+  Freshness,
   { label: string; tone: 'ok' | 'stale' | 'off' }
 > = {
   ok: { label: 'актуални данни', tone: 'ok' },
