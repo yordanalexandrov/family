@@ -45,7 +45,11 @@ describe('recipeSuggestOutputSchema', () => {
 
   it('rejects two suggestions from the same page', () => {
     const output = validOutput();
-    output.suggestions[2].sourceUrl = `${output.suggestions[0].sourceUrl.toUpperCase().replace('HTTPS://', 'https://www.')}/?utm_source=x#steps`;
+    // Same page: other case of the host, `www.`, a trailing slash, query and fragment.
+    output.suggestions[2].sourceUrl = `${output.suggestions[0].sourceUrl.replace(
+      /^https:\/\/(?:www\.)?([^/]+)/,
+      (_: string, host: string) => `https://www.${host.toUpperCase()}`,
+    )}/?utm_source=x#steps`;
 
     expect(issuePaths(output)).toEqual(['suggestions.2.sourceUrl']);
   });
@@ -111,10 +115,14 @@ describe('recipeSuggestOutputSchema', () => {
 
   it('rejects a pinch with a quantity', () => {
     const output = validOutput();
-    output.suggestions[0].ingredients[6].quantity = 1;
+    output.suggestions[0].ingredients[1] = {
+      ...output.suggestions[0].ingredients[1],
+      unit: 'pinch',
+      quantity: 1,
+    };
 
     expect(issuePaths(output)).toEqual([
-      'suggestions.0.ingredients.6.quantity',
+      'suggestions.0.ingredients.1.quantity',
     ]);
   });
 });

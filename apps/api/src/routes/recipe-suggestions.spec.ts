@@ -213,7 +213,7 @@ describe('the recipe.suggest run', () => {
     if (!first) {
       throw new Error('fixture without suggestions');
     }
-    (first as { nutritionPer100g: unknown }).nutritionPer100g = null;
+    (first as Record<string, unknown>).nutritionPer100g = null;
     const calls = answerInTurn(JSON.stringify(output));
 
     const body = await finished(await requested({ slot: 'dinner' }));
