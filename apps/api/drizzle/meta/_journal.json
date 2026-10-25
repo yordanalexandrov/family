@@ -36,6 +36,13 @@
       "when": 1792963780333,
       "tag": "0004_dashboard",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792966363540,
+      "tag": "0005_menu",
+      "breakpoints": true
     }
   ]
 }

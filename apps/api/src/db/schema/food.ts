@@ -17,9 +17,8 @@ import {
   type Unit,
   unitSchema,
 } from '@family/shared';
-import { type SQL, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import {
-  type AnyPgColumn,
   check,
   index,
   integer,
@@ -31,19 +30,8 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { literals, oneOf } from './checks.js';
 import { user } from './user.js';
-
-// Enums are `text` with a `check` against the values in @family/shared, not Postgres enums,
-// so adding a value is a plain constraint swap in a migration. `$type` gives the columns the shared types.
-
-/** `'a', 'b', …` for `in (…)` and `array[…]`; values are fixed identifiers from shared, never user input. */
-function literals(values: readonly string[]): SQL {
-  return sql.raw(values.map((value) => `'${value}'`).join(', '));
-}
-
-function oneOf(column: AnyPgColumn, values: readonly string[]): SQL {
-  return sql`${column} in (${literals(values)})`;
-}
 
 const createdAt = () =>
   timestamp('created_at', { withTimezone: true }).defaultNow().notNull();
