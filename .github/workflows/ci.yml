@@ -34,6 +34,12 @@ jobs:
       DATABASE_URL_TEST: postgres://family:test@127.0.0.1:5433/family
     steps:
       - uses: actions/checkout@v7
+      # AGENTS.md → Public repo: runner-ът на homesrv е само за deploy.yml, а deploy.yml не тръгва от PR.
+      - name: Runner на homesrv само в deploy.yml
+        run: sh .github/scripts/check-workflows.sh
+      # deploy.yml не върви на PR, затова се проверява тук статично: синтаксис, изрази, shellcheck на run скриптовете.
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
