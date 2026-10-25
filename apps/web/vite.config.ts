@@ -7,6 +7,9 @@ import { defineConfig } from 'vitest/config';
 const THEME_COLOR = '#0f6f6a';
 const BACKGROUND_COLOR = '#eef1f4';
 
+// api слуша на 127.0.0.1:API_PORT (по подразбиране 18091), същата променлива като в docker-compose.yml.
+const API_PORT = process.env.API_PORT || '18091';
+
 export default defineConfig({
   plugins: [
     react(),
@@ -63,7 +66,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:18091',
+      '/api': `http://127.0.0.1:${API_PORT}`,
     },
   },
   test: {
