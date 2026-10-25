@@ -2,8 +2,19 @@ import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
 } from 'fastify';
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from 'fastify-type-provider-zod';
 import { closeDb, createDb, type Db } from './db/client.js';
+import actingUser from './plugins/acting-user.js';
+import cloudflareAccess, {
+  type CloudflareAccessOptions,
+} from './plugins/cloudflare-access.js';
+import errorHandler from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
+import { meRoutes } from './routes/me.js';
+import { usersRoutes } from './routes/users.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -14,7 +25,18 @@ declare module 'fastify' {
 export interface BuildAppOptions {
   logger?: FastifyServerOptions['logger'];
   databaseUrl: string;
+  /**
+   * How `/api/*` requests are authenticated. `server.ts` always passes the configured mode
+   * (and `loadConfig()` refuses dev mode in production); left out, the app runs in dev mode,
+   * which is what tests want.
+   */
+  auth?: CloudflareAccessOptions;
 }
+
+const DEV_AUTH: CloudflareAccessOptions = {
+  mode: 'dev',
+  email: 'dev@example.com',
+};
 
 /**
  * Builds the Fastify instance without listening, so tests can drive it with `app.inject()`.
@@ -23,8 +45,13 @@ export interface BuildAppOptions {
 export function buildApp({
   logger = false,
   databaseUrl,
+  auth = DEV_AUTH,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({ logger });
+
+  // Route schemas are Zod (from @family/shared): they validate the input and check the output.
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
 
   const db = createDb(databaseUrl, (error) =>
     app.log.error({ err: error }, 'postgres pool error'),
@@ -32,7 +59,13 @@ export function buildApp({
   app.decorate('db', db);
   app.addHook('onClose', () => closeDb(db));
 
+  app.register(errorHandler);
+  app.register(cloudflareAccess, auth);
+  app.register(actingUser);
+
   app.register(healthRoutes);
+  app.register(usersRoutes);
+  app.register(meRoutes);
 
   return app;
 }
