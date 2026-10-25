@@ -50,7 +50,9 @@ describe('DeviceScreen', () => {
   it('?device=tv записва режима, пропуска екрана и маха параметъра от адреса', async () => {
     const { router } = renderApp('/?device=tv');
 
-    expect(await screen.findByText('Родителска среща')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('region', { name: 'Днес накратко' }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: 'Какво е това устройство?' }),
     ).not.toBeInTheDocument();
