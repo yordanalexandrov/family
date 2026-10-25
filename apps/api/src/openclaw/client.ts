@@ -56,6 +56,20 @@ export class OpenClawInvalidOutputError extends OpenClawError {
   }
 }
 
+/**
+ * What a failed background run stores as its `error`: the client's own code, `aborted` when the caller aborted
+ * (e.g. the app shutting down), otherwise `error` (a bug).
+ */
+export function failureCode(error: unknown): SuggestionFailure {
+  if (error instanceof OpenClawError) {
+    return error.code;
+  }
+  if (error instanceof Error && error.name === 'AbortError') {
+    return 'aborted';
+  }
+  return 'error';
+}
+
 export interface CompleteOptions<T> {
   /** Agent id; sent as `model: openclaw/<agent>`. */
   agent: string;

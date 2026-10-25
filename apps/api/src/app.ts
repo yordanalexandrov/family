@@ -23,12 +23,14 @@ import { dashboardRoutes } from './routes/dashboard.js';
 import { healthRoutes } from './routes/health.js';
 import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
+import { menuRoutes } from './routes/menu.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
 import { createCalendarSync } from './services/calendar-sync.js';
+import { createMenuService, type MenuService } from './services/menu.js';
 import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
@@ -49,6 +51,8 @@ declare module 'fastify' {
     now: () => Date;
     /** Keeps the `recipe.suggest` runs in flight; `app.close()` aborts and awaits them before the pool closes. */
     recipeSuggestions: RecipeSuggestionsService;
+    /** The weekly menu; keeps the `menu.propose` runs in flight like `recipeSuggestions`. */
+    menu: MenuService;
   }
 }
 
@@ -143,8 +147,15 @@ export function buildApp({
     log: app.log,
   });
   app.decorate('recipeSuggestions', recipeSuggestions);
+  const menu = createMenuService({
+    db,
+    openclaw: openclaw && client ? { client, agent: openclaw.menuAgent } : null,
+    log: app.log,
+    now,
+  });
+  app.decorate('menu', menu);
   app.addHook('onClose', async () => {
-    await recipeSuggestions.close();
+    await Promise.all([recipeSuggestions.close(), menu.close()]);
     await closeDb(db);
   });
   // Runs once the app is ready, i.e. after `server.ts` applied the migrations. Not fatal: the api serves without it.
@@ -156,6 +167,14 @@ export function buildApp({
       }
     } catch (error) {
       app.log.error({ err: error }, 'could not fail stale suggestion requests');
+    }
+    try {
+      const failed = await menu.failStaleProposals();
+      if (failed > 0) {
+        app.log.warn({ failed }, 'stale menu proposals marked failed');
+      }
+    } catch (error) {
+      app.log.error({ err: error }, 'could not fail stale menu proposals');
     }
   });
 
@@ -175,6 +194,7 @@ export function buildApp({
   app.register(ingredientsRoutes);
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
+  app.register(menuRoutes);
 
   return app;
 }

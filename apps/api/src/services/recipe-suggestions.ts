@@ -6,7 +6,6 @@ import {
   type RecipeSuggestion,
   type RecipeSuggestParams,
   recipeSuggestAgentOutputSchema,
-  type SuggestionFailure,
   type SuggestionRequest,
   type SuggestionRequestDetail,
 } from '@family/shared';
@@ -25,7 +24,7 @@ import {
   lockSuggestion,
 } from '../db/repositories/recipe-suggestions.js';
 import { listActiveRecipeTitles } from '../db/repositories/recipes.js';
-import { type OpenClawClient, OpenClawError } from '../openclaw/client.js';
+import { failureCode, type OpenClawClient } from '../openclaw/client.js';
 import {
   ConflictError,
   NotFoundError,
@@ -105,7 +104,7 @@ export function createRecipeSuggestionsService({
         await finishSuggestionRequest(tx, request.id, 'done', null);
       });
     } catch (error) {
-      const code = errorCode(error);
+      const code = failureCode(error);
       if (code === 'error') {
         log.error(
           { err: error, requestId: request.id },
@@ -205,15 +204,4 @@ export function createRecipeSuggestionsService({
       await Promise.all(running);
     },
   };
-}
-
-/** The `error` of a failed request: the client's own code, `aborted` on shutdown, otherwise `error` (a bug). */
-function errorCode(error: unknown): SuggestionFailure {
-  if (error instanceof OpenClawError) {
-    return error.code;
-  }
-  if (error instanceof Error && error.name === 'AbortError') {
-    return 'aborted';
-  }
-  return 'error';
 }

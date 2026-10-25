@@ -27,6 +27,7 @@ const defaults = {
     url: 'http://127.0.0.1:18789',
     gatewayPassword: undefined,
     recipeAgent: 'family-recipe',
+    menuAgent: 'family-menu',
     timeoutMs: 180_000,
   },
 };
@@ -80,6 +81,7 @@ describe('loadConfig', () => {
           OPENCLAW_URL: 'http://127.0.0.1:28789/',
           OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
           OPENCLAW_RECIPE_AGENT: 'family-recipe-test',
+          OPENCLAW_MENU_AGENT: 'family-menu-test',
           OPENCLAW_TIMEOUT_MS: '60000',
         }),
       ).toMatchObject({
@@ -87,6 +89,7 @@ describe('loadConfig', () => {
           url: 'http://127.0.0.1:28789',
           gatewayPassword: 'gateway-secret',
           recipeAgent: 'family-recipe-test',
+          menuAgent: 'family-menu-test',
           timeoutMs: 60_000,
         },
       });

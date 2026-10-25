@@ -10,6 +10,7 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   url: 'http://openclaw.test',
   gatewayPassword: 'test-gateway-password',
   recipeAgent: 'family-recipe',
+  menuAgent: 'family-menu',
   timeoutMs: 2_000,
 };
 
