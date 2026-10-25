@@ -9,6 +9,12 @@ import {
   useLocation,
 } from '@tanstack/react-router';
 import { HomeScreen } from '../features/home/HomeScreen';
+import {
+  EditRecipeScreen,
+  NewRecipeScreen,
+} from '../features/recipes/RecipeEditor';
+import { RecipeList } from '../features/recipes/RecipeList';
+import { RecipeView } from '../features/recipes/RecipeView';
 import { WhoScreen } from '../features/who/WhoScreen';
 import { useActingUser } from './acting-user';
 
@@ -53,7 +59,39 @@ const whoRoute = createRoute({
   component: WhoScreen,
 });
 
-const routeTree = rootRoute.addChildren([homeRoute, whoRoute]);
+// Регистър рецепти: телефон и таблет; не влиза в kiosk/TV навигацията.
+const recipesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes',
+  component: RecipeList,
+});
+
+const recipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id',
+  component: RecipeView,
+});
+
+const newRecipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/new',
+  component: NewRecipeScreen,
+});
+
+const editRecipeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id/edit',
+  component: EditRecipeScreen,
+});
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  whoRoute,
+  recipesRoute,
+  newRecipeRoute,
+  recipeRoute,
+  editRecipeRoute,
+]);
 
 export function createAppRouter(history?: RouterHistory) {
   return createRouter({

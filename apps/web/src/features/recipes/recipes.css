@@ -1,0 +1,399 @@
+/* Екраните на регистъра рецепти: телефон (една колона) и таблет (две). Докосване ≥ 44 px (2.75rem). */
+.recipes {
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 64rem;
+  margin-inline: auto;
+  text-align: start;
+}
+
+.recipes__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.recipes__title {
+  flex: 1 1 12rem;
+  font-size: var(--font-size-xl);
+  overflow-wrap: anywhere;
+}
+
+.recipes__back {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.recipes__back--block {
+  flex-basis: 100%;
+}
+
+.recipes__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.recipes__empty {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.recipes__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Полета */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.field__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.field__input {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+textarea.field__input {
+  min-block-size: 5rem;
+  resize: vertical;
+}
+
+.field__input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.field__error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  cursor: pointer;
+}
+
+.checkbox input {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+/* Чипове за тагове */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.badge {
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Списък */
+.recipe-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  block-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.recipe-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.recipe-card__meta {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.recipe-card__tags {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* Преглед */
+.recipe-view {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.recipe-view__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.recipe-view__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.recipe-view__section h2,
+.recipe-view__section h3 {
+  font-size: var(--font-size-lg);
+}
+
+.recipe-view__section h3 {
+  font-size: var(--font-size-md);
+  color: var(--color-text-muted);
+}
+
+.recipe-view__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-view__line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-line);
+}
+
+.recipe-view__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+@media (min-width: 48rem) {
+  .recipe-view {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .recipe-view__wide {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Форма */
+.recipe-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.recipe-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.recipe-form__section legend {
+  float: left;
+  inline-size: 100%;
+  padding: 0;
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+}
+
+.recipe-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.recipe-form__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-line);
+}
+
+.recipe-form__item-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.icon-button {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.recipe-form__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Autocomplete на продукт */
+.ingredient-picker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ingredient-picker__options {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-line);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--color-surface);
+}
+
+.ingredient-picker__option {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ingredient-picker__option:hover,
+.ingredient-picker__option:focus-visible {
+  background: var(--color-surface-2);
+}
+
+.ingredient-picker__unresolved {
+  margin: 0;
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.new-ingredient {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-accent);
+  border-radius: calc(var(--radius) / 2);
+}
+
+@media (min-width: 48rem) {
+  .recipe-form {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .recipe-form__wide {
+    grid-column: 1 / -1;
+  }
+}
+
+fieldset.chips,
+fieldset.recipe-form__item,
+fieldset.new-ingredient {
+  min-inline-size: 0;
+  margin: 0;
+}
+
+fieldset.chips,
+fieldset.recipe-form__item {
+  padding: 0;
+  border: 0;
+}
+
+fieldset.recipe-form__item {
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-line);
+}

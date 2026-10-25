@@ -1,0 +1,99 @@
+import { type Ingredient, normalizeIngredientName } from '@family/shared';
+import { useId, useState } from 'react';
+import { NewIngredientForm } from './NewIngredientForm';
+import { useIngredientSearch } from './queries';
+import { useDebouncedValue } from './useDebouncedValue';
+
+const SEARCH_DEBOUNCE_MS = 200;
+
+interface IngredientPickerProps {
+  ingredient: Ingredient | null;
+  query: string;
+  onQueryChange: (query: string) => void;
+  onSelect: (ingredient: Ingredient) => void;
+  inputProps: {
+    id: string;
+    'aria-invalid': boolean;
+    'aria-describedby': string | undefined;
+  };
+}
+
+/**
+ * Autocomplete по `GET /api/ingredients?q=`. Докато редът няма избран продукт, показва съвпаденията
+ * и бутон „Нов продукт“, ако няма точно съвпадение по каноничното име.
+ */
+export function IngredientPicker({
+  ingredient,
+  query,
+  onQueryChange,
+  onSelect,
+  inputProps,
+}: IngredientPickerProps) {
+  const listId = useId();
+  const [creating, setCreating] = useState(false);
+  const unresolved = ingredient === null && query.trim() !== '';
+  const search = useIngredientSearch(
+    useDebouncedValue(unresolved && !creating ? query : '', SEARCH_DEBOUNCE_MS),
+  );
+  const options = unresolved && !creating ? (search.data ?? []) : [];
+  const exactMatch = options.some(
+    (option) => option.name === normalizeIngredientName(query),
+  );
+
+  function select(next: Ingredient) {
+    setCreating(false);
+    onSelect(next);
+  }
+
+  return (
+    <div className="ingredient-picker">
+      <input
+        {...inputProps}
+        aria-controls={listId}
+        className="field__input"
+        autoComplete="off"
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+      />
+      {unresolved && (
+        <p className="ingredient-picker__unresolved">
+          Непознат продукт: избери от списъка или създай нов
+        </p>
+      )}
+      <ul
+        className="ingredient-picker__options"
+        id={listId}
+        aria-label="Съвпадения"
+        hidden={options.length === 0}
+      >
+        {options.map((option) => (
+          <li key={option.id}>
+            <button
+              type="button"
+              className="ingredient-picker__option"
+              onClick={() => select(option)}
+            >
+              {option.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {unresolved && !creating && search.data && !exactMatch && (
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => setCreating(true)}
+        >
+          Нов продукт
+        </button>
+      )}
+      {creating && (
+        <NewIngredientForm
+          initialName={query.trim()}
+          onCreated={select}
+          onCancel={() => setCreating(false)}
+        />
+      )}
+    </div>
+  );
+}
