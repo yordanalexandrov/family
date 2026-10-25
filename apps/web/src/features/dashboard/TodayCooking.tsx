@@ -1,8 +1,13 @@
-import type { CookingMeal, Servings, User } from '@family/shared';
+import {
+  type CookingMeal,
+  isOneServingEach,
+  totalServings,
+} from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useUsers } from '../../api/queries';
 import { Avatar } from '../../components/Avatar';
+import { formatServings } from '../../lib/format';
 
 interface TodayCookingProps {
   dinner: CookingMeal | null;
@@ -20,10 +25,16 @@ export function TodayCooking({ dinner, opensMenu = false }: TodayCookingProps) {
     ? users.data?.find((user) => user.id === dinner.cookUserId)
     : undefined;
 
+  // Порциите се показват само когато се различават от подразбирането (по 1 за всеки).
   const servings = dinner?.servings;
-  const extraServings =
-    servings && users.data && !isDefault(servings, users.data)
-      ? sum(servings)
+  const changedServings =
+    servings &&
+    users.data &&
+    !isOneServingEach(
+      servings,
+      users.data.map((user) => user.id),
+    )
+      ? totalServings(servings)
       : null;
 
   return (
@@ -42,9 +53,9 @@ export function TodayCooking({ dinner, opensMenu = false }: TodayCookingProps) {
       ) : (
         <span className="core__cooking-empty">Няма меню за днес</span>
       )}
-      {extraServings !== null && (
+      {changedServings !== null && (
         <span className="core__cooking-servings">
-          {extraServings} {extraServings === 1 ? 'порция' : 'порции'}
+          {formatServings(changedServings)}
         </span>
       )}
     </Row>
@@ -67,16 +78,4 @@ function Row({
       {children}
     </Link>
   );
-}
-
-/** Подразбирането на ново ястие (api): по 1 порция за всеки потребител. */
-function isDefault(servings: Servings, users: User[]): boolean {
-  return (
-    Object.keys(servings).length === users.length &&
-    users.every((user) => servings[user.id] === 1)
-  );
-}
-
-function sum(servings: Servings): number {
-  return Object.values(servings).reduce((total, n) => total + n, 0);
 }

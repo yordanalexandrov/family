@@ -68,3 +68,8 @@ export function formatMoney(amount: number, currency: string): string {
     maximumFractionDigits: fractionDigits,
   }).format(amount);
 }
+
+/** „1 порция“, „3 порции“, „0 порции“. */
+export function formatServings(count: number): string {
+  return count === 1 ? '1 порция' : `${count} порции`;
+}

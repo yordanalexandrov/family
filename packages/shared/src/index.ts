@@ -7,6 +7,7 @@ export * from './dashboard/time.js';
 export * from './food/aisles.js';
 export * from './food/tags.js';
 export * from './food/units.js';
+export * from './menu/meal.js';
 export * from './menu/week.js';
 export * from './schemas/budget.js';
 export * from './schemas/calendar.js';

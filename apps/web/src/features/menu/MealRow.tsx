@@ -1,7 +1,6 @@
-import type { Meal, User } from '@family/shared';
+import { type Meal, mealTitle, totalServings, type User } from '@family/shared';
 import { Avatar } from '../../components/Avatar';
-import { formatDate, formatWeekday } from '../../lib/format';
-import { mealTitle, totalServings } from './meal';
+import { formatDate, formatServings, formatWeekday } from '../../lib/format';
 
 interface MealRowProps {
   meal: Meal;
@@ -14,7 +13,7 @@ interface MealRowProps {
 export function MealRow({ meal, users, onOpen }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
   const title = mealTitle(meal);
-  const servings = totalServings(meal);
+  const servings = totalServings(meal.servings);
   const content = (
     <>
       <span className="meal-row__day">
@@ -44,7 +43,7 @@ export function MealRow({ meal, users, onOpen }: MealRowProps) {
             <span className="visually-hidden">Без готвач</span>
           </span>
         )}
-        <span className="meal-row__servings">{servingsLabel(servings)}</span>
+        <span className="meal-row__servings">{formatServings(servings)}</span>
       </span>
     </>
   );
@@ -55,8 +54,4 @@ export function MealRow({ meal, users, onOpen }: MealRowProps) {
   ) : (
     <div className="meal-row">{content}</div>
   );
-}
-
-function servingsLabel(count: number): string {
-  return count === 1 ? '1 порция' : `${count} порции`;
 }
