@@ -290,6 +290,28 @@ describe('GET /api/menu/plans', () => {
   });
 });
 
+describe('menu without an acting user (kiosk)', () => {
+  it('reads the plan, but refuses to change it', async () => {
+    const plan = await createPlan(WEEK);
+
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/menu/plans?weekStart=${WEEK}`,
+    });
+    const meal = plan.meals[0];
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `/api/menu/meals/${meal.id}`,
+      payload: { note: 'ядем навън' },
+    });
+
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toEqual({ plan });
+    expect(patch.statusCode).toBe(400);
+    expect(patch.json()).toMatchObject({ error: 'missing_acting_user' });
+  });
+});
+
 describe('PATCH /api/menu/meals/:id', () => {
   it('sets the recipe, the cook, the servings and a note, and returns the meal with its recipe', async () => {
     const plan = await createPlan(WEEK);

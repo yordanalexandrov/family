@@ -22,6 +22,8 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/api/menu/plans',
     {
+      // The tablet opens the menu from the dashboard without an acting user; changes still need one.
+      config: { actingUser: false },
       schema: {
         querystring: mealPlansQuerySchema,
         response: {
