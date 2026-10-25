@@ -158,6 +158,28 @@ describe('KioskLayout', () => {
     expect(screen.queryByRole('region')).not.toBeInTheDocument();
   });
 
+  it('пренасочване от Cloudflare Access (изтекла сесия) → екранът „Сесията изтече“, не офлайн', async () => {
+    server.use(
+      http.get('/api/dashboard', () =>
+        HttpResponse.redirect(
+          'https://access.example.com/cdn-cgi/access/login',
+          302,
+        ),
+      ),
+    );
+
+    renderApp('/');
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Сесията изтече · докосни за вход',
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/Няма връзка със сървъра/),
+    ).not.toBeInTheDocument();
+  });
+
   it('при смяна на датата зарежда данните веднага', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     // 23:59:50 в София.
