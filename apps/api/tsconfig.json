@@ -9,5 +9,5 @@
       "@family/shared": ["../../packages/shared/src/index.ts"]
     }
   },
-  "include": ["src", "vitest.config.ts", "drizzle.config.ts"]
+  "include": ["src", "scripts", "vitest.config.ts", "drizzle.config.ts"]
 }

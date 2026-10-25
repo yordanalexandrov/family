@@ -7,11 +7,14 @@ export const TEST_DATABASE_URL =
   process.env.DATABASE_URL_TEST ??
   'postgres://family:test@127.0.0.1:5433/family';
 
-/** The data migration that inserts Дани and Поли; re-run after every test so they are always there. */
-const SEED_USERS_SQL = new URL(
-  '../../drizzle/0001_seed_users.sql',
-  import.meta.url,
-);
+/**
+ * The data migrations (Дани and Поли, the seed ingredients); re-run after every test so their rows
+ * are always there. Both are idempotent (`on conflict do nothing`).
+ */
+const SEED_MIGRATIONS = [
+  '0001_seed_users.sql',
+  '0003_seed_ingredients.sql',
+].map((file) => new URL(`../../drizzle/${file}`, import.meta.url));
 
 let db: Db | undefined;
 
@@ -30,7 +33,7 @@ export async function closeTestDb(): Promise<void> {
 
 /**
  * Empties every application table (all of `public`; Drizzle keeps its own in schema `drizzle`)
- * and re-applies the user seed, so each test starts from the migrated state.
+ * and re-applies the data migrations, so each test starts from the migrated state.
  */
 export async function resetDatabase(db: Db): Promise<void> {
   const { rows } = await db.execute<{ table_name: string }>(sql`
@@ -44,6 +47,8 @@ export async function resetDatabase(db: Db): Promise<void> {
     );
     await db.execute(sql`truncate ${tables} restart identity cascade`);
   }
-  // The pool runs the file as one simple-protocol query, so its several statements are fine.
-  await db.$client.query(await readFile(SEED_USERS_SQL, 'utf8'));
+  // The pool runs each file as one simple-protocol query, so several statements are fine.
+  for (const file of SEED_MIGRATIONS) {
+    await db.$client.query(await readFile(file, 'utf8'));
+  }
 }

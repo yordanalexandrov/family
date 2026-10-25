@@ -1,0 +1,87 @@
+{
+  "suggestions": [
+    {
+      "title": "Пиле с ориз на фурна",
+      "sourceUrl": "https://recepti.example/pile-s-oriz-na-furna",
+      "why": "Класическа вечеря за цялото семейство, става в една тава и детето я яде с удоволствие.",
+      "prepMinutes": 75,
+      "servings": 4,
+      "tags": ["dinner", "kid_friendly", "batch"],
+      "ingredients": [
+        {
+          "name": "пилешко бутче",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "kg"
+        },
+        { "name": "ориз", "isNew": false, "quantity": 300, "unit": "g" },
+        { "name": "лук", "isNew": false, "quantity": 1, "unit": "pcs" },
+        { "name": "морков", "isNew": false, "quantity": 2, "unit": "pcs" },
+        { "name": "олио", "isNew": false, "quantity": 3, "unit": "tbsp" },
+        {
+          "name": "червен пипер",
+          "isNew": false,
+          "quantity": 1,
+          "unit": "tsp"
+        },
+        { "name": "сол", "isNew": false, "quantity": null, "unit": "pinch" }
+      ],
+      "steps": [
+        "Запечи бутчетата 20 минути на 200 °C.",
+        "Задуши лука и моркова в олиото, добави ориза и червения пипер.",
+        "Разпредели ориза около пилето, налей 750 мл гореща вода и печи още 40 минути."
+      ],
+      "nutritionPer100g": {
+        "kcal": 165,
+        "proteinG": 11,
+        "fatG": 7,
+        "carbsG": 14
+      }
+    },
+    {
+      "title": "Леща яхния",
+      "sourceUrl": "https://recepti.example/leshta-yahniya",
+      "why": "Бърза и евтина, а остава и за обяд на следващия ден.",
+      "prepMinutes": 45,
+      "servings": 4,
+      "tags": ["dinner", "lunch", "batch"],
+      "ingredients": [
+        { "name": "леща", "isNew": false, "quantity": 400, "unit": "g" },
+        { "name": "домат", "isNew": false, "quantity": 2, "unit": "pcs" },
+        { "name": "чесън", "isNew": false, "quantity": 3, "unit": "pcs" },
+        { "name": "чубрица", "isNew": false, "quantity": 1, "unit": "tsp" },
+        { "name": "джоджен", "isNew": true, "quantity": null, "unit": "pinch" }
+      ],
+      "steps": [
+        "Измий лещата и я сложи да ври в 1,5 л вода.",
+        "Добави нарязаните домати и чесъна след 20 минути.",
+        "Подправи с чубрица и джоджен и вари още 15 минути."
+      ]
+    },
+    {
+      "title": "Паста с тиквички и сметана",
+      "sourceUrl": "https://recepti.example/pasta-s-tikvichki",
+      "why": "Готова за под 30 минути, подходяща за вечер след работа.",
+      "prepMinutes": 25,
+      "servings": 3,
+      "tags": ["dinner", "quick"],
+      "ingredients": [
+        { "name": "спагети", "isNew": false, "quantity": 400, "unit": "g" },
+        { "name": "тиквичка", "isNew": false, "quantity": 2, "unit": "pcs" },
+        { "name": "сметана", "isNew": false, "quantity": 0.2, "unit": "l" },
+        { "name": "пармезан", "isNew": true, "quantity": 50, "unit": "g" }
+      ],
+      "steps": [
+        "Свари пастата според указанията на опаковката.",
+        "Задуши настърганите тиквички и добави сметаната.",
+        "Смеси с пастата и поръси с пармезан."
+      ],
+      "nutritionPer100g": {
+        "kcal": 190,
+        "proteinG": 6,
+        "fatG": 8,
+        "carbsG": 24
+      }
+    }
+  ]
+}
