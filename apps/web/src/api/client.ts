@@ -1,3 +1,8 @@
+import {
+  type ApiErrorCode,
+  apiErrorCodeSchema,
+  apiErrorSchema,
+} from '@family/shared';
 import { readActingUserId } from '../app/acting-user';
 
 const BASE_PATH = '/api';
@@ -7,16 +12,41 @@ export interface Schema<T> {
   parse(input: unknown): T;
 }
 
-/** Грешка от api във формата на error handler-а му: `{ error: <code>, message }`. */
+/**
+ * Кодове на самия клиент, когато отговорът не е по договора на api: `http_error` — грешка, чието тяло
+ * не е по `apiErrorSchema` (напр. 502 от proxy-то); `invalid_response` — 2xx с тяло извън schema-та на route-а.
+ */
+type ClientErrorCode = 'http_error' | 'invalid_response';
+
+/** Грешка от api по `apiErrorSchema` в shared (`{ error: <code>, message }`) или от самия клиент. */
 export class ApiError extends Error {
   readonly status: number;
-  readonly code: string;
+  readonly code: ApiErrorCode | ClientErrorCode;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(
+    status: number,
+    code: ApiErrorCode | ClientErrorCode,
+    message: string,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+  }
+
+  /** 401/403: Cloudflare Access сесията е изтекла; презареждането води до PIN екрана. */
+  isSessionExpired(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+
+  /** Избраният на устройството потребител вече не съществува в api (напр. изтрит). */
+  isUnknownActingUser(): boolean {
+    return this.code === apiErrorCodeSchema.enum.unknown_acting_user;
+  }
+
+  /** 5xx: сървърът или пътят до него не успя и същата заявка може да мине след малко; 4xx няма да мине. */
+  isServerError(): boolean {
+    return this.status >= 500;
   }
 }
 
@@ -50,18 +80,15 @@ export async function apiFetch<T>(
 }
 
 async function toApiError(response: Response): Promise<ApiError> {
-  const body: unknown = await response.json().catch(() => null);
-  const code = readString(body, 'error') ?? 'http_error';
-  const message =
-    readString(body, 'message') ??
-    `Сървърът отговори с грешка ${response.status}`;
-  return new ApiError(response.status, code, message);
-}
-
-function readString(body: unknown, key: string): string | undefined {
-  if (typeof body !== 'object' || body === null) {
-    return undefined;
+  const body = apiErrorSchema.safeParse(
+    await response.json().catch(() => undefined),
+  );
+  if (body.success) {
+    return new ApiError(response.status, body.data.error, body.data.message);
   }
-  const value = (body as Record<string, unknown>)[key];
-  return typeof value === 'string' ? value : undefined;
+  return new ApiError(
+    response.status,
+    'http_error',
+    `Сървърът отговори с грешка ${response.status}`,
+  );
 }

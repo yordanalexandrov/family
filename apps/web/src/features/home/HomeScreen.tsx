@@ -10,7 +10,7 @@ import './HomeScreen.css';
 
 /** Потребителят е изтрит от api → изборът на устройството е невалиден. */
 function isUnknownActingUser(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'unknown_acting_user';
+  return error instanceof ApiError && error.isUnknownActingUser();
 }
 
 export function HomeScreen() {

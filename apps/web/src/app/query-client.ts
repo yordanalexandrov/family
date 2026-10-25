@@ -6,7 +6,7 @@ type Retry = boolean | ((failureCount: number, error: Error) => boolean);
 
 /** Един опит повече само при мрежова/сървърна грешка; 4xx не се повтаря. */
 function defaultRetry(failureCount: number, error: Error): boolean {
-  if (error instanceof ApiError && error.status < 500) {
+  if (error instanceof ApiError && !error.isServerError()) {
     return false;
   }
   return failureCount < 1;

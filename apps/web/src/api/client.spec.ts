@@ -36,6 +36,40 @@ describe('apiFetch', () => {
       message: 'Липсва Access токен',
     });
   });
+
+  it.each([
+    [
+      'с код извън договора на api',
+      () =>
+        HttpResponse.json(
+          {
+            error: 'FST_ERR_CTP_INVALID_MEDIA_TYPE',
+            message: 'Unsupported Media Type',
+          },
+          { status: 415 },
+        ),
+      { status: 415, message: 'Сървърът отговори с грешка 415' },
+    ],
+    [
+      'което не е JSON (страница от proxy-то)',
+      () =>
+        new HttpResponse('<h1>502 Bad Gateway</h1>', {
+          status: 502,
+          headers: { 'Content-Type': 'text/html' },
+        }),
+      { status: 502, message: 'Сървърът отговори с грешка 502' },
+    ],
+  ])(
+    'при тяло %s хвърля ApiError http_error с българско съобщение',
+    async (_case, reply, expected) => {
+      server.use(http.get('/api/me', reply));
+
+      const error = await apiFetch('/me', meResponseSchema).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ ...expected, code: 'http_error' });
+    },
+  );
 });
 
 describe('apiFetch schema', () => {
