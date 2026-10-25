@@ -32,6 +32,17 @@ pnpm --filter api suggest:smoke -- --slot dinner --hint "нещо с пиле" -
 
 Скриптът (`apps/api/scripts/suggest-smoke.ts`) чете `OPENCLAW_*` от средата или от `.env` в корена (`OPENCLAW_URL` по подразбиране е `http://127.0.0.1:18789`), праща входа на контракта със seed продуктите като `ingredientNames` и празен регистър, и печата за всяко предложение заглавие, URL, „защо“, брой продукти и колко са `isNew`, а накрая общата продължителност. Логовете на клиента (опит, продължителност, `usage`) са на stderr; паролата не се печата никъде. Изход 1 = таймаут, HTTP грешка или два невалидни отговора; `--save` записва валидирания JSON, напр. за да замени ръчната фикстура `packages/shared/src/contracts/fixtures/recipe-suggest.valid.json`. Изходът за PR коментар се копира без първия ред от лога на тунела и без нищо от средата.
 
+## Smoke тест на `menu.propose`
+
+Ръчна проверка срещу реалния агент `family-menu` на `homesrv` (не е част от `pnpm test`). Нужен е агентът с prompt-а от [docs/openclaw/family-menu.md](docs/openclaw/family-menu.md), без инструменти; тунелът и паролата са като при `recipe.suggest` отгоре:
+
+```bash
+pnpm --filter api menu:smoke
+pnpm --filter api menu:smoke -- --hint "без месо в петък" --save /tmp/menu-propose.json
+```
+
+Скриптът (`apps/api/scripts/menu-smoke.ts`) праща входа от фикстурата `packages/shared/src/contracts/fixtures/menu-propose.input.json` (10 вечери, 2 от последните седмици, подсказката от фикстурата или `--hint`), валидира отговора като api-то (Zod + `validateProposal`, един повторен опит) и печата седемте вечери със заглавие, време, тагове и „защо“, отбелязва повторените от последните 2 седмици, после обобщението и продължителността. Изход 1 = таймаут, HTTP грешка или два невалидни отговора; `--save` записва валидирания JSON, за да замени ръчната фикстура `menu-propose.valid.json` (id-тата съвпадат, защото входът е същият).
+
 ## Deploy
 
 Merge в `master` стига до `homesrv` сам: [deploy.yml](.github/workflows/deploy.yml) тръгва на self-hosted runner-а `homesrv-family` и в checkout-а си:
