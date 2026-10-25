@@ -9,8 +9,7 @@ import {
   SignJWT,
 } from 'jose';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../app.js';
-import { TEST_DATABASE_URL } from '../test/db.js';
+import { buildTestApp } from '../test/app.js';
 import { DANI } from '../test/users.js';
 
 const TEAM_DOMAIN = 'https://family-test.cloudflareaccess.com';
@@ -26,8 +25,7 @@ beforeAll(async () => {
   accessKey = privateKey;
   const publicJwk = { ...(await exportJWK(publicKey)), kid: KID, alg: 'RS256' };
 
-  app = buildApp({
-    databaseUrl: TEST_DATABASE_URL,
+  app = buildTestApp({
     auth: {
       mode: 'cloudflare',
       teamDomain: TEAM_DOMAIN,

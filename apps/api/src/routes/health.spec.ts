@@ -1,10 +1,10 @@
 import { healthSchema } from '@family/shared';
 import { describe, expect, it } from 'vitest';
-import { buildApp } from '../app.js';
+import { buildTestApp } from '../test/app.js';
 import { TEST_DATABASE_URL } from '../test/db.js';
 
 async function getHealth(databaseUrl: string) {
-  const app = buildApp({ databaseUrl });
+  const app = buildTestApp({ databaseUrl });
   await app.ready();
   try {
     const response = await app.inject({ method: 'GET', url: '/healthz' });

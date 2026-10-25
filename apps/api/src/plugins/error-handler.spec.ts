@@ -2,13 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { buildApp } from '../app.js';
-import { TEST_DATABASE_URL } from '../test/db.js';
+import { buildTestApp } from '../test/app.js';
 
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = buildApp({ databaseUrl: TEST_DATABASE_URL });
+  app = buildTestApp();
   // Test routes outside /api/ need neither Access nor an acting user, so only error handling is exercised.
   const test = app.withTypeProvider<ZodTypeProvider>();
   test.get('/test/boom', async () => {

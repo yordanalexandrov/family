@@ -29,17 +29,11 @@ export interface BuildAppOptions {
   logger?: FastifyServerOptions['logger'];
   databaseUrl: string;
   /**
-   * How `/api/*` requests are authenticated. `server.ts` always passes the configured mode
-   * (and `loadConfig()` refuses dev mode in production); left out, the app runs in dev mode,
-   * which is what tests want.
+   * How `/api/*` requests are authenticated, never defaulted: `server.ts` passes `config.auth`
+   * (`loadConfig()` refuses dev mode in production), specs go through `buildTestApp()` in `src/test/app.ts`.
    */
-  auth?: CloudflareAccessOptions;
+  auth: CloudflareAccessOptions;
 }
-
-const DEV_AUTH: CloudflareAccessOptions = {
-  mode: 'dev',
-  email: 'dev@example.com',
-};
 
 /**
  * Builds the Fastify instance without listening, so tests can drive it with `app.inject()`.
@@ -48,7 +42,7 @@ const DEV_AUTH: CloudflareAccessOptions = {
 export function buildApp({
   logger = false,
   databaseUrl,
-  auth = DEV_AUTH,
+  auth,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({ logger });
 

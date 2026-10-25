@@ -1,14 +1,13 @@
 import { usersResponseSchema } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../app.js';
-import { TEST_DATABASE_URL } from '../test/db.js';
+import { buildTestApp } from '../test/app.js';
 import { DANI, POLI } from '../test/users.js';
 
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = buildApp({ databaseUrl: TEST_DATABASE_URL });
+  app = buildTestApp();
   await app.ready();
 });
 
