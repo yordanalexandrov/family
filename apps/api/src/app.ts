@@ -9,6 +9,7 @@ import {
 import { closeDb, createDb, type Db } from './db/client.js';
 import errorHandler from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
+import { usersRoutes } from './routes/users.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -43,6 +44,7 @@ export function buildApp({
 
   app.register(errorHandler);
   app.register(healthRoutes);
+  app.register(usersRoutes);
 
   return app;
 }

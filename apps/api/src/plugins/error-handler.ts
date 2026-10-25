@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 
@@ -16,7 +16,7 @@ export interface ValidationIssue {
 }
 
 const errorHandler: FastifyPluginAsync = async (app) => {
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler((error: FastifyError, request, reply) => {
     if (hasZodFastifySchemaValidationErrors(error)) {
       const issues: ValidationIssue[] = error.validation.map((issue) => ({
         path: issue.instancePath.replace(/^\//, '').replaceAll('/', '.'),

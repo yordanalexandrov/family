@@ -92,9 +92,9 @@ describe('loadConfig', () => {
       expect(() =>
         loadConfig({ ...cloudflare, ALLOWED_EMAILS: undefined }),
       ).toThrow(/ALLOWED_EMAILS/);
-      expect(() => loadConfig({ ...cloudflare, ALLOWED_EMAILS: ' , ' })).toThrow(
-        /ALLOWED_EMAILS/,
-      );
+      expect(() =>
+        loadConfig({ ...cloudflare, ALLOWED_EMAILS: ' , ' }),
+      ).toThrow(/ALLOWED_EMAILS/);
       expect(() =>
         loadConfig({ ...cloudflare, ALLOWED_EMAILS: 'dani@example.com,poli' }),
       ).toThrow(/ALLOWED_EMAILS/);
