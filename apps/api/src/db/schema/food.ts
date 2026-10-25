@@ -4,7 +4,11 @@ import {
   type BaseUnit,
   baseUnitSchema,
   type Nutrition,
+  type RecipeSuggestionStatus,
   recipeSuggestionStatusSchema,
+  type Slot,
+  type Suggestion,
+  type SuggestionRequestStatus,
   slotSchema,
   suggestionRequestStatusSchema,
   type Tag,
@@ -120,11 +124,14 @@ export const recipeSuggestionRequest = pgTable(
   'recipe_suggestion_request',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    slot: text('slot').notNull(),
+    slot: text('slot').$type<Slot>().notNull(),
     maxMinutes: integer('max_minutes'),
-    tags: text('tags').array().notNull().default(sql`'{}'`),
+    tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
     hint: text('hint'),
-    status: text('status').notNull().default('pending'),
+    status: text('status')
+      .$type<SuggestionRequestStatus>()
+      .notNull()
+      .default('pending'),
     error: text('error'),
     requestedBy: uuid('requested_by')
       .notNull()
@@ -157,8 +164,11 @@ export const recipeSuggestion = pgTable(
       .notNull()
       .references(() => recipeSuggestionRequest.id, { onDelete: 'cascade' }),
     position: integer('position').notNull(),
-    payload: jsonb('payload').notNull(),
-    status: text('status').notNull().default('proposed'),
+    payload: jsonb('payload').$type<Suggestion>().notNull(),
+    status: text('status')
+      .$type<RecipeSuggestionStatus>()
+      .notNull()
+      .default('proposed'),
     recipeId: uuid('recipe_id').references(() => recipe.id),
     decidedBy: uuid('decided_by').references(() => user.id),
     decidedAt: timestamp('decided_at', { withTimezone: true }),

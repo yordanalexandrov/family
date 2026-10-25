@@ -186,3 +186,15 @@ export async function replaceRecipeIngredients(
     })),
   );
 }
+
+/** Titles of the recipes that are not archived: the registry context of `recipe.suggest`. */
+export async function listActiveRecipeTitles(
+  db: DbExecutor,
+): Promise<string[]> {
+  const rows = await db
+    .select({ title: recipe.title })
+    .from(recipe)
+    .where(isNull(recipe.archivedAt))
+    .orderBy(asc(recipe.title));
+  return rows.map((row) => row.title);
+}

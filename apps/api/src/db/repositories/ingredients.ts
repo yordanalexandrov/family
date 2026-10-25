@@ -106,3 +106,12 @@ export async function existingIngredientIds(
     .where(inArray(ingredient.id, ids));
   return new Set(rows.map((row) => row.id));
 }
+
+/** Every canonical ingredient name, ordered: the `ingredientNames` of `recipe.suggest`. */
+export async function listIngredientNames(db: DbExecutor): Promise<string[]> {
+  const rows = await db
+    .select({ name: ingredient.name })
+    .from(ingredient)
+    .orderBy(ingredient.name);
+  return rows.map((row) => row.name);
+}

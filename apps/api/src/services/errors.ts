@@ -29,3 +29,11 @@ export class InvalidReferenceError extends Error {
     this.name = 'InvalidReferenceError';
   }
 }
+
+/** 503 `openclaw_unavailable`: the OpenClaw client is disabled (no gateway password), so the AI cannot be asked. */
+export class OpenClawUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpenClawUnavailableError';
+  }
+}

@@ -50,8 +50,11 @@ import { mealPlanSchema, type MealPlan } from '@family/shared';
 routes/      → Fastify plugins; валидират вход/изход със schema от shared, викат service
 plugins/     → некапсулирани (fastify-plugin) hooks за всички routes: Cloudflare Access → `request.user`, действащ потребител → `request.actor`, error handler
 services/    → бизнес логика (меню → списък за пазаруване и т.н.); без HTTP детайли
+openclaw/    → клиентът към OpenClaw gateway-а (`/v1/chat/completions`) за AI контрактите: Zod валидация + един retry
 db/          → Drizzle schema, миграции, repository функции
 ```
+
+AI контрактите вървят във фон в процеса на api: `POST` записва заявка `pending` и връща `202`, service-ът (`app.recipeSuggestions`) вика OpenClaw клиента и записва `done`/`failed`, клиентът пита с `GET`. `app.close()` прекъсва и изчаква текущите заявки, а при старт `pending` заявки по-стари от 10 мин стават `failed`/`stale`. Без `OPENCLAW_GATEWAY_PASSWORD` (локално) клиентът е изключен и заявката за предложения връща `503 openclaw_unavailable`.
 
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 

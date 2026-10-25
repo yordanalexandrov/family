@@ -5,6 +5,7 @@ import {
   ConflictError,
   InvalidReferenceError,
   NotFoundError,
+  OpenClawUnavailableError,
 } from '../services/errors.js';
 
 /**
@@ -77,6 +78,12 @@ function serviceRefusal(
     return {
       statusCode: 400,
       body: { error: 'invalid_reference', message: error.message },
+    };
+  }
+  if (error instanceof OpenClawUnavailableError) {
+    return {
+      statusCode: 503,
+      body: { error: 'openclaw_unavailable', message: error.message },
     };
   }
   return undefined;

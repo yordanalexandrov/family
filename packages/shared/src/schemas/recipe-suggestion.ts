@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { suggestionSchema } from '../contracts/recipe-suggest.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
+import { recipeSchema } from './recipe.js';
 
 export const suggestionRequestStatusSchema = z.enum([
   'pending',
@@ -51,3 +52,58 @@ export const recipeSuggestionSchema = z.object({
 });
 
 export type RecipeSuggestion = z.infer<typeof recipeSuggestionSchema>;
+
+/** `POST /api/recipe-suggestions/requests` → 202: the request, still `pending`; the run goes on in the background. */
+export const suggestionRequestResponseSchema = z.object({
+  request: suggestionRequestSchema,
+});
+
+export type SuggestionRequestResponse = z.infer<
+  typeof suggestionRequestResponseSchema
+>;
+
+/** `GET /api/recipe-suggestions/requests?limit=`: the latest requests, newest first. */
+export const suggestionRequestsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+});
+
+export type SuggestionRequestsQuery = z.infer<
+  typeof suggestionRequestsQuerySchema
+>;
+
+export const suggestionRequestsResponseSchema = z.object({
+  requests: z.array(suggestionRequestSchema),
+});
+
+export type SuggestionRequestsResponse = z.infer<
+  typeof suggestionRequestsResponseSchema
+>;
+
+/** `GET /api/recipe-suggestions/requests/:id`: the request and its suggestions in the agent's order. */
+export const suggestionRequestDetailSchema = z.object({
+  request: suggestionRequestSchema,
+  suggestions: z.array(recipeSuggestionSchema),
+});
+
+export type SuggestionRequestDetail = z.infer<
+  typeof suggestionRequestDetailSchema
+>;
+
+/** `POST /api/recipe-suggestions/:id/reject`, and the body of a 409 when the suggestion was already decided. */
+export const recipeSuggestionResponseSchema = z.object({
+  suggestion: recipeSuggestionSchema,
+});
+
+export type RecipeSuggestionResponse = z.infer<
+  typeof recipeSuggestionResponseSchema
+>;
+
+/** `POST /api/recipe-suggestions/:id/approve` → 201: the new registry recipe and the approved suggestion. */
+export const approvedSuggestionResponseSchema = z.object({
+  recipe: recipeSchema,
+  suggestion: recipeSuggestionSchema,
+});
+
+export type ApprovedSuggestionResponse = z.infer<
+  typeof approvedSuggestionResponseSchema
+>;

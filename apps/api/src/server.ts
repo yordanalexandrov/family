@@ -8,6 +8,7 @@ const app = buildApp({
   logger: loggerOptions(config),
   databaseUrl: config.DATABASE_URL,
   auth: config.auth,
+  openclaw: config.openclaw,
 });
 
 try {

@@ -20,6 +20,8 @@ export const apiErrorCodeSchema = z.enum([
   'conflict',
   // 400: the body points at a record that does not exist (e.g. an unknown ingredientId in a recipe).
   'invalid_reference',
+  // 503: the OpenClaw client is disabled (no gateway password, local dev), so no suggestions can be asked for.
+  'openclaw_unavailable',
   // 5xx: a bug or an outage; the client is told nothing more.
   'internal_error',
   // Anything else without a code of its own; its message is for the screen (e.g. Fastify's 415 for an unsupported content type).

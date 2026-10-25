@@ -37,12 +37,18 @@ export async function getRecipe(db: DbExecutor, id: string): Promise<Recipe> {
 
 /** Adds a recipe to the registry; an unknown `ingredientId` is an `InvalidReferenceError`. */
 export function createRecipe(db: Db, input: RecipeInput): Promise<Recipe> {
-  return db.transaction(async (tx) => {
-    await checkIngredientsExist(tx, input);
-    const id = await insertRecipe(tx, input);
-    await replaceRecipeIngredients(tx, id, input.ingredients);
-    return getRecipe(tx, id);
-  });
+  return db.transaction((tx) => addRecipe(tx, input));
+}
+
+/** `createRecipe` inside a transaction the caller owns (e.g. approving a suggestion). */
+export async function addRecipe(
+  tx: DbExecutor,
+  input: RecipeInput,
+): Promise<Recipe> {
+  await checkIngredientsExist(tx, input);
+  const id = await insertRecipe(tx, input);
+  await replaceRecipeIngredients(tx, id, input.ingredients);
+  return getRecipe(tx, id);
 }
 
 /** Replaces the whole recipe, its ingredient list included. */
