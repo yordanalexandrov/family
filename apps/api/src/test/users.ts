@@ -1,6 +1,6 @@
 import type { User } from '@family/shared';
 
-/** The two users inserted by `drizzle/0001_seed_users.sql`, as the API returns them. */
+/** Expected values in specs: the two users that `drizzle/0001_seed_users.sql` inserts, as the API returns them. */
 export const DANI: User = {
   id: '11111111-1111-4111-8111-111111111111',
   name: 'Дани',

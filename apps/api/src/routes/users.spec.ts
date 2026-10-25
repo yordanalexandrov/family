@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { TEST_DATABASE_URL } from '../test/db.js';
-import { DANI, POLI } from '../test/seed.js';
+import { DANI, POLI } from '../test/users.js';
 
 let app: FastifyInstance;
 

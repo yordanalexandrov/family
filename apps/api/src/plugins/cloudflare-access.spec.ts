@@ -11,7 +11,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { TEST_DATABASE_URL } from '../test/db.js';
-import { DANI } from '../test/seed.js';
+import { DANI } from '../test/users.js';
 
 const TEAM_DOMAIN = 'https://family-test.cloudflareaccess.com';
 const AUD = 'family-test-aud';
