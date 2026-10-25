@@ -1,10 +1,11 @@
-import { formatAge } from '@family/shared';
+import { dateKeyInSofia, formatAge } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import type { CSSProperties, ReactNode } from 'react';
 import { TopBar } from '../../components/TopBar';
 import { BudgetPanel } from './BudgetPanel';
 import { Core } from './Core';
 import { gridTemplateRows, type SlotName } from './dashboard-slots';
+import { splitDays } from './days';
 import { NextDaysPanel } from './NextDaysPanel';
 import type { DashboardData } from './use-dashboard-data';
 import { useRemoteFocus } from './use-remote-focus';
@@ -36,11 +37,8 @@ const OPENS_CALENDAR: readonly SlotName[] = ['core', 'right-1'];
  */
 export function KioskLayout({ state, now, interactive }: KioskLayoutProps) {
   const { data } = state;
-  const [today, ...nextDays] = data.days;
+  const { today, nextDays } = splitDays(data.days, dateKeyInSofia(now));
   const slotRef = useRemoteFocus(!interactive, FILLED, state.refetch);
-  if (!today) {
-    return null;
-  }
 
   const slots: Record<(typeof FILLED)[number], ReactNode> = {
     core: (
@@ -48,6 +46,8 @@ export function KioskLayout({ state, now, interactive }: KioskLayoutProps) {
         today={today}
         now={now}
         cooking={data.cooking}
+        sync={data.sync.calendar}
+        showStale
         seconds
         maxEvents={CORE_MAX_EVENTS}
         showHiddenCount

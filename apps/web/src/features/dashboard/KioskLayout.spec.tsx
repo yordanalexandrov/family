@@ -177,4 +177,69 @@ describe('KioskLayout', () => {
 
     await vi.waitFor(() => expect(requests).toBe(2));
   });
+  it('остарял календар → ядрото носи жълтия надпис като на телефона', async () => {
+    respondWith(
+      dashboardWith({
+        sync: {
+          ...dashboard.sync,
+          calendar: {
+            source: 'calendar',
+            status: 'failed',
+            lastSuccessAt: new Date(
+              fixtureNow.getTime() - 25 * 60_000,
+            ).toISOString(),
+            lastError: 'Google Calendar отговори с 503',
+          },
+        },
+      }),
+    );
+
+    renderApp('/');
+
+    expect(
+      (await region('Днес накратко')).getByText(
+        'Google Calendar не отговаря · данни от преди 25 мин',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('без конфигурация на календара ядрото не показва кешираните събития', async () => {
+    respondWith(
+      dashboardWith({
+        sync: {
+          ...dashboard.sync,
+          calendar: {
+            source: 'calendar',
+            status: 'unconfigured',
+            lastSuccessAt: null,
+            lastError: null,
+          },
+        },
+      }),
+    );
+
+    renderApp('/');
+
+    const core = await region('Днес накратко');
+    expect(
+      core.getByText('Google Calendar не е конфигуриран'),
+    ).toBeInTheDocument();
+    expect(core.queryByText('Обяд с колеги')).not.toBeInTheDocument();
+    expect(core.queryByText('Рожден ден на баба')).not.toBeInTheDocument();
+  });
+
+  it('след полунощ, преди новите данни, ядрото показва събитията на новия ден', async () => {
+    // 00:05 в четвъртък, 5 ноември в София; сървърът още отговаря с данните от сряда.
+    vi.setSystemTime(new Date('2026-11-04T22:05:00.000Z'));
+
+    renderApp('/');
+
+    const core = await region('Днес накратко');
+    expect(core.getByText('Фитнес')).toBeInTheDocument();
+    expect(core.queryByText('Родителска среща')).not.toBeInTheDocument();
+    expect(core.queryByText('Рожден ден на баба')).not.toBeInTheDocument();
+    const next = await region('Следващите дни');
+    expect(next.queryByText('Фитнес')).not.toBeInTheDocument();
+    expect(next.getByText('Екскурзия до планината')).toBeInTheDocument();
+  });
 });

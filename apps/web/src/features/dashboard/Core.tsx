@@ -1,9 +1,10 @@
-import type { Cooking, DayEvents } from '@family/shared';
+import type { Cooking, DayEvents, SyncStatus } from '@family/shared';
 import { Card } from '../../components/Card';
 import { formatDayLong, formatTime } from '../calendar/format';
 import { SourceAvatars } from '../calendar/SourceAvatars';
 import { Clock } from './Clock';
 import { DayRing } from './DayRing';
+import { staleNote, unconfiguredNote } from './stale';
 import './Core.css';
 
 /*
@@ -18,6 +19,10 @@ interface CoreProps {
   today: DayEvents;
   now: Date;
   cooking: Cooking;
+  /** Свежестта на календара: без конфигурация ядрото не показва кешираните събития. */
+  sync: SyncStatus;
+  /** Жълтият надпис за остарели данни (kiosk, TV; на телефона го носи „Днес“ под ядрото). */
+  showStale?: boolean;
   /** Часовник със секунди (kiosk, TV). */
   seconds?: boolean;
   /** Колко от предстоящите днес събития да се покажат (телефон: 1). */
@@ -32,13 +37,17 @@ export function Core({
   today,
   now,
   cooking,
+  sync,
+  showStale = false,
   seconds = false,
   maxEvents = 1,
   showHiddenCount = false,
   onSelectEvent,
 }: CoreProps) {
-  const allDay = today.events.filter((event) => event.allDay);
-  const allUpcoming = today.events.filter(
+  const unconfigured = unconfiguredNote(sync);
+  const events = unconfigured ? [] : today.events;
+  const allDay = events.filter((event) => event.allDay);
+  const allUpcoming = events.filter(
     (event) => !event.allDay && Date.parse(event.start) > now.getTime(),
   );
   const upcoming = allUpcoming.slice(0, maxEvents);
@@ -46,8 +55,12 @@ export function Core({
   const hiddenChips = allDay.length - MAX_CHIPS;
 
   return (
-    <Card className="core" aria-label="Днес накратко">
-      <DayRing events={today.events} now={now} onSelect={onSelectEvent} />
+    <Card
+      className="core"
+      aria-label="Днес накратко"
+      stale={showStale ? staleNote(sync, now) : undefined}
+    >
+      <DayRing events={events} now={now} onSelect={onSelectEvent} />
       <div className="core__inner">
         {allDay.length > 0 && (
           <ul className="core__chips">
@@ -63,6 +76,7 @@ export function Core({
         )}
         <Clock seconds={seconds} />
         <p className="core__date">{formatDayLong(now)}</p>
+        {unconfigured && <p className="core__note">{unconfigured}</p>}
         {upcoming.length > 0 && (
           <ul className="core__events">
             {upcoming.map((event) => (

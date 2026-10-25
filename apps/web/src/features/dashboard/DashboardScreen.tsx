@@ -10,6 +10,7 @@ import { Spinner } from '../../components/Spinner';
 import { TopBar } from '../../components/TopBar';
 import { BudgetPanel } from './BudgetPanel';
 import { Core } from './Core';
+import { splitDays } from './days';
 import { KioskLayout } from './KioskLayout';
 import { NextDaysPanel } from './NextDaysPanel';
 import { TodayList, todayItemId } from './TodayList';
@@ -83,10 +84,7 @@ function selectTodayEvent(eventId: string) {
 /** Телефонът: лента → ядро → днешните събития → бюджет → следващите дни. */
 function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
   const { data } = state;
-  const [today, ...nextDays] = data.days;
-  if (!today) {
-    return null;
-  }
+  const { today, nextDays } = splitDays(data.days, dateKeyInSofia(now));
   return (
     <main className="dashboard">
       <TopBar now={now} sync={data.sync} />
@@ -99,6 +97,7 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
         today={today}
         now={now}
         cooking={data.cooking}
+        sync={data.sync.calendar}
         onSelectEvent={selectTodayEvent}
       />
       <TodayList today={today} now={now} sync={data.sync.calendar} />

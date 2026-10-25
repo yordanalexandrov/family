@@ -214,6 +214,24 @@ describe('DashboardScreen', () => {
     expect(budget.getByText('Wallet не е конфигуриран')).toBeInTheDocument();
   });
 
+  it('след полунощ офлайн „Днес“ е новият ден от кеша, не вчерашният', async () => {
+    const first = renderApp('/');
+    await screen.findByText('Родителска среща');
+    first.unmount();
+
+    // 00:05 в четвъртък, 5 ноември в София; кешът е от сряда.
+    vi.setSystemTime(new Date('2026-11-04T22:05:00.000Z'));
+    server.use(http.get('/api/dashboard', () => HttpResponse.error()));
+    renderApp('/');
+
+    const today = await card('Днес');
+    expect(await today.findByText('Фитнес')).toBeInTheDocument();
+    expect(today.queryByText('Родителска среща')).not.toBeInTheDocument();
+    expect(
+      (await core()).getByText('четвъртък, 5 ноември'),
+    ).toBeInTheDocument();
+  });
+
   it('при мрежова грешка показва последния успешен отговор с банер', async () => {
     const first = renderApp('/');
     await screen.findByText('Родителска среща');
