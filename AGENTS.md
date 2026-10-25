@@ -13,6 +13,10 @@ Read before changing code:
 
 This repo is public. Never put secrets, tokens, Cloudflare AUD/team domain, e-mail addresses or other personal data in issues, comments, code or docs. Self-hosted runners are used only by the deploy workflow, on `push` to `master` or a manual `workflow_dispatch` of `master`, never by workflows that run on pull requests.
 
+## Worktree agents
+
+Implementing a ticket in its own worktree (e.g. an `/implement-spec` implementer): follow `docs/agents/worktrees.md`.
+
 ## Agent skills
 
 ### Issue tracker
