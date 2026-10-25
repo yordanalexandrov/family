@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дашборд — визуален стил</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  ПРОТОТИП, НЕ ПРОДУКЦИОНЕН КОД.
+  Въпрос: „Какъв визуален език и каква „живост“ (анимации) да има дашбордът, когато показва
+  ВСИЧКИ фичъри от концепцията: календар, бюджет, днешно готвене, седмично меню с гласуване,
+  списък за пазаруване, задачи, рецепти, тегло, тренировка, промоции?“
+  Три радикално различни варианта на един екран, превключвани с ?variant=A|B|C (или #A|#B|#C)
+  и със стрелките ← → на клавиатурата:
+    A · Холограма  — sci-fi HUD: панели със скоби, радар, сканлайни, брояч на числа, тикер.
+    B · Steampunk  — месинг и пергамент: зъбни колела, манометър за бюджета, сплит-флап календар,
+                     перфориран билет за пазаруване, махало.
+    C · Организъм  — биолуминесценция: радиална „клетка“ около днешния ден, дишащи ядра,
+                     течност в бюджета, плаващи спори за промоциите.
+  Фиктивни данни. Отметките, гласовете и „направено“ живеят само в паметта на страницата.
+  Всеки вариант е нарочно в ЕДНА тема (A и C тъмни, B светъл) — това е част от въпроса.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Cinzel+Decorative:wght@700;900&family=IM+Fell+English:ital@0;1&family=Special+Elite&family=Comfortaa:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+<style>
+/* Оформление: всеки вариант е самостоятелен „свят“ (.vA/.vB/.vC) със собствени токени и фон-канвас;
+   общи са само данните, сцената и превключвателят. */
+:root{
+  --bg:#05070d; --fg:#e6f3ff; --accent:#38e0ff; --font-ui:"Rajdhani",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-ui);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+ul{margin:0;padding:0;list-style:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+canvas.bgfx{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.world{position:relative;z-index:1;min-height:100%;
+  padding-block:1.2rem 7rem;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* ===== превключвател (не е част от дизайна) ===== */
+#switcher{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;
+  display:flex;align-items:center;gap:6px;background:#fff;color:#111;border-radius:999px;padding:6px 8px;
+  box-shadow:0 4px 24px rgba(0,0,0,.45),0 0 0 1px rgba(0,0,0,.2);font:600 14px/1 system-ui,sans-serif;max-width:calc(100vw - 32px)}
+#switcher button{width:34px;height:34px;border-radius:50%;background:#111;color:#fff;font-size:18px}
+#switcher .lbl{padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#switcher .lbl small{opacity:.6;font-weight:500}
+
+/* =================================================================================
+   A · ХОЛОГРАМА
+   ================================================================================= */
+.vA{--bg:#03060f;--fg:#dff4ff;--mute:#6f93b3;--cy:#38e0ff;--mg:#ff4fd8;--am:#ffc44d;--ok:#5dffb0;--bad:#ff5a6a;
+  --panel:rgba(8,24,46,.55);--line:rgba(56,224,255,.35);
+  --f-display:"Orbitron",sans-serif;--f-mono:"Share Tech Mono",ui-monospace,monospace;--f-ui:"Rajdhani",sans-serif;
+  background:var(--bg);color:var(--fg);font-family:var(--f-ui)}
+.vA::after{content:"";position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,0) 0 2px,rgba(0,0,0,.18) 2px 3px);mix-blend-mode:multiply}
+.vA .top{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;border-bottom:1px solid var(--line);padding-bottom:.6rem}
+.vA .brand{font-family:var(--f-display);font-weight:900;font-size:clamp(1.1rem,2.4vw,1.8rem);letter-spacing:.14em;text-transform:uppercase;position:relative;color:var(--cy);text-shadow:0 0 18px rgba(56,224,255,.6)}
+.vA .brand::before,.vA .brand::after{content:attr(data-t);position:absolute;inset:0;opacity:.7;mix-blend-mode:screen}
+.vA .brand::before{color:var(--mg);animation:aglitch 6s infinite steps(1)}
+.vA .brand::after{color:var(--ok);animation:aglitch 6s infinite steps(1) reverse}
+@keyframes aglitch{0%,92%,100%{transform:none;clip-path:inset(0)}93%{transform:translate(-3px,1px);clip-path:inset(20% 0 55% 0)}95%{transform:translate(3px,-1px);clip-path:inset(60% 0 10% 0)}97%{transform:translate(-2px,0);clip-path:inset(40% 0 40% 0)}}
+.vA .clock{font-family:var(--f-mono);font-size:clamp(1.6rem,4vw,2.8rem);color:#fff;text-shadow:0 0 14px var(--cy);letter-spacing:.06em}
+.vA .clock small{display:block;font-size:.4em;color:var(--mute);letter-spacing:.2em;text-transform:uppercase}
+.vA .status{display:flex;gap:1.2rem;font-family:var(--f-mono);font-size:.78rem;color:var(--mute);letter-spacing:.08em;text-transform:uppercase;flex-wrap:wrap}
+.vA .status i{display:inline-block;width:.55em;height:.55em;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);margin-right:.4em;animation:ablink 1.6s infinite}
+.vA .status i.warn{background:var(--am);box-shadow:0 0 8px var(--am);animation-duration:.8s}
+@keyframes ablink{50%{opacity:.25}}
+.vA .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:.9rem}
+.vA .p{position:relative;background:var(--panel);border:1px solid var(--line);padding:.9rem 1rem;backdrop-filter:blur(6px);min-width:0;
+  clip-path:polygon(0 12px,12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%);animation:aenter .7s both}
+.vA .p:nth-child(n){animation-delay:calc(var(--i,0)*90ms)}
+@keyframes aenter{from{opacity:.35;transform:translateY(10px) scale(.98);filter:brightness(1.8)}}
+.vA .p::before,.vA .p::after{content:"";position:absolute;width:14px;height:14px;border:2px solid var(--cy);pointer-events:none}
+.vA .p::before{right:6px;top:6px;border-left:0;border-bottom:0}
+.vA .p::after{left:6px;bottom:6px;border-right:0;border-top:0}
+.vA .p h2{font-family:var(--f-display);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--cy);display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem}
+.vA .p h2 span{font-family:var(--f-mono);color:var(--mute);letter-spacing:.05em;font-weight:400}
+.vA .c3{grid-column:span 3}.vA .c4{grid-column:span 4}.vA .c5{grid-column:span 5}.vA .c6{grid-column:span 6}.vA .c7{grid-column:span 7}.vA .c8{grid-column:span 8}.vA .c12{grid-column:span 12}
+@media (max-width:1100px){.vA .c3,.vA .c4,.vA .c5{grid-column:span 6}.vA .c7,.vA .c8{grid-column:span 12}}
+@media (max-width:640px){.vA .grid>*{grid-column:span 12}}
+/* календар */
+.vA .cal{display:grid;grid-template-columns:minmax(150px,200px) 1fr;gap:1rem;align-items:start}
+@media (max-width:640px){.vA .cal{grid-template-columns:1fr}.vA .radar{max-width:200px;margin:0 auto}}
+.vA .radar{aspect-ratio:1;max-width:100%;border-radius:50%;border:1px solid var(--line);position:relative;overflow:hidden;
+  background:radial-gradient(circle,rgba(56,224,255,.08),transparent 70%)}
+.vA .radar::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(56,224,255,.55),rgba(56,224,255,0) 70deg);animation:aspin 4s linear infinite}
+@keyframes aspin{to{transform:rotate(360deg)}}
+.vA .radar::after{content:"";position:absolute;inset:0;border-radius:50%;background:
+  repeating-radial-gradient(circle,transparent 0 24%,var(--line) 24% calc(24% + 1px)),linear-gradient(var(--line),var(--line)) 50% 0/1px 100% no-repeat,linear-gradient(var(--line),var(--line)) 0 50%/100% 1px no-repeat}
+.vA .radar b{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c);transform:translate(-50%,-50%);animation:aping 2s infinite}
+@keyframes aping{0%{box-shadow:0 0 0 0 var(--c)}100%{box-shadow:0 0 0 14px transparent}}
+.vA .radar .now{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--f-mono);font-size:.6rem;color:var(--mute);letter-spacing:.1em}
+.vA .days{display:grid;gap:.5rem}
+.vA .day{display:grid;grid-template-columns:5.2em 1fr;gap:.6rem;border-left:2px solid var(--line);padding-left:.7rem}
+.vA .day.today{border-color:var(--cy)}
+.vA .day .d{font-family:var(--f-mono);color:var(--mute);font-size:.8rem;line-height:1.3;text-transform:uppercase}
+.vA .day.today .d{color:var(--cy)}
+.vA .day .d b{display:block;font-size:1.5rem;color:var(--fg);font-weight:400}
+.vA .ev{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:1.02rem;font-weight:500}
+.vA .ev time{font-family:var(--f-mono);color:var(--mute);font-size:.82rem;min-width:3.4em}
+.vA .av{width:1.45em;height:1.45em;border-radius:3px;display:inline-grid;place-items:center;font-family:var(--f-display);font-size:.62rem;font-weight:700;background:var(--c);color:#031018;box-shadow:0 0 10px var(--c);flex:none}
+/* бюджет */
+.vA .gauge{display:grid;grid-template-columns:auto 1fr;gap:.8rem;align-items:center}
+@media (max-width:640px){.vA .gauge{grid-template-columns:1fr}}
+.vA .gauge svg{width:150px;max-width:100%;height:auto;display:block;overflow:visible}
+.vA .gauge .arc{fill:none;stroke-width:9;stroke-linecap:round}
+.vA .gauge .track{stroke:rgba(56,224,255,.15)}
+.vA .gauge .val{stroke:var(--cy);filter:drop-shadow(0 0 6px var(--cy));transition:stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1)}
+.vA .gauge .val.over{stroke:var(--bad);filter:drop-shadow(0 0 6px var(--bad))}
+.vA .big{font-family:var(--f-display);font-size:clamp(1.6rem,3vw,2.3rem);font-weight:700;color:#fff;text-shadow:0 0 16px rgba(56,224,255,.7);line-height:1}
+.vA .big small{font-size:.45em;color:var(--mute);font-weight:500;margin-left:.3em}
+.vA .kv{display:grid;grid-template-columns:auto 1fr;gap:.15rem .8rem;font-family:var(--f-mono);font-size:.8rem;color:var(--mute);margin-top:.5rem}
+.vA .kv b{color:var(--fg);font-weight:400;text-align:right}
+.vA .tick{position:relative;height:6px;background:rgba(56,224,255,.12);margin-top:.6rem;overflow:hidden}
+.vA .tick i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--cy),var(--mg));width:var(--w);animation:agrow 1.4s both cubic-bezier(.2,.8,.2,1)}
+@keyframes agrow{from{width:0}}
+.vA .tick b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff;left:var(--x)}
+/* готвене */
+.vA .meal{display:grid;grid-template-columns:auto 1fr auto;gap:.8rem;align-items:center;padding:.5rem 0;border-top:1px dashed var(--line)}
+.vA .meal:first-of-type{border-top:0}
+.vA .meal .slot{font-family:var(--f-mono);font-size:.7rem;color:var(--mute);letter-spacing:.15em;text-transform:uppercase;writing-mode:vertical-rl;transform:rotate(180deg)}
+.vA .meal .t{font-size:1.25rem;font-weight:600}
+.vA .meal.dinner .t{font-size:1.6rem;color:#fff}
+.vA .meal .m{color:var(--mute);font-size:.85rem}
+.vA .meal .cook{display:flex;align-items:center;gap:.4rem;font-family:var(--f-mono);font-size:.8rem;color:var(--mute)}
+/* меню */
+.vA .week{display:grid;grid-template-columns:repeat(7,1fr);gap:.4rem}
+@media (max-width:900px){.vA .week{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:640px){.vA .week{grid-template-columns:1fr 1fr}}
+.vA .wd{border:1px solid var(--line);padding:.5rem .55rem;min-width:0;font-size:.85rem;position:relative}
+.vA .wd.today{background:rgba(56,224,255,.1);box-shadow:inset 0 0 20px rgba(56,224,255,.15)}
+.vA .wd h4{font-family:var(--f-mono);font-size:.7rem;color:var(--mute);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.3rem}
+.vA .wd p{margin:.15rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vA .wd p.dn{font-weight:600}
+.vA .vote{display:flex;gap:.3rem;margin-top:.35rem}
+.vA .vote button{font-family:var(--f-mono);font-size:.7rem;padding:.15rem .4rem;border:1px solid var(--line);color:var(--mute);transition:all .2s}
+.vA .vote button.on{border-color:var(--ok);color:var(--ok);box-shadow:0 0 8px rgba(93,255,176,.5)}
+.vA .vote button.on.no{border-color:var(--bad);color:var(--bad);box-shadow:0 0 8px rgba(255,90,106,.5)}
+/* списъци */
+.vA .list li{display:flex;align-items:center;gap:.6rem;padding:.3rem 0;border-bottom:1px solid rgba(56,224,255,.12);font-size:1rem}
+.vA .list li .ck{width:1.2em;height:1.2em;border:1px solid var(--cy);display:grid;place-items:center;flex:none;font-size:.7rem;color:var(--ok);transition:all .25s}
+.vA .list li.done{color:var(--mute);text-decoration:line-through}
+.vA .list li.done .ck{background:var(--ok);color:#031018;box-shadow:0 0 10px var(--ok)}
+.vA .list li .q{margin-left:auto;font-family:var(--f-mono);font-size:.78rem;color:var(--mute);white-space:nowrap}
+.vA .list li .tag{font-family:var(--f-mono);font-size:.65rem;color:var(--am);border:1px solid rgba(255,196,77,.5);padding:0 .35em;letter-spacing:.05em}
+.vA .prog{font-family:var(--f-mono);font-size:.75rem;color:var(--mute);margin-top:.5rem;display:flex;align-items:center;gap:.5rem}
+.vA .prog i{flex:1;height:3px;background:rgba(56,224,255,.12);position:relative}
+.vA .prog i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);background:var(--ok);transition:width .4s}
+/* тегло */
+.vA .wchart{width:100%;height:auto;display:block;overflow:visible}
+.vA .wchart .ln{fill:none;stroke:var(--cy);stroke-width:2;stroke-linejoin:round;stroke-dasharray:600;stroke-dashoffset:600;animation:adraw 2s 1.2s forwards ease-out;filter:drop-shadow(0 0 5px var(--cy))}
+@keyframes adraw{to{stroke-dashoffset:0}}
+.vA .wchart .ar{fill:url(#agA);opacity:0;animation:afade 1s 2.4s forwards}
+@keyframes afade{to{opacity:1}}
+.vA .wchart .goal{stroke:var(--ok);stroke-dasharray:4 4;stroke-width:1}
+.vA .wchart text{font-family:var(--f-mono);font-size:9px;fill:var(--mute)}
+.vA .wchart .end{fill:#fff;filter:drop-shadow(0 0 6px var(--cy))}
+/* тикер */
+.vA .ticker{overflow:hidden;white-space:nowrap;font-family:var(--f-mono);font-size:.9rem;padding:.5rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:.9rem;position:relative}
+.vA .ticker span{display:inline-block;padding-left:100%;animation:atick 32s linear infinite}
+.vA .ticker em{color:var(--am);font-style:normal}
+.vA .ticker b{color:var(--mg);font-weight:400}
+@keyframes atick{to{transform:translateX(-100%)}}
+.vA .ticker:hover span{animation-play-state:paused}
+
+/* =================================================================================
+   B · STEAMPUNK
+   ================================================================================= */
+.vB{--bg:#2b1d12;--paper:#efe0bf;--paper2:#e2cfa5;--ink:#2a1a0c;--mute:#7a5a3a;--brass:#c9962e;--brass2:#8a5f16;--copper:#b0562a;--verd:#3f7a63;--red:#9b2f22;
+  --f-display:"Cinzel Decorative",serif;--f-body:"IM Fell English",Georgia,serif;--f-type:"Special Elite",ui-monospace,monospace;
+  background:var(--bg);color:var(--ink);font-family:var(--f-body);color-scheme:light}
+.vB .world{background:
+  radial-gradient(ellipse at 50% 0%,rgba(201,150,46,.18),transparent 60%),
+  repeating-linear-gradient(90deg,rgba(0,0,0,.08) 0 2px,transparent 2px 38px),
+  linear-gradient(#3a2816,#241709)}
+.vB .plate{background:linear-gradient(135deg,#e7b85a,#b7822a 40%,#d9a94a 60%,#8a5f16);border-radius:10px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.5)}
+.vB .plate>div{background:linear-gradient(#f3e6c8,var(--paper));border-radius:6px;padding:.9rem 1rem;position:relative;min-width:0;height:100%;
+  background-image:radial-gradient(rgba(122,90,58,.08) 1px,transparent 1px),linear-gradient(#f3e6c8,var(--paper));background-size:9px 9px,100% 100%}
+.vB .plate>div::before,.vB .plate>div::after,.vB .rv1,.vB .rv2{content:"";position:absolute;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f1d58a,#7d5611);box-shadow:0 1px 2px rgba(0,0,0,.5)}
+.vB .plate>div::before{left:6px;top:6px}.vB .plate>div::after{right:6px;top:6px}.vB .rv1{left:6px;bottom:6px}.vB .rv2{right:6px;bottom:6px}
+.vB .head{display:grid;grid-template-columns:auto 1fr auto;gap:1.2rem;align-items:center;margin-bottom:1.1rem}
+@media (max-width:760px){.vB .head{grid-template-columns:1fr;text-align:center}}
+.vB .title{font-family:var(--f-display);font-size:clamp(1.2rem,2.6vw,2rem);color:var(--brass);text-shadow:0 2px 0 #3a2300,0 0 20px rgba(201,150,46,.4);text-align:center}
+.vB .title small{display:block;font-family:var(--f-body);font-style:italic;font-size:.5em;color:#d8bf86;letter-spacing:.1em;text-shadow:none}
+.vB .gear{color:var(--brass);filter:drop-shadow(0 3px 3px rgba(0,0,0,.5));width:var(--s,90px);height:var(--s,90px);animation:bspin var(--t,14s) linear infinite;flex:none}
+.vB .gear.rev{animation-direction:reverse}
+@keyframes bspin{to{transform:rotate(360deg)}}
+.vB .gearset{display:flex;align-items:center;gap:-10px}
+.vB .pend{width:120px;height:120px;position:relative;margin:0 auto}
+.vB .pend .face{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 40%,#fff7df,#e2cfa5 70%);border:7px solid var(--brass);box-shadow:0 6px 16px rgba(0,0,0,.5),inset 0 0 8px rgba(0,0,0,.25);display:grid;place-items:center;font-family:var(--f-type);font-size:1.3rem;color:var(--ink)}
+.vB .pend .face small{display:block;font-size:.55rem;text-align:center;color:var(--mute);letter-spacing:.1em}
+.vB .pend .rod{position:absolute;left:50%;top:95%;width:4px;height:60px;background:linear-gradient(90deg,#8a5f16,#e7b85a,#8a5f16);transform-origin:top;animation:bswing 2s ease-in-out infinite alternate;margin-left:-2px}
+.vB .pend .rod::after{content:"";position:absolute;bottom:-14px;left:50%;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f1d58a,#7d5611)}
+@keyframes bswing{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+.vB .brow{display:grid;grid-template-columns:repeat(12,1fr);gap:1rem}
+.vB .s3{grid-column:span 3}.vB .s4{grid-column:span 4}.vB .s5{grid-column:span 5}.vB .s6{grid-column:span 6}.vB .s7{grid-column:span 7}.vB .s8{grid-column:span 8}.vB .s12{grid-column:span 12}
+@media (max-width:1100px){.vB .s3,.vB .s4,.vB .s5{grid-column:span 6}.vB .s7,.vB .s8{grid-column:span 12}}
+@media (max-width:640px){.vB .brow>*{grid-column:span 12}}
+.vB h2{font-family:var(--f-display);font-size:.85rem;color:var(--brass2);letter-spacing:.06em;text-align:center;margin-bottom:.6rem;position:relative}
+.vB h2::before,.vB h2::after{content:"❦";font-family:serif;margin:0 .5em;color:var(--copper);font-size:.9em}
+/* сплит-флап календар */
+.vB .flapdays{display:grid;gap:.6rem}
+.vB .fday{display:grid;grid-template-columns:4.6em 1fr;gap:.7rem;align-items:start}
+.vB .flap{background:#1d140a;color:#f5e6c1;border-radius:5px;font-family:var(--f-type);text-align:center;padding:.3rem 0 .2rem;position:relative;box-shadow:inset 0 0 0 1px #000,0 2px 4px rgba(0,0,0,.4);
+  transform-style:preserve-3d;animation:bflip .8s both cubic-bezier(.3,1.4,.5,1)}
+.vB .fday:nth-child(2) .flap{animation-delay:.15s}.vB .fday:nth-child(3) .flap{animation-delay:.3s}.vB .fday:nth-child(4) .flap{animation-delay:.45s}
+@keyframes bflip{from{transform:rotateX(-90deg);opacity:0}}
+.vB .flap::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#000;box-shadow:0 1px 0 rgba(255,255,255,.1)}
+.vB .flap b{display:block;font-size:1.7rem;line-height:1}
+.vB .flap small{font-size:.65rem;letter-spacing:.15em;color:#c9a55a}
+.vB .fday.today .flap{background:#4a1e12;color:#ffe9b8}
+.vB .bev{display:flex;align-items:baseline;gap:.5rem;padding:.12rem 0;font-size:1.05rem;border-bottom:1px dotted rgba(122,90,58,.4)}
+.vB .bev time{font-family:var(--f-type);font-size:.8rem;color:var(--mute);min-width:3.2em}
+.vB .seal{width:1.5em;height:1.5em;border-radius:50%;background:var(--c);color:#fff8e6;display:inline-grid;place-items:center;font-family:var(--f-display);font-size:.6rem;flex:none;box-shadow:inset 0 0 0 2px rgba(255,255,255,.35),0 1px 2px rgba(0,0,0,.4);align-self:center}
+/* манометър */
+.vB .mano{display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:center}
+@media (max-width:640px){.vB .mano{grid-template-columns:1fr;justify-items:center}}
+.vB .mano svg{width:170px;max-width:100%;height:auto;display:block}
+.vB .needle{transform-origin:100px 100px;transform:rotate(var(--deg,-90deg));animation:bneedle 2.4s both cubic-bezier(.3,1.6,.4,1);transition:transform 1s}
+@keyframes bneedle{from{transform:rotate(-90deg)}60%{transform:rotate(calc(var(--deg) + 8deg))}80%{transform:rotate(calc(var(--deg) - 4deg))}}
+.vB .bigb{font-family:var(--f-type);font-size:clamp(1.6rem,3vw,2.3rem);color:var(--ink);line-height:1}
+.vB .bigb small{font-size:.45em;color:var(--mute)}
+.vB .ledger{font-family:var(--f-type);font-size:.85rem;color:var(--mute);margin-top:.5rem;line-height:1.7}
+.vB .ledger b{color:var(--ink);font-weight:400;float:right}
+.vB .ledger div{clear:both;border-bottom:1px dotted rgba(122,90,58,.5)}
+.vB .over{color:var(--red)}
+/* меню — табло с лозунг */
+.vB .menu{display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:center}
+@media (max-width:760px){.vB .menu{grid-template-columns:1fr}}
+.vB .plateau{font-family:var(--f-type);line-height:1.5;font-size:1.05rem}
+.vB .plateau .dn{font-size:1.45rem;color:var(--ink);font-family:var(--f-body);font-style:italic}
+.vB .plateau .lb{font-size:.72rem;letter-spacing:.2em;color:var(--copper);text-transform:uppercase}
+.vB .wk{display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;margin-top:.6rem}
+@media (max-width:900px){.vB .wk{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:640px){.vB .wk{grid-template-columns:1fr 1fr}}
+.vB .wk>div{background:var(--paper2);border:1px solid rgba(122,90,58,.5);padding:.4rem .45rem;font-size:.82rem;min-width:0;box-shadow:inset 0 1px 0 #fff}
+.vB .wk>div.today{background:#f7ebc9;outline:2px solid var(--brass);outline-offset:-3px}
+.vB .wk h4{font-family:var(--f-type);font-size:.68rem;color:var(--mute);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem}
+.vB .wk p{margin:.1rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vB .wk .bv{display:flex;gap:.3rem;margin-top:.3rem}
+.vB .wk .bv button{font-family:var(--f-type);font-size:.72rem;border:1px solid var(--brass2);border-radius:3px;padding:0 .35em;color:var(--mute);background:#f7ebc9}
+.vB .wk .bv button.on{background:var(--verd);color:#fff;border-color:var(--verd)}
+.vB .wk .bv button.on.no{background:var(--red);border-color:var(--red)}
+/* перфориран билет */
+.vB .ticket{background:#fbf3dc;border-radius:4px;padding:1.7rem .9rem .7rem 1.6rem;position:relative;font-family:var(--f-type);
+  mask:radial-gradient(circle at 0 50%,transparent 6px,#000 6.5px) 0 0/100% 18px repeat-y,linear-gradient(#000,#000) 14px 0/calc(100% - 14px) 100% no-repeat;-webkit-mask:radial-gradient(circle at 0 50%,transparent 6px,#000 6.5px) 0 0/100% 18px repeat-y,linear-gradient(#000,#000) 14px 0/calc(100% - 14px) 100% no-repeat;
+  mask-composite:add;-webkit-mask-composite:source-over;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.vB .ticket li{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;border-bottom:1px dashed rgba(122,90,58,.5);font-size:.98rem}
+.vB .ticket li .q{margin-left:auto;color:var(--mute);font-size:.8rem;white-space:nowrap}
+.vB .ticket li .ck{width:1.3em;height:1.3em;border:1.5px solid var(--ink);border-radius:50%;flex:none;display:grid;place-items:center;position:relative}
+.vB .ticket li.done{color:var(--mute);text-decoration:line-through}
+.vB .ticket li.done .ck::after{content:"✓";color:var(--red);font-size:1.3em;position:absolute;transform:rotate(-12deg);font-weight:700;animation:bstamp .35s both cubic-bezier(.2,2,.5,1)}
+@keyframes bstamp{from{transform:scale(2.2) rotate(-30deg);opacity:0}}
+.vB .ticket .stamp{position:absolute;right:.7rem;top:.4rem;font-family:var(--f-display);font-size:.7rem;color:var(--red);border:2px solid var(--red);border-radius:4px;padding:.1em .4em;transform:rotate(8deg);opacity:.8;letter-spacing:.1em}
+.vB .aisle{font-size:.65rem;letter-spacing:.1em;color:var(--copper);text-transform:uppercase;border:1px solid var(--copper);padding:0 .3em;border-radius:2px}
+/* задачи — табелки */
+.vB .tags li{display:flex;align-items:center;gap:.6rem;font-family:var(--f-type);padding:.3rem .5rem;margin:.3rem 0;background:linear-gradient(#e7b85a,#b7822a);border-radius:3px;color:#1d140a;box-shadow:0 2px 3px rgba(0,0,0,.4);font-size:.95rem;position:relative}
+.vB .tags li::before{content:"";width:8px;height:8px;border-radius:50%;background:#2b1d12;box-shadow:inset 0 1px 2px #000;flex:none}
+.vB .tags li.done{filter:grayscale(.7) brightness(.8);text-decoration:line-through}
+.vB .tags li .who{margin-left:auto;font-size:.75rem;color:#3a2300}
+/* тегло — скала */
+.vB .scale{position:relative;height:70px;margin:.4rem 0 .2rem;background:linear-gradient(#fbf3dc,#e2cfa5);border:2px solid var(--brass2);border-radius:6px;overflow:hidden}
+.vB .scale .ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--brass2) 0 1px,transparent 1px 10%) 0 0/100% 40% no-repeat,repeating-linear-gradient(90deg,rgba(122,90,58,.5) 0 1px,transparent 1px 2%) 0 0/100% 25% no-repeat}
+.vB .scale .lab{position:absolute;bottom:4px;font-family:var(--f-type);font-size:.7rem;color:var(--mute);transform:translateX(-50%)}
+.vB .scale .pin{position:absolute;top:0;bottom:0;width:3px;background:var(--red);left:var(--x);transition:left 1s;animation:bslide 2s both cubic-bezier(.3,1.5,.4,1)}
+.vB .scale .pin::after{content:"";position:absolute;top:-2px;left:-6px;border:7px solid transparent;border-top:9px solid var(--red)}
+@keyframes bslide{from{left:0}}
+.vB .scale .goal{position:absolute;top:0;bottom:0;width:2px;background:var(--verd);left:var(--x)}
+.vB .hist{display:flex;gap:3px;align-items:flex-end;height:46px;margin-top:.5rem}
+.vB .hist i{flex:1;background:linear-gradient(#b0562a,#8a5f16);border-radius:2px 2px 0 0;height:var(--h);animation:bgrow 1s both;transform-origin:bottom}
+@keyframes bgrow{from{transform:scaleY(0)}}
+/* тренировка */
+.vB .wo li{display:flex;gap:.6rem;align-items:center;font-size:1rem;padding:.25rem 0;border-bottom:1px dotted rgba(122,90,58,.5)}
+.vB .wo li .ck{width:1.3em;height:1.3em;border:1.5px solid var(--ink);flex:none;display:grid;place-items:center;font-size:.9em;color:var(--verd)}
+.vB .wo li.done .ck{background:var(--verd);color:#fff;border-color:var(--verd)}
+.vB .wo li .sets{margin-left:auto;font-family:var(--f-type);font-size:.8rem;color:var(--mute);white-space:nowrap}
+/* промоции — телеграма */
+.vB .tele{font-family:var(--f-type);font-size:.95rem;line-height:1.7;letter-spacing:.03em;text-transform:uppercase;color:var(--ink);white-space:pre-line}
+.vB .tele b{color:var(--red);font-weight:400}
+.vB .tele .cur::after{content:"▌";animation:ablink 1s infinite}
+
+/* =================================================================================
+   C · ОРГАНИЗЪМ
+   ================================================================================= */
+.vC{--bg:#020b10;--fg:#d8f7f0;--mute:#6fa89c;--glow:#3cf7c4;--glow2:#7cb7ff;--warm:#ffb76b;--pink:#ff7fb0;--bad:#ff6f7a;
+  --cell:rgba(10,42,48,.62);--line:rgba(60,247,196,.25);
+  --f-display:"Comfortaa",sans-serif;--f-body:"Nunito",system-ui,sans-serif;
+  background:radial-gradient(ellipse at 50% 30%,#0a2a30,var(--bg) 70%);color:var(--fg);font-family:var(--f-body)}
+.vC .org{position:relative;display:grid;grid-template-columns:1fr minmax(300px,420px) 1fr;grid-template-rows:auto auto auto;gap:1.2rem;align-items:stretch;max-width:1500px;margin:0 auto}
+.vC .core{grid-column:2;grid-row:1/4;align-self:center;position:relative;border-radius:46% 54% 50% 50%/55% 45% 55% 45%;padding:1.6rem 1.5rem;
+  background:radial-gradient(circle at 50% 35%,rgba(60,247,196,.22),rgba(10,42,48,.85) 60%);border:1px solid var(--line);
+  box-shadow:0 0 60px rgba(60,247,196,.25),inset 0 0 40px rgba(60,247,196,.12);animation:cbreathe 7s ease-in-out infinite,cmorph 18s ease-in-out infinite;text-align:center;min-width:0}
+@keyframes cbreathe{50%{box-shadow:0 0 110px rgba(60,247,196,.42),inset 0 0 60px rgba(60,247,196,.2)}}
+@keyframes cmorph{0%,100%{border-radius:46% 54% 50% 50%/55% 45% 55% 45%}33%{border-radius:52% 48% 44% 56%/48% 58% 42% 52%}66%{border-radius:48% 52% 56% 44%/52% 46% 54% 48%}}
+.vC .core .t{font-family:var(--f-display);font-weight:700;font-size:clamp(2.4rem,5vw,3.6rem);color:#fff;text-shadow:0 0 24px var(--glow);letter-spacing:.04em;line-height:1}
+.vC .core .d{color:var(--mute);font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:.78rem;margin:.3rem 0 1rem}
+.vC .core h3{font-family:var(--f-display);font-size:.78rem;letter-spacing:.2em;text-transform:uppercase;color:var(--glow);margin:.9rem 0 .4rem}
+.vC .cev{display:flex;align-items:center;gap:.6rem;justify-content:center;padding:.22rem 0;font-weight:600;font-size:1.02rem}
+.vC .cev time{color:var(--mute);font-weight:700;font-size:.85rem}
+.vC .orb{width:1.5em;height:1.5em;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,var(--c) 45%,transparent 75%);display:inline-grid;place-items:center;font-size:.6rem;font-weight:800;color:#021;flex:none;box-shadow:0 0 10px var(--c)}
+.vC .cook{margin-top:.4rem;display:grid;gap:.3rem}
+.vC .cook .dn{font-family:var(--f-display);font-size:1.5rem;font-weight:700;color:#fff}
+.vC .cook .ln{color:var(--fg);opacity:.85}
+.vC .cook small{color:var(--mute);font-weight:700;font-size:.8rem}
+.vC .cell{position:relative;background:var(--cell);border:1px solid var(--line);border-radius:28px;padding:1rem 1.1rem;min-width:0;backdrop-filter:blur(8px);
+  box-shadow:0 0 30px rgba(60,247,196,.08),inset 0 0 24px rgba(60,247,196,.05);animation:cpulse 6s ease-in-out infinite;animation-delay:calc(var(--i,0)*-.9s)}
+@keyframes cpulse{50%{box-shadow:0 0 44px rgba(60,247,196,.18),inset 0 0 30px rgba(60,247,196,.1);transform:translateY(-3px)}}
+.vC .cell::before{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:1px;background:linear-gradient(130deg,var(--glow),transparent 40%,transparent 60%,var(--glow2));-webkit-mask:linear-gradient(#000,#000) content-box,linear-gradient(#000,#000);-webkit-mask-composite:xor;mask-composite:exclude;opacity:.5;pointer-events:none}
+.vC .cell h2{font-family:var(--f-display);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--glow);display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem}
+.vC .cell h2 span{color:var(--mute);font-family:var(--f-body);letter-spacing:0;font-weight:700;font-size:.8rem}
+.vC .c-budget{grid-column:1;grid-row:1}.vC .c-menu{grid-column:3;grid-row:1}.vC .c-shop{grid-column:1;grid-row:2}.vC .c-tasks{grid-column:3;grid-row:2}
+.vC .c-weight{grid-column:1;grid-row:3}.vC .c-work{grid-column:3;grid-row:3}.vC .c-days,.vC .c-promo{grid-column:1/-1}
+/* бюджет — течност */
+.vC .vial{display:grid;grid-template-columns:auto 1fr;gap:1rem;align-items:center}
+.vC .vial svg{width:92px;height:auto;display:block}
+.vC .liq{animation:cwave 4s linear infinite}
+@keyframes cwave{to{transform:translateX(-80px)}}
+.vC .bigc{font-family:var(--f-display);font-size:clamp(1.7rem,3vw,2.4rem);font-weight:700;color:#fff;text-shadow:0 0 18px var(--glow);line-height:1}
+.vC .bigc small{font-size:.42em;color:var(--mute);font-weight:700;margin-left:.3em}
+.vC .meta{color:var(--mute);font-weight:600;font-size:.86rem;margin-top:.4rem;line-height:1.5}
+.vC .meta b{color:var(--fg);font-weight:700}
+.vC .over .bigc{text-shadow:0 0 18px var(--bad);color:var(--bad)}
+/* меню — лоза */
+.vC .vine{display:grid;grid-template-columns:repeat(7,1fr);gap:.35rem;position:relative}
+@media (max-width:900px){.vC .vine{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:640px){.vC .vine{grid-template-columns:1fr 1fr}}
+.vC .vine>div{text-align:center;font-size:.82rem;min-width:0;padding:.3rem .2rem;border-radius:16px}
+.vC .vine>div.today{background:rgba(60,247,196,.1)}
+.vC .vine h4{font-size:.68rem;color:var(--mute);letter-spacing:.1em;text-transform:uppercase;font-weight:800}
+.vC .vine .pod{width:34px;height:34px;margin:.3rem auto;border-radius:50%;background:radial-gradient(circle at 40% 35%,#fff,var(--glow) 40%,rgba(60,247,196,.1) 72%);box-shadow:0 0 14px var(--glow);animation:cpod 3s ease-in-out infinite;animation-delay:calc(var(--i)*-.4s);display:grid;place-items:center;font-size:.9rem}
+@keyframes cpod{50%{transform:scale(1.12)}}
+.vC .vine .pod.no{background:radial-gradient(circle at 40% 35%,#fff,var(--bad) 40%,rgba(255,111,122,.1) 72%);box-shadow:0 0 14px var(--bad)}
+.vC .vine .pod.wait{background:radial-gradient(circle at 40% 35%,#fff,var(--mute) 40%,rgba(111,168,156,.1) 72%);box-shadow:none;animation:none}
+.vC .vine p{margin:.1rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.vC .vine .cv{display:flex;justify-content:center;gap:.25rem;margin-top:.25rem}
+.vC .vine .cv button{font-size:.75rem;padding:.1rem .4rem;border-radius:999px;border:1px solid var(--line);color:var(--mute);font-weight:800}
+.vC .vine .cv button.on{background:var(--glow);color:#021;border-color:var(--glow)}
+.vC .vine .cv button.on.no{background:var(--bad);border-color:var(--bad)}
+/* списъци */
+.vC .bubbles{display:flex;flex-wrap:wrap;gap:.45rem}
+.vC .bubbles button{display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:999px;border:1px solid var(--line);background:rgba(60,247,196,.06);font-weight:700;font-size:.95rem;transition:all .3s}
+.vC .bubbles button:hover{background:rgba(60,247,196,.14)}
+.vC .bubbles button.done{opacity:.45;text-decoration:line-through;background:transparent;transform:scale(.94)}
+.vC .bubbles button small{color:var(--mute);font-weight:700}
+.vC .bubbles button::before{content:"";width:.6em;height:.6em;border-radius:50%;background:var(--glow);box-shadow:0 0 8px var(--glow)}
+.vC .bubbles button.done::before{background:var(--mute);box-shadow:none}
+.vC .tline{color:var(--mute);font-weight:700;font-size:.8rem;margin-top:.6rem}
+.vC .tasks li{display:flex;align-items:center;gap:.6rem;padding:.3rem 0;font-weight:600;font-size:1rem}
+.vC .tasks li .ck{width:1.3em;height:1.3em;border-radius:50%;border:1.5px solid var(--glow);flex:none;display:grid;place-items:center;font-size:.75rem;color:#021;transition:all .3s}
+.vC .tasks li.done{opacity:.5;text-decoration:line-through}
+.vC .tasks li.done .ck{background:var(--glow);box-shadow:0 0 12px var(--glow)}
+.vC .tasks li .who{margin-left:auto}
+/* тегло — вълна */
+.vC .wsvg{width:100%;height:auto;display:block;overflow:visible}
+.vC .wsvg .ln{fill:none;stroke:var(--glow);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px var(--glow));stroke-dasharray:600;stroke-dashoffset:600;animation:adraw 2.2s .6s forwards ease-out}
+.vC .wsvg .ar{fill:url(#cgC)}
+.vC .wsvg .pt{fill:#fff;filter:drop-shadow(0 0 5px var(--glow))}
+.vC .wsvg .goal{stroke:var(--warm);stroke-dasharray:3 5;stroke-width:1}
+.vC .wsvg text{font-size:9px;fill:var(--mute);font-weight:700}
+/* тренировка — пръстени */
+.vC .rings{display:grid;grid-template-columns:auto 1fr;gap:.9rem;align-items:center}
+.vC .rings svg{width:84px;height:84px}
+.vC .rings .r{fill:none;stroke-width:8;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .6s}
+.vC .ex li{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-weight:600}
+.vC .ex li button{width:1.3em;height:1.3em;border-radius:50%;border:1.5px solid var(--glow2);flex:none;color:#021;font-size:.75rem;display:grid;place-items:center}
+.vC .ex li.done button{background:var(--glow2);box-shadow:0 0 10px var(--glow2)}
+.vC .ex li.done{opacity:.6}
+.vC .ex li small{margin-left:auto;color:var(--mute);font-weight:700}
+/* промоции — спори */
+.vC .spores{display:flex;gap:.6rem;flex-wrap:wrap}
+.vC .spore{padding:.5rem .9rem;border-radius:999px;background:rgba(255,183,107,.12);border:1px solid rgba(255,183,107,.4);font-weight:700;animation:cdrift 5s ease-in-out infinite;animation-delay:calc(var(--i)*-1.3s)}
+.vC .spore b{color:var(--warm)}
+.vC .spore small{color:var(--mute)}
+@keyframes cdrift{33%{transform:translate(2px,-5px) rotate(1deg)}66%{transform:translate(-3px,3px) rotate(-1deg)}}
+.vC .days{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+@media (max-width:640px){.vC .days{grid-template-columns:1fr}}
+.vC .days h4{font-weight:800;color:var(--mute);letter-spacing:.1em;text-transform:uppercase;font-size:.72rem;margin-bottom:.3rem}
+.vC .days h4 b{color:var(--fg);font-size:1.1rem;margin-right:.3em}
+/* C: подредба на средни и тесни екрани (след базовите правила, за да печели каскадата) */
+@media (max-width:1100px){.vC .org{grid-template-columns:1fr 1fr}.vC .core{grid-column:1/-1;grid-row:1;align-self:stretch}.vC .cell{grid-row:auto;grid-column:auto}.vC .c-days,.vC .c-promo{grid-column:1/-1}}
+@media (max-width:640px){.vC .org{grid-template-columns:1fr}.vC .cell{grid-column:1}.vC .core{grid-column:1}.vC .vial{grid-template-columns:1fr;justify-items:center;text-align:center}.vC .rings{grid-template-columns:1fr;justify-items:center}.vC .bubbles button{font-size:.88rem}}
+</style>
+</head>
+<body>
+<canvas class="bgfx" id="fx"></canvas>
+<main id="root" class="world"></main>
+<nav id="switcher" aria-label="Превключване на вариант (прототип)">
+  <button id="prev" aria-label="Предишен вариант">‹</button>
+  <div class="lbl" id="lbl"></div>
+  <button id="next" aria-label="Следващ вариант">›</button>
+</nav>
+
+<script>
+/* ---------------- ФИКТИВНИ ДАННИ ---------------- */
+const P = {
+  D:{n:'Дако',i:'Д',c:'#4fa3ff'},
+  S:{n:'Съпруга',i:'С',c:'#ff9a5c'},
+  F:{n:'Семейство',i:'✦',c:'#c58dff'},
+};
+const TODAY = new Date(2026,9,25); // неделя
+const DOW = ['нд','пн','вт','ср','чт','пт','сб'];
+const DOWL = ['неделя','понеделник','вторник','сряда','четвъртък','петък','събота'];
+const MON = ['яну','фев','мар','апр','май','юни','юли','авг','сеп','окт','ное','дек'];
+const addD=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const CAL = [
+  {o:0, ev:[{t:'11:00',n:'Обяд при баба',w:'F'},{t:'17:30',n:'Фитнес',w:'D'},{t:'19:00',n:'Кино с Ива',w:'S'}]},
+  {o:1, ev:[{t:'09:00',n:'Зъболекар',w:'D'},{t:'18:00',n:'Йога',w:'S'}]},
+  {o:2, ev:[{t:'08:30',n:'Есенен празник в градината',w:'F'},{t:'20:00',n:'Среща с Петър',w:'D'}]},
+  {o:3, ev:[{t:'12:00',n:'Обяд с колеги',w:'S'}]},
+];
+const BUDGET = {limit:3200, spent:2140, day:25, days:31};
+BUDGET.rem = BUDGET.limit-BUDGET.spent;
+BUDGET.pace = Math.round(BUDGET.rem/(BUDGET.days-BUDGET.day+1));
+const MENU = [
+  {d:'нд',l:'Леща яхния',dn:'Пиле с ориз и зеленчуци',cook:'D',v:{D:1,S:1}},
+  {d:'пн',l:'Пиле с ориз (остатък)',dn:'Мусака',cook:'S',v:{D:1,S:1}},
+  {d:'вт',l:'Салата с риба тон',dn:'Спагети болонезе',cook:'D',v:{D:1,S:0}},
+  {d:'ср',l:'Мусака (остатък)',dn:'Печена сьомга с картофи',cook:'S',v:{D:-1,S:1}},
+  {d:'чт',l:'Боб чорба',dn:'Пълнени чушки',cook:'D',v:{D:0,S:0}},
+  {d:'пт',l:'Чушки (остатък)',dn:'Пица домашна',cook:'F',v:{D:1,S:1}},
+  {d:'сб',l:'Таратор + баница',dn:'Скара на терасата',cook:'D',v:{D:0,S:0}},
+];
+const SHOP = [
+  {n:'Пилешко филе',q:'1,2 кг',a:'Месо',promo:'Lidl −30%'},
+  {n:'Ориз басмати',q:'1 кг',a:'Сухи',promo:'Kaufland 2+1'},
+  {n:'Кайма смес',q:'800 г',a:'Месо',promo:'Метро −20%'},
+  {n:'Патладжан',q:'3 бр',a:'Зеленчуци'},
+  {n:'Картофи',q:'2 кг',a:'Зеленчуци',ck:true},
+  {n:'Кисело мляко',q:'4 бр',a:'Млечни',ck:true},
+  {n:'Сьомга филе',q:'600 г',a:'Риба'},
+  {n:'Зехтин',q:'1 л',a:'Сухи',promo:'Billa −25%'},
+  {n:'Сирене',q:'400 г',a:'Млечни'},
+  {n:'Домати',q:'1 кг',a:'Зеленчуци',ck:true},
+];
+const TASKS = [
+  {n:'Плати тока',w:'D',due:'днес'},
+  {n:'Запиши колата за преглед',w:'D',due:'вт'},
+  {n:'Подарък за Мира',w:'S',due:'ср',ck:true},
+  {n:'Смени филтъра на водата',w:'D',due:'сб'},
+  {n:'Резервирай зъболекар за Ева',w:'S',due:'пт'},
+  {n:'Прибери зимните гуми',w:'F',due:'нд'},
+];
+const WEIGHT = {goal:85, pts:[94.2,93.8,93.9,93.1,92.6,92.8,92.1,91.7]};
+const WORK = [
+  {n:'Гребане с ластик',s:'3×15',ck:true},
+  {n:'Клек с гира',s:'4×10',ck:true},
+  {n:'Лицеви опори',s:'3×12'},
+  {n:'Планк',s:'3×45 с'},
+];
+const PROMO = [
+  {s:'Lidl',n:'Пилешко филе',p:'−30%',until:'до нд'},
+  {s:'Kaufland',n:'Ориз басмати',p:'2+1',until:'до чт'},
+  {s:'Billa',n:'Зехтин 1 л',p:'−25%',until:'до сб'},
+  {s:'Метро',n:'Кайма смес',p:'−20%',until:'до пт'},
+];
+const RECIPES = {total:42, fresh:3};
+const SYNC = {cal:'преди 4 мин', wallet:'преди 2 ч', promo:'преди 6 ч'};
+
+/* ---------------- ПОМОЩНИ ---------------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>n.toLocaleString('bg-BG');
+const pct=Math.min(100,Math.round(BUDGET.spent/BUDGET.limit*100));
+const dayPct=Math.round(BUDGET.day/BUDGET.days*100);
+const over=BUDGET.spent>BUDGET.limit;
+function clockStr(){const d=new Date();return d.toLocaleTimeString('bg-BG',{hour:'2-digit',minute:'2-digit'})}
+function dateStr(d=TODAY){return `${DOWL[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`}
+function weightPath(w,h,pad){
+  const pts=WEIGHT.pts;const min=Math.min(...pts,WEIGHT.goal)-1,max=Math.max(...pts)+1;
+  const x=i=>pad+i*(w-2*pad)/(pts.length-1), y=v=>h-pad-(v-min)/(max-min)*(h-2*pad);
+  const d=pts.map((v,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return {d, area:`${d} L${x(pts.length-1).toFixed(1)},${h-pad} L${x(0)},${h-pad} Z`, ex:x(pts.length-1), ey:y(pts[pts.length-1]), gy:y(WEIGHT.goal), x, y};
+}
+const voteBtns=(m,i,cls)=>['D','S'].map(u=>{
+  const v=m.v[u];return `<button class="${v===1?'on':v===-1?'on no':''}" data-vote="${i}:${u}" title="Глас на ${P[u].n}">${P[u].i} ${v===1?'👍':v===-1?'👎':'·'}</button>`}).join('');
+
+/* ---------------- ВАРИАНТ A · ХОЛОГРАМА ---------------- */
+function renderA(){
+  const g=weightPath(300,110,14);
+  const r=56, C=2*Math.PI*r*0.75; // 270° дъга
+  const radarDots=CAL[0].ev.map((e,i)=>{const h=parseInt(e.t);const ang=(h-7)/16*Math.PI*2-Math.PI/2;const rr=28+i*9;
+    return `<b style="--c:${P[e.w].c};left:${50+Math.cos(ang)*rr}%;top:${50+Math.sin(ang)*rr}%" title="${esc(e.n)}"></b>`}).join('');
+  return `<section class="vA" style="min-height:100%">
+  <header class="top">
+    <div><div class="brand" data-t="FAMILY · OS">FAMILY · OS</div>
+      <div class="status"><span><i></i>календар ${SYNC.cal}</span><span><i></i>wallet ${SYNC.wallet}</span><span><i class="warn"></i>промоции ${SYNC.promo}</span><span><i></i>рецепти ${RECIPES.total} · ${RECIPES.fresh} нови</span></div></div>
+    <div class="clock num"><small>${dateStr()}</small><span data-clock>${clockStr()}</span></div>
+  </header>
+  <div class="grid">
+    <article class="p c7" style="--i:0"><h2>Календар <span>днес + 3 дни</span></h2>
+      <div class="cal">
+        <div class="radar" aria-hidden="true">${radarDots}<span class="now">07–23 ч</span></div>
+        <div class="days">${CAL.map(d=>{const dt=addD(TODAY,d.o);return `<div class="day ${d.o?'':'today'}"><div class="d">${d.o?DOW[dt.getDay()]:'днес'}<b class="num">${dt.getDate()}</b></div><div>${d.ev.map(e=>`<div class="ev"><time>${e.t}</time><span class="av" style="--c:${P[e.w].c}">${P[e.w].i}</span>${esc(e.n)}</div>`).join('')}</div></div>`}).join('')}</div>
+      </div></article>
+    <article class="p c5" style="--i:1"><h2>Бюджет · октомври <span>wallet</span></h2>
+      <div class="gauge">
+        <svg viewBox="0 0 140 130" aria-hidden="true"><g transform="rotate(135 70 70)">
+          <circle class="arc track" cx="70" cy="70" r="${r}" stroke-dasharray="${C} ${2*Math.PI*r}"/>
+          <circle class="arc val ${over?'over':''}" cx="70" cy="70" r="${r}" stroke-dasharray="${C} ${2*Math.PI*r}" style="stroke-dashoffset:${C}" data-arc="${C*(1-pct/100)}"/></g>
+          <text x="70" y="66" text-anchor="middle" fill="#dff4ff" font-family="Orbitron" font-size="20" font-weight="700" class="num" data-count="${pct}">0</text>
+          <text x="70" y="82" text-anchor="middle" fill="#6f93b3" font-family="Share Tech Mono" font-size="9">% ПОХАРЧЕНИ</text></svg>
+        <div><div class="big num"><span data-count="${BUDGET.rem}">0</span><small>лв остават</small></div>
+          <div class="kv"><span>лимит</span><b class="num">${fmt(BUDGET.limit)}</b><span>похарчени</span><b class="num">${fmt(BUDGET.spent)}</b><span>темпо</span><b class="num">~${BUDGET.pace} лв/ден</b></div>
+          <div class="tick"><i style="--w:${pct}%"></i><b style="--x:${dayPct}%" title="ден ${BUDGET.day}/${BUDGET.days}"></b></div></div>
+      </div>
+      <h2 style="margin-top:1rem">Днес се готви <span>${MENU[0].cook==='F'?'заедно':P[MENU[0].cook].n}</span></h2>
+      <div class="meal"><span class="slot">обяд</span><div><div class="t">${MENU[0].l}</div><div class="m">batch от събота · 2 порции</div></div><span class="cook">13:00</span></div>
+      <div class="meal dinner"><span class="slot">вечеря</span><div><div class="t">${MENU[0].dn}</div><div class="m">45 мин · 4 порции · Д 2 / С 1 / Ева 1</div></div><span class="cook"><span class="av" style="--c:${P[MENU[0].cook].c}">${P[MENU[0].cook].i}</span>19:30</span></div>
+    </article>
+    <article class="p c12" style="--i:2"><h2>Седмично меню <span>чернова · гласуване до неделя 20:00</span></h2>
+      <div class="week">${MENU.map((m,i)=>`<div class="wd ${i?'':'today'}"><h4>${m.d} · <span class="av" style="--c:${P[m.cook].c};font-size:.55rem;width:1.3em;height:1.3em">${P[m.cook].i}</span></h4><p title="${esc(m.l)}">☼ ${esc(m.l)}</p><p class="dn" title="${esc(m.dn)}">☾ ${esc(m.dn)}</p><div class="vote">${voteBtns(m,i)}</div></div>`).join('')}</div></article>
+    <article class="p c4" style="--i:3"><h2>Пазаруване <span>от менюто</span></h2>
+      <ul class="list">${SHOP.map((s,i)=>`<li class="${s.ck?'done':''}"><button class="ck" data-shop="${i}" aria-label="Отметни ${esc(s.n)}">${s.ck?'✓':''}</button>${esc(s.n)} ${s.promo?`<span class="tag">${esc(s.promo)}</span>`:''}<span class="q">${s.q}</span></li>`).join('')}</ul>
+      <div class="prog"><span class="num">${SHOP.filter(s=>s.ck).length}/${SHOP.length}</span><i style="--w:${Math.round(SHOP.filter(s=>s.ck).length/SHOP.length*100)}%"></i></div></article>
+    <article class="p c4" style="--i:4"><h2>Задачи <span>${TASKS.filter(t=>!t.ck).length} отворени</span></h2>
+      <ul class="list">${TASKS.map((t,i)=>`<li class="${t.ck?'done':''}"><button class="ck" data-task="${i}" aria-label="Готово ${esc(t.n)}">${t.ck?'✓':''}</button><span class="av" style="--c:${P[t.w].c}">${P[t.w].i}</span>${esc(t.n)}<span class="q">${t.due}</span></li>`).join('')}</ul></article>
+    <article class="p c4" style="--i:5"><h2>Тегло · Дако <span>цел ${WEIGHT.goal} кг</span></h2>
+      <div class="big num">${WEIGHT.pts.at(-1).toFixed(1)}<small>кг · −${(WEIGHT.pts[0]-WEIGHT.pts.at(-1)).toFixed(1)} за 8 седм.</small></div>
+      <svg class="wchart" viewBox="0 0 300 110" aria-label="Тегло по седмици"><defs><linearGradient id="agA" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#38e0ff" stop-opacity=".35"/><stop offset="1" stop-color="#38e0ff" stop-opacity="0"/></linearGradient></defs>
+        <path class="ar" d="${g.area}"/><path class="ln" d="${g.d}"/><line class="goal" x1="14" x2="286" y1="${g.gy}" y2="${g.gy}"/><text x="286" y="${g.gy-3}" text-anchor="end">цел ${WEIGHT.goal}</text>
+        <circle class="end" cx="${g.ex}" cy="${g.ey}" r="4"/>${WEIGHT.pts.map((v,i)=>`<text x="${g.x(i)}" y="106" text-anchor="middle">с${i+1}</text>`).join('')}</svg>
+      <h2 style="margin-top:.8rem">Тренировка <span>${WORK.filter(w=>w.ck).length}/${WORK.length}</span></h2>
+      <ul class="list">${WORK.map((w,i)=>`<li class="${w.ck?'done':''}"><button class="ck" data-work="${i}" aria-label="Направено ${esc(w.n)}">${w.ck?'✓':''}</button>${esc(w.n)}<span class="q">${w.s}</span></li>`).join('')}</ul></article>
+  </div>
+  <div class="ticker" aria-label="Промоции"><span>${PROMO.map(p=>`<em>${p.s}</em> ${esc(p.n)} <b>${p.p}</b> ${p.until}`).join(' ◆ ')} ◆ утре: извади каймата за мусаката ◆ ${RECIPES.fresh} нови предложения за рецепти чакат одобрение ◆ </span></div>
+  </section>`;
+}
+function afterA(){
+  document.querySelectorAll('[data-arc]').forEach(el=>requestAnimationFrame(()=>el.style.strokeDashoffset=el.dataset.arc));
+  document.querySelectorAll('[data-count]').forEach(el=>{const to=+el.dataset.count;const t0=performance.now();const dur=1400;
+    const step=t=>{const k=Math.min(1,(t-t0)/dur);const e=1-Math.pow(1-k,3);el.textContent=fmt(Math.round(to*e));if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)});
+}
+function fxA(ctx,W,H,t){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#03060f';ctx.fillRect(0,0,W,H);
+  // хекс-мрежа, бавно пулсира
+  ctx.strokeStyle='rgba(56,224,255,.07)';ctx.lineWidth=1;const s=42,h=s*Math.sqrt(3)/2;
+  for(let y=-h;y<H+h;y+=h*2)for(let x=-s;x<W+s;x+=s*3){for(const[ox,oy]of[[0,0],[s*1.5,h]]){ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i;ctx.lineTo(x+ox+Math.cos(a)*s*.5,y+oy+Math.sin(a)*s*.5)}ctx.closePath();ctx.stroke()}}
+  // частици
+  for(const p of fxA.ps){p.y-=p.v;if(p.y<0){p.y=H;p.x=Math.random()*W}ctx.fillStyle=`rgba(56,224,255,${p.a})`;ctx.fillRect(p.x,p.y,1.5,p.l)}
+  // хоризонтален скан
+  const sy=(t/18)%(H+200)-100;const gr=ctx.createLinearGradient(0,sy-60,0,sy+60);gr.addColorStop(0,'rgba(56,224,255,0)');gr.addColorStop(.5,'rgba(56,224,255,.12)');gr.addColorStop(1,'rgba(56,224,255,0)');ctx.fillStyle=gr;ctx.fillRect(0,sy-60,W,120);
+}
+fxA.ps=Array.from({length:90},()=>({x:Math.random()*2000,y:Math.random()*1200,v:.2+Math.random()*.8,a:.2+Math.random()*.5,l:4+Math.random()*18}));
+
+/* ---------------- ВАРИАНТ B · STEAMPUNK ---------------- */
+function gearSVG(teeth,cls,style){
+  const R=50,r=38,hub=12;let d='';
+  for(let i=0;i<teeth;i++){const a0=i/teeth*Math.PI*2,a1=(i+.5)/teeth*Math.PI*2,aa=(i+.25)/teeth*Math.PI*2,ab=(i+.75)/teeth*Math.PI*2;
+    const p=(a,rr)=>`${(50+Math.cos(a)*rr).toFixed(1)},${(50+Math.sin(a)*rr).toFixed(1)}`;
+    d+=`${i?'L':'M'}${p(a0,r)} L${p(a0+0.08,R)} L${p(aa+0.05,R)} L${p(a1,r)} L${p(ab,r)} `}
+  return `<svg class="gear ${cls||''}" style="${style||''}" viewBox="0 0 100 100" aria-hidden="true"><path d="${d}Z" fill="currentColor"/><circle cx="50" cy="50" r="${hub}" fill="#2b1d12"/><circle cx="50" cy="50" r="${hub+9}" fill="none" stroke="#2b1d12" stroke-width="3" stroke-dasharray="14 10"/></svg>`;
+}
+function renderB(){
+  const deg=-90+pct/100*180;
+  const min=Math.min(...WEIGHT.pts,WEIGHT.goal)-1,max=Math.max(...WEIGHT.pts)+1;const wx=v=>((v-min)/(max-min)*100).toFixed(1)+'%';
+  const hmin=Math.min(...WEIGHT.pts)-.5,hmax=Math.max(...WEIGHT.pts)+.2;
+  return `<section class="vB" style="min-height:100%"><div class="world" style="padding:0;margin:0 -16px;padding-inline:16px;padding-block:1rem 1rem">
+  <header class="head">
+    <div class="gearset">${gearSVG(12,'','--s:110px;--t:16s')}${gearSVG(8,'rev','--s:70px;--t:10.7s;margin-left:-14px;margin-top:40px')}</div>
+    <h1 class="title">Домашен Пулт за Управление<small>Семейство Александрови · ${dateStr()}</small></h1>
+    <div class="pend"><div class="face"><div><span data-clock class="num">${clockStr()}</span><small>местно време</small></div></div><div class="rod"></div></div>
+  </header>
+  <div class="brow">
+    <div class="plate s7"><div><span class="rv1"></span><span class="rv2"></span><h2>Календар на Домакинството</h2>
+      <div class="flapdays">${CAL.map(d=>{const dt=addD(TODAY,d.o);return `<div class="fday ${d.o?'':'today'}"><div class="flap"><small>${d.o?DOW[dt.getDay()]:'днес'}</small><b class="num">${dt.getDate()}</b></div><div>${d.ev.map(e=>`<div class="bev"><time>${e.t}</time><span class="seal" style="--c:${P[e.w].c}">${P[e.w].i}</span>${esc(e.n)}</div>`).join('')}</div></div>`}).join('')}</div>
+    </div></div>
+    <div class="plate s5"><div><span class="rv1"></span><span class="rv2"></span><h2>Манометър на Касата</h2>
+      <div class="mano"><svg viewBox="0 0 200 125" aria-hidden="true">
+        <defs><linearGradient id="bbr" x1="0" x2="1"><stop offset="0" stop-color="#e7b85a"/><stop offset=".5" stop-color="#8a5f16"/><stop offset="1" stop-color="#e7b85a"/></linearGradient></defs>
+        <path d="M10,100 A90,90 0 0 1 190,100" fill="none" stroke="url(#bbr)" stroke-width="14"/>
+        <path d="M22,100 A78,78 0 0 1 178,100" fill="#fbf3dc" stroke="#8a5f16" stroke-width="2"/>
+        <path d="M${100+78*Math.cos(Math.PI*(1-.8))},${100-78*Math.sin(Math.PI*(1-.8))} A78,78 0 0 1 178,100 L100,100Z" fill="rgba(155,47,34,.25)"/>
+        ${Array.from({length:11},(_,i)=>{const a=Math.PI*(1-i/10);const x1=100+Math.cos(a)*70,y1=100-Math.sin(a)*70,x2=100+Math.cos(a)*(i%5?62:56),y2=100-Math.sin(a)*(i%5?62:56);return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#2a1a0c" stroke-width="${i%5?1:2}"/>`}).join('')}
+        <text x="28" y="118" font-family="Special Elite" font-size="9" fill="#7a5a3a">0</text><text x="100" y="40" text-anchor="middle" font-family="Special Elite" font-size="9" fill="#7a5a3a">50%</text><text x="172" y="118" text-anchor="end" font-family="Special Elite" font-size="9" fill="#7a5a3a">лимит</text>
+        <line class="needle" x1="100" y1="100" x2="100" y2="34" stroke="#9b2f22" stroke-width="3" stroke-linecap="round" style="--deg:${deg}deg"/>
+        <circle cx="100" cy="100" r="8" fill="url(#bbr)" stroke="#2b1d12"/></svg>
+        <div><div class="bigb num ${over?'over':''}">${fmt(BUDGET.rem)}<small> лв. в касата</small></div>
+          <div class="ledger"><div>Месечен лимит <b class="num">${fmt(BUDGET.limit)}</b></div><div>Изразходвани <b class="num">${fmt(BUDGET.spent)}</b></div><div>Ден ${BUDGET.day} от ${BUDGET.days} <b class="num">~${BUDGET.pace} лв/ден</b></div><div><i>Отчет от Wallet, ${SYNC.wallet}</i></div></div></div></div>
+      <h2 style="margin-top:.8rem">Днешно Меню</h2>
+      <div class="plateau"><div class="lb">обяд · 13:00</div>${MENU[0].l}<div class="lb" style="margin-top:.4rem">вечеря · 19:30 · готви <span class="seal" style="--c:${P[MENU[0].cook].c}">${P[MENU[0].cook].i}</span></div><div class="dn">${MENU[0].dn}</div><div style="font-size:.8rem;color:var(--mute)">45 минути · четири порции</div></div>
+    </div></div>
+    <div class="plate s12"><div><span class="rv1"></span><span class="rv2"></span><h2>Седмична Разпоредба за Храненето</h2>
+      <div class="wk">${MENU.map((m,i)=>`<div class="${i?'':'today'}"><h4>${m.d} · готви ${P[m.cook].i}</h4><p title="${esc(m.l)}">☼ ${esc(m.l)}</p><p title="${esc(m.dn)}"><b>☾ ${esc(m.dn)}</b></p><div class="bv">${voteBtns(m,i)}</div></div>`).join('')}</div>
+      <div style="font-family:var(--f-type);font-size:.78rem;color:var(--mute);margin-top:.5rem;text-align:center">Предложено от машината; гласуването приключва неделя, 20:00 ч.</div>
+    </div></div>
+    <div class="plate s4"><div><span class="rv1"></span><span class="rv2"></span><h2>Билет за Пазар</h2>
+      <ul class="ticket"><span class="stamp">№ 0427</span>${SHOP.map((s,i)=>`<li class="${s.ck?'done':''}"><button class="ck" data-shop="${i}" aria-label="Отметни ${esc(s.n)}"></button>${esc(s.n)} ${s.promo?`<span class="aisle">${esc(s.promo)}</span>`:''}<span class="q">${s.q}</span></li>`).join('')}
+        <li style="border:0;color:var(--mute);font-size:.8rem;justify-content:flex-end">взети ${SHOP.filter(s=>s.ck).length} от ${SHOP.length}</li></ul>
+    </div></div>
+    <div class="plate s4"><div><span class="rv1"></span><span class="rv2"></span><h2>Наряди</h2>
+      <ul class="tags">${TASKS.map((t,i)=>`<li class="${t.ck?'done':''}"><button data-task="${i}" aria-label="Готово ${esc(t.n)}" style="position:absolute;inset:0"></button>${esc(t.n)}<span class="who">${P[t.w].i} · ${t.due}</span></li>`).join('')}</ul>
+      <h2 style="margin-top:.9rem">Сутрешна Гимнастика</h2>
+      <ul class="wo">${WORK.map((w,i)=>`<li class="${w.ck?'done':''}"><button class="ck" data-work="${i}" aria-label="Направено ${esc(w.n)}">${w.ck?'✓':''}</button>${esc(w.n)}<span class="sets">${w.s}</span></li>`).join('')}</ul>
+    </div></div>
+    <div class="plate s4"><div><span class="rv1"></span><span class="rv2"></span><h2>Кантар на Господаря</h2>
+      <div class="bigb num">${WEIGHT.pts.at(-1).toFixed(1)}<small> кг · цел ${WEIGHT.goal}</small></div>
+      <div class="scale"><div class="ticks"></div><div class="goal" style="--x:${wx(WEIGHT.goal)}"></div><div class="pin" style="--x:${wx(WEIGHT.pts.at(-1))}"></div>
+        <span class="lab" style="left:${wx(WEIGHT.goal)}">${WEIGHT.goal}</span><span class="lab" style="left:${wx(WEIGHT.pts[0])}">${WEIGHT.pts[0]}</span><span class="lab" style="left:${wx(WEIGHT.pts.at(-1))};color:var(--red)">${WEIGHT.pts.at(-1)}</span></div>
+      <div class="hist" aria-label="8 седмици">${WEIGHT.pts.map(v=>`<i style="--h:${Math.round((v-hmin)/(hmax-hmin)*100)}%" title="${v}"></i>`).join('')}</div>
+      <div style="font-family:var(--f-type);font-size:.78rem;color:var(--mute);margin-top:.3rem">Осем седмици · ${(WEIGHT.pts[0]-WEIGHT.pts.at(-1)).toFixed(1)} кг по-малко</div>
+      <h2 style="margin-top:.9rem">Телеграма · Промоции</h2>
+      <div class="tele" data-tele>${PROMO.map(p=>`${p.s} STOP ${p.n} <b>${p.p}</b> ${p.until} STOP`).join('\n')}\nРЕЦЕПТИ В РЕГИСТЪРА ${RECIPES.total} STOP НОВИ ${RECIPES.fresh} STOP</div>
+    </div></div>
+  </div></div></section>`;
+}
+function afterB(){
+  // телеграмата се „пише“ буква по буква
+  const t=$('[data-tele]');if(!t)return;const full=t.innerHTML;let i=0;t.innerHTML='';t.classList.add('cur');
+  const txt=document.createElement('span');t.appendChild(txt);
+  const plain=full.replace(/<[^>]+>/g,'');
+  const iv=setInterval(()=>{i+=2;txt.textContent=plain.slice(0,i);if(i>=plain.length){clearInterval(iv);t.innerHTML=full}},18);
+}
+function fxB(ctx,W,H,t){
+  ctx.clearRect(0,0,W,H);
+  // пара и прах
+  for(const p of fxB.ps){p.y-=p.v;p.x+=Math.sin(t/900+p.s)*.3;p.r+=.05;if(p.y<-60){p.y=H+40;p.x=Math.random()*W;p.r=8+Math.random()*10}
+    const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);g.addColorStop(0,`rgba(255,240,210,${p.a*(1-p.r/90)})`);g.addColorStop(1,'rgba(255,240,210,0)');ctx.fillStyle=g;ctx.fillRect(p.x-p.r,p.y-p.r,p.r*2,p.r*2)}
+  for(const d of fxB.dust){d.x+=d.vx;d.y+=d.vy;if(d.x<0||d.x>W)d.vx*=-1;if(d.y<0||d.y>H)d.vy*=-1;ctx.fillStyle=`rgba(255,220,150,${d.a})`;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);ctx.fill()}
+}
+fxB.ps=Array.from({length:14},()=>({x:Math.random()*2000,y:Math.random()*1200,v:.25+Math.random()*.4,r:8+Math.random()*30,a:.08+Math.random()*.08,s:Math.random()*9}));
+fxB.dust=Array.from({length:60},()=>({x:Math.random()*2000,y:Math.random()*1200,vx:(Math.random()-.5)*.2,vy:(Math.random()-.5)*.2,r:.6+Math.random()*1.4,a:.15+Math.random()*.4}));
+
+/* ---------------- ВАРИАНТ C · ОРГАНИЗЪМ ---------------- */
+function renderC(){
+  const g=weightPath(300,100,14);
+  const lvl=100-pct; // ниво на течността (остатък)
+  const doneW=WORK.filter(w=>w.ck).length, rC=34, Cc=2*Math.PI*rC;
+  return `<section class="vC" style="min-height:100%">
+  <div class="org">
+    <article class="core">
+      <div class="t num" data-clock>${clockStr()}</div><div class="d">${dateStr()}</div>
+      <h3>Днес</h3>
+      ${CAL[0].ev.map(e=>`<div class="cev"><time>${e.t}</time><span class="orb" style="--c:${P[e.w].c}">${P[e.w].i}</span>${esc(e.n)}</div>`).join('')}
+      <h3>На масата</h3>
+      <div class="cook"><div class="ln">☼ ${MENU[0].l} <small>· 13:00</small></div><div class="dn">${MENU[0].dn}</div><small>19:30 · готви <span class="orb" style="--c:${P[MENU[0].cook].c}">${P[MENU[0].cook].i}</span> ${P[MENU[0].cook].n} · 4 порции</small></div>
+      <div class="meta" style="margin-top:1rem;font-size:.75rem">календар ${SYNC.cal} · wallet ${SYNC.wallet}</div>
+    </article>
+    <article class="cell c-budget ${over?'over':''}" style="--i:0"><h2>Бюджет <span>октомври</span></h2>
+      <div class="vial"><svg viewBox="0 0 70 110" aria-hidden="true"><defs><clipPath id="cv"><rect x="8" y="6" width="54" height="98" rx="27"/></clipPath></defs>
+        <rect x="8" y="6" width="54" height="98" rx="27" fill="rgba(60,247,196,.06)" stroke="rgba(60,247,196,.4)"/>
+        <g clip-path="url(#cv)"><path class="liq" d="M-80,${6+98*(1-lvl/100)} q20,-6 40,0 t40,0 t40,0 t40,0 t40,0 V110 H-80Z" fill="rgba(60,247,196,.55)"/><path class="liq" style="animation-duration:6s;animation-direction:reverse" d="M-80,${10+98*(1-lvl/100)} q20,-5 40,0 t40,0 t40,0 t40,0 t40,0 V110 H-80Z" fill="rgba(124,183,255,.35)"/></g>
+        <line x1="8" x2="62" y1="${6+98*(1-dayPct/100)}" y2="${6+98*(1-dayPct/100)}" stroke="#ffb76b" stroke-dasharray="2 3"/><text x="64" y="${9+98*(1-dayPct/100)}" fill="#ffb76b" font-size="7" font-weight="700">ден ${BUDGET.day}</text></svg>
+        <div><div class="bigc num">${fmt(BUDGET.rem)}<small>лв остават</small></div><div class="meta">похарчени <b class="num">${fmt(BUDGET.spent)}</b> от <b class="num">${fmt(BUDGET.limit)}</b><br>до края ~<b class="num">${BUDGET.pace} лв/ден</b></div></div></div></article>
+    <article class="cell c-menu" style="--i:1"><h2>Меню <span>гласуване до нд 20:00</span></h2>
+      <div class="vine">${MENU.map((m,i)=>{const sum=m.v.D+m.v.S;const st=m.v.D===0&&m.v.S===0?'wait':sum<0||m.v.D<0||m.v.S<0?'no':'';return `<div class="${i?'':'today'}" style="--i:${i}"><h4>${m.d}</h4><div class="pod ${st}">${P[m.cook].i}</div><p title="${esc(m.dn)}">${esc(m.dn)}</p><div class="cv">${voteBtns(m,i)}</div></div>`}).join('')}</div></article>
+    <article class="cell c-shop" style="--i:2"><h2>Пазаруване <span>${SHOP.filter(s=>s.ck).length}/${SHOP.length}</span></h2>
+      <div class="bubbles">${SHOP.map((s,i)=>`<button class="${s.ck?'done':''}" data-shop="${i}">${esc(s.n)} <small>${s.q}</small>${s.promo?` <small style="color:var(--warm)">${esc(s.promo)}</small>`:''}</button>`).join('')}</div>
+      <div class="tline">Списъкът е роден от менюто. Докосни, когато е в количката.</div></article>
+    <article class="cell c-tasks" style="--i:3"><h2>Задачи <span>${TASKS.filter(t=>!t.ck).length} отворени</span></h2>
+      <ul class="tasks">${TASKS.map((t,i)=>`<li class="${t.ck?'done':''}"><button class="ck" data-task="${i}" aria-label="Готово ${esc(t.n)}">${t.ck?'✓':''}</button>${esc(t.n)}<span class="who"><span class="orb" style="--c:${P[t.w].c}">${P[t.w].i}</span> <small style="color:var(--mute)">${t.due}</small></span></li>`).join('')}</ul></article>
+    <article class="cell c-weight" style="--i:4"><h2>Тегло <span>Дако · цел ${WEIGHT.goal}</span></h2>
+      <div class="bigc num">${WEIGHT.pts.at(-1).toFixed(1)}<small>кг · −${(WEIGHT.pts[0]-WEIGHT.pts.at(-1)).toFixed(1)}</small></div>
+      <svg class="wsvg" viewBox="0 0 300 100" aria-label="Тегло, 8 седмици"><defs><linearGradient id="cgC" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3cf7c4" stop-opacity=".3"/><stop offset="1" stop-color="#3cf7c4" stop-opacity="0"/></linearGradient></defs>
+        <path class="ar" d="${g.area}"/><line class="goal" x1="14" x2="286" y1="${g.gy}" y2="${g.gy}"/><path class="ln" d="${g.d}"/>${WEIGHT.pts.map((v,i)=>`<circle class="pt" cx="${g.x(i)}" cy="${g.y(v)}" r="${i===7?4:2.2}"/>`).join('')}<text x="286" y="${g.gy-3}" text-anchor="end">цел ${WEIGHT.goal}</text></svg></article>
+    <article class="cell c-work" style="--i:5"><h2>Тренировка <span>сутрин · ластици и тежести</span></h2>
+      <div class="rings"><svg viewBox="0 0 84 84" aria-hidden="true"><circle class="r" cx="42" cy="42" r="${rC}" stroke="rgba(124,183,255,.15)"/><circle class="r" cx="42" cy="42" r="${rC}" stroke="#7cb7ff" stroke-dasharray="${Cc}" stroke-dashoffset="${Cc*(1-doneW/WORK.length)}" style="filter:drop-shadow(0 0 6px #7cb7ff)"/><text x="42" y="47" text-anchor="middle" fill="#fff" font-size="16" font-weight="800" font-family="Comfortaa">${doneW}/${WORK.length}</text></svg>
+        <ul class="ex">${WORK.map((w,i)=>`<li class="${w.ck?'done':''}"><button data-work="${i}" aria-label="Направено ${esc(w.n)}">${w.ck?'✓':''}</button>${esc(w.n)}<small>${w.s}</small></li>`).join('')}</ul></div></article>
+    <article class="cell c-days" style="--i:6"><h2>Следващите дни <span>Google Calendar</span></h2>
+      <div class="days">${CAL.slice(1).map(d=>{const dt=addD(TODAY,d.o);return `<div><h4><b class="num">${dt.getDate()}</b>${DOWL[dt.getDay()]}</h4>${d.ev.map(e=>`<div class="cev" style="justify-content:flex-start"><time>${e.t}</time><span class="orb" style="--c:${P[e.w].c}">${P[e.w].i}</span>${esc(e.n)}</div>`).join('')}</div>`}).join('')}</div></article>
+    <article class="cell c-promo" style="--i:7"><h2>Промоции <span>${SYNC.promo} · ${RECIPES.total} рецепти, ${RECIPES.fresh} нови</span></h2>
+      <div class="spores">${PROMO.map((p,i)=>`<span class="spore" style="--i:${i}">${p.s} · ${esc(p.n)} <b>${p.p}</b> <small>${p.until}</small></span>`).join('')}</div></article>
+  </div></section>`;
+}
+function fxC(ctx,W,H,t){
+  ctx.clearRect(0,0,W,H);
+  const ps=fxC.ps;
+  for(const p of ps){p.x+=p.vx+Math.sin(t/2000+p.s)*.15;p.y+=p.vy+Math.cos(t/2300+p.s)*.15;
+    if(p.x<-20)p.x=W+20;if(p.x>W+20)p.x=-20;if(p.y<-20)p.y=H+20;if(p.y>H+20)p.y=-20;
+    const a=p.a*(.6+.4*Math.sin(t/700+p.s));const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*3);g.addColorStop(0,`rgba(60,247,196,${a})`);g.addColorStop(1,'rgba(60,247,196,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r*3,0,7);ctx.fill()}
+  ctx.lineWidth=1;
+  for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){const dx=ps[i].x-ps[j].x,dy=ps[i].y-ps[j].y,d=dx*dx+dy*dy;if(d<16000){ctx.strokeStyle=`rgba(60,247,196,${(1-d/16000)*.25})`;ctx.beginPath();ctx.moveTo(ps[i].x,ps[i].y);ctx.lineTo(ps[j].x,ps[j].y);ctx.stroke()}}
+  if(fxC.m){for(const p of ps){const dx=p.x-fxC.m.x,dy=p.y-fxC.m.y,d=dx*dx+dy*dy;if(d<40000){ctx.strokeStyle=`rgba(124,183,255,${(1-d/40000)*.5})`;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(fxC.m.x,fxC.m.y);ctx.stroke()}}}
+}
+fxC.ps=Array.from({length:70},()=>({x:Math.random()*2000,y:Math.random()*1200,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:1+Math.random()*2.2,a:.3+Math.random()*.5,s:Math.random()*9}));
+addEventListener('pointermove',e=>fxC.m={x:e.clientX,y:e.clientY});
+
+/* ---------------- СЦЕНА И ПРЕВКЛЮЧВАТЕЛ ---------------- */
+const VARIANTS={A:{name:'Холограма',render:renderA,after:afterA,fx:fxA},B:{name:'Steampunk',render:renderB,after:afterB,fx:fxB},C:{name:'Организъм',render:renderC,fx:fxC}};
+const KEYS=Object.keys(VARIANTS);
+function currentKey(){const q=new URLSearchParams(location.search).get('variant');const h=location.hash.replace('#','');return KEYS.includes(q)?q:KEYS.includes(h)?h:'A'}
+let cur=currentKey();
+function setKey(k){cur=k;try{const u=new URL(location);if(u.protocol.startsWith('http')&&!/claude\.ai$/.test(u.hostname)){u.searchParams.set('variant',k);history.replaceState(null,'',u)}else{history.replaceState(null,'',`#${k}`)}}catch(e){}render()}
+function render(){
+  const v=VARIANTS[cur];
+  $('#root').innerHTML=v.render();
+  $('#root').className='world';
+  document.body.style.background=cur==='B'?'#2b1d12':cur==='C'?'#020b10':'#03060f';
+  $('#lbl').innerHTML=`${cur} <small>· ${v.name}</small>`;
+  v.after&&v.after();
+  $('#root').onclick=onAction;
+}
+function onAction(e){
+  const b=e.target.closest('button');if(!b)return;
+  const d=b.dataset;
+  if(d.shop!=null){SHOP[d.shop].ck=!SHOP[d.shop].ck}
+  else if(d.task!=null){TASKS[d.task].ck=!TASKS[d.task].ck}
+  else if(d.work!=null){WORK[d.work].ck=!WORK[d.work].ck}
+  else if(d.vote){const[i,u]=d.vote.split(':');const m=MENU[+i];m.v[u]=m.v[u]===1?-1:m.v[u]===-1?0:1}
+  else return;
+  // пререндер без повторно входно анимиране на панелите
+  const scroll=scrollY;render();document.querySelectorAll('.vA .p,.vB .flap,.vB .needle,.vB .pin,.vB .hist i,.vA .tick i,.vA .wchart .ln,.vC .wsvg .ln').forEach(el=>{el.style.animation='none'});
+  document.querySelectorAll('.vA .wchart .ln,.vC .wsvg .ln').forEach(el=>el.style.strokeDashoffset='0');document.querySelectorAll('.vA .wchart .ar').forEach(el=>el.style.opacity='1');
+  document.querySelectorAll('[data-count]').forEach(el=>el.textContent=fmt(+el.dataset.count));
+  scrollTo(0,scroll);
+}
+$('#prev').onclick=()=>setKey(KEYS[(KEYS.indexOf(cur)+KEYS.length-1)%KEYS.length]);
+$('#next').onclick=()=>setKey(KEYS[(KEYS.indexOf(cur)+1)%KEYS.length]);
+addEventListener('keydown',e=>{const t=e.target;if(t.matches('input,textarea,[contenteditable]'))return;
+  if(e.key==='ArrowRight')$('#next').click();if(e.key==='ArrowLeft')$('#prev').click()});
+addEventListener('hashchange',()=>{const k=currentKey();if(k!==cur){cur=k;render()}});
+
+/* часовник */
+setInterval(()=>document.querySelectorAll('[data-clock]').forEach(el=>el.textContent=clockStr()),1000);
+
+/* фон-канвас */
+const cv=$('#fx'),ctx=cv.getContext('2d');let W,H;
+function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);W=innerWidth;H=innerHeight}
+addEventListener('resize',resize);resize();
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function loop(t){VARIANTS[cur].fx(ctx,W,H,t);if(!reduce)requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+render();
+</script>
+</body>
+</html>
