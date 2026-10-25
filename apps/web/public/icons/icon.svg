@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Семейство</title>
+  <!-- Монограм „С“ (Семейство): дъга върху акцентния цвят (токен color-accent, светла тема).
+       Пълен фон без прозрачност, за да работи и като maskable икона. -->
+  <rect width="512" height="512" fill="#0f6f6a"/>
+  <path d="M 352.4 141.1 A 150 150 0 1 0 352.4 370.9" fill="none" stroke="#ffffff" stroke-width="54" stroke-linecap="round"/>
+</svg>
