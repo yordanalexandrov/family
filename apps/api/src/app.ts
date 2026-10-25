@@ -15,10 +15,13 @@ import errorHandler from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
 import { meRoutes } from './routes/me.js';
 import { usersRoutes } from './routes/users.js';
+import { createUsersService, type UsersService } from './services/users.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
     db: Db;
+    /** Shared by the acting-user hook and `GET /api/users`, so both read the same one-minute cache. */
+    users: UsersService;
   }
 }
 
@@ -57,6 +60,7 @@ export function buildApp({
     app.log.error({ err: error }, 'postgres pool error'),
   );
   app.decorate('db', db);
+  app.decorate('users', createUsersService(db));
   app.addHook('onClose', () => closeDb(db));
 
   app.register(errorHandler);
