@@ -6,6 +6,7 @@ import {
   InvalidReferenceError,
   NotFoundError,
   OpenClawUnavailableError,
+  ServiceRefusal,
 } from '../services/errors.js';
 
 /**
@@ -58,35 +59,34 @@ const errorHandler: FastifyPluginAsync = async (app) => {
   );
 };
 
-/** The status and body of a typed refusal from `services/errors.ts`, or `undefined` for any other error. */
+/** The status and code of each typed refusal from `services/errors.ts`. */
+const REFUSALS: [
+  abstract new (...args: never[]) => ServiceRefusal,
+  number,
+  ApiErrorCode,
+][] = [
+  [NotFoundError, 404, 'not_found'],
+  [ConflictError, 409, 'conflict'],
+  [InvalidReferenceError, 400, 'invalid_reference'],
+  [OpenClawUnavailableError, 503, 'openclaw_unavailable'],
+];
+
+/** The status and body of a typed refusal, or `undefined` for any other error. */
 function serviceRefusal(
   error: unknown,
 ): { statusCode: number; body: ApiErrorResponse } | undefined {
-  if (error instanceof NotFoundError) {
-    return {
-      statusCode: 404,
-      body: { error: 'not_found', message: error.message },
-    };
+  if (!(error instanceof ServiceRefusal)) {
+    return undefined;
   }
-  if (error instanceof ConflictError) {
-    return {
-      statusCode: 409,
-      body: { ...error.details, error: 'conflict', message: error.message },
-    };
+  const refusal = REFUSALS.find(([type]) => error instanceof type);
+  if (!refusal) {
+    return undefined;
   }
-  if (error instanceof InvalidReferenceError) {
-    return {
-      statusCode: 400,
-      body: { error: 'invalid_reference', message: error.message },
-    };
-  }
-  if (error instanceof OpenClawUnavailableError) {
-    return {
-      statusCode: 503,
-      body: { error: 'openclaw_unavailable', message: error.message },
-    };
-  }
-  return undefined;
+  const [, statusCode, code] = refusal;
+  return {
+    statusCode,
+    body: { ...error.details, error: code, message: error.message },
+  };
 }
 
 /** The error's own status when it is an error status (4xx, 5xx); without one the error is a bug: 500. */
