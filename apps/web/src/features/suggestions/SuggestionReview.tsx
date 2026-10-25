@@ -1,15 +1,13 @@
 import {
   type Ingredient,
-  ingredientsResponseSchema,
   normalizeIngredientName,
   type RecipeSuggestion,
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { apiFetch } from '../../api/client';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
-import { recipeKeys } from '../recipes/queries';
+import { ingredientSearchQuery } from '../recipes/queries';
 import { RecipeForm } from '../recipes/RecipeForm';
 import {
   useApproveSuggestion,
@@ -79,7 +77,10 @@ function Decided({ suggestion }: { suggestion: RecipeSuggestion }) {
   );
 }
 
-/** Продуктите, които агентът смята за познати, по име от регистъра (точно съвпадение на каноничното име). */
+/**
+ * Продуктите, които агентът смята за познати, по име от регистъра (точно съвпадение на каноничното име). Търсенето
+ * връща точното съвпадение първо, така че лимитът от 50 реда не го изрязва.
+ */
 function useResolvedIngredients(suggestion: RecipeSuggestion) {
   const names = [
     ...new Set(
@@ -89,17 +90,7 @@ function useResolvedIngredients(suggestion: RecipeSuggestion) {
     ),
   ];
   return useQueries({
-    queries: names.map((name) => {
-      const q = name.trim();
-      return {
-        queryKey: recipeKeys.ingredientSearch(q),
-        queryFn: () =>
-          apiFetch(
-            `/ingredients?${new URLSearchParams({ q })}`,
-            ingredientsResponseSchema,
-          ).then((body) => body.ingredients),
-      };
-    }),
+    queries: names.map((name) => ingredientSearchQuery(name)),
     combine(results) {
       const resolved = new Map<string, Ingredient>();
       names.forEach((name, index) => {

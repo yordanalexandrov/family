@@ -1,6 +1,5 @@
 import {
   type Slot,
-  type SuggestionRequest,
   type SuggestionRequestStatus,
   TAG_LABELS_BG,
 } from '@family/shared';
@@ -55,39 +54,4 @@ export function requestErrorFor(error: unknown): unknown {
     );
   }
   return error;
-}
-
-/** Входът на заявката, за „Опитай пак“ със същите параметри. */
-export function paramsOf(request: SuggestionRequest) {
-  return {
-    slot: request.slot,
-    ...(request.maxMinutes === undefined
-      ? {}
-      : { maxMinutes: request.maxMinutes }),
-    ...(request.tags.length > 0 ? { tags: request.tags } : {}),
-    ...(request.hint === undefined ? {} : { hint: request.hint }),
-  };
-}
-
-const dateFormat = new Intl.DateTimeFormat('bg-BG', {
-  dateStyle: 'short',
-  timeStyle: 'short',
-});
-
-export function formatDateTime(iso: string): string {
-  return dateFormat.format(new Date(iso));
-}
-
-/** „recepti.example“ от линка на източника. */
-export function sourceDomain(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-/** „1 продукт“, „3 продукта“. */
-export function productCount(count: number): string {
-  return count === 1 ? '1 продукт' : `${count} продукта`;
 }

@@ -2,8 +2,12 @@ import type { SuggestionRequestDetail } from '@family/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
-import { failureMessage, paramsOf, requestErrorFor } from './messages';
-import { useRequestSuggestions, useSuggestionRequest } from './queries';
+import { failureMessage, requestErrorFor } from './messages';
+import {
+  paramsOf,
+  useRequestSuggestions,
+  useSuggestionRequest,
+} from './queries';
 import { SuggestionCard } from './SuggestionCard';
 import '../recipes/recipes.css';
 import './suggestions.css';

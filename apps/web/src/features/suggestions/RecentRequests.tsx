@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
-import { formatDateTime, REQUEST_STATUS_LABELS, slotLabel } from './messages';
+import { formatDateTime } from '../recipes/format';
+import { REQUEST_STATUS_LABELS, slotLabel } from './messages';
 import { useRecentRequests } from './queries';
 
 /** Последните 10 заявки, за да се върне човек към стара. */

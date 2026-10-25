@@ -1,8 +1,7 @@
 import { type RecipeSuggestion, TAG_LABELS_BG } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
-import { formatMinutes } from '../recipes/format';
-import { productCount, sourceDomain } from './messages';
+import { formatMinutes, productCount, sourceDomain } from '../recipes/format';
 
 /** Едно предложение в резултатите: отхвърлените са избледнели, одобрените водят към рецептата. */
 export function SuggestionCard({

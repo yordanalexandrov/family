@@ -54,6 +54,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Headers of a request with a JSON body. */
+export const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
 export async function apiFetch<T>(
   path: string,
   schema: Schema<T>,

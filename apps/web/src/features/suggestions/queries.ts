@@ -3,14 +3,15 @@ import {
   type RecipeInput,
   type RecipeSuggestParams,
   recipeSuggestionResponseSchema,
+  type SuggestionRequest,
   type SuggestionRequestDetail,
   suggestionRequestDetailSchema,
   suggestionRequestResponseSchema,
   suggestionRequestsResponseSchema,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '../../api/client';
-import { recipeKeys } from '../recipes/queries';
+import { apiFetch, JSON_HEADERS } from '../../api/client';
+import { storeRecipe } from '../recipes/queries';
 
 /** Докато заявката е `pending`, клиентът пита на 3 s (епик Рецепти: „Фон“). */
 export const POLL_INTERVAL_MS = 3000;
@@ -23,7 +24,17 @@ export const suggestionKeys = {
   request: (id: string) => ['recipe-suggestions', 'request', id] as const,
 };
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
+/** Входът на заявката, за „Опитай пак“ със същите параметри. */
+export function paramsOf(request: SuggestionRequest) {
+  return {
+    slot: request.slot,
+    ...(request.maxMinutes === undefined
+      ? {}
+      : { maxMinutes: request.maxMinutes }),
+    ...(request.tags.length > 0 ? { tags: request.tags } : {}),
+    ...(request.hint === undefined ? {} : { hint: request.hint }),
+  };
+}
 
 /** Последните заявки, най-новите първи. */
 export function useRecentRequests() {
@@ -90,10 +101,7 @@ export function useApproveSuggestion() {
         },
       ),
     onSuccess({ recipe, suggestion }) {
-      queryClient.setQueryData(recipeKeys.detail(recipe.id), recipe);
-      void queryClient.invalidateQueries({
-        queryKey: [...recipeKeys.all, 'list'],
-      });
+      storeRecipe(queryClient, recipe);
       void queryClient.invalidateQueries({
         queryKey: suggestionKeys.request(suggestion.requestId),
       });

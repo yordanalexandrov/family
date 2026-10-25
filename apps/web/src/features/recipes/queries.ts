@@ -4,6 +4,7 @@ import {
   ingredientConflictSchema,
   ingredientResponseSchema,
   ingredientsResponseSchema,
+  type Recipe,
   type RecipeInput,
   recipeResponseSchema,
   recipesResponseSchema,
@@ -11,11 +12,12 @@ import {
 } from '@family/shared';
 import {
   keepPreviousData,
+  type QueryClient,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { ApiError, apiFetch } from '../../api/client';
+import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
 
 /** Филтрите на регистъра; празните не влизат в query-то. */
 export interface RecipesParams {
@@ -26,6 +28,7 @@ export interface RecipesParams {
 
 export const recipeKeys = {
   all: ['recipes'] as const,
+  lists: ['recipes', 'list'] as const,
   list: (params: RecipesParams) => ['recipes', 'list', params] as const,
   detail: (id: string) => ['recipes', 'detail', id] as const,
   ingredientSearch: (q: string) => ['ingredients', 'search', q] as const,
@@ -47,7 +50,11 @@ function recipesSearch(params: RecipesParams): string {
   return text ? `?${text}` : '';
 }
 
-const JSON_HEADERS = { 'Content-Type': 'application/json' };
+/** Записана рецепта: детайлът е тя, списъците се презареждат. */
+export function storeRecipe(queryClient: QueryClient, recipe: Recipe): void {
+  queryClient.setQueryData(recipeKeys.detail(recipe.id), recipe);
+  void queryClient.invalidateQueries({ queryKey: recipeKeys.lists });
+}
 
 export function useRecipes(params: RecipesParams) {
   return useQuery({
@@ -82,10 +89,7 @@ export function useSaveRecipe() {
         body: JSON.stringify(input),
       }).then((body) => body.recipe),
     onSuccess(recipe) {
-      queryClient.setQueryData(recipeKeys.detail(recipe.id), recipe);
-      void queryClient.invalidateQueries({
-        queryKey: [...recipeKeys.all, 'list'],
-      });
+      storeRecipe(queryClient, recipe);
     },
   });
 }
@@ -101,25 +105,29 @@ export function useArchiveRecipe() {
         { method: 'POST' },
       ).then((body) => body.recipe),
     onSuccess(recipe) {
-      queryClient.setQueryData(recipeKeys.detail(recipe.id), recipe);
-      void queryClient.invalidateQueries({
-        queryKey: [...recipeKeys.all, 'list'],
-      });
+      storeRecipe(queryClient, recipe);
     },
   });
 }
 
-/** Autocomplete на продукти; празен `q` не пита. */
-export function useIngredientSearch(q: string) {
+/** Търсене на продукти по `q` (без празни места отстрани); общо за autocomplete и за прегледа на предложение. */
+export function ingredientSearchQuery(q: string) {
   const query = q.trim();
-  return useQuery({
+  return {
     queryKey: recipeKeys.ingredientSearch(query),
     queryFn: () =>
       apiFetch(
         `/ingredients?${new URLSearchParams({ q: query })}`,
         ingredientsResponseSchema,
       ).then((body) => body.ingredients),
-    enabled: query.length > 0,
+  };
+}
+
+/** Autocomplete на продукти; празен `q` не пита. */
+export function useIngredientSearch(q: string) {
+  return useQuery({
+    ...ingredientSearchQuery(q),
+    enabled: q.trim().length > 0,
     placeholderData: keepPreviousData,
   });
 }
