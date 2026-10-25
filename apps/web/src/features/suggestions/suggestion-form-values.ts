@@ -2,6 +2,7 @@ import type { Ingredient, Suggestion } from '@family/shared';
 import {
   emptyIngredientRow,
   emptyRecipeFormValues,
+  nutritionToValues,
   type RecipeFormValues,
 } from '../recipes/recipe-form-values';
 
@@ -13,7 +14,6 @@ export function suggestionToFormValues(
   suggestion: Suggestion,
   resolved: ReadonlyMap<string, Ingredient>,
 ): RecipeFormValues {
-  const nutrition = suggestion.nutritionPer100g;
   return {
     ...emptyRecipeFormValues(),
     title: suggestion.title,
@@ -32,15 +32,6 @@ export function suggestionToFormValues(
         ...(ingredient ? {} : { isNew: true }),
       });
     }),
-    ...(nutrition
-      ? {
-          nutrition: {
-            kcal: String(nutrition.kcal),
-            proteinG: String(nutrition.proteinG),
-            fatG: String(nutrition.fatG),
-            carbsG: String(nutrition.carbsG),
-          },
-        }
-      : {}),
+    nutrition: nutritionToValues(suggestion.nutritionPer100g),
   };
 }

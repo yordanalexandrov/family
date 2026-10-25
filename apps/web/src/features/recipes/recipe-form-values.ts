@@ -1,6 +1,7 @@
 import {
   type BaseUnit,
   type Ingredient,
+  type Nutrition,
   type Recipe,
   type RecipeInput,
   recipeInputSchema,
@@ -45,7 +46,29 @@ export interface RecipeFormValues {
   tags: Tag[];
   steps: string[];
   ingredients: IngredientRowValues[];
-  nutrition: { kcal: string; proteinG: string; fatG: string; carbsG: string };
+  nutrition: NutritionValues;
+}
+
+/** Полетата на хранителната стойност на 100 г, като текст; всички празни = без стойност. */
+export type NutritionValues = Record<keyof Nutrition, string>;
+
+const NUTRITION_KEYS = [
+  'kcal',
+  'proteinG',
+  'fatG',
+  'carbsG',
+] as const satisfies readonly (keyof Nutrition)[];
+
+/** Стойността на 100 г като текст в полетата; без стойност — празни полета. */
+export function nutritionToValues(
+  nutrition: Nutrition | undefined,
+): NutritionValues {
+  return {
+    kcal: numberText(nutrition?.kcal),
+    proteinG: numberText(nutrition?.proteinG),
+    fatG: numberText(nutrition?.fatG),
+    carbsG: numberText(nutrition?.carbsG),
+  };
 }
 
 /** Грешки по поле: ключът е пътят в `RecipeInput` (`title`, `steps.1`, `ingredients.0.quantity`). */
@@ -80,7 +103,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     tags: [],
     steps: [''],
     ingredients: [],
-    nutrition: { kcal: '', proteinG: '', fatG: '', carbsG: '' },
+    nutrition: nutritionToValues(undefined),
   };
 }
 
@@ -89,7 +112,6 @@ function numberText(value: number | null | undefined): string {
 }
 
 export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
-  const nutrition = recipe.nutritionPer100g;
   return {
     title: recipe.title,
     servings: String(recipe.servings),
@@ -105,12 +127,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
         ...(line.note === undefined ? {} : { note: line.note }),
       }),
     ),
-    nutrition: {
-      kcal: numberText(nutrition?.kcal),
-      proteinG: numberText(nutrition?.proteinG),
-      fatG: numberText(nutrition?.fatG),
-      carbsG: numberText(nutrition?.carbsG),
-    },
+    nutrition: nutritionToValues(recipe.nutritionPer100g),
   };
 }
 
@@ -118,6 +135,16 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
 function parseNumber(text: string): number | undefined {
   const trimmed = text.trim();
   return trimmed === '' ? undefined : Number(trimmed.replace(',', '.'));
+}
+
+/** Всички полета празни = без стойност; иначе празно поле е `NaN` и schema-та го спира. */
+function valuesToNutrition(values: NutritionValues): Nutrition | undefined {
+  if (NUTRITION_KEYS.every((key) => values[key].trim() === '')) {
+    return undefined;
+  }
+  return Object.fromEntries(
+    NUTRITION_KEYS.map((key) => [key, parseNumber(values[key]) ?? Number.NaN]),
+  ) as Nutrition;
 }
 
 const FIELD_MESSAGES: [RegExp, string][] = [
@@ -146,8 +173,7 @@ function messageFor(path: string): string {
 export function toRecipeInput(
   values: RecipeFormValues,
 ): { ok: true; input: RecipeInput } | { ok: false; errors: RecipeFormErrors } {
-  const nutritionTexts = Object.values(values.nutrition);
-  const hasNutrition = nutritionTexts.some((text) => text.trim() !== '');
+  const nutritionPer100g = valuesToNutrition(values.nutrition);
   const prepMinutes = parseNumber(values.prepMinutes);
   const sourceUrl = values.sourceUrl.trim();
 
@@ -158,16 +184,7 @@ export function toRecipeInput(
     ...(sourceUrl ? { sourceUrl } : {}),
     ...(prepMinutes === undefined ? {} : { prepMinutes }),
     tags: values.tags,
-    ...(hasNutrition
-      ? {
-          nutritionPer100g: {
-            kcal: parseNumber(values.nutrition.kcal) ?? Number.NaN,
-            proteinG: parseNumber(values.nutrition.proteinG) ?? Number.NaN,
-            fatG: parseNumber(values.nutrition.fatG) ?? Number.NaN,
-            carbsG: parseNumber(values.nutrition.carbsG) ?? Number.NaN,
-          },
-        }
-      : {}),
+    ...(nutritionPer100g ? { nutritionPer100g } : {}),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',
       quantity:
