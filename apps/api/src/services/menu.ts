@@ -12,13 +12,15 @@ import {
   type MealPlanSummary,
   type MenuProposalRequest,
   type MenuProposeInput,
+  type MenuSlot,
+  mealTitle,
   menuProposeOutputSchemaFor,
+  oneServingEach,
   type Servings,
   type UpdateMeal,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db, DbExecutor } from '../db/client.js';
-import { isUniqueViolation } from '../db/errors.js';
 import {
   deletePlan,
   failPendingProposalsBefore,
@@ -33,16 +35,21 @@ import {
   insertProposal,
   listPlans,
   listRecipeIdsOfWeeks,
+  lockWeek,
   type NewMeal,
   updateMeal,
 } from '../db/repositories/menu.js';
 import {
   countMenuRecipes,
-  isActiveRecipe,
+  isMenuRecipe,
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
 import { listUsers } from '../db/repositories/users.js';
-import { failureCode, type OpenClawClient } from '../openclaw/client.js';
+import {
+  createContractRuns,
+  type OpenClawAgent,
+  staleCutoff,
+} from './contract-runs.js';
 import {
   ConflictError,
   InvalidReferenceError,
@@ -50,11 +57,8 @@ import {
   OpenClawUnavailableError,
 } from './errors.js';
 
-/** A `pending` proposal older than this cannot still be running (one api instance, 180 s timeout) after a restart. */
-const STALE_AFTER_MS = 10 * 60 * 1000;
-
-/** The slot phase 1 plans (`MENU_SLOTS`), and the one „Днес се готви“ shows. */
-const DINNER = 'dinner';
+/** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
+const DINNER: MenuSlot = 'dinner';
 
 const NO_SUCH_PLAN = 'Няма меню за тази седмица';
 const NO_SUCH_MEAL = 'Няма такова ястие';
@@ -70,7 +74,7 @@ export interface MenuService {
   createEmptyPlan(weekStart: string, actingUserId: string): Promise<MealPlan>;
   /** Only until the week has begun (Monday 00:00 in Sofia); after that the plan is edited live. */
   deletePlan(id: string): Promise<void>;
-  /** A changed recipe must be in the registry, not archived, and clears the agent's `why`. */
+  /** A changed recipe must be in the registry, not archived, tagged `dinner`, and clears the agent's `why`. */
   updateMeal(id: string, patch: UpdateMeal): Promise<Meal>;
   /** Stores a `pending` proposal and starts `menu.propose` in the background; the proposal is returned at once. */
   requestProposal(
@@ -95,94 +99,75 @@ export function createMenuService({
   now,
 }: {
   db: Db;
-  /** The client and the agent that answers `menu.propose` (`OPENCLAW_MENU_AGENT`). */
-  openclaw: { client: OpenClawClient; agent: string } | null;
+  /** The agent that answers `menu.propose` (`OPENCLAW_MENU_AGENT`). */
+  openclaw: OpenClawAgent | null;
   log: FastifyBaseLogger;
   now: () => Date;
 }): MenuService {
-  const shutdown = new AbortController();
-  const running = new Set<Promise<void>>();
+  const runs = createContractRuns(log);
 
-  async function refuseTakenWeek(weekStart: string): Promise<void> {
-    if (await findPlanByWeek(db, weekStart)) {
+  /** Run it in a transaction: holds the week's lock until the plan or the proposal is inserted. */
+  async function refuseTakenWeek(
+    tx: DbExecutor,
+    weekStart: string,
+  ): Promise<void> {
+    await lockWeek(tx, weekStart);
+    if (await findPlanByWeek(tx, weekStart)) {
       throw new ConflictError(WEEK_HAS_PLAN);
     }
-    if (await hasPendingProposal(db, weekStart)) {
+    if (await hasPendingProposal(tx, weekStart)) {
       throw new ConflictError(WEEK_HAS_PENDING);
     }
   }
 
   async function runProposal(
-    { client, agent }: { client: OpenClawClient; agent: string },
+    { client, agent }: OpenClawAgent,
     proposal: MenuProposalRequest,
+    signal: AbortSignal,
   ): Promise<void> {
-    try {
-      const input: MenuProposeInput = {
-        weekStart: proposal.weekStart,
-        slots: [...MENU_SLOTS],
-        recipes: await listMenuRecipes(db, DINNER),
-        recentRecipeIds: await listRecipeIdsOfWeeks(db, [
-          addDays(proposal.weekStart, -14),
-          addDays(proposal.weekStart, -7),
-        ]),
-        hint: proposal.hint,
-      };
-      const output = await client.complete({
-        agent,
-        input,
-        // The rules of `validateProposal` fail like a malformed answer: one retry with their problems.
-        outputSchema: menuProposeOutputSchemaFor(input),
-        jsonSchema: {
-          name: 'menu_propose',
-          schema: MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
+    const input: MenuProposeInput = {
+      weekStart: proposal.weekStart,
+      slots: [...MENU_SLOTS],
+      recipes: await listMenuRecipes(db, DINNER),
+      recentRecipeIds: await listRecipeIdsOfWeeks(db, [
+        addDays(proposal.weekStart, -14),
+        addDays(proposal.weekStart, -7),
+      ]),
+      hint: proposal.hint,
+    };
+    const output = await client.complete({
+      agent,
+      input,
+      // The rules of `validateProposal` fail like a malformed answer: one retry with their problems.
+      outputSchema: menuProposeOutputSchemaFor(input),
+      jsonSchema: {
+        name: 'menu_propose',
+        schema: MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
+      },
+      signal,
+    });
+    const servings = await defaultServings(db);
+    await db.transaction(async (tx) => {
+      const plan = await insertPlan(
+        tx,
+        {
+          weekStart: proposal.weekStart,
+          summary: output.summary,
+          createdBy: proposal.requestedBy,
         },
-        signal: shutdown.signal,
-      });
-      const servings = await oneServingEach(db);
-      await db.transaction(async (tx) => {
-        const plan = await insertPlan(
-          tx,
-          {
-            weekStart: proposal.weekStart,
-            summary: output.summary,
-            createdBy: proposal.requestedBy,
-          },
-          output.days.map((day) => ({
-            date: day.date,
-            slot: day.slot,
-            recipeId: day.recipeId,
-            why: day.why,
-            servings,
-          })),
-        );
-        await finishProposal(tx, proposal.id, {
-          status: 'done',
-          planId: plan.id,
-        });
-      });
-    } catch (error) {
-      const code = failureCode(error);
-      if (code === 'error') {
-        log.error(
-          { err: error, proposalId: proposal.id },
-          'menu.propose failed',
-        );
-      } else {
-        log.warn(
-          { proposalId: proposal.id, error: code },
-          'menu.propose failed',
-        );
-      }
-      await finishProposal(db, proposal.id, {
-        status: 'failed',
-        error: code,
-      }).catch((writeError: unknown) =>
-        log.error(
-          { err: writeError, proposalId: proposal.id },
-          'could not mark the menu proposal failed',
-        ),
+        output.days.map((day) => ({
+          date: day.date,
+          slot: day.slot,
+          recipeId: day.recipeId,
+          why: day.why,
+          servings,
+        })),
       );
-    }
+      await finishProposal(tx, proposal.id, {
+        status: 'done',
+        planId: plan.id,
+      });
+    });
   }
 
   return {
@@ -199,8 +184,7 @@ export function createMenuService({
     },
 
     async createEmptyPlan(weekStart, actingUserId) {
-      await refuseTakenWeek(weekStart);
-      const servings = await oneServingEach(db);
+      const servings = await defaultServings(db);
       const meals: NewMeal[] = daysOfWeek(weekStart).flatMap((date) =>
         MENU_SLOTS.map((slot) => ({
           date,
@@ -210,20 +194,14 @@ export function createMenuService({
           servings,
         })),
       );
-      try {
-        return await db.transaction((tx) =>
-          insertPlan(
-            tx,
-            { weekStart, summary: null, createdBy: actingUserId },
-            meals,
-          ),
+      return db.transaction(async (tx) => {
+        await refuseTakenWeek(tx, weekStart);
+        return insertPlan(
+          tx,
+          { weekStart, summary: null, createdBy: actingUserId },
+          meals,
         );
-      } catch (error) {
-        if (isUniqueViolation(error, 'meal_plan_week_start_unique')) {
-          throw new ConflictError(WEEK_HAS_PLAN);
-        }
-        throw error;
-      }
+      });
     },
 
     async deletePlan(id) {
@@ -251,17 +229,20 @@ export function createMenuService({
           recipeChanged &&
           patch.recipeId !== null &&
           patch.recipeId !== undefined &&
-          !(await isActiveRecipe(tx, patch.recipeId))
+          !(await isMenuRecipe(tx, patch.recipeId, current.slot))
         ) {
           throw new InvalidReferenceError(
-            'Рецептата не е в регистъра или е архивирана',
+            'Рецептата не е в регистъра, архивирана е или не е за вечеря',
           );
         }
         await refuseUnknownUsers(tx, patch);
-        await updateMeal(tx, id, current.planId, {
-          ...patch,
-          ...(recipeChanged ? { why: null } : {}),
-        });
+        await updateMeal(
+          tx,
+          id,
+          current.planId,
+          { ...patch, ...(recipeChanged ? { why: null } : {}) },
+          now(),
+        );
         const updated = await findMeal(tx, id);
         if (!updated) {
           throw new Error('meal vanished in its own transaction');
@@ -284,24 +265,18 @@ export function createMenuService({
           { code: 'not_enough_recipes', have, need: MENU_PROPOSE_MIN_RECIPES },
         );
       }
-      await refuseTakenWeek(params.weekStart);
-      let proposal: MenuProposalRequest;
-      try {
-        proposal = await insertProposal(db, params, actingUserId);
-      } catch (error) {
-        if (
-          isUniqueViolation(error, 'menu_proposal_request_pending_week_key')
-        ) {
-          throw new ConflictError(WEEK_HAS_PENDING);
-        }
-        throw error;
-      }
-      // Not awaited: the client polls GET …/proposals/:id. runProposal catches and records its own errors.
-      const run = new Promise<void>((resolve) => setImmediate(resolve)).then(
-        () => runProposal(gateway, proposal),
-      );
-      running.add(run);
-      void run.finally(() => running.delete(run));
+      const proposal = await db.transaction(async (tx) => {
+        await refuseTakenWeek(tx, params.weekStart);
+        return insertProposal(tx, params, actingUserId);
+      });
+      // The client polls GET …/proposals/:id.
+      runs.start({
+        contract: 'menu.propose',
+        logContext: { proposalId: proposal.id },
+        run: (signal) => runProposal(gateway, proposal, signal),
+        fail: (code) =>
+          finishProposal(db, proposal.id, { status: 'failed', error: code }),
+      });
       return proposal;
     },
 
@@ -314,17 +289,11 @@ export function createMenuService({
     },
 
     failStaleProposals() {
-      return failPendingProposalsBefore(
-        db,
-        // `created_at` is the database's real time, so not the app's clock (which specs fix).
-        new Date(Date.now() - STALE_AFTER_MS),
-        'stale',
-      );
+      return failPendingProposalsBefore(db, staleCutoff(), 'stale');
     },
 
-    async close() {
-      shutdown.abort();
-      await Promise.all(running);
+    close() {
+      return runs.close();
     },
   };
 }
@@ -338,7 +307,7 @@ export async function readCooking(
   date: string,
 ): Promise<{ lunch: CookingMeal | null; dinner: CookingMeal | null }> {
   const dinner = await findMealOn(db, date, DINNER);
-  const title = dinner?.recipe?.title ?? dinner?.note;
+  const title = dinner && mealTitle(dinner);
   return {
     lunch: null,
     dinner:
@@ -349,9 +318,8 @@ export async function readCooking(
 }
 
 /** Default servings of a new meal: 1 for each user. */
-async function oneServingEach(db: DbExecutor): Promise<Servings> {
-  const users = await listUsers(db);
-  return Object.fromEntries(users.map((user) => [user.id, 1]));
+async function defaultServings(db: DbExecutor): Promise<Servings> {
+  return oneServingEach((await listUsers(db)).map((user) => user.id));
 }
 
 /** The cook and the servings must name users; a 400 instead of a foreign key error. */

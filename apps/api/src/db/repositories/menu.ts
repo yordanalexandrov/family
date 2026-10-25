@@ -7,7 +7,16 @@ import type {
   Slot,
   SuggestionFailure,
 } from '@family/shared';
-import { and, asc, between, eq, inArray, isNotNull, lt } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  between,
+  eq,
+  inArray,
+  isNotNull,
+  lt,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe } from '../schema/food.js';
 import { meal, mealPlan, menuProposalRequest } from '../schema/menu.js';
@@ -83,6 +92,19 @@ async function withMeals(db: DbExecutor, row: PlanRow): Promise<MealPlan> {
     .where(eq(meal.planId, row.id))
     .orderBy(asc(meal.date), asc(meal.slot));
   return { ...toPlanSummary(row), meals: meals.map(toMeal) };
+}
+
+/**
+ * Serializes the writes that take a week (an empty plan, a proposal) until the transaction ends, so that the checks
+ * „no plan“ and „no pending proposal“ hold when the row is inserted.
+ */
+export async function lockWeek(
+  db: DbExecutor,
+  weekStart: string,
+): Promise<void> {
+  await db.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`menu_week:${weekStart}`}))`,
+  );
 }
 
 /** The plan of the week with its meals by date. */
@@ -177,7 +199,7 @@ export async function findMealOn(
   return row && toMeal(row);
 }
 
-/** Writes the given columns of a meal and bumps `updated_at` of its plan. */
+/** Writes the given columns of a meal and sets `updated_at` of its plan to `at`. */
 export async function updateMeal(
   db: DbExecutor,
   id: string,
@@ -188,13 +210,14 @@ export async function updateMeal(
       'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why'
     >
   >,
+  at: Date,
 ): Promise<void> {
   if (Object.keys(values).length > 0) {
     await db.update(meal).set(values).where(eq(meal.id, id));
   }
   await db
     .update(mealPlan)
-    .set({ updatedAt: new Date() })
+    .set({ updatedAt: at })
     .where(eq(mealPlan.id, planId));
 }
 

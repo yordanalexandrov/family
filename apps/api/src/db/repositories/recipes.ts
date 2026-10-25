@@ -216,15 +216,22 @@ export async function listActiveRecipeTitles(
   return rows.map((row) => row.title);
 }
 
-/** Whether the recipe exists and is not archived, i.e. may be picked for a meal. */
-export async function isActiveRecipe(
+/** Whether the recipe exists, is not archived and is tagged with `slot`, i.e. may be picked for a meal of that slot. */
+export async function isMenuRecipe(
   db: DbExecutor,
   id: string,
+  slot: Slot,
 ): Promise<boolean> {
   const [row] = await db
     .select({ id: recipe.id })
     .from(recipe)
-    .where(and(eq(recipe.id, id), isNull(recipe.archivedAt)))
+    .where(
+      and(
+        eq(recipe.id, id),
+        isNull(recipe.archivedAt),
+        arrayContains(recipe.tags, [slot]),
+      ),
+    )
     .limit(1);
   return row !== undefined;
 }

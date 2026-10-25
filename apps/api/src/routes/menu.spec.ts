@@ -4,7 +4,7 @@ import proposeInput from '@family/shared/fixtures/menu-propose.input.json' with 
 import proposeFixture from '@family/shared/fixtures/menu-propose.valid.json' with {
   type: 'json',
 };
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import {
@@ -254,6 +254,31 @@ describe('POST /api/menu/plans refusals', () => {
     await finished(proposal.id);
   });
 
+  it('takes the week once when an empty plan and a proposal are asked for at the same time', async () => {
+    for (let round = 0; round < 5; round++) {
+      const [plan, proposal] = await Promise.all([
+        inject('POST', '/api/menu/plans', { weekStart: WEEK }),
+        inject('POST', '/api/menu/proposals', { weekStart: WEEK }),
+      ]);
+
+      const statuses = [plan.statusCode, proposal.statusCode];
+      expect(statuses).toContain(409);
+      if (proposal.statusCode === 202) {
+        expect(plan.statusCode).toBe(409);
+        // The run makes the plan; no empty plan slipped in before it.
+        expect(await finished(proposal.json().proposal.id)).toMatchObject({
+          status: 'done',
+        });
+      } else {
+        expect(plan.statusCode).toBe(201);
+      }
+      const { plan: taken } = (await getPlan(WEEK)).json();
+      expect(
+        (await inject('DELETE', `/api/menu/plans/${taken.id}`)).statusCode,
+      ).toBe(204);
+    }
+  });
+
   it('answers 400 for a week that does not start on Monday', async () => {
     const response = await inject('POST', '/api/menu/plans', {
       weekStart: '2026-11-03',
@@ -389,6 +414,52 @@ describe('PATCH /api/menu/meals/:id', () => {
     expect(archived.json()).toMatchObject({ error: 'invalid_reference' });
     expect(unknown.statusCode).toBe(400);
     expect((await getPlan(WEEK)).json().plan.meals[0]).toEqual(monday);
+  });
+
+  it('answers 400 for a recipe without the dinner tag, unless the meal keeps the recipe it has', async () => {
+    const plan = await proposedPlan();
+    const [monday, tuesday] = plan.meals;
+    const db = testDb();
+    const [lunchOnly] = await db
+      .insert(recipe)
+      .values({
+        title: 'Супа',
+        servings: 4,
+        steps: ['Свари.'],
+        tags: ['lunch'],
+      })
+      .returning({ id: recipe.id });
+    // A recipe of the plan that lost its dinner tag later.
+    await db
+      .update(recipe)
+      .set({ tags: [] })
+      .where(eq(recipe.id, tuesday.recipeId));
+
+    const notDinner = await patchMeal(monday.id, { recipeId: lunchOnly?.id });
+    const kept = await patchMeal(tuesday.id, {
+      recipeId: tuesday.recipeId,
+      cookUserId: POLI.id,
+    });
+
+    expect(notDinner.statusCode).toBe(400);
+    expect(notDinner.json()).toMatchObject({ error: 'invalid_reference' });
+    expect((await getPlan(WEEK)).json().plan.meals[0]).toEqual(monday);
+    expect(kept.statusCode).toBe(200);
+    expect(kept.json().meal).toMatchObject({
+      recipeId: tuesday.recipeId,
+      cookUserId: POLI.id,
+    });
+  });
+
+  it('bumps the plan’s updatedAt to the time of the change', async () => {
+    const plan = await createPlan(WEEK);
+    clock = new Date('2026-10-29T15:30:00Z');
+
+    await patchMeal(plan.meals[0].id, { note: 'навън' });
+
+    expect((await getPlan(WEEK)).json().plan.updatedAt).toBe(
+      '2026-10-29T15:30:00.000Z',
+    );
   });
 
   it('keeps showing a recipe that was archived after it was planned', async () => {
