@@ -9,6 +9,10 @@ Read before changing code:
 - `docs/architecture.md` — packages, boundaries, layers
 - `docs/testing.md` — what and how to test
 
+## Public repo
+
+This repo is public. Never put secrets, tokens, Cloudflare AUD/team domain, e-mail addresses or other personal data in issues, comments, code or docs. Self-hosted runners are used only by the deploy workflow on `push` to `master`, never by workflows that run on pull requests.
+
 ## Agent skills
 
 ### Issue tracker
