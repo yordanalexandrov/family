@@ -7,7 +7,7 @@ import {
   type JWTVerifyGetKey,
   jwtVerify,
 } from 'jose';
-import type { Config } from '../config.js';
+import type { AuthConfig } from '../config.js';
 import { HttpError } from './error-handler.js';
 import { isApiRequest } from './scope.js';
 
@@ -24,36 +24,17 @@ declare module 'fastify' {
   }
 }
 
-export type CloudflareAccessOptions =
-  /** No token is checked; every request comes from `email`. Local development and tests only. */
-  | { mode: 'dev'; email: string }
-  | {
-      mode: 'cloudflare';
-      /** `https://<team>.cloudflareaccess.com`: the token issuer. */
-      teamDomain: string;
-      /** Application Audience (AUD) tag of the Access application. */
-      audience: string;
-      /** A second gate behind the Access policy; compared case-insensitively. */
-      allowedEmails: string[];
-      /**
-       * Resolves the token's signing key. Defaults to the team's JWKS at `/cdn-cgi/access/certs`
-       * (jose caches it and refetches on an unknown `kid`, which covers key rotation). Tests pass `createLocalJWKSet`.
-       */
-      jwks?: JWTVerifyGetKey;
-    };
-
-/** The plugin options for the configured AUTH_MODE. */
-export function accessOptions(config: Config): CloudflareAccessOptions {
-  if (config.AUTH_MODE === 'dev') {
-    return { mode: 'dev', email: config.DEV_USER_EMAIL };
-  }
-  return {
-    mode: 'cloudflare',
-    teamDomain: config.CF_ACCESS_TEAM_DOMAIN,
-    audience: config.CF_ACCESS_AUD,
-    allowedEmails: config.ALLOWED_EMAILS,
-  };
-}
+/**
+ * `config.auth`: in dev mode no token is checked and every request comes from `email` (local development and tests only);
+ * in cloudflare mode the token must come from `teamDomain` for `audience`, with an e-mail in `allowedEmails`.
+ */
+export type CloudflareAccessOptions = AuthConfig & {
+  /**
+   * Cloudflare mode: resolves the token's signing key. Defaults to the team's JWKS at `/cdn-cgi/access/certs`
+   * (jose caches it and refetches on an unknown `kid`, which covers key rotation). Tests pass `createLocalJWKSet`.
+   */
+  jwks?: JWTVerifyGetKey;
+};
 
 const cloudflareAccess: FastifyPluginAsync<CloudflareAccessOptions> = async (
   app,
@@ -75,9 +56,7 @@ const cloudflareAccess: FastifyPluginAsync<CloudflareAccessOptions> = async (
   const jwks =
     options.jwks ??
     createRemoteJWKSet(new URL('/cdn-cgi/access/certs', options.teamDomain));
-  const allowedEmails = new Set(
-    options.allowedEmails.map((email) => email.toLowerCase()),
-  );
+  const allowedEmails = new Set(options.allowedEmails);
 
   app.addHook('onRequest', async (request) => {
     if (!isApiRequest(request)) {
@@ -113,7 +92,7 @@ const cloudflareAccess: FastifyPluginAsync<CloudflareAccessOptions> = async (
       throw error;
     }
 
-    // Service tokens carry no e-mail; they are not let in either.
+    // Service tokens carry no e-mail; they are not let in either. The list is lowercase already (loadConfig).
     const email =
       typeof payload.email === 'string' ? payload.email.toLowerCase() : '';
     if (!allowedEmails.has(email)) {
