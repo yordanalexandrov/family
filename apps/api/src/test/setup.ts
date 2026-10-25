@@ -1,6 +1,6 @@
-import { afterAll, beforeAll } from 'vitest';
+import { afterAll, afterEach, beforeAll } from 'vitest';
 import { runMigrations } from '../db/migrate.js';
-import { closeTestDb, TEST_DATABASE_URL, testDb } from './db.js';
+import { closeTestDb, resetDatabase, TEST_DATABASE_URL, testDb } from './db.js';
 
 beforeAll(async () => {
   try {
@@ -11,6 +11,10 @@ beforeAll(async () => {
       { cause: error },
     );
   }
+  // Earlier runs (or a killed one) may have left data behind.
+  await resetDatabase(testDb());
 });
+
+afterEach(() => resetDatabase(testDb()));
 
 afterAll(closeTestDb);

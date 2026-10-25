@@ -7,10 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": [
-      "**",
-      "!apps/api/drizzle/meta/**"
-    ]
+    "includes": ["**", "!apps/api/drizzle/meta"]
   },
   "formatter": {
     "enabled": true,
