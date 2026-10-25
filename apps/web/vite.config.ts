@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -10,7 +11,18 @@ const BACKGROUND_COLOR = '#eef1f8';
 // api слуша на 127.0.0.1:API_PORT (по подразбиране 18091), същата променлива като в docker-compose.yml.
 const API_PORT = process.env.API_PORT || '18091';
 
+// Версията в „Настройки“: от package.json, с късия git sha, ако build-ът го подаде (GIT_SHA).
+const { version } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string };
+const APP_VERSION = process.env.GIT_SHA
+  ? `${version} (${process.env.GIT_SHA.slice(0, 7)})`
+  : version;
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   plugins: [
     react(),
     VitePWA({

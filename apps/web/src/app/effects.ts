@@ -8,7 +8,7 @@ import { logger } from '../logger';
  *   lite: полупрозрачни карти без размазване, статична аурора, само преходите при поява.
  * Без поддръжка на backdrop-filter нивото е винаги lite. Иначе изричната настройка
  * печели; без нея prefers-reduced-motion дава lite. Непрекъснатите анимации спират при
- * reduced-motion и на full (в CSS). UI-ят за настройката е в /settings (Дашборд 4).
+ * reduced-motion и на full (в CSS). UI-ят за настройката е в /settings.
  */
 export type EffectsLevel = 'full' | 'lite';
 export type EffectsSetting = EffectsLevel | 'auto';
@@ -29,7 +29,8 @@ function readSetting(): EffectsSetting {
   }
 }
 
-function supportsBlur(): boolean {
+/** Дали браузърът размазва зад елемент; без това нивото е винаги lite. */
+export function supportsBlur(): boolean {
   if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') {
     return false;
   }

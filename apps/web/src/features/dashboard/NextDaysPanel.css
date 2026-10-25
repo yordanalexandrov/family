@@ -1,0 +1,44 @@
+.next-days {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.next-days__day {
+  display: grid;
+  grid-template-columns: 4.2em minmax(0, 1fr);
+  gap: 0.2em 0.6em;
+  align-items: start;
+  padding-block: 0.4em;
+  border-block-start: 1px solid var(--color-line);
+}
+
+.next-days__day:first-child {
+  border-block-start: 0;
+}
+
+.next-days__head {
+  display: flex;
+  flex-direction: column;
+  padding-block-start: 0.2em;
+  font-size: inherit;
+  line-height: 1.1;
+}
+
+.next-days__head b {
+  font-size: 1.1em;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.next-days__head span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.next-days .day-events__empty {
+  padding: 0.3em 0.45em;
+}

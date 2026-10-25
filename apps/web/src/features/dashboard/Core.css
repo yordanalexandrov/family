@@ -1,0 +1,141 @@
+/* Кръгът: стъклото на Card, ъглите — 50 %. Вътрешните размери следват ширината на ядрото (cqi). */
+.card.core {
+  inline-size: var(--core-size, 320px);
+  aspect-ratio: 1;
+  justify-self: center;
+  align-self: center;
+  padding: 0;
+  border-radius: 50%;
+  container-type: inline-size;
+  background: radial-gradient(
+    circle at 50% 38%,
+    var(--glass-bg-strong),
+    var(--glass-bg) 60%
+  );
+}
+
+.core > .card__body {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.core__inner {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5cqi;
+  inline-size: 62%;
+  text-align: center;
+}
+
+.core__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1cqi;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.core__chip {
+  max-inline-size: 100%;
+  padding: 0.15em 0.6em;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-strong);
+  color: var(--color-text-muted);
+  font-size: max(11px, 3.4cqi);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clock {
+  display: flex;
+  align-items: baseline;
+  font-size: 17cqi;
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock__seconds {
+  margin-inline-start: 0.15em;
+  color: var(--color-text-muted);
+  font-size: 0.32em;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.core__date {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: max(11px, 3.6cqi);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.core__events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6cqi;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: max(12px, 4cqi);
+}
+
+.core__event {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  min-inline-size: 0;
+}
+
+.core__event-time {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.core__event-title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.core__cooking {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6cqi;
+  inline-size: 88%;
+  margin-block-start: 0.8cqi;
+  padding-block-start: 1.8cqi;
+  border-block-start: 1px solid var(--color-line);
+}
+
+.core__cooking small {
+  color: var(--color-accent);
+  font-size: max(10px, 2.8cqi);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.core__cooking b {
+  font-size: max(14px, 5cqi);
+  font-weight: 700;
+  line-height: 1.1;
+}
