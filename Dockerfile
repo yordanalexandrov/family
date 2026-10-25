@@ -22,8 +22,10 @@ RUN pnpm -r build
 # api with production dependencies only; @family/shared is copied in with its dist/.
 # `files` in apps/api/package.json brings dist/ and drizzle/ (the migrations, read from dist/db/migrate.js).
 # --legacy: the workspace links packages instead of injecting them (pnpm 10 deploy needs one or the other).
+# TypeScript sources/declarations and source maps of dependencies are never loaded at runtime (~23 MB).
 FROM build AS api-deploy
-RUN pnpm --filter api deploy --prod --legacy /out/api
+RUN pnpm --filter api deploy --prod --legacy /out/api \
+  && find /out/api/node_modules -type f \( -name '*.ts' -o -name '*.d.cts' -o -name '*.d.mts' -o -name '*.map' \) -delete
 
 FROM node:24-alpine AS api
 ENV NODE_ENV=production
