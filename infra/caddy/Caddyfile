@@ -1,5 +1,6 @@
 # Caddy in the `web` image (Dockerfile). Host network, loopback only (docs/adr/0005-api-and-caddy-on-host-network.md):
 # cloudflared → http://localhost:18090. TLS ends at Cloudflare, so Caddy speaks plain HTTP.
+# api is on 127.0.0.1:$API_PORT, which docker-compose.yml gives to both containers (default 18091).
 {
 	auto_https off
 	admin off
@@ -10,10 +11,10 @@
 	encode zstd gzip
 
 	handle /healthz {
-		reverse_proxy 127.0.0.1:18091
+		reverse_proxy 127.0.0.1:{$API_PORT:18091}
 	}
 	handle /api/* {
-		reverse_proxy 127.0.0.1:18091
+		reverse_proxy 127.0.0.1:{$API_PORT:18091}
 	}
 
 	# Hashed Vite bundles. A missing one is a 404, not index.html cached for a year.

@@ -1,4 +1,4 @@
-import type { User } from '@family/shared';
+import type { ApiErrorCode, User } from '@family/shared';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 
@@ -23,7 +23,8 @@ export const users = [dani, poli];
 
 export const accessEmail = 'parent@example.com';
 
-export function apiError(status: number, error: string, message: string) {
+/** Тяло по `apiErrorSchema`, както го връща error handler-ът на api. */
+export function apiError(status: number, error: ApiErrorCode, message: string) {
   return HttpResponse.json({ error, message }, { status });
 }
 

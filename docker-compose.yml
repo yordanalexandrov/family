@@ -1,5 +1,9 @@
 name: family
 
+# Loopback портът на api (ADR-0005) на едно място: api слуша на него, caddy праща /api/* и /healthz там.
+# По подразбиране 18091; API_PORT в .env (или в shell-а) мести и двата.
+x-api-port: &api-port ${API_PORT:-18091}
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -46,7 +50,7 @@ services:
     environment:
       NODE_ENV: production
       API_HOST: 127.0.0.1
-      API_PORT: "18091"
+      API_PORT: *api-port
       DATABASE_URL: postgres://family:${POSTGRES_PASSWORD}@127.0.0.1:5432/family
       AUTH_MODE: cloudflare
     depends_on:
@@ -60,6 +64,8 @@ services:
       context: .
       target: web
     network_mode: host
+    environment:
+      API_PORT: *api-port
     depends_on:
       - api
     restart: unless-stopped

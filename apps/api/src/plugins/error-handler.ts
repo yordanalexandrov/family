@@ -1,28 +1,16 @@
+import type { ApiErrorCode, ApiErrorResponse } from '@family/shared';
 import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 
-/** Body of every error response: an English code for the client, a Bulgarian message for the screen. */
-interface ErrorResponse {
-  error: string;
-  message: string;
-  issues?: ValidationIssue[];
-}
-
-interface ValidationIssue {
-  /** Dotted path inside the validated part (query, body, params), e.g. `items.0.qty`. */
-  path: string;
-  message: string;
-}
-
 /**
  * A refusal the client can act on. The error handler answers it with `statusCode` and
- * `{ error: code, message }`; `message` reaches the screen, so it is written in Bulgarian.
+ * `{ error: code, message }` (`apiErrorSchema` in shared); `message` reaches the screen, so it is written in Bulgarian.
  */
 export class HttpError extends Error {
   readonly statusCode: number;
-  readonly code: string;
+  readonly code: ApiErrorCode;
 
-  constructor(statusCode: number, code: string, message: string) {
+  constructor(statusCode: number, code: ApiErrorCode, message: string) {
     super(message);
     this.name = 'HttpError';
     this.statusCode = statusCode;
@@ -40,31 +28,46 @@ const errorHandler: FastifyPluginAsync = async (app) => {
           path: issue.instancePath.replace(/^\//, '').replaceAll('/', '.'),
           message: issue.message ?? 'Невалидна стойност',
         })),
-      } satisfies ErrorResponse);
+      } satisfies ApiErrorResponse);
     }
 
-    const statusCode = error.statusCode ?? 500;
-    if (statusCode >= 400 && statusCode < 500) {
-      return reply.code(statusCode).send({
-        error: typeof error.code === 'string' ? error.code : 'error',
-        message: error.message,
-      } satisfies ErrorResponse);
+    const statusCode = statusOf(error);
+    if (statusCode >= 500) {
+      // A bug or an outage: always logged in full.
+      request.log.error({ err: error }, 'server error');
     }
-
-    // Anything else is a bug or an outage: log it in full, tell the client nothing about it.
-    request.log.error({ err: error }, 'unhandled error');
-    return reply.code(500).send({
-      error: 'internal_error',
-      message: 'Вътрешна грешка',
-    } satisfies ErrorResponse);
+    return reply.code(statusCode).send(bodyOf(error, statusCode));
   });
 
   app.setNotFoundHandler((_request, reply) =>
     reply.code(404).send({
       error: 'not_found',
       message: 'Няма такъв адрес',
-    } satisfies ErrorResponse),
+    } satisfies ApiErrorResponse),
   );
 };
+
+/** The error's own status when it is an error status (4xx, 5xx); without one the error is a bug: 500. */
+function statusOf(error: FastifyError): number {
+  const { statusCode } = error;
+  return statusCode !== undefined && statusCode >= 400 && statusCode < 600
+    ? statusCode
+    : 500;
+}
+
+/**
+ * The app's HttpError tells the client its own code and message, at any status. Any other error (e.g. Fastify's own
+ * FST_ERR_*, not part of the contract) gets the generic code `error` with its message when 4xx, and nothing of
+ * itself when 5xx, so internals never leak.
+ */
+function bodyOf(error: FastifyError, statusCode: number): ApiErrorResponse {
+  if (error instanceof HttpError) {
+    return { error: error.code, message: error.message };
+  }
+  if (statusCode < 500) {
+    return { error: 'error', message: error.message };
+  }
+  return { error: 'internal_error', message: 'Вътрешна грешка' };
+}
 
 export default fp(errorHandler, { name: 'error-handler' });

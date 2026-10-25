@@ -53,9 +53,9 @@ services/    → бизнес логика (меню → списък за па�
 db/          → Drizzle schema, миграции, repository функции
 ```
 
-Route-ът не пипа базата директно; service-ът не знае за request/reply.
+Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
-Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }`: `error` е английски код, `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`.
+Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`.
 
 ## Слоеве в `apps/web`
 
@@ -68,7 +68,7 @@ styles/           → design tokens (`tokens.css`, `data-theme`) и глобал
 logger.ts         → единственият изход към конзолата
 ```
 
-Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът праща към `/who`, докато устройството няма действащ потребител.
+Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът праща към `/who`, докато устройството няма действащ потребител. Заявка, върнала `400 unknown_acting_user` (потребителят вече го няма), чисти избора централно в `QueryCache` (`app/query-client.ts`), така че и тогава root layout-ът води към `/who`; екраните не го обработват сами.
 
 ## Вижте също
 

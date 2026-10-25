@@ -14,7 +14,7 @@ function describeError(error: unknown): {
   sessionExpired: boolean;
 } {
   if (error instanceof ApiError) {
-    if (error.status === 401 || error.status === 403) {
+    if (error.isSessionExpired()) {
       return { message: SESSION_EXPIRED_MESSAGE, sessionExpired: true };
     }
     return { message: error.message, sessionExpired: false };

@@ -2,13 +2,12 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { runMigrations } from './db/migrate.js';
 import { loggerOptions } from './logger.js';
-import { accessOptions } from './plugins/cloudflare-access.js';
 
 const config = loadConfig();
 const app = buildApp({
   logger: loggerOptions(config),
   databaseUrl: config.DATABASE_URL,
-  auth: accessOptions(config),
+  auth: config.auth,
 });
 
 try {

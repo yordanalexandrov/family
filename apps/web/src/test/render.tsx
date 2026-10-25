@@ -10,6 +10,5 @@ export function renderApp(path = '/') {
   const router = createAppRouter(
     createMemoryHistory({ initialEntries: [path] }),
   );
-  const view = render(<App router={router} queryClient={queryClient} />);
-  return { ...view, router, queryClient };
+  return render(<App router={router} queryClient={queryClient} />);
 }

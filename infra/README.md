@@ -5,7 +5,7 @@
 | Порт | Service | Бележка |
 |---|---|---|
 | `127.0.0.1:18090` | `caddy` (host мрежа) | входът: cloudflared → `http://localhost:18090`; статика, `/api/*` и `/healthz` → api |
-| `127.0.0.1:18091` | `api` (host мрежа) | прилага миграциите при старт |
+| `127.0.0.1:18091` | `api` (host мрежа) | прилага миграциите при старт; `API_PORT` в `.env` мести и него, и upstream-а на Caddy |
 | `127.0.0.1:5432` | `postgres` (bridge) | volume `pgdata`; `backup` го стига като `postgres` |
 | `127.0.0.1:5433` | `postgres-test` (профил `test`) | само за `pnpm test` |
 

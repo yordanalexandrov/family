@@ -26,8 +26,7 @@ describe('loadConfig', () => {
   it('falls back to loopback defaults when only the required variables are given', () => {
     expect(loadConfig(dev)).toEqual({
       ...defaults,
-      AUTH_MODE: 'dev',
-      DEV_USER_EMAIL,
+      auth: { mode: 'dev', email: DEV_USER_EMAIL },
     });
   });
 
@@ -81,10 +80,12 @@ describe('loadConfig', () => {
     it('in cloudflare mode splits ALLOWED_EMAILS on commas, trimmed and lowercased', () => {
       expect(loadConfig(cloudflare)).toEqual({
         ...defaults,
-        AUTH_MODE: 'cloudflare',
-        CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN,
-        CF_ACCESS_AUD: 'aud-tag',
-        ALLOWED_EMAILS: ['dani@example.com', 'poli@example.com'],
+        auth: {
+          mode: 'cloudflare',
+          teamDomain: TEAM_DOMAIN,
+          audience: 'aud-tag',
+          allowedEmails: ['dani@example.com', 'poli@example.com'],
+        },
       });
     });
 
@@ -103,7 +104,7 @@ describe('loadConfig', () => {
     it('strips a trailing slash from the team domain so it matches the token issuer', () => {
       expect(
         loadConfig({ ...cloudflare, CF_ACCESS_TEAM_DOMAIN: `${TEAM_DOMAIN}/` }),
-      ).toMatchObject({ CF_ACCESS_TEAM_DOMAIN: TEAM_DOMAIN });
+      ).toMatchObject({ auth: { teamDomain: TEAM_DOMAIN } });
     });
 
     it('refuses dev mode in production', () => {
@@ -115,7 +116,7 @@ describe('loadConfig', () => {
     it('accepts cloudflare mode in production', () => {
       expect(
         loadConfig({ ...cloudflare, NODE_ENV: 'production' }),
-      ).toMatchObject({ NODE_ENV: 'production', AUTH_MODE: 'cloudflare' });
+      ).toMatchObject({ NODE_ENV: 'production', auth: { mode: 'cloudflare' } });
     });
   });
 });

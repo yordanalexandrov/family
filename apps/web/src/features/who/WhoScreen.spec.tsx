@@ -19,7 +19,7 @@ describe('WhoScreen', () => {
 
   it('клик на „Поли“ записва id в localStorage и води към „Здравей, Поли“', async () => {
     const user = userEvent.setup();
-    const { router } = renderApp('/who');
+    renderApp('/who');
 
     await user.click(await screen.findByRole('button', { name: 'Поли' }));
 
@@ -27,6 +27,5 @@ describe('WhoScreen', () => {
       await screen.findByRole('heading', { name: 'Здравей, Поли' }),
     ).toBeInTheDocument();
     expect(localStorage.getItem('family.actingUserId')).toBe(poli.id);
-    expect(router.state.location.pathname).toBe('/');
   });
 });

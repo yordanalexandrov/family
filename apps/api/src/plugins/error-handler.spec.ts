@@ -2,18 +2,31 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { buildApp } from '../app.js';
-import { TEST_DATABASE_URL } from '../test/db.js';
+import { buildTestApp } from '../test/app.js';
+import { HttpError } from './error-handler.js';
 
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = buildApp({ databaseUrl: TEST_DATABASE_URL });
+  app = buildTestApp();
   // Test routes outside /api/ need neither Access nor an acting user, so only error handling is exercised.
   const test = app.withTypeProvider<ZodTypeProvider>();
   test.get('/test/boom', async () => {
     throw new Error('secret details');
   });
+  test.get('/test/refused', async () => {
+    throw new HttpError(403, 'forbidden', 'Нямаш достъп до това');
+  });
+  test.get('/test/unavailable', async () => {
+    throw new HttpError(503, 'error', 'Календарът не отговаря, опитай пак');
+  });
+  test.get('/test/pool-down', async () => {
+    throw Object.assign(new Error('pool exhausted at 10.0.0.5:5432'), {
+      statusCode: 503,
+      code: 'POOL_EXHAUSTED',
+    });
+  });
+  // Like Fastify's own refusals (e.g. FST_ERR_CTP_INVALID_MEDIA_TYPE): a status and a code outside the contract.
   test.get('/test/teapot', async () => {
     throw Object.assign(new Error('Чайник съм'), {
       statusCode: 418,
@@ -43,11 +56,48 @@ describe('error handler', () => {
     expect(response.body).not.toContain('stack');
   });
 
-  it('keeps the status and code of an error that carries them', async () => {
+  it('answers an HttpError with its status, code and message', async () => {
+    const response = await app.inject({ method: 'GET', url: '/test/refused' });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      error: 'forbidden',
+      message: 'Нямаш достъп до това',
+    });
+  });
+
+  it('keeps a 5xx status of an HttpError together with its code and message', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test/unavailable',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: 'error',
+      message: 'Календарът не отговаря, опитай пак',
+    });
+  });
+
+  it('keeps a 5xx status of another error but tells nothing from it', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test/pool-down',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: 'internal_error',
+      message: 'Вътрешна грешка',
+    });
+    expect(response.body).not.toContain('10.0.0.5');
+  });
+
+  it('keeps the status and message of another error with a status, under the generic code error', async () => {
     const response = await app.inject({ method: 'GET', url: '/test/teapot' });
 
     expect(response.statusCode).toBe(418);
-    expect(response.json()).toEqual({ error: 'teapot', message: 'Чайник съм' });
+    expect(response.json()).toEqual({ error: 'error', message: 'Чайник съм' });
   });
 
   it('answers 400 validation_error with the offending paths when the query does not match its schema', async () => {

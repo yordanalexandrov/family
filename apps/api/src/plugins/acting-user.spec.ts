@@ -1,19 +1,13 @@
 import { meResponseSchema } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../app.js';
-import { TEST_DATABASE_URL } from '../test/db.js';
+import { buildTestApp, DEV_AUTH } from '../test/app.js';
 import { DANI } from '../test/users.js';
-
-const DEV_EMAIL = 'dev@example.com';
 
 let app: FastifyInstance;
 
 beforeAll(async () => {
-  app = buildApp({
-    databaseUrl: TEST_DATABASE_URL,
-    auth: { mode: 'dev', email: DEV_EMAIL },
-  });
+  app = buildTestApp();
   await app.ready();
 });
 
@@ -62,7 +56,7 @@ describe('acting user (X-Acting-User)', () => {
     expect(response.statusCode).toBe(200);
     expect(meResponseSchema.parse(response.json())).toEqual({
       user: DANI,
-      accessEmail: DEV_EMAIL,
+      accessEmail: DEV_AUTH.email,
     });
   });
 });
