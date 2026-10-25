@@ -15,6 +15,7 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
+import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 
 export const menuKeys = {
@@ -78,7 +79,10 @@ function fetchNoContent(path: string) {
   return apiFetch(path, { parse: () => undefined }, { method: 'DELETE' });
 }
 
-/** Една промяна на ястие (рецепта, бележка, готвач или порции) е един `PATCH`; ястието се подменя в плана. */
+/**
+ * Една промяна на ястие (рецепта, бележка, готвач или порции) е един `PATCH`; ястието се подменя в плана, а
+ * „Днес се готви“ на дашборда се презарежда.
+ */
 export function useUpdateMeal(weekStart: DateKey) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -97,6 +101,7 @@ export function useUpdateMeal(weekStart: DateKey) {
             meals: plan.meals.map((m) => (m.id === meal.id ? meal : m)),
           },
       );
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
 }
@@ -117,7 +122,7 @@ export function useProposeMenu() {
   });
 }
 
-/** Предложението; пита отново на 3 s, докато е `pending`. При `done` презарежда плана на седмицата. */
+/** Предложението; пита отново на 3 s, докато е `pending`. При `done` презарежда плана на седмицата и дашборда. */
 export function useMenuProposal(id: string | undefined) {
   const queryClient = useQueryClient();
   return useQuery({
@@ -131,6 +136,8 @@ export function useMenuProposal(id: string | undefined) {
         await queryClient.invalidateQueries({
           queryKey: menuKeys.plan(proposal.weekStart),
         });
+        // Предложение за тази седмица сменя и днешната вечеря.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
       }
       return proposal;
     },

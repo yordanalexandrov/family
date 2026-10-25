@@ -14,7 +14,7 @@ import {
   servePlans,
   thisWeek,
 } from '../../test/menu';
-import { dani, fixtureNow, poli, server } from '../../test/msw';
+import { dani, dashboardWith, fixtureNow, poli, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 
 describe('MenuWeek', () => {
@@ -190,6 +190,45 @@ describe('MenuWeek', () => {
     const row = screen.getByRole('button', { name: /Леща чорба/ });
     expect(row).toHaveTextContent('пн');
     expect(row).not.toHaveTextContent('Бързо за понеделник.');
+  });
+
+  it('промяна на днешното ястие се вижда веднага в „Днес се готви“', async () => {
+    const user = userEvent.setup();
+    // Сряда, 4 ноември (`fixtureNow`) е третият ден от седмицата.
+    const plan = planFor(thisWeek, { 2: { note: 'остатъци' } });
+    servePlans({ [thisWeek]: plan });
+    serveDinnerRecipes();
+    serveMealUpdates(plan);
+    server.use(
+      http.get('/api/dashboard', () => {
+        const today = plan.meals[2];
+        return HttpResponse.json(
+          dashboardWith({
+            cooking: {
+              lunch: null,
+              dinner: today?.note
+                ? { title: today.note, cookUserId: null }
+                : null,
+            },
+          }),
+        );
+      }),
+    );
+
+    renderApp('/');
+    expect(await screen.findByText('остатъци')).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Меню' }));
+    await user.click(await screen.findByRole('button', { name: /остатъци/ }));
+    const sheet = screen.getByRole('dialog', { name: 'сряда, 4 ноември' });
+    const note = within(sheet).getByRole('textbox', { name: 'Бележка' });
+    await user.clear(note);
+    await user.type(note, 'ядем навън');
+    await user.click(within(sheet).getByRole('button', { name: 'Запази' }));
+    await expect.poll(() => plan.meals[2]?.note).toBe('ядем навън');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('link', { name: 'Дашборд' }));
+
+    expect(await screen.findByText('ядем навън')).toBeInTheDocument();
   });
 
   it('готвач, порции и бележка са отделни PATCH-ове', async () => {
