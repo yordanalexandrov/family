@@ -42,6 +42,17 @@ describe('dashboardResponseSchema', () => {
     ).toEqual(cooking);
   });
 
+  it('accepts a meal nobody cooks yet', () => {
+    const cooking = {
+      lunch: null,
+      dinner: { title: 'ядем навън', cookUserId: null },
+    };
+
+    expect(
+      dashboardResponseSchema.parse({ ...dashboard, cooking }).cooking,
+    ).toEqual(cooking);
+  });
+
   it('rejects anything other than four days (today and the next three)', () => {
     expect(
       dashboardResponseSchema.safeParse({

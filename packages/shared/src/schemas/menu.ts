@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { slotSchema } from '../food/tags.js';
 import { isWeekStart } from '../menu/week.js';
-import { dateKeySchema } from './dates.js';
+import { dateKeySchema, instantSchema } from './dates.js';
 import { suggestionFailureSchema } from './recipe-suggestion.js';
 
 /** The Monday that identifies a weekly menu, as `YYYY-MM-DD`. */
@@ -31,6 +31,10 @@ export const mealSchema = z.object({
   cookUserId: z.uuid().nullable(),
   servings: servingsSchema,
   why: z.string().nullable(),
+  /** The recipe as the menu shows it; an archived recipe stays visible in an old plan. `null` without a recipe. */
+  recipe: z
+    .object({ title: z.string(), archivedAt: instantSchema.nullable() })
+    .nullable(),
 });
 
 export type Meal = z.infer<typeof mealSchema>;
@@ -47,6 +51,35 @@ export const mealPlanSchema = z.object({
 });
 
 export type MealPlan = z.infer<typeof mealPlanSchema>;
+
+/** A plan without its meals, for going back through past weeks. */
+export const mealPlanSummarySchema = mealPlanSchema.omit({ meals: true });
+
+export type MealPlanSummary = z.infer<typeof mealPlanSummarySchema>;
+
+/**
+ * `GET /api/menu/plans`: `?weekStart=` asks for the plan of one week (404 without one), `?from=&to=` for the plans
+ * whose week starts between the two dates, both included.
+ */
+export const mealPlansQuerySchema = z.union([
+  z.object({ weekStart: weekStartSchema }),
+  z.object({ from: dateKeySchema, to: dateKeySchema }),
+]);
+
+export type MealPlansQuery = z.infer<typeof mealPlansQuerySchema>;
+
+export const mealPlanResponseSchema = z.object({ plan: mealPlanSchema });
+
+export const mealPlansResponseSchema = z.object({
+  plans: z.array(mealPlanSummarySchema),
+});
+
+/** `POST /api/menu/plans`: an empty plan for the week. */
+export const createMealPlanSchema = z.object({ weekStart: weekStartSchema });
+
+export type CreateMealPlan = z.infer<typeof createMealPlanSchema>;
+
+export const mealResponseSchema = z.object({ meal: mealSchema });
 
 /** `PATCH /api/menu/meals/:id`: any of recipe, note, cook and servings; a blank note means no note. */
 export const updateMealSchema = z
@@ -94,3 +127,24 @@ export const createMenuProposalSchema = z.object({
 });
 
 export type CreateMenuProposal = z.infer<typeof createMenuProposalSchema>;
+
+export const menuProposalResponseSchema = z.object({
+  proposal: menuProposalRequestSchema,
+});
+
+/** Fewest dinner recipes in the registry (not archived) that a proposal can choose 7 different dinners from. */
+export const MENU_PROPOSE_MIN_RECIPES = 7;
+
+/**
+ * 409 of `POST /api/menu/proposals` when the registry is too small: `have` dinner recipes, `need` at least; the UI
+ * asks for `need - have` more.
+ */
+export const notEnoughRecipesSchema = z.object({
+  error: z.literal('conflict'),
+  code: z.literal('not_enough_recipes'),
+  message: z.string(),
+  have: z.int().min(0),
+  need: z.int().positive(),
+});
+
+export type NotEnoughRecipes = z.infer<typeof notEnoughRecipesSchema>;

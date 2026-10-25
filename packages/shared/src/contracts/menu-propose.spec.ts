@@ -7,6 +7,7 @@ import {
   MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
   menuProposeInputSchema,
   menuProposeOutputSchema,
+  menuProposeOutputSchemaFor,
   validateProposal,
 } from './menu-propose.js';
 
@@ -168,6 +169,26 @@ describe('validateProposal', () => {
     output.days[4].recipeId = input.recentRecipeIds[0];
 
     expect(validateProposal(input, output)).toEqual([]);
+  });
+});
+
+describe('menuProposeOutputSchemaFor', () => {
+  it('accepts the fixture for its input', () => {
+    expect(
+      menuProposeOutputSchemaFor(validInput()).safeParse(fixture).success,
+    ).toBe(true);
+  });
+
+  it('turns the problems of validateProposal into issues, for the retry message', () => {
+    const output = validOutput();
+    output.days[0].recipeId = 'a0000000-0000-4000-8000-000000000099';
+
+    const result = menuProposeOutputSchemaFor(validInput()).safeParse(output);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+      expect.stringContaining('не е от списъка recipes'),
+    ]);
   });
 });
 

@@ -22,6 +22,7 @@ const meal = {
   cookUserId: DANI,
   servings: { [DANI]: 1, [POLI]: 2 },
   why: 'Бързо за понеделник, без месо след уикенда.',
+  recipe: { title: 'Леща яхния', archivedAt: null },
 };
 
 describe('mealSchema', () => {
@@ -35,6 +36,7 @@ describe('mealSchema', () => {
       recipeId: null,
       cookUserId: null,
       why: null,
+      recipe: null,
     };
 
     expect(mealSchema.parse(empty)).toEqual(empty);
@@ -44,6 +46,7 @@ describe('mealSchema', () => {
     const out = {
       ...meal,
       recipeId: null,
+      recipe: null,
       note: 'ядем навън',
       servings: { [DANI]: 1, [POLI]: 0 },
     };

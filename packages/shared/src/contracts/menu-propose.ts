@@ -114,3 +114,15 @@ export function validateProposal(
   }
   return problems;
 }
+
+/**
+ * {@link menuProposeOutputSchema} with {@link validateProposal} against `input` on top, so an answer that breaks the
+ * rules fails parsing like a malformed one and goes through the same single retry with its problems.
+ */
+export function menuProposeOutputSchemaFor(input: MenuProposeInput) {
+  return menuProposeOutputSchema.superRefine((output, ctx) => {
+    for (const message of validateProposal(input, output)) {
+      ctx.addIssue({ code: 'custom', message });
+    }
+  });
+}
