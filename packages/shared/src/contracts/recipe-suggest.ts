@@ -50,8 +50,9 @@ export const suggestionSchema = z.object({
   prepMinutes: z.int().positive(),
   servings: z.int().min(1),
   tags: z.array(tagSchema),
-  ingredients: z.array(suggestionIngredientSchema).min(1),
-  steps: z.array(z.string().trim().min(1)).min(1),
+  // A recipe really taken from its page has at least two of each; one line ("as in the source") is a placeholder.
+  ingredients: z.array(suggestionIngredientSchema).min(2),
+  steps: z.array(z.string().trim().min(1)).min(2),
   nutritionPer100g: nutritionSchema.optional(),
 });
 

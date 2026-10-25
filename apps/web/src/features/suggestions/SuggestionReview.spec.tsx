@@ -167,6 +167,7 @@ describe('SuggestionReview', () => {
         ingredients: [
           // isNew: false, но в регистъра го няма: също е нов.
           { name: 'кокосово мляко', isNew: false, quantity: 0.4, unit: 'l' },
+          { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
         ],
       },
     };
@@ -203,6 +204,7 @@ describe('SuggestionReview', () => {
     ]);
     expect(approved[0]?.ingredients).toEqual([
       { ingredientId: coconutMilk.id, quantity: 0.4, unit: 'l' },
+      { ingredientId: salt.id, quantity: null, unit: 'pinch' },
     ]);
   });
 

@@ -72,6 +72,22 @@ describe('recipeSuggestOutputSchema', () => {
     expect(issuePaths(output)).toEqual([]);
   });
 
+  it('rejects a placeholder suggestion with one ingredient and one step', () => {
+    const output = validOutput();
+    output.suggestions[1].ingredients = output.suggestions[1].ingredients.slice(
+      0,
+      1,
+    );
+    output.suggestions[1].steps = [
+      'Приготви пилето с ориз според указанията на източника.',
+    ];
+
+    expect(issuePaths(output)).toEqual([
+      'suggestions.1.ingredients',
+      'suggestions.1.steps',
+    ]);
+  });
+
   it('rejects a suggestion without a source URL', () => {
     const output = validOutput();
     delete output.suggestions[1].sourceUrl;

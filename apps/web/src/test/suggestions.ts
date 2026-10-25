@@ -57,8 +57,11 @@ export const lentilSoup: Suggestion = {
   prepMinutes: 30,
   servings: 6,
   tags: ['dinner'],
-  ingredients: [{ name: 'лук', isNew: false, quantity: 1, unit: 'pcs' }],
-  steps: ['Свари лещата.'],
+  ingredients: [
+    { name: 'леща', isNew: false, quantity: 300, unit: 'g' },
+    { name: 'лук', isNew: false, quantity: 1, unit: 'pcs' },
+  ],
+  steps: ['Запържи лука.', 'Свари лещата с лука.'],
 };
 
 export const omeletteSuggestion: Suggestion = {
@@ -68,8 +71,11 @@ export const omeletteSuggestion: Suggestion = {
   prepMinutes: 10,
   servings: 2,
   tags: ['dinner', 'quick'],
-  ingredients: [{ name: 'сол', isNew: false, quantity: null, unit: 'pinch' }],
-  steps: ['Разбий яйцата.'],
+  ingredients: [
+    { name: 'яйце', isNew: false, quantity: 4, unit: 'pcs' },
+    { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
+  ],
+  steps: ['Разбий яйцата със солта.', 'Изпечи ги в тиган.'],
 };
 
 export const skewersSuggestion: RecipeSuggestion = {
