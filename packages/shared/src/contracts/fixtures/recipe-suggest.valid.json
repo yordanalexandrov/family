@@ -17,7 +17,12 @@
         { "name": "ориз", "isNew": false, "quantity": 300, "unit": "g" },
         { "name": "лук", "isNew": false, "quantity": 1, "unit": "pcs" },
         { "name": "морков", "isNew": false, "quantity": 2, "unit": "pcs" },
-        { "name": "олио", "isNew": false, "quantity": 3, "unit": "tbsp" },
+        {
+          "name": "слънчогледово олио",
+          "isNew": false,
+          "quantity": 3,
+          "unit": "tbsp"
+        },
         {
           "name": "червен пипер",
           "isNew": false,
@@ -59,7 +64,7 @@
       ]
     },
     {
-      "title": "Паста с тиквички и сметана",
+      "title": "Паста с тиквички, сметана и рикота",
       "sourceUrl": "https://recepti.example/pasta-s-tikvichki",
       "why": "Готова за под 30 минути, подходяща за вечер след работа.",
       "prepMinutes": 25,
@@ -69,12 +74,12 @@
         { "name": "спагети", "isNew": false, "quantity": 400, "unit": "g" },
         { "name": "тиквичка", "isNew": false, "quantity": 2, "unit": "pcs" },
         { "name": "сметана", "isNew": false, "quantity": 0.2, "unit": "l" },
-        { "name": "пармезан", "isNew": true, "quantity": 50, "unit": "g" }
+        { "name": "рикота", "isNew": true, "quantity": 100, "unit": "g" }
       ],
       "steps": [
         "Свари пастата според указанията на опаковката.",
         "Задуши настърганите тиквички и добави сметаната.",
-        "Смеси с пастата и поръси с пармезан."
+        "Смеси с пастата и добави рикотата на лъжички."
       ],
       "nutritionPer100g": {
         "kcal": 190,
