@@ -1,6 +1,6 @@
 import type { CookingMeal, Servings, User } from '@family/shared';
-import { useRouter } from '@tanstack/react-router';
-import type { MouseEvent, ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
+import type { ReactNode } from 'react';
 import { useUsers } from '../../api/queries';
 import { Avatar } from '../../components/Avatar';
 
@@ -9,9 +9,6 @@ interface TodayCookingProps {
   /** kiosk, телефон: докосване на реда отваря менюто на тази седмица. TV: само показва. */
   opensMenu?: boolean;
 }
-
-/** Екранът „Меню“ (Меню 3); без `weekStart` показва тази седмица. */
-const MENU_HREF = '/menu';
 
 /**
  * Редът „Днес се готви“ в ядрото: днешната вечеря от менюто (заглавието на
@@ -61,24 +58,14 @@ function Row({
   opensMenu: boolean;
   children: ReactNode;
 }) {
-  const router = useRouter();
   if (!opensMenu) {
     return <div className="core__cooking">{children}</div>;
   }
-  // Обикновена връзка с навигация през router-а: маршрутът `/menu` идва от Меню 3,
-  // а типизираният `<Link to>` иска регистриран маршрут.
-  const open = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    void router.navigate({ href: MENU_HREF });
-  };
+  // Екранът „Меню“ без параметри показва тази седмица.
   return (
-    <a
-      href={MENU_HREF}
-      className="core__cooking core__cooking--link"
-      onClick={open}
-    >
+    <Link to="/menu" className="core__cooking core__cooking--link">
       {children}
-    </a>
+    </Link>
   );
 }
 

@@ -11,6 +11,8 @@ import {
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { useUsers } from '../../api/queries';
+import { useDeviceMode } from '../../app/device-mode';
+import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatDate } from '../../lib/format';
@@ -49,8 +51,8 @@ export function parseMenuSearch(search: Record<string, unknown>): MenuSearch {
 }
 
 /**
- * `/menu`: тази или следващата седмица, назад към минали (само за четене). Седмица без план предлага меню
- * или празен план; план е 7 вечери, всяка се редактира в лист.
+ * `/menu`: тази или следващата седмица, назад към минали (само за четене); на kiosk всичко е само за четене.
+ * Седмица без план предлага меню или празен план; план е 7 вечери, всяка се редактира в лист.
  */
 export function MenuWeek() {
   const now = useNow(60_000);
@@ -59,6 +61,9 @@ export function MenuWeek() {
   const search = useSearch({ from: '/menu' });
   const navigate = useNavigate({ from: '/menu' });
   const weekStart = search.week ?? thisWeek;
+  // Менюто се променя само с действащ потребител (телефон); kiosk го отваря от дашборда за четене.
+  const { mode } = useDeviceMode();
+  const canEdit = mode === 'phone';
   const isPast = weekStart < thisWeek;
 
   const setProposal = useCallback(
@@ -78,6 +83,7 @@ export function MenuWeek() {
   return (
     <main className="screen recipes menu">
       <header className="recipes__header">
+        {!canEdit && <BackLink />}
         <h1 className="recipes__title">Меню</h1>
       </header>
       <nav className="menu__weeks" aria-label="Седмица">
@@ -116,7 +122,7 @@ export function MenuWeek() {
       <Week
         key={weekStart}
         weekStart={weekStart}
-        readOnly={isPast}
+        readOnly={isPast || !canEdit}
         canDelete={!hasWeekStarted(weekStart, now)}
         proposalId={search.proposal}
         onProposal={setProposal}

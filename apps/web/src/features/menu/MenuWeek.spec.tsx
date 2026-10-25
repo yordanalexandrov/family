@@ -338,6 +338,55 @@ describe('MenuWeek', () => {
   });
 });
 
+describe('MenuWeek на kiosk', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('kiosk');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('без действащ потребител менюто е само за четене, с „Назад“ към дашборда', async () => {
+    const actingUsers: (string | null)[] = [];
+    server.use(
+      http.get('/api/menu/plans', ({ request }) => {
+        actingUsers.push(request.headers.get('x-acting-user'));
+        return HttpResponse.json({ plan: planFor(thisWeek) });
+      }),
+    );
+
+    renderApp('/menu');
+
+    const meals = await screen.findByRole('list', { name: 'Вечери' });
+    expect(within(meals).getAllByRole('listitem')).toHaveLength(7);
+    expect(within(meals).queryByRole('button')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Изтрий плана' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Назад' })).toHaveAttribute(
+      'href',
+      '/',
+    );
+    expect(actingUsers).toEqual([null]);
+  });
+
+  it('седмица без план не предлага меню', async () => {
+    servePlans();
+
+    renderApp('/menu');
+
+    expect(
+      await screen.findByText('Няма меню за тази седмица.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Предложи меню' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('MenuWeek: предложение', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
