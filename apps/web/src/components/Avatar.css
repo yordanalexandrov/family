@@ -6,12 +6,20 @@
   block-size: var(--avatar-size);
   border-radius: 50%;
   background: var(--avatar-color, var(--color-accent));
+  box-shadow:
+    0 0 0 2px var(--glass-border),
+    0 4px 12px -2px var(--avatar-color, var(--color-accent));
   color: var(--color-person-ink);
-  font-weight: 800;
+  font-weight: 700;
   font-size: calc(var(--avatar-size) * 0.45);
   line-height: 1;
   flex: none;
   user-select: none;
+}
+
+/* В ред с текст: размерът следва шрифта на реда. */
+.avatar--sm {
+  --avatar-size: 1.7em;
 }
 
 .avatar--lg {

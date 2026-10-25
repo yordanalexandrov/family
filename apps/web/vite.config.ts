@@ -4,8 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
 // Цветовете са --color-accent и --color-bg (светла тема) от src/styles/tokens.css.
-const THEME_COLOR = '#0f6f6a';
-const BACKGROUND_COLOR = '#eef1f4';
+const THEME_COLOR = '#0b6e78';
+const BACKGROUND_COLOR = '#eef1f8';
 
 // api слуша на 127.0.0.1:API_PORT (по подразбиране 18091), същата променлива като в docker-compose.yml.
 const API_PORT = process.env.API_PORT || '18091';
@@ -51,7 +51,8 @@ export default defineConfig({
           },
         ],
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+        // woff2: Inter (src/styles/fonts.css) трябва да работи офлайн.
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2}'],
       },
     }),
   ],
@@ -73,5 +74,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.spec.{ts,tsx}'],
+    // Без това Vitest връща празен низ за CSS, и за `?raw` (tokens.spec.ts чете токените).
+    css: { include: [/tokens\.css/] },
   },
 });

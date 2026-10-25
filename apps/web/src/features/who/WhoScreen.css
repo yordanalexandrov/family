@@ -15,7 +15,7 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: transparent;
   color: inherit;
   font: inherit;
