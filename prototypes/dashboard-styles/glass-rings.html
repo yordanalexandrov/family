@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- ПРОТОТИП (throwaway): обвивка за кръг 4: Стъкло + Пръстени на дашборда. Стрелки ← → или ?variant=NN. -->
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Стъкло и пръстени</title>
+<style>
+:root{color-scheme:dark}
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+iframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#000}
+nav{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:999px;background:rgba(20,20,24,.82);color:#fff;font:14px/1 system-ui,sans-serif;backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(0,0,0,.5);z-index:10;max-width:calc(100% - 32px)}
+nav button{all:unset;cursor:pointer;width:36px;height:36px;display:grid;place-items:center;border-radius:50%;font-size:20px}
+nav button:hover{background:rgba(255,255,255,.12)}
+nav .lbl{padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav .lbl b{opacity:.55;margin-right:6px}
+nav .dots{display:flex;gap:4px;margin-right:4px}
+nav .dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.25)}
+nav .dots i.on{background:#fff}
+@media (max-width:600px){nav .dots{display:none}}
+</style>
+</head>
+<body>
+<iframe id="f" title="вариант"></iframe>
+<nav aria-label="Превключване на вариант (прототип)">
+  <button id="prev" aria-label="Предишен">‹</button>
+  <div class="dots" id="dots"></div>
+  <div class="lbl" id="lbl"></div>
+  <button id="next" aria-label="Следващ">›</button>
+</nav>
+<script>
+const V=[
+  ['13-glass-core','Ядро в центъра'],['14-glass-tile','Пръстен като плоча'],
+];
+const q=new URLSearchParams(location.search).get('variant')||location.hash.slice(1);
+let i=Math.max(0,V.findIndex(v=>v[0]===q||v[0].startsWith(q+'-')));
+const f=document.getElementById('f'),lbl=document.getElementById('lbl'),dots=document.getElementById('dots');
+dots.innerHTML=V.map(()=>'<i></i>').join('');
+function go(n){i=(n+V.length)%V.length;const [file,name]=V[i];f.src=file+'.html';
+  lbl.innerHTML=`<b>${file.slice(0,2)}/${V.length}</b>${name}`;document.title=`${file.slice(0,2)} · ${name}`;
+  [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===i));
+  try{const u=new URL(location);if(u.protocol.startsWith('http')&&!/claude\.ai$/.test(u.hostname)){u.searchParams.set('variant',file.slice(0,2));history.replaceState(null,'',u)}else{history.replaceState(null,'',`#${file.slice(0,2)}`)}}catch(e){}}
+document.getElementById('prev').onclick=()=>go(i-1);document.getElementById('next').onclick=()=>go(i+1);
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')go(i-1);if(e.key==='ArrowRight')go(i+1)});
+addEventListener('message',e=>{if(e.data&&e.data.proto==='nav')go(i+e.data.dir)});
+go(i);
+</script>
+</body>
+</html>
