@@ -46,12 +46,15 @@ Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest`
 ## Слоеве в `apps/web`
 
 ```
-features/<име>/   → екран + hooks + компоненти за една функционалност (dashboard, menu, shopping, recipes)
-api/              → един HTTP клиент; всички заявки минават през него
-components/       → споделени UI компоненти без бизнес логика
+app/              → композиция: code-based маршрути (TanStack Router), QueryClient, действащ потребител (localStorage), тема
+features/<име>/   → екран + hooks + компоненти за една функционалност (who, home; после dashboard, menu, shopping, recipes)
+api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User`, Zod, `ApiError`) + TanStack Query hooks (`queries.ts`)
+components/       → споделени UI компоненти без бизнес логика (Avatar, Spinner, ErrorBox)
+styles/           → design tokens (`tokens.css`, `data-theme`) и глобални стилове
+logger.ts         → единственият изход към конзолата
 ```
 
-Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`.
+Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът праща към `/who`, докато устройството няма действащ потребител.
 
 ## Вижте също
 
