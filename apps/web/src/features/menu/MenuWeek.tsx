@@ -16,9 +16,9 @@ import { useDeviceMode } from '../../app/device-mode';
 import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
+import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
 import { formatDate } from '../../lib/format';
-import { useNow } from '../dashboard/use-now';
-import { failureMessage, requestErrorFor } from '../suggestions/messages';
+import { useNow } from '../../lib/use-now';
 import { MealRow } from './MealRow';
 import { MealSheet } from './MealSheet';
 import {

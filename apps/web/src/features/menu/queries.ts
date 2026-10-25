@@ -15,7 +15,7 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
-import { POLL_INTERVAL_MS } from '../suggestions/queries';
+import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 
 export const menuKeys = {
   plan: (weekStart: DateKey) => ['menu', 'plan', weekStart] as const,
