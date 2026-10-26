@@ -78,6 +78,8 @@ logger.ts         → единственият изход към конзола�
 
 Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът записва `?device=phone|kiosk|tv` в `family.deviceMode` и маха параметъра; без режим праща към `/device` („Какво е това устройство?“), а в режим `phone` без действащ потребител — към `/who`. kiosk и TV нямат действащ потребител. Заявка, върнала `400 unknown_acting_user` (потребителят вече го няма), чисти избора централно в `QueryCache` (`app/query-client.ts`), така че и тогава root layout-ът води към `/who`; екраните не го обработват сами.
 
+Офлайн данните са два вида: дашбордът пази последния си отговор в `localStorage` (`features/dashboard/cache.ts`), а списъкът за пазаруване — последния отговор на седмица и опашката от отметки без връзка в IndexedDB през `idb-keyval` (`features/shopping/offline.ts`). Опашката се изпраща по реда си преди всяко четене на списъка (отваряне, на 15 s, при `online` и `visibilitychange`); 4xx се маха, мрежова грешка или 5xx я оставят за следващия път. Service worker-ът (`vite-plugin-pwa`, `navigateFallback`) сервира shell-а на всеки маршрут офлайн; `/api/*` не се кешира от него.
+
 ## Вижте също
 
 - [Конвенции](conventions.md)

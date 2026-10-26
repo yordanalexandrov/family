@@ -23,6 +23,7 @@ import {
 import { RecipeList } from '../features/recipes/RecipeList';
 import { RecipeView } from '../features/recipes/RecipeView';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
+import { ShoppingWeek } from '../features/shopping/ShoppingWeek';
 import { SuggestionRequestView } from '../features/suggestions/SuggestionRequestView';
 import { SuggestionReview } from '../features/suggestions/SuggestionReview';
 import { SuggestScreen } from '../features/suggestions/SuggestScreen';
@@ -205,6 +206,13 @@ const menuRoute = createRoute({
   validateSearch: parseMenuSearch,
 });
 
+// Списък за пазаруване: телефон и таблет; не влиза в kiosk/TV навигацията.
+const shoppingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/shopping',
+  component: ShoppingWeek,
+});
+
 // Предложения за рецепти: заявка, изчакване и резултати, преглед и одобрение.
 const suggestRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -252,6 +260,7 @@ const routeTree = rootRoute.addChildren([
   suggestionRequestRoute,
   suggestionReviewRoute,
   menuRoute,
+  shoppingRoute,
   ...devRoutes,
 ]);
 

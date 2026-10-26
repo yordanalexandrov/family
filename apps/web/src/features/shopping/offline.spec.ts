@@ -1,0 +1,206 @@
+import { act, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { thisWeek } from '../../test/menu';
+import { dani, fixtureNow, server } from '../../test/msw';
+import { renderApp, setUpDevice } from '../../test/render';
+import {
+  milk,
+  onions,
+  serveShopping,
+  shoppingList,
+  tomatoes,
+} from '../../test/shopping';
+
+/**
+ * Симулиран офлайн: `navigator.onLine` е `false`, а всяка заявка към списъка пада с мрежова грешка (msw). При
+ * `online()` заявките отново стигат до `serveShopping` и се праща събитието `online`.
+ */
+function connection() {
+  let offline = false;
+  const onLine = vi.spyOn(navigator, 'onLine', 'get');
+  server.use(
+    http.all('/api/shopping-lists/*', () =>
+      offline ? HttpResponse.error() : undefined,
+    ),
+  );
+  return {
+    offline() {
+      offline = true;
+      onLine.mockReturnValue(false);
+    },
+    online() {
+      offline = false;
+      onLine.mockReturnValue(true);
+      act(() => {
+        window.dispatchEvent(new Event('online'));
+      });
+    },
+  };
+}
+
+function rowTitles(aisle: string): string[] {
+  const section = screen.getByRole('region', { name: aisle });
+  return within(section)
+    .getAllByRole('checkbox')
+    .map((box) => box.getAttribute('aria-label') ?? '');
+}
+
+describe('ShoppingWeek офлайн', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('без връзка отметката остава локално и чака в опашката; при online се изпраща и опашката се чисти', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+
+    expect(
+      await screen.findByText('1 отметка чака връзка'),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Лук', 'Домати', 'Чушки']);
+    expect(screen.getByText('4 от 6')).toBeInTheDocument();
+    expect(shopping.requests).toEqual([]);
+
+    net.online();
+
+    await vi.waitFor(() =>
+      expect(shopping.requests).toEqual([
+        {
+          method: 'PUT',
+          path: `${thisWeek}/items/${tomatoes.key}/checked`,
+          body: { checked: true },
+          actingUser: dani.id,
+        },
+      ]),
+    );
+    await vi.waitFor(() =>
+      expect(screen.queryByText(/чака връзка/)).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/остарели данни/)).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
+    expect(screen.getByText('4 от 6')).toBeInTheDocument();
+  });
+
+  it('опашката оцелява презареждане без връзка и тръгва по реда си при отваряне на екрана', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    const first = renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Лук' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Мляко' }));
+    await screen.findByText('2 отметки чакат връзка');
+    first.unmount();
+
+    // Ново отваряне без връзка: последният списък от кеша, с отметките от опашката.
+    const second = renderApp('/shopping');
+    expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Мляко' })).toBeChecked();
+    expect(screen.getByText('2 отметки чакат връзка')).toBeInTheDocument();
+    second.unmount();
+
+    net.online();
+    renderApp('/shopping');
+
+    await vi.waitFor(() =>
+      expect(shopping.requests.map((r) => r.path)).toEqual([
+        `${thisWeek}/items/${onions.key}/checked`,
+        `${thisWeek}/items/${milk.key}/checked`,
+      ]),
+    );
+    expect(await screen.findByText('3 от 6')).toBeInTheDocument();
+    expect(screen.queryByText(/чака/)).not.toBeInTheDocument();
+  });
+
+  it('404 за ключ (редът вече не е в менюто) се маха от опашката тихо, следващите се изпращат', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Лук' }));
+    await screen.findByText('2 отметки чакат връзка');
+    // Докато телефонът е без връзка, доматите са махнати от менюто.
+    const list = shoppingList();
+    shopping.lists[thisWeek] = {
+      ...list,
+      aisles: list.aisles.map(({ aisle, items }) => ({
+        aisle,
+        items: items.filter((item) => item.key !== tomatoes.key),
+      })),
+      total: 5,
+      remaining: 4,
+    };
+
+    net.online();
+
+    await vi.waitFor(() =>
+      expect(shopping.requests.map((r) => r.path)).toEqual([
+        `${thisWeek}/items/${tomatoes.key}/checked`,
+        `${thisWeek}/items/${onions.key}/checked`,
+      ]),
+    );
+    await vi.waitFor(() =>
+      expect(screen.queryByText(/чака/)).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Домати' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeChecked();
+    expect(screen.getByText('3 от 5')).toBeInTheDocument();
+  });
+
+  it('добавяне, скриване и изтриване без връзка казват „Няма връзка“ и не пращат нищо', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+
+    await user.click(screen.getByRole('button', { name: 'Скрий Лук' }));
+    expect(await screen.findByText('Няма връзка')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Изтрий Кафе' }));
+    await user.click(
+      within(
+        screen.getByRole('alertdialog', { name: 'Изтриване на Кафе' }),
+      ).getByRole('button', { name: 'Изтрий' }),
+    );
+
+    await user.click(screen.getByRole('button', { name: '+ Добави' }));
+    const sheet = screen.getByRole('dialog', { name: 'Добави' });
+    await user.type(within(sheet).getByLabelText('Заглавие'), 'кафе');
+    await user.click(within(sheet).getByRole('button', { name: 'Добави' }));
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent(
+      'Няма връзка',
+    );
+
+    expect(shopping.requests).toEqual([]);
+    expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Кафе' })).toBeInTheDocument();
+  });
+});

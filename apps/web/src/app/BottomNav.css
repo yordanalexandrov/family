@@ -27,6 +27,15 @@
   box-shadow: var(--glass-shadow);
   list-style: none;
   pointer-events: auto;
+  /* Шест екрана не се събират на тесен телефон: лентата се превърта сама, страницата — не. */
+  position: relative; /* offsetLeft на връзките е спрямо лентата (BottomNav.tsx) */
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.bottom-nav__list::-webkit-scrollbar {
+  display: none;
 }
 
 .bottom-nav__link {
@@ -48,10 +57,10 @@
   color: var(--color-accent-ink);
 }
 
-/* Пет екрана на тесен телефон (≤ 400 px): по-малко въздух и по-дребен шрифт, без хоризонтален скрол. */
-@media (max-width: 25rem) {
+/* Тесен телефон (≤ 480 px): по-малко въздух и по-дребен шрифт; каквото не се събере, се превърта в лентата. */
+@media (max-width: 30rem) {
   .bottom-nav {
-    padding-inline: var(--space-2);
+    padding-inline: var(--space-1);
   }
 
   .bottom-nav__list {
