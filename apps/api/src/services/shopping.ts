@@ -1,6 +1,7 @@
 import {
   buildShoppingList,
   type CreateManualItem,
+  checkState,
   type MealPlan,
   parseItemKey,
   type ShoppingItem,
@@ -41,20 +42,23 @@ function itemsOf(list: ShoppingList): ShoppingItem[] {
   return [...list.aisles.flatMap((aisle) => aisle.items), ...list.hidden];
 }
 
-/** The row of `key` in the list as it is now computed; an unknown key (e.g. the menu has changed) is a 404. */
+/** The row of `key` in the list; an unknown key (e.g. the menu has changed) is a 404. */
+function findItem(list: ShoppingList, key: string): ShoppingItem {
+  const item = itemsOf(list).find((row) => row.key === key);
+  if (!item) {
+    throw new NotFoundError(NO_SUCH_ITEM);
+  }
+  return item;
+}
+
+/** The row of `key` in the list as it is now computed. */
 async function readItem(
   db: DbExecutor,
   plan: MealPlan,
   listId: string,
   key: string,
 ): Promise<ShoppingItem> {
-  const item = itemsOf(await computeList(db, plan, listId)).find(
-    (row) => row.key === key,
-  );
-  if (!item) {
-    throw new NotFoundError(NO_SUCH_ITEM);
-  }
-  return item;
+  return findItem(await computeList(db, plan, listId), key);
 }
 
 /** The list computed from the current menu with the stored checks, hidden items and manual items laid over it. */
@@ -105,21 +109,19 @@ export function setItemChecked(
     now: Date;
   },
 ): Promise<ShoppingItem> {
-  const check = checked
-    ? { checkedBy: actingUserId, checkedAt: now }
-    : { checkedBy: null, checkedAt: null };
   return db.transaction(async (tx) => {
     const { plan, listId } = await openList(tx, weekStart);
-    const parsed = parseItemKey(key);
-    if (parsed?.kind === 'manual') {
-      if (!(await setManualItemCheck(tx, listId, key, check))) {
-        throw new NotFoundError(NO_SUCH_ITEM);
-      }
+    const item = await readItem(tx, plan, listId, key);
+    const check = checkState(checked, actingUserId, now);
+    if (item.kind === 'manual') {
+      await setManualItemCheck(tx, listId, key, check);
     } else {
-      await readItem(tx, plan, listId, key);
       await setComputedItemOverlay(tx, listId, key, check);
     }
-    return readItem(tx, plan, listId, key);
+    return {
+      ...item,
+      ...checkState(checked, actingUserId, now.toISOString()),
+    };
   });
 }
 
@@ -137,9 +139,9 @@ export function setItemHidden(
     if (parseItemKey(key)?.kind === 'manual') {
       throw new InvalidActionError('Ръчен ред не се скрива, а се изтрива');
     }
-    await readItem(tx, plan, listId, key);
+    const item = await readItem(tx, plan, listId, key);
     await setComputedItemOverlay(tx, listId, key, { hidden });
-    return readItem(tx, plan, listId, key);
+    return { ...item, hidden };
   });
 }
 

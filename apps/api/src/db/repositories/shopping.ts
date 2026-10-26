@@ -54,21 +54,6 @@ export async function listShoppingItems(
   return rows.map(toRecord);
 }
 
-export async function findShoppingItem(
-  db: DbExecutor,
-  listId: string,
-  itemKey: string,
-): Promise<ShoppingItemRecord | undefined> {
-  const [row] = await db
-    .select()
-    .from(shoppingItem)
-    .where(
-      and(eq(shoppingItem.listId, listId), eq(shoppingItem.itemKey, itemKey)),
-    )
-    .limit(1);
-  return row && toRecord(row);
-}
-
 /** A check (GLOSSARY: Отметка): who and when, or both `null` to clear it. */
 export interface ItemCheck {
   checkedBy: string | null;
