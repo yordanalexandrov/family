@@ -129,8 +129,8 @@ describe('recipeSuggestOutputSchema', () => {
 
 describe('recipeSuggestInputSchema', () => {
   const input = {
-    slot: 'dinner',
-    maxMinutes: 40,
+    slots: ['lunch', 'dinner'],
+    times: ['0-15', '30-45'],
     tags: ['quick'],
     hint: 'нещо с риба',
     existingRecipeTitles: ['Леща яхния'],
@@ -141,9 +141,9 @@ describe('recipeSuggestInputSchema', () => {
     expect(recipeSuggestInputSchema.parse(input)).toEqual(input);
   });
 
-  it('accepts a request with only the slot', () => {
+  it('accepts a request with only one slot', () => {
     const minimal = {
-      slot: 'lunch',
+      slots: ['lunch'],
       existingRecipeTitles: [],
       ingredientNames: [],
     };
@@ -160,7 +160,21 @@ describe('recipeSuggestInputSchema', () => {
 
   it('rejects a slot that is not a meal (quick is a tag only)', () => {
     expect(
-      recipeSuggestInputSchema.safeParse({ ...input, slot: 'quick' }).success,
+      recipeSuggestInputSchema.safeParse({ ...input, slots: ['quick'] })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a request without a slot', () => {
+    expect(
+      recipeSuggestInputSchema.safeParse({ ...input, slots: [] }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a time that is not one of the intervals', () => {
+    expect(
+      recipeSuggestInputSchema.safeParse({ ...input, times: ['10-20'] })
+        .success,
     ).toBe(false);
   });
 });

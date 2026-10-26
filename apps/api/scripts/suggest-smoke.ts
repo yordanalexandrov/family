@@ -1,6 +1,6 @@
 // Asks the real `family-recipe` agent for suggestions once, through the api's OpenClaw client, and prints a summary.
 // Manual check against the gateway (README → "Smoke тест на recipe.suggest"); not part of `pnpm test`.
-//   pnpm --filter api suggest:smoke -- --slot lunch [--max 30] [--tags batch,quick] [--hint "..."] [--save out.json]
+//   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--save out.json]
 import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
@@ -15,11 +15,11 @@ import seed from '../src/db/seed/ingredients.json' with { type: 'json' };
 import { createOpenClawClient } from '../src/openclaw/client.js';
 
 const { values } = parseArgs({
-  // pnpm passes the `--` of `pnpm … suggest:smoke -- --slot lunch` through.
+  // pnpm passes the `--` of `pnpm … suggest:smoke -- --slots lunch` through.
   args: process.argv.slice(2).filter((arg) => arg !== '--'),
   options: {
-    slot: { type: 'string' },
-    max: { type: 'string' },
+    slots: { type: 'string' },
+    times: { type: 'string' },
     tags: { type: 'string' },
     hint: { type: 'string' },
     save: { type: 'string' },
@@ -27,15 +27,15 @@ const { values } = parseArgs({
 });
 
 const params = recipeSuggestParamsSchema.safeParse({
-  slot: values.slot,
-  maxMinutes: values.max === undefined ? undefined : Number(values.max),
+  slots: values.slots?.split(',').map((slot) => slot.trim()),
+  times: values.times?.split(',').map((time) => time.trim()),
   tags: values.tags?.split(',').map((tag) => tag.trim()),
   hint: values.hint,
 });
 if (!params.success) {
   process.stderr.write(
     `Invalid arguments:\n${z.prettifyError(params.error)}\n` +
-      'Usage: pnpm --filter api suggest:smoke -- --slot breakfast|lunch|dinner [--max 30] [--tags batch,quick] [--hint "..."] [--save out.json]\n',
+      'Usage: pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--save out.json]\n',
   );
   process.exit(2);
 }

@@ -49,6 +49,22 @@ describe('MenuWeek', () => {
     );
   });
 
+  it.each(['next', '2026-11-10'])(
+    '?week=%s (не е понеделник) показва текущата седмица',
+    async (week) => {
+      servePlans();
+
+      renderApp(`/menu?week=${week}`);
+
+      expect(
+        await screen.findByRole('tab', { name: 'Тази седмица' }),
+      ).toHaveAttribute('aria-selected', 'true');
+      expect(
+        await screen.findByRole('button', { name: 'Предложи меню' }),
+      ).toBeInTheDocument();
+    },
+  );
+
   it('при < 7 вечерни рецепти казва колко още трябват и води към предложенията', async () => {
     const user = userEvent.setup();
     servePlans();

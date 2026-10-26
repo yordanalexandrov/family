@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { suggestionSchema } from '../contracts/recipe-suggest.js';
+import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
 import { recipeSchema } from './recipe.js';
 
@@ -35,8 +36,8 @@ export type SuggestionFailure = z.infer<typeof suggestionFailureSchema>;
 /** One run of `recipe.suggest` by a user (GLOSSARY: Заявка за предложения). */
 export const suggestionRequestSchema = z.object({
   id: z.uuid(),
-  slot: slotSchema,
-  maxMinutes: z.int().positive().optional(),
+  slots: z.array(slotSchema).min(1),
+  times: z.array(prepTimeRangeSchema),
   tags: z.array(tagSchema),
   hint: z.string().optional(),
   status: suggestionRequestStatusSchema,

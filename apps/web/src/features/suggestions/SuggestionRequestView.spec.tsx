@@ -89,6 +89,65 @@ describe('SuggestionRequestView', () => {
     expect(calls()).toBe(2);
   });
 
+  it('„Съставки и стъпки“ разгъва бърз преглед само на своята карта и го прибира', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveDetail({ request: doneRequest, suggestions });
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    const card = await screen.findByRole('article', {
+      name: 'Пилешки шишчета',
+    });
+    const other = screen.getByRole('article', { name: 'Леща чорба' });
+    const toggle = within(card).getByRole('button', {
+      name: 'Съставки и стъпки',
+    });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      within(card).queryByRole('list', { name: 'Продукти' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole('list', { name: 'Стъпки' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const preview = document.getElementById(
+      toggle.getAttribute('aria-controls') ?? '',
+    );
+    expect(preview).toBeVisible();
+    const products = within(card).getByRole('list', { name: 'Продукти' });
+    expect(
+      within(products)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['пилешко филе 0,6 кг', 'сумак 1 ч.л. нов', 'сол по вкус']);
+    const steps = within(card).getByRole('list', { name: 'Стъпки' });
+    expect(
+      within(steps)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Нарежи пилето.', 'Нанижи и изпечи.']);
+    expect(
+      within(other).queryByRole('list', { name: 'Продукти' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(other).getByRole('button', { name: 'Съставки и стъпки' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      within(card).queryByRole('list', { name: 'Продукти' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(card).queryByRole('list', { name: 'Стъпки' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('failed/timeout показва съобщението; „Опитай пак“ пуска нова заявка със същия вход', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
@@ -122,7 +181,12 @@ describe('SuggestionRequestView', () => {
       await screen.findByText('Търся рецепти… обикновено отнема до минута'),
     ).toBeInTheDocument();
     expect(sent).toEqual([
-      { slot: 'dinner', maxMinutes: 30, tags: ['quick'], hint: 'нещо с пиле' },
+      {
+        slots: ['dinner'],
+        times: ['15-30'],
+        tags: ['quick'],
+        hint: 'нещо с пиле',
+      },
     ]);
   });
 

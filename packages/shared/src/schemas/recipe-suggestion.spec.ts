@@ -16,7 +16,8 @@ const [suggestion] = fixture.suggestions;
 describe('suggestionRequestSchema', () => {
   const pending = {
     id: REQUEST,
-    slot: 'dinner',
+    slots: ['dinner'],
+    times: [],
     tags: [],
     status: 'pending',
     requestedBy: DANI,
@@ -30,7 +31,7 @@ describe('suggestionRequestSchema', () => {
   it('accepts a failed request with its error and finish time', () => {
     const failed = {
       ...pending,
-      maxMinutes: 30,
+      times: ['15-30'],
       hint: 'нещо с риба',
       status: 'failed',
       error: 'timeout',

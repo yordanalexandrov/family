@@ -31,7 +31,6 @@ Preconditions:
 
 ## Gotchas
 
-- `/menu?week=` with a value that is not a date (`next`, `abc`) crashes the screen with „Invalid time value“ (#56). Use the tabs.
 - „Започни празно“ exists only while the week has no plan; in a run a week can be started once.
 - `GET /api/menu/plans?weekStart=…` returning 404 in `network.log` means „no plan“, not an error.
 - The sheet's recipe list shows only `вечеря`-tagged recipes; an untagged recipe gives „Няма такава рецепта.“

@@ -1,21 +1,30 @@
-import type {
-  MenuProposeRecipe,
-  Recipe,
-  RecipeIngredient,
-  RecipeInput,
-  RecipeLine,
-  RecipeSummary,
-  Slot,
+import {
+  type MenuProposeRecipe,
+  PREP_TIME_RANGES,
+  type PrepTimeRange,
+  type Recipe,
+  type RecipeIngredient,
+  type RecipeInput,
+  type RecipeLine,
+  type RecipeSummary,
+  type Slot,
+  slotSchema,
+  type Tag,
 } from '@family/shared';
 import {
   and,
   arrayContains,
+  arrayOverlaps,
   asc,
   count,
   eq,
+  gt,
   ilike,
   isNotNull,
   isNull,
+  lte,
+  or,
+  type SQL,
   sql,
 } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
@@ -91,15 +100,42 @@ export async function findRecipe(
   );
 }
 
+/** Slot tags match any of them (обяд или вечеря), the other tags all of them. */
+function tagsFilter(tags: readonly Tag[]): SQL | undefined {
+  const isSlot = (tag: Tag) =>
+    (slotSchema.options as readonly string[]).includes(tag);
+  const slots = tags.filter(isSlot);
+  const others = tags.filter((tag) => !isSlot(tag));
+  return and(
+    slots.length > 0 ? arrayOverlaps(recipe.tags, slots) : undefined,
+    others.length > 0 ? arrayContains(recipe.tags, others) : undefined,
+  );
+}
+
+/** Prep time in any of the intervals; a recipe without a time does not match. */
+function timeFilter(ranges: readonly PrepTimeRange[]): SQL | undefined {
+  return or(
+    ...ranges.map((range) => {
+      const { above, upTo } = PREP_TIME_RANGES[range];
+      return and(
+        gt(recipe.prepMinutes, above),
+        upTo === null ? undefined : lte(recipe.prepMinutes, upTo),
+      );
+    }),
+  );
+}
+
 export async function listRecipes(
   db: DbExecutor,
   {
     q,
-    tag,
+    tag = [],
+    time = [],
     includeArchived,
   }: {
     q?: string;
-    tag?: RecipeSummary['tags'][number];
+    tag?: readonly Tag[];
+    time?: readonly PrepTimeRange[];
     includeArchived: boolean;
   },
 ): Promise<RecipeSummary[]> {
@@ -116,7 +152,8 @@ export async function listRecipes(
     .where(
       and(
         q ? ilike(recipe.title, likePattern(q)) : undefined,
-        tag ? arrayContains(recipe.tags, [tag]) : undefined,
+        tagsFilter(tag),
+        timeFilter(time),
         includeArchived ? undefined : isNull(recipe.archivedAt),
       ),
     )

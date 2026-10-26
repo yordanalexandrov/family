@@ -4,6 +4,8 @@ import {
   type BaseUnit,
   baseUnitSchema,
   type Nutrition,
+  type PrepTimeRange,
+  prepTimeRangeSchema,
   type RecipeSuggestionStatus,
   recipeSuggestionStatusSchema,
   type Slot,
@@ -111,8 +113,12 @@ export const recipeSuggestionRequest = pgTable(
   'recipe_suggestion_request',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    slot: text('slot').$type<Slot>().notNull(),
-    maxMinutes: integer('max_minutes'),
+    slots: text('slots').array().$type<Slot[]>().notNull(),
+    times: text('times')
+      .array()
+      .$type<PrepTimeRange[]>()
+      .notNull()
+      .default(sql`'{}'`),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
     hint: text('hint'),
     status: text('status')
@@ -128,8 +134,12 @@ export const recipeSuggestionRequest = pgTable(
   },
   (t) => [
     check(
-      'recipe_suggestion_request_slot_check',
-      oneOf(t.slot, slotSchema.options),
+      'recipe_suggestion_request_slots_check',
+      sql`cardinality(${t.slots}) > 0 and ${t.slots} <@ array[${literals(slotSchema.options)}]::text[]`,
+    ),
+    check(
+      'recipe_suggestion_request_times_check',
+      sql`${t.times} <@ array[${literals(prepTimeRangeSchema.options)}]::text[]`,
     ),
     check(
       'recipe_suggestion_request_status_check',

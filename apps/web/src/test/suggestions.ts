@@ -11,8 +11,8 @@ export const requestId = 'cccccccc-0000-4000-8000-000000000001';
 
 export const pendingRequest: SuggestionRequest = {
   id: requestId,
-  slot: 'dinner',
-  maxMinutes: 30,
+  slots: ['dinner'],
+  times: ['15-30'],
   tags: ['quick'],
   hint: 'нещо с пиле',
   status: 'pending',

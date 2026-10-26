@@ -18,8 +18,8 @@ type SuggestionRow = typeof recipeSuggestion.$inferSelect;
 function toRequest(row: RequestRow): SuggestionRequest {
   return {
     id: row.id,
-    slot: row.slot,
-    maxMinutes: row.maxMinutes ?? undefined,
+    slots: row.slots,
+    times: row.times,
     tags: row.tags,
     hint: row.hint ?? undefined,
     status: row.status,
@@ -51,8 +51,8 @@ export async function insertSuggestionRequest(
   const [row] = await db
     .insert(recipeSuggestionRequest)
     .values({
-      slot: params.slot,
-      maxMinutes: params.maxMinutes ?? null,
+      slots: params.slots,
+      times: params.times ?? [],
       tags: params.tags ?? [],
       hint: params.hint || null,
       requestedBy,

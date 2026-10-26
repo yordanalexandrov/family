@@ -87,14 +87,14 @@ async function finished(
 describe('POST /api/recipe-suggestions/requests', () => {
   it('answers 202 with a pending request, then the run stores the suggestions and the request is done', async () => {
     const request = await requested({
-      slot: 'dinner',
-      maxMinutes: 60,
+      slots: ['lunch', 'dinner'],
+      times: ['15-30', '45-60'],
       tags: ['kid_friendly'],
       hint: 'нещо с пиле',
     });
     expect(request).toMatchObject({
-      slot: 'dinner',
-      maxMinutes: 60,
+      slots: ['lunch', 'dinner'],
+      times: ['15-30', '45-60'],
       tags: ['kid_friendly'],
       hint: 'нещо с пиле',
       status: 'pending',
@@ -147,7 +147,7 @@ describe('the recipe.suggest run', () => {
   it('sends one stateless agent turn: the agent as model, the input with the registry context, the json schema', async () => {
     const calls = answerInTurn(VALID());
 
-    await finished(await requested({ slot: 'lunch', hint: 'с леща' }));
+    await finished(await requested({ slots: ['lunch'], hint: 'с леща' }));
 
     expect(calls.bodies).toHaveLength(1);
     expect(calls.authorizations).toEqual(['Bearer test-gateway-password']);
@@ -169,7 +169,7 @@ describe('the recipe.suggest run', () => {
     expect(body.messages[0]?.role).toBe('user');
     const input = JSON.parse(body.messages[0]?.content ?? '');
     expect(input).toMatchObject({
-      slot: 'lunch',
+      slots: ['lunch'],
       hint: 'с леща',
       existingRecipeTitles: [],
     });
@@ -199,7 +199,7 @@ describe('the recipe.suggest run', () => {
     });
     const calls = answerInTurn(VALID());
 
-    await finished(await requested({ slot: 'lunch' }));
+    await finished(await requested({ slots: ['lunch'] }));
 
     const body = calls.bodies[0] as { messages: { content: string }[] };
     expect(
@@ -216,7 +216,7 @@ describe('the recipe.suggest run', () => {
     (first as Record<string, unknown>).nutritionPer100g = null;
     const calls = answerInTurn(JSON.stringify(output));
 
-    const body = await finished(await requested({ slot: 'dinner' }));
+    const body = await finished(await requested({ slots: ['dinner'] }));
 
     expect(body.request.status).toBe('done');
     expect(calls.bodies).toHaveLength(1);
@@ -226,7 +226,7 @@ describe('the recipe.suggest run', () => {
   it('accepts JSON wrapped in a ``` fence', async () => {
     answerInTurn(`\`\`\`json\n${VALID()}\n\`\`\``);
 
-    const body = await finished(await requested({ slot: 'dinner' }));
+    const body = await finished(await requested({ slots: ['dinner'] }));
 
     expect(body.request.status).toBe('done');
   });
@@ -234,7 +234,7 @@ describe('the recipe.suggest run', () => {
   it('retries once with the validation issues when the first answer is invalid, then is done', async () => {
     const calls = answerInTurn(TOO_FEW(), VALID());
 
-    const body = await finished(await requested({ slot: 'dinner' }));
+    const body = await finished(await requested({ slots: ['dinner'] }));
 
     expect(body.request.status).toBe('done');
     expect(body.suggestions.length).toBeGreaterThanOrEqual(3);
@@ -256,7 +256,7 @@ describe('the recipe.suggest run', () => {
   it('fails with invalid_output after two invalid answers and stores no suggestions', async () => {
     const calls = answerInTurn('Ето три рецепти: …', TOO_FEW());
 
-    const body = await finished(await requested({ slot: 'breakfast' }));
+    const body = await finished(await requested({ slots: ['breakfast'] }));
 
     expect(calls.bodies).toHaveLength(2);
     expect(body.request).toMatchObject({
@@ -280,7 +280,7 @@ describe('the recipe.suggest run', () => {
     );
     try {
       const body = await finished(
-        await requested({ slot: 'dinner' }, slow),
+        await requested({ slots: ['dinner'] }, slow),
         slow,
       );
 
@@ -311,7 +311,7 @@ describe('the recipe.suggest run', () => {
     );
     try {
       const body = await finished(
-        await requested({ slot: 'dinner' }, slow),
+        await requested({ slots: ['dinner'] }, slow),
         slow,
       );
 
@@ -335,7 +335,7 @@ describe('the recipe.suggest run', () => {
       ),
     );
 
-    const body = await finished(await requested({ slot: 'dinner' }));
+    const body = await finished(await requested({ slots: ['dinner'] }));
 
     expect(body.request).toMatchObject({ status: 'failed', error: 'http_500' });
   });
@@ -366,7 +366,7 @@ describe('without a gateway password', () => {
     });
     await disabled.ready();
     try {
-      const response = await postRequest({ slot: 'lunch' }, disabled);
+      const response = await postRequest({ slots: ['lunch'] }, disabled);
 
       expect(response.statusCode).toBe(503);
       expect(response.json()).toMatchObject({ error: 'openclaw_unavailable' });
@@ -383,19 +383,24 @@ describe('without a gateway password', () => {
 });
 
 describe('POST /api/recipe-suggestions/requests validation', () => {
-  it('refuses an unknown slot and a hint over 200 characters', async () => {
-    expect((await postRequest({ slot: 'snack' })).statusCode).toBe(400);
+  it('refuses no slot, an unknown slot or time, and a hint over 200 characters', async () => {
+    expect((await postRequest({ slots: [] })).statusCode).toBe(400);
+    expect((await postRequest({ slots: ['snack'] })).statusCode).toBe(400);
     expect(
-      (await postRequest({ slot: 'lunch', hint: 'а'.repeat(201) })).statusCode,
+      (await postRequest({ slots: ['lunch'], times: ['10-20'] })).statusCode,
+    ).toBe(400);
+    expect(
+      (await postRequest({ slots: ['lunch'], hint: 'а'.repeat(201) }))
+        .statusCode,
     ).toBe(400);
   });
 });
 
 describe('GET /api/recipe-suggestions/requests', () => {
   it('lists the latest requests newest first, at most limit', async () => {
-    const first = await finished(await requested({ slot: 'breakfast' }));
-    const second = await finished(await requested({ slot: 'lunch' }));
-    const third = await finished(await requested({ slot: 'dinner' }));
+    const first = await finished(await requested({ slots: ['breakfast'] }));
+    const second = await finished(await requested({ slots: ['lunch'] }));
+    const third = await finished(await requested({ slots: ['dinner'] }));
 
     const response = await app.inject({
       method: 'GET',
@@ -420,7 +425,7 @@ describe('GET /api/recipe-suggestions/requests', () => {
 
 /** The first suggestion of a finished request. */
 async function aSuggestion(): Promise<RecipeSuggestion> {
-  const body = await finished(await requested({ slot: 'dinner' }));
+  const body = await finished(await requested({ slots: ['dinner'] }));
   return recipeSuggestionSchema.parse(body.suggestions[0]);
 }
 
@@ -573,12 +578,12 @@ describe('at start', () => {
       .insert(recipeSuggestionRequest)
       .values([
         {
-          slot: 'lunch',
+          slots: ['lunch'],
           requestedBy: DANI.id,
           createdAt: new Date(Date.now() - 11 * 60 * 1000),
         },
         {
-          slot: 'dinner',
+          slots: ['dinner'],
           requestedBy: DANI.id,
           createdAt: new Date(Date.now() - 60 * 1000),
         },
@@ -615,7 +620,7 @@ describe('logging', () => {
     await logged.ready();
     answerInTurn(TOO_FEW(), VALID());
     try {
-      await finished(await requested({ slot: 'lunch' }, logged), logged);
+      await finished(await requested({ slots: ['lunch'] }, logged), logged);
     } finally {
       await logged.close();
     }

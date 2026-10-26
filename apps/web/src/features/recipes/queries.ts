@@ -4,6 +4,7 @@ import {
   ingredientConflictSchema,
   ingredientResponseSchema,
   ingredientsResponseSchema,
+  type PrepTimeRange,
   type Recipe,
   type RecipeInput,
   recipeResponseSchema,
@@ -22,7 +23,8 @@ import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
 /** Филтрите на регистъра; празните не влизат в query-то. */
 export interface RecipesParams {
   q?: string;
-  tag?: Tag;
+  tags?: readonly Tag[];
+  times?: readonly PrepTimeRange[];
   includeArchived?: boolean;
 }
 
@@ -40,8 +42,11 @@ function recipesSearch(params: RecipesParams): string {
   if (q) {
     search.set('q', q);
   }
-  if (params.tag) {
-    search.set('tag', params.tag);
+  for (const tag of params.tags ?? []) {
+    search.append('tag', tag);
+  }
+  for (const time of params.times ?? []) {
+    search.append('time', time);
   }
   if (params.includeArchived) {
     search.set('includeArchived', 'true');

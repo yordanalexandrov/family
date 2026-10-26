@@ -55,7 +55,7 @@ interface PickerProps {
 function RecipePicker({ meal, plan, onPick }: PickerProps) {
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
-  const recipes = useRecipes({ tag: 'dinner', ...(q ? { q } : {}) });
+  const recipes = useRecipes({ tags: ['dinner'], ...(q ? { q } : {}) });
   const recent = useRecentRecipeIds(plan.weekStart);
   const inWeek = new Set(
     plan.meals
