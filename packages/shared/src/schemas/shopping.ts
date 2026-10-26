@@ -92,3 +92,30 @@ export type SetChecked = z.infer<typeof setCheckedSchema>;
 export const setHiddenSchema = z.object({ hidden: z.boolean() });
 
 export type SetHidden = z.infer<typeof setHiddenSchema>;
+
+export const shoppingListResponseSchema = z.object({
+  list: shoppingListSchema,
+});
+
+export const shoppingItemResponseSchema = z.object({
+  item: shoppingItemSchema,
+});
+
+/** `/api/shopping-lists/:weekStart…`: the list is addressed by its menu's week. */
+export const shoppingListParamsSchema = z.object({
+  weekStart: weekStartSchema,
+});
+
+/** `…/items/:key`: the item's key as is (`<ingredientId>:<unit>` or `manual:<id>`), URL-encoded by the client. */
+export const shoppingItemParamsSchema = shoppingListParamsSchema.extend({
+  key: z.string().min(1),
+});
+
+/** 404 of `GET /api/shopping-lists/:weekStart` (and its item routes) when the week has no menu: the „Няма меню“ screen. */
+export const noPlanSchema = z.object({
+  error: z.literal('not_found'),
+  code: z.literal('no_plan'),
+  message: z.string(),
+});
+
+export type NoPlan = z.infer<typeof noPlanSchema>;
