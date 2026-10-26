@@ -3,6 +3,7 @@ import { slotSchema, tagSchema } from '../food/tags.js';
 import { daysOfWeek } from '../menu/week.js';
 import { dateKeySchema } from '../schemas/dates.js';
 import { weekStartSchema } from '../schemas/menu.js';
+import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
 
 /**
@@ -11,7 +12,7 @@ import { hintSchema } from './hint.js';
  */
 
 /** A registry recipe as the agent sees it: only what it needs to choose and vary. */
-export const menuProposeRecipeSchema = z.object({
+const menuProposeRecipeSchema = z.object({
   id: z.string(),
   title: z.string(),
   prepMinutes: z.int().positive().optional(),
@@ -22,7 +23,7 @@ export const menuProposeRecipeSchema = z.object({
 export type MenuProposeRecipe = z.infer<typeof menuProposeRecipeSchema>;
 
 /** The contract input: the week, its slots, the recipes to choose from, the last 2 weeks and the hint. */
-export const menuProposeInputSchema = z.object({
+const menuProposeInputSchema = z.object({
   weekStart: weekStartSchema,
   slots: z.array(slotSchema).min(1),
   recipes: z.array(menuProposeRecipeSchema),
@@ -34,7 +35,7 @@ export const menuProposeInputSchema = z.object({
 export type MenuProposeInput = z.infer<typeof menuProposeInputSchema>;
 
 /** One proposed meal: a day and slot of the week with a recipe from the input. */
-export const proposedDaySchema = z.object({
+const proposedDaySchema = z.object({
   date: dateKeySchema,
   slot: slotSchema,
   recipeId: z.string().trim().min(1),
@@ -44,9 +45,9 @@ export const proposedDaySchema = z.object({
 export type ProposedDay = z.infer<typeof proposedDaySchema>;
 
 /** Days of a proposal: one dinner for each day of the week (phase 1 plans dinner only). */
-export const MENU_PROPOSE_DAYS = 7;
+const MENU_PROPOSE_DAYS = 7;
 
-export const menuProposeOutputSchema = z.object({
+const menuProposeOutputSchema = z.object({
   days: z.array(proposedDaySchema).length(MENU_PROPOSE_DAYS),
   summary: z.string().trim().min(1),
 });
@@ -55,9 +56,9 @@ export type MenuProposeOutput = z.infer<typeof menuProposeOutputSchema>;
 
 /**
  * JSON Schema of the output for `response_format: { type: 'json_schema', strict: true }`. Every field is required,
- * so the contract schema itself is strict-compatible; the API still parses with {@link menuProposeOutputSchema}.
+ * so the contract schema itself is strict-compatible.
  */
-export const MENU_PROPOSE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
+const MENU_PROPOSE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
   menuProposeOutputSchema,
   { io: 'output', unrepresentable: 'any' },
 );
@@ -67,7 +68,7 @@ export const MENU_PROPOSE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
  * only recipes from the input, none twice. The problems are in Bulgarian, for the retry message to the agent;
  * an empty list means the proposal is valid.
  */
-export function validateProposal(
+function validateProposal(
   input: MenuProposeInput,
   output: MenuProposeOutput,
 ): string[] {
@@ -117,13 +118,21 @@ export function validateProposal(
 }
 
 /**
- * {@link menuProposeOutputSchema} with {@link validateProposal} against `input` on top, so an answer that breaks the
- * rules fails parsing like a malformed one and goes through the same single retry with its problems.
+ * `menu.propose`. The output for an input is {@link menuProposeOutputSchema} with {@link validateProposal} against that
+ * input on top, so an answer that breaks the rules fails parsing like a malformed one and goes through the same single
+ * retry with its problems.
  */
-export function menuProposeOutputSchemaFor(input: MenuProposeInput) {
-  return menuProposeOutputSchema.superRefine((output, ctx) => {
-    for (const message of validateProposal(input, output)) {
-      ctx.addIssue({ code: 'custom', message });
-    }
-  });
-}
+export const menuPropose: AiContract<MenuProposeInput, MenuProposeOutput> = {
+  id: 'menu.propose',
+  inputSchema: menuProposeInputSchema,
+  outputSchema: (input) =>
+    menuProposeOutputSchema.superRefine((output, ctx) => {
+      for (const message of validateProposal(input, output)) {
+        ctx.addIssue({ code: 'custom', message });
+      }
+    }),
+  responseFormat: {
+    name: 'menu_propose',
+    schema: MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
+  },
+};

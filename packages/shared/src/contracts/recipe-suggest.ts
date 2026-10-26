@@ -7,6 +7,7 @@ import {
   unitSchema,
 } from '../food/units.js';
 import { nutritionSchema } from '../schemas/recipe.js';
+import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
 
 /**
@@ -27,7 +28,7 @@ export const recipeSuggestParamsSchema = z.object({
 export type RecipeSuggestParams = z.infer<typeof recipeSuggestParamsSchema>;
 
 /** The contract input: the client request plus the registry context the API adds. */
-export const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
+const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
   existingRecipeTitles: z.array(z.string()),
   ingredientNames: z.array(z.string()),
 });
@@ -35,7 +36,7 @@ export const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
 export type RecipeSuggestInput = z.infer<typeof recipeSuggestInputSchema>;
 
 /** An ingredient as the agent writes it: by name, `isNew` when it is not one of `ingredientNames`. */
-export const suggestionIngredientSchema = z
+const suggestionIngredientSchema = z
   .object({
     name: z.string().trim().min(1),
     isNew: z.boolean(),
@@ -63,7 +64,7 @@ export const suggestionSchema = z.object({
 export type Suggestion = z.infer<typeof suggestionSchema>;
 
 /** At most this many suggestions of one answer may come from the same site. */
-export const MAX_SUGGESTIONS_PER_SITE = 2;
+const MAX_SUGGESTIONS_PER_SITE = 2;
 
 /** The site and page of a source URL, ignoring case, `www.`, a trailing slash, query and fragment. */
 function sourceOf(url: string): { site: string; page: string } | null {
@@ -115,7 +116,7 @@ function checkDistinctSources(
   });
 }
 
-export const recipeSuggestOutputSchema = z.object({
+const recipeSuggestOutputSchema = z.object({
   suggestions: z
     .array(suggestionSchema)
     .min(3)
@@ -147,7 +148,7 @@ const recipeSuggestWireSchema = z.object({
  * every property required, `nutritionPer100g` nullable. Refinements (a pinch has no quantity) are not expressible
  * there; the API still parses with {@link recipeSuggestAgentOutputSchema}.
  */
-export const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
+const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
   recipeSuggestWireSchema,
   { io: 'output', unrepresentable: 'any' },
 );
@@ -177,7 +178,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * The agent's answer parsed into {@link RecipeSuggestOutput}: accepts `nutritionPer100g: null` from strict mode as
  * well as the field left out, and otherwise refuses exactly what {@link recipeSuggestOutputSchema} refuses.
  */
-export const recipeSuggestAgentOutputSchema = z.preprocess(
+const recipeSuggestAgentOutputSchema = z.preprocess(
   withoutNullNutrition,
   recipeSuggestOutputSchema,
 );
+
+/**
+ * `recipe.suggest`. The output does not depend on the input: {@link recipeSuggestAgentOutputSchema} for every request,
+ * so `nutritionPer100g: null` from strict mode is read as no nutrition.
+ */
+export const recipeSuggest: AiContract<
+  RecipeSuggestInput,
+  RecipeSuggestOutput
+> = {
+  id: 'recipe.suggest',
+  inputSchema: recipeSuggestInputSchema,
+  outputSchema: () => recipeSuggestAgentOutputSchema,
+  responseFormat: {
+    name: 'recipe_suggest',
+    schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
+  },
+};

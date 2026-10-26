@@ -5,11 +5,7 @@
 // can replace `menu-propose.valid.json` as it is.
 import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
-import {
-  MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
-  menuProposeInputSchema,
-  menuProposeOutputSchemaFor,
-} from '@family/shared';
+import { menuPropose } from '@family/shared';
 import fixtureInput from '@family/shared/fixtures/menu-propose.input.json' with {
   type: 'json',
 };
@@ -26,7 +22,7 @@ const { values } = parseArgs({
   },
 });
 
-const parsed = menuProposeInputSchema.safeParse({
+const parsed = menuPropose.inputSchema.safeParse({
   ...fixtureInput,
   hint: values.hint ?? fixtureInput.hint,
 });
@@ -59,14 +55,8 @@ process.stderr.write(
 );
 const started = performance.now();
 try {
-  const output = await client.complete({
+  const output = await client.complete(menuPropose, input, {
     agent: config.menuAgent,
-    input,
-    outputSchema: menuProposeOutputSchemaFor(input),
-    jsonSchema: {
-      name: 'menu_propose',
-      schema: MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
-    },
   });
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
 

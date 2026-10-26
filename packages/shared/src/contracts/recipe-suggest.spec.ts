@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fixture from './fixtures/recipe-suggest.valid.json' with {
   type: 'json',
 };
-import {
-  RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
-  recipeSuggestAgentOutputSchema,
-  recipeSuggestInputSchema,
-  recipeSuggestOutputSchema,
-} from './recipe-suggest.js';
+import { type RecipeSuggestInput, recipeSuggest } from './recipe-suggest.js';
 
 /** A hand-written, realistic answer of `family-recipe`; tests clone it before changing anything. */
 function validOutput() {
@@ -15,18 +10,27 @@ function validOutput() {
   return JSON.parse(JSON.stringify(fixture)) as any;
 }
 
-function issuePaths(input: unknown): string[] {
-  const result = recipeSuggestOutputSchema.safeParse(input);
+const INPUT: RecipeSuggestInput = {
+  slots: ['dinner'],
+  existingRecipeTitles: [],
+  ingredientNames: ['сол'],
+};
+
+/** What the OpenClaw client checks an answer with; `recipe.suggest` asks the same of every input. */
+const outputSchema = recipeSuggest.outputSchema(INPUT);
+
+function issuePaths(output: unknown): string[] {
+  const result = outputSchema.safeParse(output);
   return result.success
     ? []
     : result.error.issues.map((issue) => issue.path.join('.'));
 }
 
-describe('recipeSuggestOutputSchema', () => {
+describe('recipeSuggest.outputSchema', () => {
   it('accepts three normalized suggestions in Bulgarian', () => {
     const output = validOutput();
 
-    expect(recipeSuggestOutputSchema.parse(output)).toEqual(output);
+    expect(outputSchema.parse(output)).toEqual(output);
   });
 
   it('rejects only two suggestions', () => {
@@ -127,7 +131,7 @@ describe('recipeSuggestOutputSchema', () => {
   });
 });
 
-describe('recipeSuggestInputSchema', () => {
+describe('recipeSuggest.inputSchema', () => {
   const input = {
     slots: ['lunch', 'dinner'],
     times: ['0-15', '30-45'],
@@ -138,7 +142,7 @@ describe('recipeSuggestInputSchema', () => {
   };
 
   it('accepts the client request together with the registry context added by the API', () => {
-    expect(recipeSuggestInputSchema.parse(input)).toEqual(input);
+    expect(recipeSuggest.inputSchema.parse(input)).toEqual(input);
   });
 
   it('accepts a request with only one slot', () => {
@@ -148,40 +152,44 @@ describe('recipeSuggestInputSchema', () => {
       ingredientNames: [],
     };
 
-    expect(recipeSuggestInputSchema.parse(minimal)).toEqual(minimal);
+    expect(recipeSuggest.inputSchema.parse(minimal)).toEqual(minimal);
   });
 
   it('rejects a hint longer than 200 characters', () => {
     expect(
-      recipeSuggestInputSchema.safeParse({ ...input, hint: 'р'.repeat(201) })
+      recipeSuggest.inputSchema.safeParse({ ...input, hint: 'р'.repeat(201) })
         .success,
     ).toBe(false);
   });
 
   it('rejects a slot that is not a meal (quick is a tag only)', () => {
     expect(
-      recipeSuggestInputSchema.safeParse({ ...input, slots: ['quick'] })
+      recipeSuggest.inputSchema.safeParse({ ...input, slots: ['quick'] })
         .success,
     ).toBe(false);
   });
 
   it('rejects a request without a slot', () => {
     expect(
-      recipeSuggestInputSchema.safeParse({ ...input, slots: [] }).success,
+      recipeSuggest.inputSchema.safeParse({ ...input, slots: [] }).success,
     ).toBe(false);
   });
 
   it('rejects a time that is not one of the intervals', () => {
     expect(
-      recipeSuggestInputSchema.safeParse({ ...input, times: ['10-20'] })
+      recipeSuggest.inputSchema.safeParse({ ...input, times: ['10-20'] })
         .success,
     ).toBe(false);
   });
 });
 
-describe('RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA', () => {
+describe('recipeSuggest.responseFormat', () => {
+  it('is named recipe_suggest', () => {
+    expect(recipeSuggest.responseFormat.name).toBe('recipe_suggest');
+  });
+
   it('describes 3 to 5 suggestions with the required fields for response_format', () => {
-    const schema = RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA as unknown as {
+    const schema = recipeSuggest.responseFormat.schema as unknown as {
       properties: {
         suggestions: {
           minItems: number;
@@ -255,13 +263,13 @@ describe('RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA', () => {
       }
     }
 
-    walk(RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA, '$');
+    walk(recipeSuggest.responseFormat.schema, '$');
 
     expect(problems).toEqual([]);
   });
 
   it('asks for nutritionPer100g as an object or null', () => {
-    const schema = RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA as unknown as {
+    const schema = recipeSuggest.responseFormat.schema as unknown as {
       properties: {
         suggestions: {
           items: { properties: { nutritionPer100g: { anyOf: unknown[] } } };
@@ -275,12 +283,12 @@ describe('RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA', () => {
   });
 });
 
-describe('recipeSuggestAgentOutputSchema', () => {
+describe('recipeSuggest.outputSchema under strict mode', () => {
   it('reads nutritionPer100g: null, as strict mode sends it, as no nutrition', () => {
     const output = validOutput();
     output.suggestions[0].nutritionPer100g = null;
 
-    const parsed = recipeSuggestAgentOutputSchema.parse(output);
+    const parsed = outputSchema.parse(output);
 
     expect(parsed.suggestions[0]).not.toHaveProperty('nutritionPer100g');
     expect(parsed.suggestions[1]).toEqual(output.suggestions[1]);
@@ -289,11 +297,9 @@ describe('recipeSuggestAgentOutputSchema', () => {
   it('still accepts nutrition left out and refuses what the contract refuses', () => {
     const output = validOutput();
     delete output.suggestions[0].nutritionPer100g;
-    expect(recipeSuggestAgentOutputSchema.parse(output)).toEqual(output);
+    expect(outputSchema.parse(output)).toEqual(output);
 
     output.suggestions[1].sourceUrl = 'не е линк';
-    expect(recipeSuggestAgentOutputSchema.safeParse(output).success).toBe(
-      false,
-    );
+    expect(outputSchema.safeParse(output).success).toBe(false);
   });
 });

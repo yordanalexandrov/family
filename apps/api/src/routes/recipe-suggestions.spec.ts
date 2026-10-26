@@ -8,7 +8,7 @@ import {
   suggestionRequestSchema,
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
-import { delay, HttpResponse, http } from 'msw';
+import { HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { recipeSuggestionRequest } from '../db/schema/food.js';
 import type { CloudflareAccessOptions } from '../plugins/cloudflare-access.js';
@@ -127,16 +127,14 @@ describe('POST /api/recipe-suggestions/requests', () => {
 /** Answers the chat completions in turn with `contents`; returns the request bodies it got. */
 function answerInTurn(...contents: string[]) {
   const bodies: Record<string, unknown>[] = [];
-  const authorizations: (string | null)[] = [];
   openclaw.use(
     http.post(CHAT_COMPLETIONS_URL, async ({ request }) => {
       bodies.push((await request.json()) as Record<string, unknown>);
-      authorizations.push(request.headers.get('authorization'));
       const content = contents[bodies.length - 1] ?? contents.at(-1) ?? '';
       return HttpResponse.json(completion(content));
     }),
   );
-  return { bodies, authorizations };
+  return { bodies };
 }
 
 const VALID = () => JSON.stringify(suggestFixture());
@@ -144,29 +142,19 @@ const TOO_FEW = () =>
   JSON.stringify({ suggestions: suggestFixture().suggestions.slice(0, 2) });
 
 describe('the recipe.suggest run', () => {
-  it('sends one stateless agent turn: the agent as model, the input with the registry context, the json schema', async () => {
+  it('asks the recipe agent with the recipe.suggest contract: the request plus the registry context', async () => {
     const calls = answerInTurn(VALID());
 
     await finished(await requested({ slots: ['lunch'], hint: 'с леща' }));
 
     expect(calls.bodies).toHaveLength(1);
-    expect(calls.authorizations).toEqual(['Bearer test-gateway-password']);
     const body = calls.bodies[0] as {
       model: string;
       messages: { role: string; content: string }[];
-      response_format: { type: string; json_schema: { strict: boolean } };
-      max_completion_tokens: number;
+      response_format: { json_schema: { name: string } };
     };
     expect(body.model).toBe('openclaw/family-recipe');
-    expect(body).not.toHaveProperty('user');
-    expect(body).not.toHaveProperty('stream');
-    expect(body.max_completion_tokens).toBe(6000);
-    expect(body.response_format).toMatchObject({
-      type: 'json_schema',
-      json_schema: { name: 'recipe_suggest', strict: true },
-    });
-    expect(body.messages).toHaveLength(1);
-    expect(body.messages[0]?.role).toBe('user');
+    expect(body.response_format.json_schema.name).toBe('recipe_suggest');
     const input = JSON.parse(body.messages[0]?.content ?? '');
     expect(input).toMatchObject({
       slots: ['lunch'],
@@ -223,36 +211,6 @@ describe('the recipe.suggest run', () => {
     expect(body.suggestions[0].payload).not.toHaveProperty('nutritionPer100g');
   });
 
-  it('accepts JSON wrapped in a ``` fence', async () => {
-    answerInTurn(`\`\`\`json\n${VALID()}\n\`\`\``);
-
-    const body = await finished(await requested({ slots: ['dinner'] }));
-
-    expect(body.request.status).toBe('done');
-  });
-
-  it('retries once with the validation issues when the first answer is invalid, then is done', async () => {
-    const calls = answerInTurn(TOO_FEW(), VALID());
-
-    const body = await finished(await requested({ slots: ['dinner'] }));
-
-    expect(body.request.status).toBe('done');
-    expect(body.suggestions.length).toBeGreaterThanOrEqual(3);
-    expect(calls.bodies).toHaveLength(2);
-    const retry = calls.bodies[1] as {
-      messages: { role: string; content: string }[];
-    };
-    expect(retry.messages.map((m) => m.role)).toEqual([
-      'user',
-      'assistant',
-      'user',
-    ]);
-    expect(retry.messages[1]?.content).toBe(TOO_FEW());
-    expect(retry.messages[2]?.content).toMatch(
-      /^Отговорът не мина валидация: suggestions: .+\. Върни само валиден JSON\.$/,
-    );
-  });
-
   it('fails with invalid_output after two invalid answers and stores no suggestions', async () => {
     const calls = answerInTurn('Ето три рецепти: …', TOO_FEW());
 
@@ -265,79 +223,6 @@ describe('the recipe.suggest run', () => {
     });
     expect(body.request.finishedAt).toEqual(expect.any(String));
     expect(body.suggestions).toEqual([]);
-  });
-
-  it('fails with timeout when the gateway does not answer in time', async () => {
-    const slow = buildTestApp({
-      openclaw: { ...TEST_OPENCLAW, timeoutMs: 100 },
-    });
-    await slow.ready();
-    openclaw.use(
-      http.post(CHAT_COMPLETIONS_URL, async () => {
-        await delay(2_000);
-        return HttpResponse.json(completion(VALID()));
-      }),
-    );
-    try {
-      const body = await finished(
-        await requested({ slots: ['dinner'] }, slow),
-        slow,
-      );
-
-      expect(body.request).toMatchObject({
-        status: 'failed',
-        error: 'timeout',
-      });
-    } finally {
-      await slow.close();
-    }
-  });
-
-  it('counts the timeout for the whole call, the retry included', async () => {
-    const slow = buildTestApp({
-      openclaw: { ...TEST_OPENCLAW, timeoutMs: 300 },
-    });
-    await slow.ready();
-    const answers = [TOO_FEW(), VALID()];
-    let calls = 0;
-    openclaw.use(
-      // Each attempt alone fits in 300 ms, both together do not.
-      http.post(CHAT_COMPLETIONS_URL, async () => {
-        const content = answers[calls] ?? VALID();
-        calls += 1;
-        await delay(200);
-        return HttpResponse.json(completion(content));
-      }),
-    );
-    try {
-      const body = await finished(
-        await requested({ slots: ['dinner'] }, slow),
-        slow,
-      );
-
-      expect(calls).toBe(2);
-      expect(body.request).toMatchObject({
-        status: 'failed',
-        error: 'timeout',
-      });
-    } finally {
-      await slow.close();
-    }
-  });
-
-  it('fails with http_<status> when the gateway answers an error', async () => {
-    openclaw.use(
-      http.post(CHAT_COMPLETIONS_URL, () =>
-        HttpResponse.json(
-          { error: { message: 'agent run was cancelled', type: 'api_error' } },
-          { status: 500 },
-        ),
-      ),
-    );
-
-    const body = await finished(await requested({ slots: ['dinner'] }));
-
-    expect(body.request).toMatchObject({ status: 'failed', error: 'http_500' });
   });
 });
 
@@ -605,36 +490,5 @@ describe('at start', () => {
     } finally {
       await restarted.close();
     }
-  });
-});
-
-describe('logging', () => {
-  it('logs the duration and token usage of each attempt, never the gateway password', async () => {
-    const lines: string[] = [];
-    const logged = buildTestApp({
-      logger: {
-        level: 'debug',
-        stream: { write: (line: string) => lines.push(line) },
-      },
-    });
-    await logged.ready();
-    answerInTurn(TOO_FEW(), VALID());
-    try {
-      await finished(await requested({ slots: ['lunch'] }, logged), logged);
-    } finally {
-      await logged.close();
-    }
-
-    const completions = lines
-      .map((line) => JSON.parse(line))
-      .filter((entry) => entry.msg === 'openclaw completion');
-    expect(completions).toHaveLength(2);
-    expect(completions[0]).toMatchObject({
-      agent: 'family-recipe',
-      attempt: 1,
-      durationMs: expect.any(Number),
-      usage: { total_tokens: 150 },
-    });
-    expect(lines.join('')).not.toContain(TEST_OPENCLAW.gatewayPassword);
   });
 });

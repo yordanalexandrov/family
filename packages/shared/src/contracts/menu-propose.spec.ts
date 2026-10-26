@@ -3,13 +3,7 @@ import inputFixture from './fixtures/menu-propose.input.json' with {
   type: 'json',
 };
 import fixture from './fixtures/menu-propose.valid.json' with { type: 'json' };
-import {
-  MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
-  menuProposeInputSchema,
-  menuProposeOutputSchema,
-  menuProposeOutputSchemaFor,
-  validateProposal,
-} from './menu-propose.js';
+import { menuPropose } from './menu-propose.js';
 
 /** No DOM or Node types in `shared`, so no `structuredClone`. */
 function clone<T>(value: T): T {
@@ -23,21 +17,37 @@ function validOutput() {
 }
 
 function validInput() {
-  return menuProposeInputSchema.parse(clone(inputFixture));
+  return menuPropose.inputSchema.parse(clone(inputFixture));
 }
 
+/** What the OpenClaw client checks an answer to `input` with. */
+function outputSchema(input = validInput()) {
+  return menuPropose.outputSchema(input);
+}
+
+/** Where the answer's shape is wrong; the rules against the input report at the root and are left out here. */
 function issuePaths(output: unknown): string[] {
-  const result = menuProposeOutputSchema.safeParse(output);
+  const result = outputSchema().safeParse(output);
   return result.success
     ? []
-    : result.error.issues.map((issue) => issue.path.join('.'));
+    : result.error.issues
+        .map((issue) => issue.path.join('.'))
+        .filter((path) => path !== '');
 }
 
-describe('menuProposeOutputSchema', () => {
+/** The rule problems of an answer that has the right shape, in Bulgarian, as the retry message carries them. */
+function problems(output: unknown, input = validInput()): string[] {
+  const result = outputSchema(input).safeParse(output);
+  return result.success
+    ? []
+    : result.error.issues.map((issue) => issue.message);
+}
+
+describe('menuPropose.outputSchema: shape', () => {
   it('accepts seven dinners with a why each and a summary, in Bulgarian', () => {
     const output = validOutput();
 
-    expect(menuProposeOutputSchema.parse(output)).toEqual(output);
+    expect(outputSchema().parse(output)).toEqual(output);
   });
 
   it('rejects six days', () => {
@@ -76,21 +86,21 @@ describe('menuProposeOutputSchema', () => {
   });
 });
 
-describe('menuProposeInputSchema', () => {
+describe('menuPropose.inputSchema', () => {
   it('accepts the registry context the API assembles', () => {
-    expect(menuProposeInputSchema.parse(inputFixture)).toEqual(inputFixture);
+    expect(menuPropose.inputSchema.parse(inputFixture)).toEqual(inputFixture);
   });
 
   it('accepts an input without hint and without recent recipes', () => {
     const { hint: _hint, ...rest } = clone(inputFixture);
     const input = { ...rest, recentRecipeIds: [] };
 
-    expect(menuProposeInputSchema.parse(input)).toEqual(input);
+    expect(menuPropose.inputSchema.parse(input)).toEqual(input);
   });
 
   it('rejects a hint longer than 200 characters', () => {
     expect(
-      menuProposeInputSchema.safeParse({
+      menuPropose.inputSchema.safeParse({
         ...inputFixture,
         hint: 'р'.repeat(201),
       }).success,
@@ -99,7 +109,7 @@ describe('menuProposeInputSchema', () => {
 
   it('rejects a week that does not start on Monday', () => {
     expect(
-      menuProposeInputSchema.safeParse({
+      menuPropose.inputSchema.safeParse({
         ...inputFixture,
         weekStart: '2026-11-03',
       }).success,
@@ -107,18 +117,16 @@ describe('menuProposeInputSchema', () => {
   });
 });
 
-describe('validateProposal', () => {
+describe('menuPropose.outputSchema: rules against the input', () => {
   it('finds nothing wrong with the fixture', () => {
-    expect(validateProposal(validInput(), validOutput())).toEqual([]);
+    expect(problems(validOutput())).toEqual([]);
   });
 
   it('refuses a date outside the week and names the missing day', () => {
     const output = validOutput();
     output.days[6].date = '2026-11-09';
 
-    const problems = validateProposal(validInput(), output);
-
-    expect(problems).toEqual([
+    expect(problems(output)).toEqual([
       expect.stringContaining('2026-11-09'),
       expect.stringContaining('2026-11-08'),
     ]);
@@ -128,9 +136,7 @@ describe('validateProposal', () => {
     const output = validOutput();
     output.days[1].date = '2026-11-02';
 
-    const problems = validateProposal(validInput(), output);
-
-    expect(problems).toEqual([
+    expect(problems(output)).toEqual([
       expect.stringContaining('2026-11-02'),
       expect.stringContaining('2026-11-03'),
     ]);
@@ -140,7 +146,7 @@ describe('validateProposal', () => {
     const output = validOutput();
     output.days[2].recipeId = 'b0000000-0000-4000-8000-000000000099';
 
-    expect(validateProposal(validInput(), output)).toEqual([
+    expect(problems(output)).toEqual([
       expect.stringContaining('b0000000-0000-4000-8000-000000000099'),
     ]);
   });
@@ -149,7 +155,7 @@ describe('validateProposal', () => {
     const output = validOutput();
     output.days[4].recipeId = output.days[0].recipeId;
 
-    expect(validateProposal(validInput(), output)).toEqual([
+    expect(problems(output)).toEqual([
       expect.stringContaining(output.days[0].recipeId),
     ]);
   });
@@ -158,9 +164,7 @@ describe('validateProposal', () => {
     const output = validOutput();
     output.days[5].slot = 'lunch';
 
-    const problems = validateProposal(validInput(), output);
-
-    expect(problems).toContainEqual(expect.stringContaining('lunch'));
+    expect(problems(output)).toContainEqual(expect.stringContaining('lunch'));
   });
 
   it('allows a recent recipe: avoiding it is a preference, not a rule', () => {
@@ -168,32 +172,16 @@ describe('validateProposal', () => {
     const output = validOutput();
     output.days[4].recipeId = input.recentRecipeIds[0];
 
-    expect(validateProposal(input, output)).toEqual([]);
+    expect(problems(output, input)).toEqual([]);
   });
 });
 
-describe('menuProposeOutputSchemaFor', () => {
-  it('accepts the fixture for its input', () => {
-    expect(
-      menuProposeOutputSchemaFor(validInput()).safeParse(fixture).success,
-    ).toBe(true);
+describe('menuPropose.responseFormat', () => {
+  it('is named menu_propose', () => {
+    expect(menuPropose.responseFormat.name).toBe('menu_propose');
   });
 
-  it('turns the problems of validateProposal into issues, for the retry message', () => {
-    const output = validOutput();
-    output.days[0].recipeId = 'a0000000-0000-4000-8000-000000000099';
-
-    const result = menuProposeOutputSchemaFor(validInput()).safeParse(output);
-
-    expect(result.success).toBe(false);
-    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
-      expect.stringContaining('не е от списъка recipes'),
-    ]);
-  });
-});
-
-describe('MENU_PROPOSE_RESPONSE_JSON_SCHEMA', () => {
-  const schema = MENU_PROPOSE_RESPONSE_JSON_SCHEMA as unknown as {
+  const schema = menuPropose.responseFormat.schema as unknown as {
     required: string[];
     properties: {
       days: {
@@ -217,7 +205,7 @@ describe('MENU_PROPOSE_RESPONSE_JSON_SCHEMA', () => {
   });
 
   it('is accepted by strict structured outputs: every object closed, every property required', () => {
-    const problems: string[] = [];
+    const found: string[] = [];
     function walk(node: unknown, path: string): void {
       if (typeof node !== 'object' || node === null) {
         return;
@@ -227,10 +215,10 @@ describe('MENU_PROPOSE_RESPONSE_JSON_SCHEMA', () => {
         const keys = Object.keys(record.properties ?? {}).sort();
         const required = [...((record.required ?? []) as string[])].sort();
         if (record.additionalProperties !== false) {
-          problems.push(`${path}: additionalProperties is not false`);
+          found.push(`${path}: additionalProperties is not false`);
         }
         if (JSON.stringify(required) !== JSON.stringify(keys)) {
-          problems.push(`${path}: not every property is required`);
+          found.push(`${path}: not every property is required`);
         }
       }
       for (const [key, value] of Object.entries(record)) {
@@ -238,8 +226,8 @@ describe('MENU_PROPOSE_RESPONSE_JSON_SCHEMA', () => {
       }
     }
 
-    walk(MENU_PROPOSE_RESPONSE_JSON_SCHEMA, '$');
+    walk(menuPropose.responseFormat.schema, '$');
 
-    expect(problems).toEqual([]);
+    expect(found).toEqual([]);
   });
 });

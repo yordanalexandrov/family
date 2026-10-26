@@ -1,3 +1,5 @@
+export * from './contracts/contract.js';
+export * from './contracts/failure.js';
 export * from './contracts/hint.js';
 export * from './contracts/menu-propose.js';
 export * from './contracts/recipe-suggest.js';

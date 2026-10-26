@@ -1,11 +1,10 @@
 import {
-  RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
   type Recipe,
   type RecipeInput,
   type RecipeSuggestInput,
   type RecipeSuggestion,
   type RecipeSuggestParams,
-  recipeSuggestAgentOutputSchema,
+  recipeSuggest,
   type SuggestionRequest,
   type SuggestionRequestDetail,
 } from '@family/shared';
@@ -89,14 +88,8 @@ export function createRecipeSuggestionsService({
       existingRecipeTitles: await listActiveRecipeTitles(db),
       ingredientNames: await listIngredientNames(db),
     };
-    const output = await client.complete({
+    const output = await client.complete(recipeSuggest, input, {
       agent,
-      input,
-      outputSchema: recipeSuggestAgentOutputSchema,
-      jsonSchema: {
-        name: 'recipe_suggest',
-        schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
-      },
       signal,
     });
     await db.transaction(async (tx) => {

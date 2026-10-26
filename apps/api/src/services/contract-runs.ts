@@ -1,4 +1,4 @@
-import type { SuggestionFailure } from '@family/shared';
+import type { ContractFailure } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import { failureCode, type OpenClawClient } from '../openclaw/client.js';
 
@@ -27,7 +27,7 @@ export interface ContractRun {
   /** Calls the agent and stores the result; aborted through `signal` when the app closes. */
   run(signal: AbortSignal): Promise<void>;
   /** Stores the request as `failed` with the code of what `run` threw. */
-  fail(code: SuggestionFailure): Promise<void>;
+  fail(code: ContractFailure): Promise<void>;
 }
 
 export interface ContractRuns {

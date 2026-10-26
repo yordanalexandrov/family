@@ -1,11 +1,11 @@
 import type {
+  ContractFailure,
   Meal,
   MealPlan,
   MealPlanSummary,
   MenuProposalRequest,
   Servings,
   Slot,
-  SuggestionFailure,
 } from '@family/shared';
 import {
   and,
@@ -292,7 +292,7 @@ export async function finishProposal(
   id: string,
   outcome:
     | { status: 'done'; planId: string }
-    | { status: 'failed'; error: SuggestionFailure },
+    | { status: 'failed'; error: ContractFailure },
 ): Promise<void> {
   await db
     .update(menuProposalRequest)
@@ -309,7 +309,7 @@ export async function finishProposal(
 export async function failPendingProposalsBefore(
   db: DbExecutor,
   cutoff: Date,
-  error: SuggestionFailure,
+  error: ContractFailure,
 ): Promise<number> {
   const rows = await db
     .update(menuProposalRequest)

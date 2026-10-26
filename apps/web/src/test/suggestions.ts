@@ -1,7 +1,7 @@
 import type {
+  ContractFailure,
   RecipeSuggestion,
   Suggestion,
-  SuggestionFailure,
   SuggestionRequest,
 } from '@family/shared';
 import { dani } from './msw';
@@ -26,7 +26,7 @@ export const doneRequest: SuggestionRequest = {
   finishedAt: '2026-10-25T18:01:00.000Z',
 };
 
-export function failedRequest(error: SuggestionFailure): SuggestionRequest {
+export function failedRequest(error: ContractFailure): SuggestionRequest {
   return {
     ...pendingRequest,
     status: 'failed',

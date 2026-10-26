@@ -3,6 +3,7 @@ import {
   aisleSchema,
   type BaseUnit,
   baseUnitSchema,
+  type ContractFailure,
   type Nutrition,
   type PrepTimeRange,
   prepTimeRangeSchema,
@@ -10,7 +11,6 @@ import {
   recipeSuggestionStatusSchema,
   type Slot,
   type Suggestion,
-  type SuggestionFailure,
   type SuggestionRequestStatus,
   slotSchema,
   suggestionRequestStatusSchema,
@@ -125,7 +125,7 @@ export const recipeSuggestionRequest = pgTable(
       .$type<SuggestionRequestStatus>()
       .notNull()
       .default('pending'),
-    error: text('error').$type<SuggestionFailure>(),
+    error: text('error').$type<ContractFailure>(),
     requestedBy: uuid('requested_by')
       .notNull()
       .references(() => user.id),

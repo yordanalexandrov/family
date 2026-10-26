@@ -1,9 +1,9 @@
 import type {
+  ContractFailure,
   RecipeSuggestion,
   RecipeSuggestionStatus,
   RecipeSuggestParams,
   Suggestion,
-  SuggestionFailure,
   SuggestionRequest,
   SuggestionRequestStatus,
 } from '@family/shared';
@@ -94,7 +94,7 @@ export async function finishSuggestionRequest(
   db: DbExecutor,
   id: string,
   status: Exclude<SuggestionRequestStatus, 'pending'>,
-  error: SuggestionFailure | null,
+  error: ContractFailure | null,
 ): Promise<void> {
   await db
     .update(recipeSuggestionRequest)
@@ -106,7 +106,7 @@ export async function finishSuggestionRequest(
 export async function failPendingRequestsBefore(
   db: DbExecutor,
   cutoff: Date,
-  error: SuggestionFailure,
+  error: ContractFailure,
 ): Promise<number> {
   const rows = await db
     .update(recipeSuggestionRequest)

@@ -1,9 +1,9 @@
 import {
+  type ContractFailure,
   type MenuProposalStatus,
   menuProposalStatusSchema,
   type Servings,
   type Slot,
-  type SuggestionFailure,
   slotSchema,
 } from '@family/shared';
 import { sql } from 'drizzle-orm';
@@ -81,7 +81,7 @@ export const menuProposalRequest = pgTable(
       .$type<MenuProposalStatus>()
       .notNull()
       .default('pending'),
-    error: text('error').$type<SuggestionFailure>(),
+    error: text('error').$type<ContractFailure>(),
     requestedBy: uuid('requested_by')
       .notNull()
       .references(() => user.id),

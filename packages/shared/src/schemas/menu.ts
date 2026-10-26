@@ -1,9 +1,9 @@
 import { z } from 'zod';
+import { contractFailureSchema } from '../contracts/failure.js';
 import { hintSchema } from '../contracts/hint.js';
 import { slotSchema } from '../food/tags.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
-import { suggestionFailureSchema } from './recipe-suggestion.js';
 
 /** The Monday that identifies a weekly menu, as `YYYY-MM-DD`. */
 export const weekStartSchema = dateKeySchema.refine(isWeekStart, {
@@ -112,7 +112,7 @@ export const menuProposalRequestSchema = z.object({
   weekStart: weekStartSchema,
   hint: z.string().optional(),
   status: menuProposalStatusSchema,
-  error: suggestionFailureSchema.optional(),
+  error: contractFailureSchema.optional(),
   requestedBy: z.uuid(),
   planId: z.uuid().optional(),
   createdAt: instantSchema,

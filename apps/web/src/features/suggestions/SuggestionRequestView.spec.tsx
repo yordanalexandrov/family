@@ -1,6 +1,6 @@
 import type {
+  ContractFailure,
   RecipeSuggestParams,
-  SuggestionFailure,
   SuggestionRequestDetail,
 } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
@@ -190,7 +190,7 @@ describe('SuggestionRequestView', () => {
     ]);
   });
 
-  it.each<[SuggestionFailure, string]>([
+  it.each<[ContractFailure, string]>([
     ['invalid_output', 'Получих нечетим отговор'],
     ['stale', 'Сървърът се рестартира, докато търсех. Опитай пак'],
     ['http_502', 'AI отговори с грешка 502, опитай пак'],

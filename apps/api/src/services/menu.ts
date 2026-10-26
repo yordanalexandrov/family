@@ -5,7 +5,6 @@ import {
   daysOfWeek,
   hasWeekStarted,
   MENU_PROPOSE_MIN_RECIPES,
-  MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
   MENU_SLOTS,
   type Meal,
   type MealPlan,
@@ -14,7 +13,7 @@ import {
   type MenuProposeInput,
   type MenuSlot,
   mealTitle,
-  menuProposeOutputSchemaFor,
+  menuPropose,
   oneServingEach,
   type Servings,
   type UpdateMeal,
@@ -135,15 +134,8 @@ export function createMenuService({
       ]),
       hint: proposal.hint,
     };
-    const output = await client.complete({
+    const output = await client.complete(menuPropose, input, {
       agent,
-      input,
-      // The rules of `validateProposal` fail like a malformed answer: one retry with their problems.
-      outputSchema: menuProposeOutputSchemaFor(input),
-      jsonSchema: {
-        name: 'menu_propose',
-        schema: MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
-      },
       signal,
     });
     const servings = await defaultServings(db);

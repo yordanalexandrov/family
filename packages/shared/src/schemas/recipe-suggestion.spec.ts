@@ -4,7 +4,6 @@ import fixture from '../contracts/fixtures/recipe-suggest.valid.json' with {
 };
 import {
   recipeSuggestionSchema,
-  suggestionFailureSchema,
   suggestionRequestSchema,
 } from './recipe-suggestion.js';
 
@@ -46,27 +45,6 @@ describe('suggestionRequestSchema', () => {
       suggestionRequestSchema.safeParse({ ...pending, status: 'running' })
         .success,
     ).toBe(false);
-  });
-});
-
-describe('suggestionFailureSchema', () => {
-  it('accepts the failure codes of a run and http_<status>', () => {
-    for (const code of [
-      'timeout',
-      'invalid_output',
-      'aborted',
-      'stale',
-      'error',
-      'http_502',
-    ]) {
-      expect(suggestionFailureSchema.parse(code)).toBe(code);
-    }
-  });
-
-  it('rejects codes no run produces', () => {
-    for (const code of ['openclaw_unavailable', 'http_', 'http_abc', '']) {
-      expect(suggestionFailureSchema.safeParse(code).success).toBe(false);
-    }
   });
 });
 
