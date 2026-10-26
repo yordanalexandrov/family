@@ -17,9 +17,8 @@ import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
-import { formatDate } from '../../lib/format';
+import { formatDate, formatNumber, formatQuantity } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
-import { formatNumber, formatQuantity } from '../recipes/format';
 import { AddItemSheet } from './AddItemSheet';
 import {
   OfflineError,

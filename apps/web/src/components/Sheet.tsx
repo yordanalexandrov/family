@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from 'react';
+import './Sheet.css';
 
 interface SheetProps {
   title: string;
@@ -6,7 +7,10 @@ interface SheetProps {
   children: ReactNode;
 }
 
-/** Лист отдолу (стиловете `.sheet` са в menu.css): заглавие, „Готово“, Escape и фонът го затварят. */
+/**
+ * Лист отдолу на телефона, прозорец на таблета: заглавие, „Готово“, Escape и фонът го затварят. Съдържанието е в
+ * `.sheet__section` (и `.sheet__row` за ред от полета).
+ */
 export function Sheet({ title, onClose, children }: SheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {

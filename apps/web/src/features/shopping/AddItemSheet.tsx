@@ -10,9 +10,9 @@ import {
 } from '@family/shared';
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
-import { Field } from '../recipes/Field';
+import { Field } from '../../components/Field';
+import { Sheet } from '../../components/Sheet';
 import { OfflineError, useAddManualItem } from './queries';
-import { Sheet } from './Sheet';
 
 // Ръчен ред „по вкус“ няма смисъл; останалите единици са по избор.
 const UNITS = unitSchema.options.filter((unit) => unit !== 'pinch');

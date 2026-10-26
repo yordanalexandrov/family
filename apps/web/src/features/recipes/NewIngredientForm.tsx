@@ -9,7 +9,7 @@ import {
 } from '@family/shared';
 import { useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
-import { Field } from './Field';
+import { Field } from '../../components/Field';
 import { useCreateIngredient } from './queries';
 
 interface NewIngredientFormProps {

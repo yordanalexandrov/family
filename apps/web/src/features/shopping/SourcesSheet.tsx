@@ -1,6 +1,6 @@
 import type { ShoppingItem } from '@family/shared';
+import { Sheet } from '../../components/Sheet';
 import { formatDayLong } from '../../lib/format';
-import { Sheet } from './Sheet';
 
 /** „От кои ястия“: денят и рецептата на всяко ястие, което внася реда. */
 export function SourcesSheet({
