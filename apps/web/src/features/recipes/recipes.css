@@ -356,6 +356,11 @@
   border-block-start: 1px solid var(--color-line);
 }
 
+/* В диалога целта е ясна от заглавието; подсказката „Нов продукт: …“ на всеки ред би я повтаряла. */
+.resolve__item .ingredient-picker__unresolved {
+  display: none;
+}
+
 .resolve__item-head {
   display: flex;
   flex-wrap: wrap;
