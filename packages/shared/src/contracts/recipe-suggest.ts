@@ -6,6 +6,7 @@ import {
   unitSchema,
 } from '../food/units.js';
 import { nutritionSchema } from '../schemas/recipe.js';
+import { hintSchema } from './hint.js';
 
 /**
  * AI contract `recipe.suggest` (GLOSSARY: AI контракт): fixed JSON in → 3–5 normalized recipes out,
@@ -17,7 +18,7 @@ export const recipeSuggestParamsSchema = z.object({
   slot: slotSchema,
   maxMinutes: z.int().positive().optional(),
   tags: z.array(tagSchema).optional(),
-  hint: z.string().trim().max(200).optional(),
+  hint: hintSchema.optional(),
 });
 
 export type RecipeSuggestParams = z.infer<typeof recipeSuggestParamsSchema>;

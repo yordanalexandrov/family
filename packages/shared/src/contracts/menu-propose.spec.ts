@@ -1,0 +1,245 @@
+import { describe, expect, it } from 'vitest';
+import inputFixture from './fixtures/menu-propose.input.json' with {
+  type: 'json',
+};
+import fixture from './fixtures/menu-propose.valid.json' with { type: 'json' };
+import {
+  MENU_PROPOSE_RESPONSE_JSON_SCHEMA,
+  menuProposeInputSchema,
+  menuProposeOutputSchema,
+  menuProposeOutputSchemaFor,
+  validateProposal,
+} from './menu-propose.js';
+
+/** No DOM or Node types in `shared`, so no `structuredClone`. */
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/** A hand-written, realistic answer of `family-menu` for the input fixture; tests clone it before changing it. */
+function validOutput() {
+  // biome-ignore lint/suspicious/noExplicitAny: tests break the fixture on purpose
+  return clone(fixture) as any;
+}
+
+function validInput() {
+  return menuProposeInputSchema.parse(clone(inputFixture));
+}
+
+function issuePaths(output: unknown): string[] {
+  const result = menuProposeOutputSchema.safeParse(output);
+  return result.success
+    ? []
+    : result.error.issues.map((issue) => issue.path.join('.'));
+}
+
+describe('menuProposeOutputSchema', () => {
+  it('accepts seven dinners with a why each and a summary, in Bulgarian', () => {
+    const output = validOutput();
+
+    expect(menuProposeOutputSchema.parse(output)).toEqual(output);
+  });
+
+  it('rejects six days', () => {
+    const output = validOutput();
+    output.days = output.days.slice(0, 6);
+
+    expect(issuePaths(output)).toEqual(['days']);
+  });
+
+  it('rejects a day without why', () => {
+    const output = validOutput();
+    delete output.days[3].why;
+
+    expect(issuePaths(output)).toEqual(['days.3.why']);
+  });
+
+  it('rejects a blank why', () => {
+    const output = validOutput();
+    output.days[3].why = '  ';
+
+    expect(issuePaths(output)).toEqual(['days.3.why']);
+  });
+
+  it('rejects an answer without summary', () => {
+    const output = validOutput();
+    delete output.summary;
+
+    expect(issuePaths(output)).toEqual(['summary']);
+  });
+
+  it('rejects a day that is not a date', () => {
+    const output = validOutput();
+    output.days[0].date = 'понеделник';
+
+    expect(issuePaths(output)).toEqual(['days.0.date']);
+  });
+});
+
+describe('menuProposeInputSchema', () => {
+  it('accepts the registry context the API assembles', () => {
+    expect(menuProposeInputSchema.parse(inputFixture)).toEqual(inputFixture);
+  });
+
+  it('accepts an input without hint and without recent recipes', () => {
+    const { hint: _hint, ...rest } = clone(inputFixture);
+    const input = { ...rest, recentRecipeIds: [] };
+
+    expect(menuProposeInputSchema.parse(input)).toEqual(input);
+  });
+
+  it('rejects a hint longer than 200 characters', () => {
+    expect(
+      menuProposeInputSchema.safeParse({
+        ...inputFixture,
+        hint: 'р'.repeat(201),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a week that does not start on Monday', () => {
+    expect(
+      menuProposeInputSchema.safeParse({
+        ...inputFixture,
+        weekStart: '2026-11-03',
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('validateProposal', () => {
+  it('finds nothing wrong with the fixture', () => {
+    expect(validateProposal(validInput(), validOutput())).toEqual([]);
+  });
+
+  it('refuses a date outside the week and names the missing day', () => {
+    const output = validOutput();
+    output.days[6].date = '2026-11-09';
+
+    const problems = validateProposal(validInput(), output);
+
+    expect(problems).toEqual([
+      expect.stringContaining('2026-11-09'),
+      expect.stringContaining('2026-11-08'),
+    ]);
+  });
+
+  it('refuses the same day twice', () => {
+    const output = validOutput();
+    output.days[1].date = '2026-11-02';
+
+    const problems = validateProposal(validInput(), output);
+
+    expect(problems).toEqual([
+      expect.stringContaining('2026-11-02'),
+      expect.stringContaining('2026-11-03'),
+    ]);
+  });
+
+  it('refuses a recipe that is not in the input', () => {
+    const output = validOutput();
+    output.days[2].recipeId = 'b0000000-0000-4000-8000-000000000099';
+
+    expect(validateProposal(validInput(), output)).toEqual([
+      expect.stringContaining('b0000000-0000-4000-8000-000000000099'),
+    ]);
+  });
+
+  it('refuses the same recipe twice in the week', () => {
+    const output = validOutput();
+    output.days[4].recipeId = output.days[0].recipeId;
+
+    expect(validateProposal(validInput(), output)).toEqual([
+      expect.stringContaining(output.days[0].recipeId),
+    ]);
+  });
+
+  it('refuses a slot that was not asked for', () => {
+    const output = validOutput();
+    output.days[5].slot = 'lunch';
+
+    const problems = validateProposal(validInput(), output);
+
+    expect(problems).toContainEqual(expect.stringContaining('lunch'));
+  });
+
+  it('allows a recent recipe: avoiding it is a preference, not a rule', () => {
+    const input = validInput();
+    const output = validOutput();
+    output.days[4].recipeId = input.recentRecipeIds[0];
+
+    expect(validateProposal(input, output)).toEqual([]);
+  });
+});
+
+describe('menuProposeOutputSchemaFor', () => {
+  it('accepts the fixture for its input', () => {
+    expect(
+      menuProposeOutputSchemaFor(validInput()).safeParse(fixture).success,
+    ).toBe(true);
+  });
+
+  it('turns the problems of validateProposal into issues, for the retry message', () => {
+    const output = validOutput();
+    output.days[0].recipeId = 'a0000000-0000-4000-8000-000000000099';
+
+    const result = menuProposeOutputSchemaFor(validInput()).safeParse(output);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual([
+      expect.stringContaining('не е от списъка recipes'),
+    ]);
+  });
+});
+
+describe('MENU_PROPOSE_RESPONSE_JSON_SCHEMA', () => {
+  const schema = MENU_PROPOSE_RESPONSE_JSON_SCHEMA as unknown as {
+    required: string[];
+    properties: {
+      days: {
+        minItems: number;
+        maxItems: number;
+        items: { required: string[] };
+      };
+    };
+  };
+
+  it('describes exactly 7 days and a summary', () => {
+    expect(schema.required).toEqual(['days', 'summary']);
+    expect(schema.properties.days.minItems).toBe(7);
+    expect(schema.properties.days.maxItems).toBe(7);
+    expect(schema.properties.days.items.required).toEqual([
+      'date',
+      'slot',
+      'recipeId',
+      'why',
+    ]);
+  });
+
+  it('is accepted by strict structured outputs: every object closed, every property required', () => {
+    const problems: string[] = [];
+    function walk(node: unknown, path: string): void {
+      if (typeof node !== 'object' || node === null) {
+        return;
+      }
+      const record = node as Record<string, unknown>;
+      if (record.type === 'object') {
+        const keys = Object.keys(record.properties ?? {}).sort();
+        const required = [...((record.required ?? []) as string[])].sort();
+        if (record.additionalProperties !== false) {
+          problems.push(`${path}: additionalProperties is not false`);
+        }
+        if (JSON.stringify(required) !== JSON.stringify(keys)) {
+          problems.push(`${path}: not every property is required`);
+        }
+      }
+      for (const [key, value] of Object.entries(record)) {
+        walk(value, `${path}.${key}`);
+      }
+    }
+
+    walk(MENU_PROPOSE_RESPONSE_JSON_SCHEMA, '$');
+
+    expect(problems).toEqual([]);
+  });
+});

@@ -1,14 +1,17 @@
 import type {
+  MenuProposeRecipe,
   Recipe,
   RecipeIngredient,
   RecipeInput,
   RecipeLine,
   RecipeSummary,
+  Slot,
 } from '@family/shared';
 import {
   and,
   arrayContains,
   asc,
+  count,
   eq,
   ilike,
   isNotNull,
@@ -211,4 +214,68 @@ export async function listActiveRecipeTitles(
     .where(isNull(recipe.archivedAt))
     .orderBy(asc(recipe.title));
   return rows.map((row) => row.title);
+}
+
+/** Whether the recipe exists, is not archived and is tagged with `slot`, i.e. may be picked for a meal of that slot. */
+export async function isMenuRecipe(
+  db: DbExecutor,
+  id: string,
+  slot: Slot,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: recipe.id })
+    .from(recipe)
+    .where(
+      and(
+        eq(recipe.id, id),
+        isNull(recipe.archivedAt),
+        arrayContains(recipe.tags, [slot]),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * The recipes `menu.propose` chooses from: not archived, tagged with `slot`, by title, each with the names of its
+ * products in line order.
+ */
+export async function listMenuRecipes(
+  db: DbExecutor,
+  slot: Slot,
+): Promise<MenuProposeRecipe[]> {
+  const rows = await db
+    .select({
+      id: recipe.id,
+      title: recipe.title,
+      prepMinutes: recipe.prepMinutes,
+      tags: recipe.tags,
+      ingredientNames: sql<string[]>`coalesce(
+        array_agg(${ingredient.name} order by ${recipeIngredient.position})
+          filter (where ${ingredient.id} is not null),
+        '{}'
+      )`,
+    })
+    .from(recipe)
+    .leftJoin(recipeIngredient, eq(recipeIngredient.recipeId, recipe.id))
+    .leftJoin(ingredient, eq(ingredient.id, recipeIngredient.ingredientId))
+    .where(and(isNull(recipe.archivedAt), arrayContains(recipe.tags, [slot])))
+    .groupBy(recipe.id)
+    .orderBy(asc(recipe.title), asc(recipe.id));
+  return rows.map((row) => ({
+    ...row,
+    prepMinutes: row.prepMinutes ?? undefined,
+  }));
+}
+
+/** How many recipes `menu.propose` could choose from for `slot` (see {@link listMenuRecipes}). */
+export async function countMenuRecipes(
+  db: DbExecutor,
+  slot: Slot,
+): Promise<number> {
+  const [row] = await db
+    .select({ count: count() })
+    .from(recipe)
+    .where(and(isNull(recipe.archivedAt), arrayContains(recipe.tags, [slot])));
+  return row?.count ?? 0;
 }

@@ -19,7 +19,7 @@ import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
 import { formatDayLong } from '../../lib/format';
 import { syncNotes } from '../../lib/sync-notes';
-import { useNow } from '../dashboard/use-now';
+import { useNow } from '../../lib/use-now';
 import { DayEventList } from './DayEventList';
 import './CalendarScreen.css';
 

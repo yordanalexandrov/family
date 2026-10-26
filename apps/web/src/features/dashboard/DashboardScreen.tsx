@@ -8,6 +8,7 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { SessionExpired } from '../../components/SessionExpired';
 import { Spinner } from '../../components/Spinner';
 import { TopBar } from '../../components/TopBar';
+import { useNow } from '../../lib/use-now';
 import { BudgetPanel } from './BudgetPanel';
 import { Core } from './Core';
 import { splitDays } from './days';
@@ -15,7 +16,6 @@ import { KioskLayout } from './KioskLayout';
 import { NextDaysPanel } from './NextDaysPanel';
 import { TodayList, todayItemId } from './TodayList';
 import { type DashboardData, useDashboardData } from './use-dashboard-data';
-import { useNow } from './use-now';
 import './DashboardScreen.css';
 
 /**
@@ -99,6 +99,7 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
         cooking={data.cooking}
         sync={data.sync.calendar}
         onSelectEvent={selectTodayEvent}
+        opensMenu
       />
       <TodayList today={today} now={now} sync={data.sync.calendar} />
       <BudgetPanel budget={data.budget} now={now} sync={data.sync.budget} />

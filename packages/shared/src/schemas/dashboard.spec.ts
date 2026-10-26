@@ -42,6 +42,50 @@ describe('dashboardResponseSchema', () => {
     ).toEqual(cooking);
   });
 
+  it('accepts a meal with its servings per user (guests)', () => {
+    const cooking = {
+      lunch: null,
+      dinner: {
+        title: 'Мусака',
+        cookUserId: null,
+        servings: {
+          '11111111-1111-4111-8111-111111111111': 2,
+          '22222222-2222-4222-8222-222222222222': 2,
+        },
+      },
+    };
+
+    expect(
+      dashboardResponseSchema.parse({ ...dashboard, cooking }).cooking,
+    ).toEqual(cooking);
+  });
+
+  it('rejects negative servings', () => {
+    const cooking = {
+      lunch: null,
+      dinner: {
+        title: 'Мусака',
+        cookUserId: null,
+        servings: { '11111111-1111-4111-8111-111111111111': -1 },
+      },
+    };
+
+    expect(
+      dashboardResponseSchema.safeParse({ ...dashboard, cooking }).success,
+    ).toBe(false);
+  });
+
+  it('accepts a meal nobody cooks yet', () => {
+    const cooking = {
+      lunch: null,
+      dinner: { title: 'ядем навън', cookUserId: null },
+    };
+
+    expect(
+      dashboardResponseSchema.parse({ ...dashboard, cooking }).cooking,
+    ).toEqual(cooking);
+  });
+
   it('rejects anything other than four days (today and the next three)', () => {
     expect(
       dashboardResponseSchema.safeParse({

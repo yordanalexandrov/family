@@ -11,10 +11,8 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, JSON_HEADERS } from '../../api/client';
+import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 import { storeRecipe } from '../recipes/queries';
-
-/** Докато заявката е `pending`, клиентът пита на 3 s (епик Рецепти: „Фон“). */
-export const POLL_INTERVAL_MS = 3000;
 
 const RECENT_LIMIT = 10;
 

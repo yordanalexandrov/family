@@ -9,6 +9,7 @@ import {
   dashboard,
   dashboardWith,
   fixtureNow,
+  poli,
   server,
 } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -43,14 +44,131 @@ describe('DashboardScreen', () => {
     vi.useRealTimers();
   });
 
-  it('ядрото показва часовник без секунди, дата и „Днес се готви“ с „—“', async () => {
+  it('ядрото показва часовник без секунди, дата и „Днес се готви“ без план: „Няма меню за днес“', async () => {
     renderApp('/');
 
     const inCore = await core();
     expect(inCore.getByText('10:00')).toBeInTheDocument();
     expect(inCore.getByText('сряда, 4 ноември')).toBeInTheDocument();
     expect(inCore.getByText('Днес се готви')).toBeInTheDocument();
-    expect(inCore.getByText('—')).toBeInTheDocument();
+    expect(inCore.getByText('Няма меню за днес')).toBeInTheDocument();
+  });
+
+  describe('„Днес се готви“', () => {
+    function cookingRow(inCore: Awaited<ReturnType<typeof core>>) {
+      const label = inCore.getByText('Днес се готви');
+      const row = label.closest<HTMLElement>('.core__cooking');
+      if (!row) throw new Error('редът „Днес се готви“ липсва');
+      return within(row);
+    }
+
+    it('рецепта с готвач → заглавието и аватарът на готвача', async () => {
+      respondWith(
+        dashboardWith({
+          cooking: {
+            lunch: null,
+            dinner: { title: 'Мусака', cookUserId: poli.id },
+          },
+        }),
+      );
+      renderApp('/');
+
+      const row = cookingRow(await core());
+      expect(row.getByText('Мусака')).toBeInTheDocument();
+      expect(await row.findByText('готви Поли')).toBeInTheDocument();
+      expect(row.getByText('П')).toHaveClass('avatar');
+    });
+
+    it('порции, различни от подразбиранията (гости) → „4 порции“', async () => {
+      respondWith(
+        dashboardWith({
+          cooking: {
+            lunch: null,
+            dinner: {
+              title: 'Мусака',
+              cookUserId: poli.id,
+              servings: { [dani.id]: 2, [poli.id]: 2 },
+            },
+          },
+        }),
+      );
+      renderApp('/');
+
+      const row = cookingRow(await core());
+      expect(await row.findByText('4 порции')).toBeInTheDocument();
+    });
+
+    it('само един яде → „1 порция“', async () => {
+      respondWith(
+        dashboardWith({
+          cooking: {
+            lunch: null,
+            dinner: {
+              title: 'Мусака',
+              cookUserId: null,
+              servings: { [dani.id]: 1, [poli.id]: 0 },
+            },
+          },
+        }),
+      );
+      renderApp('/');
+
+      const row = cookingRow(await core());
+      expect(await row.findByText('1 порция')).toBeInTheDocument();
+    });
+
+    it('по една порция на човек (подразбирането) → без порции', async () => {
+      respondWith(
+        dashboardWith({
+          cooking: {
+            lunch: null,
+            dinner: {
+              title: 'Мусака',
+              cookUserId: poli.id,
+              servings: { [dani.id]: 1, [poli.id]: 1 },
+            },
+          },
+        }),
+      );
+      renderApp('/');
+
+      const row = cookingRow(await core());
+      await row.findByText('готви Поли');
+      expect(row.queryByText(/порци/)).not.toBeInTheDocument();
+    });
+
+    it('докосване на „Днес се готви“ отваря менюто', async () => {
+      const user = userEvent.setup();
+      const { router } = renderApp('/');
+
+      await user.click(
+        (await core()).getByRole('link', { name: /Днес се готви/ }),
+      );
+
+      expect(router.state.location.pathname).toBe('/menu');
+    });
+
+    it('бележка без готвач → бележката, без аватар', async () => {
+      respondWith(
+        dashboardWith({
+          cooking: {
+            lunch: null,
+            dinner: { title: 'ядем навън', cookUserId: null },
+          },
+        }),
+      );
+      renderApp('/');
+
+      const row = cookingRow(await core());
+      expect(row.getByText('ядем навън')).toBeInTheDocument();
+      expect(row.queryByText(/^готви /)).not.toBeInTheDocument();
+      expect(
+        (await core())
+          .getByText('ядем навън')
+          .closest('.core__cooking')
+          ?.querySelector('.avatar'),
+      ).toBeNull();
+    });
   });
 
   it('целодневното събитие е чип в ядрото, следващото събитие е под датата', async () => {

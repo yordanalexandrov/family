@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { requestErrorFor } from './messages';
+import { requestErrorFor } from '../../lib/ai-requests';
 import { useRequestSuggestions } from './queries';
 import { RecentRequests } from './RecentRequests';
 import { SuggestForm } from './SuggestForm';

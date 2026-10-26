@@ -1,4 +1,5 @@
 import {
+  HINT_MAX,
   type RecipeSuggestParams,
   type Slot,
   slotSchema,
@@ -10,7 +11,6 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { TagChips } from '../recipes/TagChips';
 import { slotLabel } from './messages';
 
-const HINT_MAX = 200;
 const MINUTES_OPTIONS = [15, 30, 45, 60] as const;
 /** Таговете без слотовете: слотът се избира отделно. */
 const EXTRA_TAGS = tagSchema.options.filter(

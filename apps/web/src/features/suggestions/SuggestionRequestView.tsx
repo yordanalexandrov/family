@@ -2,7 +2,7 @@ import type { SuggestionRequestDetail } from '@family/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
-import { failureMessage, requestErrorFor } from './messages';
+import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
 import {
   paramsOf,
   useRequestSuggestions,

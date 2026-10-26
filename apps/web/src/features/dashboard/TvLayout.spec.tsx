@@ -21,10 +21,21 @@ describe('TvLayout', () => {
     Reflect.deleteProperty(navigator, 'wakeLock');
   });
 
-  it('няма бутони, връзки и навигация', async () => {
+  it('няма бутони, връзки и навигация, и „Днес се готви“ не е връзка', async () => {
+    server.use(
+      http.get('/api/dashboard', () =>
+        HttpResponse.json({
+          ...dashboard,
+          cooking: {
+            lunch: null,
+            dinner: { title: 'Мусака', cookUserId: null },
+          },
+        }),
+      ),
+    );
     renderApp('/');
 
-    await screen.findByRole('region', { name: 'Днес накратко' });
+    await screen.findByText('Мусака');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
