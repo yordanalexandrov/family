@@ -69,7 +69,14 @@ export async function readCachedList(
   }
 }
 
+/**
+ * Записите в опашката, които още не са стигнали до IndexedDB. Четенето ги изчаква: презареждане, тръгнало веднага
+ * след отметка, вижда и нея (иначе показва реда неотметнат, докато не дойде следващото).
+ */
+let queueWrites: Promise<unknown> = Promise.resolve();
+
 async function readQueue(): Promise<QueuedCheck[]> {
+  await queueWrites;
   try {
     return ((await get(QUEUE_KEY)) as QueuedCheck[] | undefined) ?? [];
   } catch (error) {
@@ -83,11 +90,15 @@ export async function queuedChecks(weekStart: DateKey): Promise<QueuedCheck[]> {
   return (await readQueue()).filter((entry) => entry.weekStart === weekStart);
 }
 
-export async function enqueueCheck(
-  entry: Omit<QueuedCheck, 'id'>,
-): Promise<void> {
+/** Добавя отметката в края на опашката; четене, тръгнало след извикването, я вижда. */
+export function enqueueCheck(entry: Omit<QueuedCheck, 'id'>): Promise<void> {
   const queued = { ...entry, id: crypto.randomUUID() };
-  await update<QueuedCheck[]>(QUEUE_KEY, (queue = []) => [...queue, queued]);
+  const write = update<QueuedCheck[]>(QUEUE_KEY, (queue = []) => [
+    ...queue,
+    queued,
+  ]);
+  queueWrites = Promise.allSettled([queueWrites, write]);
+  return write;
 }
 
 /** Чакащите отметки върху списъка, по реда им, всяка от името на този, който я е направил. */

@@ -124,8 +124,8 @@ export function useShoppingWeek(weekStart: DateKey) {
 }
 
 /**
- * Отметка/разотметка: първо в опашката, после веднага в списъка на екрана; после списъкът се презарежда, което
- * изпраща опашката, ако има връзка. Опашката е първа, за да не я пропусне презареждане, тръгнало междувременно.
+ * Отметка/разотметка: веднага в списъка на екрана и в опашката; после списъкът се презарежда, което изпраща
+ * опашката, ако има връзка. Опашката се записва първа, затова презареждане, тръгнало междувременно, я вижда.
  */
 export function useToggleCheck(weekStart: DateKey) {
   const queryClient = useQueryClient();
@@ -139,7 +139,7 @@ export function useToggleCheck(weekStart: DateKey) {
         actingUser: readActingUserId(),
         at: new Date().toISOString(),
       };
-      await enqueueCheck(entry);
+      const queued = enqueueCheck(entry);
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<ShoppingWeekData>(queryKey, (data) =>
         data?.kind === 'list'
@@ -150,6 +150,7 @@ export function useToggleCheck(weekStart: DateKey) {
             }
           : data,
       );
+      await queued;
       await queryClient.invalidateQueries({ queryKey });
     },
     [queryClient, weekStart],
