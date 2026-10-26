@@ -20,5 +20,8 @@ export * from './schemas/ingredient.js';
 export * from './schemas/menu.js';
 export * from './schemas/recipe.js';
 export * from './schemas/recipe-suggestion.js';
+export * from './schemas/shopping.js';
 export * from './schemas/sync.js';
 export * from './schemas/user.js';
+export * from './shopping/build.js';
+export * from './shopping/item-key.js';

@@ -1,0 +1,195 @@
+/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem). */
+.shopping__count {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.shopping__count-value {
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.shopping__stale,
+.shopping__pending {
+  margin: 0;
+  padding: 0.5em 0.85em;
+  border: 1px solid var(--color-status-stale);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  color: var(--color-stale);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.shopping__pending {
+  border-color: var(--color-line);
+  color: var(--color-text-muted);
+}
+
+.shopping__aisle,
+.shopping__hidden {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shopping__aisle-title {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shopping__items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  list-style: none;
+}
+
+.shopping-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: 3.25rem;
+  padding: var(--space-1) var(--space-3);
+}
+
+.shopping-item + .shopping-item {
+  border-block-start: 1px solid var(--color-line);
+}
+
+.shopping-item__check {
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.shopping-item__main {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+}
+
+.shopping-item__title {
+  color: var(--color-text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.shopping-item__title--button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.shopping-item__quantity,
+.shopping-item__manual {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.shopping-item[data-checked="true"] .shopping-item__title,
+.shopping-item[data-checked="true"] .shopping-item__quantity {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+/* „скрий“/„изтрий“/„покажи“ са второстепенни: текст без фон, но с цялата площ за докосване. */
+.shopping-item__action {
+  flex: none;
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.shopping-item__action.button--quiet {
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.shopping-item__confirm {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.shopping-item__confirm .menu__danger {
+  background: var(--color-danger);
+}
+
+.shopping__add {
+  align-self: flex-start;
+}
+
+.shopping__hidden-toggle {
+  align-self: flex-start;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.shopping__hidden-toggle::before {
+  content: "▸ ";
+}
+
+.shopping__hidden-toggle[aria-expanded="true"]::before {
+  content: "▾ ";
+}
+
+.shopping__sources {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shopping__source-day::first-letter {
+  text-transform: uppercase;
+}
+
+.shopping__source-day {
+  display: inline-block;
+  font-weight: 600;
+}
+
+.shopping__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.shopping__form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.shopping__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}

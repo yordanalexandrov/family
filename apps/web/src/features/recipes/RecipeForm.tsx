@@ -6,7 +6,7 @@ import {
 } from '@family/shared';
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
-import { Field } from './Field';
+import { Field } from '../../components/Field';
 import { IngredientPicker } from './IngredientPicker';
 import {
   emptyIngredientRow,

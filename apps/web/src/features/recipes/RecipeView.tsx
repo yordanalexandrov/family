@@ -2,7 +2,8 @@ import { AISLES, type Recipe, TAG_LABELS_BG } from '@family/shared';
 import { Link, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
-import { formatMinutes, formatNumber, formatQuantity } from './format';
+import { formatNumber, formatQuantity } from '../../lib/format';
+import { formatMinutes } from './format';
 import { useArchiveRecipe, useRecipe } from './queries';
 import './recipes.css';
 

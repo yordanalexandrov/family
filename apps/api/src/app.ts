@@ -26,6 +26,7 @@ import { meRoutes } from './routes/me.js';
 import { menuRoutes } from './routes/menu.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
+import { shoppingRoutes } from './routes/shopping.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
@@ -193,6 +194,7 @@ export function buildApp({
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
   app.register(menuRoutes);
+  app.register(shoppingRoutes);
 
   return app;
 }

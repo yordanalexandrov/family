@@ -6,9 +6,10 @@ import {
   type UpdateMeal,
   type User,
 } from '@family/shared';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
+import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
@@ -27,57 +28,20 @@ interface MealSheetProps {
 /** Листът на едно ястие: рецепта, бележка, готвач и порции; всяко действие е отделен `PATCH`. */
 export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const day = formatDayLong(meal.date);
-
-  useEffect(() => {
-    closeRef.current?.focus();
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   function patch(change: UpdateMeal) {
     update.mutate({ id: meal.id, patch: change });
   }
 
   return (
-    <div className="sheet">
-      <button
-        type="button"
-        className="sheet__backdrop"
-        aria-label="Затвори"
-        tabIndex={-1}
-        onClick={onClose}
-      />
-      <section
-        className="sheet__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label={day}
-      >
-        <header className="sheet__header">
-          <h2 className="sheet__title">{day}</h2>
-          <button
-            ref={closeRef}
-            type="button"
-            className="button button--quiet"
-            onClick={onClose}
-          >
-            Готово
-          </button>
-        </header>
-        {update.isError && <ErrorBox error={update.error} />}
-        <RecipePicker meal={meal} plan={plan} onPick={patch} />
-        <NoteField key={meal.note} meal={meal} onSave={patch} />
-        <CookPicker meal={meal} users={users} onPick={patch} />
-        <ServingsEditor meal={meal} users={users} onChange={patch} />
-      </section>
-    </div>
+    <Sheet title={day} onClose={onClose}>
+      {update.isError && <ErrorBox error={update.error} />}
+      <RecipePicker meal={meal} plan={plan} onPick={patch} />
+      <NoteField key={meal.note} meal={meal} onSave={patch} />
+      <CookPicker meal={meal} users={users} onPick={patch} />
+      <ServingsEditor meal={meal} users={users} onChange={patch} />
+    </Sheet>
   );
 }
 

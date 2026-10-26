@@ -22,6 +22,8 @@ export const apiErrorCodeSchema = z.enum([
   'invalid_reference',
   // 503: the OpenClaw client is disabled (no gateway password, local dev), so no suggestions can be asked for.
   'openclaw_unavailable',
+  // 400: the action does not apply to this kind of record (e.g. hiding or deleting the wrong kind of shopping item).
+  'invalid_action',
   // 5xx: a bug or an outage; the client is told nothing more.
   'internal_error',
   // Anything else without a code of its own; its message is for the screen (e.g. Fastify's 415 for an unsupported content type).

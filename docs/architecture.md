@@ -62,7 +62,7 @@ AI контрактите вървят във фон в процеса на api:
 
 Route-ът и hook-ът в `plugins/` не пипат базата директно, а викат service; service-ът не знае за request/reply. Service с памет (кеш) се създава веднъж в `buildApp()` и се ползва като `app.<име>` (напр. `app.users`).
 
-Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`. Service не знае за HTTP и отказва с типизирана грешка от `services/errors.ts` (наследник на `ServiceRefusal`: `NotFoundError` → 404 `not_found`, `ConflictError` → 409 `conflict` с `details` в тялото, `InvalidReferenceError` → 400 `invalid_reference`, `OpenClawUnavailableError` → 503 `openclaw_unavailable`); error handler-ът я мапва на статус по таблица `REFUSALS`, а нов клас се добавя и там.
+Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest` (`AUTH_MODE=cloudflare|dev`), действащият потребител от `X-Acting-User` в `preHandler`. Route, който трябва да работи преди да е избран потребител, се изключва с `config: { actingUser: false }`, не със списък от пътища. Грешките са `{ error, message }` (`apiErrorSchema` в shared): `error` е английски код от `apiErrorCodeSchema` (нов код се добавя там), `message` е на български, защото стига до екрана; за отказ хвърли `HttpError` от `plugins/error-handler.ts`. Service не знае за HTTP и отказва с типизирана грешка от `services/errors.ts` (наследник на `ServiceRefusal`: `NotFoundError` → 404 `not_found`, `ConflictError` → 409 `conflict` с `details` в тялото, `InvalidReferenceError` → 400 `invalid_reference`, `InvalidActionError` → 400 `invalid_action`, `OpenClawUnavailableError` → 503 `openclaw_unavailable`); error handler-ът я мапва на статус по таблица `REFUSALS`, а нов клас се добавя и там.
 
 ## Слоеве в `apps/web`
 
@@ -70,13 +70,15 @@ Hooks-овете от `plugins/` важат за `/api/*`: Access в `onRequest`
 app/              → композиция: code-based маршрути (TanStack Router), QueryClient, режим на устройството, действащ потребител (localStorage), тема, ниво на ефектите, долна навигация
 features/<име>/   → екран + hooks + компоненти за една функционалност (device, who, dashboard, calendar, settings; после menu, shopping, recipes)
 api/              → един HTTP клиент (`client.ts`: `/api`, `X-Acting-User` само в режим `phone`, Zod, `ApiError`, пренасочване от Access = изтекла сесия) + TanStack Query hooks (`queries.ts`)
-components/       → споделени UI компоненти без бизнес логика (Card, Aurora, TopBar, Avatar, Spinner, ErrorBox, Toast)
+components/       → споделени UI компоненти без бизнес логика (Card, Aurora, TopBar, Avatar, Spinner, ErrorBox, Toast, Sheet, Field)
 lib/              → общи помощници за няколко features: форматиране на час, дата, пари и порции (`format.ts`), надписите за остарели или липсващи данни (`sync-notes.ts`), polling и съобщенията за неуспех на AI заявките (`ai-requests.ts`), текущият момент (`use-now.ts`)
 styles/           → design tokens на „Стъкло“ (`tokens.css`, `data-theme`, `data-effects`), шрифтът Inter (`fonts.css`) и глобални стилове
 logger.ts         → единственият изход към конзолата
 ```
 
 Компонентите не викат `fetch` директно, а hooks от `features/*` или `api/`. Root layout-ът записва `?device=phone|kiosk|tv` в `family.deviceMode` и маха параметъра; без режим праща към `/device` („Какво е това устройство?“), а в режим `phone` без действащ потребител — към `/who`. kiosk и TV нямат действащ потребител. Заявка, върнала `400 unknown_acting_user` (потребителят вече го няма), чисти избора централно в `QueryCache` (`app/query-client.ts`), така че и тогава root layout-ът води към `/who`; екраните не го обработват сами.
+
+Офлайн данните са два вида: дашбордът пази последния си отговор в `localStorage` (`features/dashboard/cache.ts`), а списъкът за пазаруване — последния отговор на седмица и опашката от отметки без връзка в IndexedDB през `idb-keyval` (`features/shopping/offline.ts`). Опашката се изпраща по реда си преди всяко четене на списъка (отваряне, на 15 s, при `online` и `visibilitychange`); всяка отметка носи действащия потребител, който я е направил, и се праща от негово име; 404 (редът го няма) се маха, друг 4xx остава за следващото изпращане, а мрежова грешка, 5xx или изтекла сесия спират изпращането до следващия път. Service worker-ът (`vite-plugin-pwa`, `navigateFallback`) сервира shell-а на всеки маршрут офлайн; `/api/*` не се кешира от него.
 
 ## Вижте също
 

@@ -23,3 +23,6 @@ export class InvalidReferenceError extends ServiceRefusal {}
 
 /** 503 `openclaw_unavailable`: the OpenClaw client is disabled (dev mode without a gateway password). */
 export class OpenClawUnavailableError extends ServiceRefusal {}
+
+/** 400 `invalid_action`: the action does not apply to this kind of record (e.g. hiding a manual shopping item). */
+export class InvalidActionError extends ServiceRefusal {}

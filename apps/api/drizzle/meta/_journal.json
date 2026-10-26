@@ -43,6 +43,13 @@
       "when": 1792966363540,
       "tag": "0005_menu",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792995787620,
+      "tag": "0006_shopping",
+      "breakpoints": true
     }
   ]
 }
