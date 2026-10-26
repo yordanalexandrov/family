@@ -112,8 +112,6 @@ Sends SIGTERM to the api and Vite process groups this run started (by recorded p
 
 - **Node:** `node` on PATH may be 22; `verify.sh` finds nvm's newest 24.x itself, but `pnpm install` needs it on PATH (Launch). In this environment `cd` into the repo may reset the Node version; use the absolute nvm path.
 - **The api does not reload.** Code changes in `apps/api` or `packages/shared` need `down` + `up`; doctor warns.
-- **Bottom nav covers the bottom of long forms on phone:** the recipe editor's „Запази“/„Откажи“ stay under the nav even when scrolled to the end (#55). `recipe-create.mjs` submits with Enter in „Заглавие“; once fixed, switch it to `tap(getByRole('button', { name: 'Запази' }))`.
-- **`/menu?week=<not a date>`** (e.g. `next`) crashes the screen with „Invalid time value“ (#56). Switch weeks with the `Тази седмица`/`Следваща седмица` tabs.
 - **Device mode is sticky per run.** `?device=kiosk` or `?device=tv` overwrites the stored mode for all later drives in the run; go back with `go('/?device=phone')` (the acting user stays). kiosk and TV have no bottom nav and no acting user.
 - **State accumulates per run.** A plan for a week can be created once (`Започни празно` disappears after); `menu-to-shopping.mjs` uses next week and needs a fresh run to repeat. Unique titles (`Date.now()`) keep recipe scenarios rerunnable.
 - **Selection lists filter by slot:** the meal sheet lists only recipes tagged `вечеря` („Вечерни рецепти“).

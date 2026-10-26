@@ -33,9 +33,7 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
     .fill('Свари лещата с лука.');
   await aria('form-filled');
 
-  // „Запази“ is under the bottom nav on a 390px phone (known bug), so submit the form with Enter like a keyboard user.
-  step('submit with Enter in Заглавие');
-  await page.getByRole('textbox', { name: 'Заглавие' }).press('Enter');
+  await tap(page.getByRole('button', { name: 'Запази' }), 'Запази');
   await see(
     page.getByRole('heading', { name: title, level: 1 }),
     'recipe view heading',

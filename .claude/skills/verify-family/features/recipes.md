@@ -24,17 +24,16 @@ Preconditions:
 
 - `setup-phone.mjs` ran.
 
-- **Create.** Proven by `scenarios/recipe-create.mjs`: „Нова рецепта“; fill textbox „Заглавие“; `tap` tag `вечеря` in group „Тагове“; `tap` „Добави продукт“; in group „Продукт 1“ fill textbox „Продукт“ with `лук`, `tap` button `лук` (exact) in list „Съвпадения“, fill „Количество“ `2`, `selectOption('бр.')` on combobox „Единица“; fill „Стъпка 1“; press Enter in „Заглавие“ → heading level 1 = title, list „Плод и зеленчук“ has a listitem with `лук` and `2 бр.`.
+- **Create.** Proven by `scenarios/recipe-create.mjs`: „Нова рецепта“; fill textbox „Заглавие“; `tap` tag `вечеря` in group „Тагове“; `tap` „Добави продукт“; in group „Продукт 1“ fill textbox „Продукт“ with `лук`, `tap` button `лук` (exact) in list „Съвпадения“, fill „Количество“ `2`, `selectOption('бр.')` on combobox „Единица“; fill „Стъпка 1“; `tap` „Запази“ → heading level 1 = title, list „Плод и зеленчук“ has a listitem with `лук` and `2 бр.`.
 - **Search.** `tap` link „← Рецепти“; fill searchbox „Търси“ with the title → a link whose name contains the title.
 - **Second view.** `psql` on `recipe` join `recipe_ingredient` join `ingredient` by title → 1 row, `лук`, unit `pcs`.
-- **Edit.** On the recipe view `tap(getByRole('link', { name: 'Редактирай' }))`; change a field; Enter in „Заглавие“ → back on the view with the change.
+- **Edit.** On the recipe view `tap(getByRole('link', { name: 'Редактирай' }))`; change a field; `tap` „Запази“ → back on the view with the change.
 - **Archive.** `tap(getByRole('button', { name: 'Архивирай' }))`; the list no longer shows it until `tap(getByRole('checkbox', { name: 'Покажи архивираните' }))`.
 - **New ingredient.** Type a name that is not seeded into „Продукт“ → paragraph „Непознат продукт: избери от списъка или създай нов“; follow the offered create form.
 - **Suggestions.** `go('/recipes/suggest')`; `tap` slot `Вечеря` in group „Слот“; `tap` „Поискай предложения“ → expect the AI-unavailable message (the api answers `503 openclaw_unavailable`). Not verifiable further in a run.
 
 ## Gotchas
 
-- **„Запази“/„Откажи“ are under the bottom nav on phone** even at full scroll (#55); submit with Enter in „Заглавие“, or drive with `--device kiosk` to see the buttons. Once fixed, tap „Запази“ instead.
 - „Добави продукт“ does not move focus into the new row; target `getByRole('group', { name: 'Продукт N' })`.
 - The ingredient textbox keeps the typed text even when no match is chosen; only a tapped match links the seed ingredient. `лук` also matches `луканка`, so use `exact: true`.
 - Ingredient lines render as one text node (`лук 2 бр.`) in the ARIA tree but separate elements in the DOM; filter the listitem by `hasText` twice instead of `getByText('лук 2 бр.')`.
