@@ -30,7 +30,9 @@ export function RecentRequests() {
                 className="suggestions__recent-link"
               >
                 <span>
-                  {slotLabel(request.slot).toLowerCase()}
+                  {request.slots
+                    .map((slot) => slotLabel(slot).toLowerCase())
+                    .join(', ')}
                   {request.hint ? ` · ${request.hint}` : ''}
                 </span>
                 <span className={`badge badge--${request.status}`}>

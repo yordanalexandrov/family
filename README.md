@@ -25,9 +25,9 @@ pnpm --filter api db:generate                        # нова миграция
 ```bash
 ssh -N -L 18789:127.0.0.1:18789 homesrv &                # тунел; спира се с kill %1 накрая
 read -rs OPENCLAW_GATEWAY_PASSWORD && export OPENCLAW_GATEWAY_PASSWORD   # постави gateway.auth.password от ~/.openclaw/openclaw.json на homesrv; не се показва и не остава в history
-pnpm --filter api suggest:smoke -- --slot breakfast
-pnpm --filter api suggest:smoke -- --slot lunch --max 30 --tags batch
-pnpm --filter api suggest:smoke -- --slot dinner --hint "нещо с пиле" --save /tmp/recipe-suggest.dinner.json
+pnpm --filter api suggest:smoke -- --slots breakfast
+pnpm --filter api suggest:smoke -- --slots lunch,dinner --times 0-15,15-30 --tags batch
+pnpm --filter api suggest:smoke -- --slots dinner --hint "нещо с пиле" --save /tmp/recipe-suggest.dinner.json
 ```
 
 Скриптът (`apps/api/scripts/suggest-smoke.ts`) чете `OPENCLAW_*` от средата или от `.env` в корена (`OPENCLAW_URL` по подразбиране е `http://127.0.0.1:18789`), праща входа на контракта със seed продуктите като `ingredientNames` и празен регистър, и печата за всяко предложение заглавие, URL, „защо“, брой продукти и колко са `isNew`, а накрая общата продължителност. Логовете на клиента (опит, продължителност, `usage`) са на stderr; паролата не се печата никъде. Изход 1 = таймаут, HTTP грешка или два невалидни отговора; `--save` записва валидирания JSON, напр. за да замени ръчната фикстура `packages/shared/src/contracts/fixtures/recipe-suggest.valid.json`. Изходът за PR коментар се копира без първия ред от лога на тунела и без нищо от средата.

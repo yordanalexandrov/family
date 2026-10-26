@@ -25,10 +25,8 @@ export const suggestionKeys = {
 /** Входът на заявката, за „Опитай пак“ със същите параметри. */
 export function paramsOf(request: SuggestionRequest) {
   return {
-    slot: request.slot,
-    ...(request.maxMinutes === undefined
-      ? {}
-      : { maxMinutes: request.maxMinutes }),
+    slots: request.slots,
+    ...(request.times.length > 0 ? { times: request.times } : {}),
     ...(request.tags.length > 0 ? { tags: request.tags } : {}),
     ...(request.hint === undefined ? {} : { hint: request.hint }),
   };

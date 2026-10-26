@@ -82,8 +82,8 @@ export function createRecipeSuggestionsService({
     signal: AbortSignal,
   ): Promise<void> {
     const input: RecipeSuggestInput = {
-      slot: request.slot,
-      maxMinutes: request.maxMinutes,
+      slots: request.slots,
+      times: request.times.length > 0 ? request.times : undefined,
       tags: request.tags.length > 0 ? request.tags : undefined,
       hint: request.hint,
       existingRecipeTitles: await listActiveRecipeTitles(db),

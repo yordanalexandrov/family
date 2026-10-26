@@ -216,6 +216,61 @@ describe('GET /api/recipes', () => {
     expect(await listTitles('?tag=breakfast')).toEqual(['Мюсли', 'Палачинки']);
   });
 
+  it('several tags: any of the slots and all of the other tags', async () => {
+    await createdRecipe(
+      recipeInput({ title: 'Леща', tags: ['lunch', 'kid_friendly'] }),
+    );
+    await createdRecipe(
+      recipeInput({ title: 'Мусака', tags: ['dinner', 'kid_friendly'] }),
+    );
+    await createdRecipe(recipeInput({ title: 'Таратор', tags: ['lunch'] }));
+    await createdRecipe(
+      recipeInput({ title: 'Мюсли', tags: ['breakfast', 'kid_friendly'] }),
+    );
+    await createdRecipe(
+      recipeInput({
+        title: 'Кюфтета',
+        tags: ['dinner', 'kid_friendly', 'batch'],
+      }),
+    );
+
+    expect(await listTitles('?tag=lunch&tag=dinner')).toEqual([
+      'Кюфтета',
+      'Леща',
+      'Мусака',
+      'Таратор',
+    ]);
+    expect(await listTitles('?tag=lunch&tag=dinner&tag=kid_friendly')).toEqual([
+      'Кюфтета',
+      'Леща',
+      'Мусака',
+    ]);
+    expect(await listTitles('?tag=kid_friendly&tag=batch')).toEqual([
+      'Кюфтета',
+    ]);
+  });
+
+  it('keeps recipes whose prep time is in any of the intervals', async () => {
+    await createdRecipe(recipeInput({ title: 'Таратор', prepMinutes: 15 }));
+    await createdRecipe(recipeInput({ title: 'Омлет', prepMinutes: 16 }));
+    await createdRecipe(recipeInput({ title: 'Леща', prepMinutes: 40 }));
+    await createdRecipe(recipeInput({ title: 'Мусака', prepMinutes: 90 }));
+    await createdRecipe(recipeInput({ title: 'Без време' }));
+
+    expect(await listTitles('?time=0-15')).toEqual(['Таратор']);
+    expect(await listTitles('?time=0-15&time=30-45')).toEqual([
+      'Леща',
+      'Таратор',
+    ]);
+    expect(await listTitles('?time=60%2B')).toEqual(['Мусака']);
+    const invalid = await app.inject({
+      method: 'GET',
+      url: '/api/recipes?time=10-20',
+      headers,
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+
   it('hides archived recipes unless includeArchived=true', async () => {
     const old = await createdRecipe(recipeInput({ title: 'Стара рецепта' }));
     await createdRecipe(recipeInput({ title: 'Нова рецепта' }));

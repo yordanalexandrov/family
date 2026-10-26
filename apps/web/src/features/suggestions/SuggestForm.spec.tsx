@@ -26,16 +26,26 @@ function serveRequests() {
 }
 
 describe('SuggestForm', () => {
-  it('слот, време, таг и подсказка → правилното тяло и към заявката', async () => {
+  it('няколко слота, интервала и тага и подсказка → правилното тяло и към заявката', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const sent = serveRequests();
 
     renderApp('/recipes/suggest');
 
-    await user.click(await screen.findByRole('button', { name: 'Вечеря' }));
-    await user.click(screen.getByRole('button', { name: '30 мин' }));
+    await user.click(await screen.findByRole('button', { name: 'Обяд' }));
+    await user.click(screen.getByRole('button', { name: 'Вечеря' }));
+    await user.click(screen.getByRole('button', { name: 'до 15 мин' }));
+    await user.click(screen.getByRole('button', { name: '30–45 мин' }));
+    await user.click(screen.getByRole('button', { name: '45–60 мин' }));
+    // Второ натискане маха избора.
+    await user.click(screen.getByRole('button', { name: '45–60 мин' }));
     await user.click(screen.getByRole('button', { name: 'бързо' }));
+    await user.click(screen.getByRole('button', { name: 'подходящо за дете' }));
+    expect(screen.getByRole('button', { name: 'Обяд' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await user.type(
       screen.getByRole('textbox', { name: 'Подсказка' }),
       '  нещо с пиле ',
@@ -47,7 +57,12 @@ describe('SuggestForm', () => {
 
     expect(await screen.findByText(/Търся рецепти/)).toBeInTheDocument();
     expect(sent).toEqual([
-      { slot: 'dinner', maxMinutes: 30, tags: ['quick'], hint: 'нещо с пиле' },
+      {
+        slots: ['lunch', 'dinner'],
+        times: ['0-15', '30-45'],
+        tags: ['quick', 'kid_friendly'],
+        hint: 'нещо с пиле',
+      },
     ]);
   });
 
@@ -70,7 +85,7 @@ describe('SuggestForm', () => {
     await user.click(submit);
 
     await screen.findByText(/Търся рецепти/);
-    expect(sent).toEqual([{ slot: 'breakfast' }]);
+    expect(sent).toEqual([{ slots: ['breakfast'] }]);
   });
 
   it('под формата са последните заявки с линк към тях', async () => {

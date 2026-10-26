@@ -122,7 +122,12 @@ describe('SuggestionRequestView', () => {
       await screen.findByText('Търся рецепти… обикновено отнема до минута'),
     ).toBeInTheDocument();
     expect(sent).toEqual([
-      { slot: 'dinner', maxMinutes: 30, tags: ['quick'], hint: 'нещо с пиле' },
+      {
+        slots: ['dinner'],
+        times: ['15-30'],
+        tags: ['quick'],
+        hint: 'нещо с пиле',
+      },
     ]);
   });
 

@@ -6,6 +6,7 @@ export * from './dashboard/dedupe.js';
 export * from './dashboard/freshness.js';
 export * from './dashboard/time.js';
 export * from './food/aisles.js';
+export * from './food/prep-time.js';
 export * from './food/tags.js';
 export * from './food/units.js';
 export * from './menu/meal.js';

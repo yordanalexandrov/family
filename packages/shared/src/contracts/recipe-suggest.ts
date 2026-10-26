@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
 import {
   checkPinchQuantity,
@@ -15,8 +16,10 @@ import { hintSchema } from './hint.js';
 
 /** What the client asks for (GLOSSARY: Заявка за предложения). */
 export const recipeSuggestParamsSchema = z.object({
-  slot: slotSchema,
-  maxMinutes: z.int().positive().optional(),
+  /** Any of these slots; each suggestion is for at least one of them. */
+  slots: z.array(slotSchema).min(1),
+  /** Any of these intervals of prep time; none means any time. */
+  times: z.array(prepTimeRangeSchema).optional(),
   tags: z.array(tagSchema).optional(),
   hint: hintSchema.optional(),
 });

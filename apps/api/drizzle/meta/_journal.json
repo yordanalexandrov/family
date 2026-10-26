@@ -50,6 +50,20 @@
       "when": 1792995787620,
       "tag": "0006_shopping",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793028993686,
+      "tag": "0007_suggestion_slots_times",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793029006634,
+      "tag": "0008_suggestion_drop_slot",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import {
   HINT_MAX,
+  type PrepTimeRange,
   type RecipeSuggestParams,
   type Slot,
   slotSchema,
@@ -8,10 +9,9 @@ import {
 } from '@family/shared';
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
-import { TagChips } from '../recipes/TagChips';
+import { TagChips, TimeChips, toggled } from '../recipes/TagChips';
 import { slotLabel } from './messages';
 
-const MINUTES_OPTIONS = [15, 30, 45, 60] as const;
 /** Таговете без слотовете: слотът се избира отделно. */
 const EXTRA_TAGS = tagSchema.options.filter(
   (tag) => !(slotSchema.options as readonly string[]).includes(tag),
@@ -23,26 +23,26 @@ interface SuggestFormProps {
   submitError?: unknown;
 }
 
-/** Слот, максимално време, тагове и подсказка за `recipe.suggest`. */
+/** Слотове, интервали за време, тагове и подсказка за `recipe.suggest`; навсякъде може да са избрани няколко. */
 export function SuggestForm({
   onSubmit,
   isSubmitting = false,
   submitError,
 }: SuggestFormProps) {
-  const [slot, setSlot] = useState<Slot | undefined>();
-  const [maxMinutes, setMaxMinutes] = useState<number | undefined>();
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [times, setTimes] = useState<PrepTimeRange[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [hint, setHint] = useState('');
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!slot) {
+    if (slots.length === 0) {
       return;
     }
     const trimmed = hint.trim();
     onSubmit({
-      slot,
-      ...(maxMinutes === undefined ? {} : { maxMinutes }),
+      slots,
+      ...(times.length > 0 ? { times } : {}),
       ...(tags.length > 0 ? { tags } : {}),
       ...(trimmed ? { hint: trimmed } : {}),
     });
@@ -56,49 +56,27 @@ export function SuggestForm({
             key={option}
             type="button"
             className="suggest-form__slot"
-            aria-pressed={slot === option}
-            onClick={() => setSlot(option)}
+            aria-pressed={slots.includes(option)}
+            onClick={() => setSlots((current) => toggled(current, option))}
           >
             {slotLabel(option)}
           </button>
         ))}
       </fieldset>
 
-      <span className="field__label">Максимално време</span>
-      <fieldset className="chips" aria-label="Максимално време">
-        {MINUTES_OPTIONS.map((minutes) => (
-          <button
-            key={minutes}
-            type="button"
-            className="chip"
-            aria-pressed={maxMinutes === minutes}
-            onClick={() => setMaxMinutes(minutes)}
-          >
-            {minutes} мин
-          </button>
-        ))}
-        <button
-          type="button"
-          className="chip"
-          aria-pressed={maxMinutes === undefined}
-          onClick={() => setMaxMinutes(undefined)}
-        >
-          без
-        </button>
-      </fieldset>
+      <span className="field__label">Време</span>
+      <TimeChips
+        label="Време"
+        selected={times}
+        onToggle={(time) => setTimes((current) => toggled(current, time))}
+      />
 
       <span className="field__label">Тагове</span>
       <TagChips
         label="Тагове"
         options={EXTRA_TAGS}
         selected={tags}
-        onToggle={(tag) =>
-          setTags((current) =>
-            current.includes(tag)
-              ? current.filter((t) => t !== tag)
-              : [...current, tag],
-          )
-        }
+        onToggle={(tag) => setTags((current) => toggled(current, tag))}
       />
 
       <div className="field">
@@ -121,7 +99,11 @@ export function SuggestForm({
       {submitError !== undefined && submitError !== null && (
         <ErrorBox error={submitError} />
       )}
-      <button type="submit" className="button" disabled={!slot || isSubmitting}>
+      <button
+        type="submit"
+        className="button"
+        disabled={slots.length === 0 || isSubmitting}
+      >
         Поискай предложения
       </button>
     </form>

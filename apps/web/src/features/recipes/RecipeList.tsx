@@ -1,11 +1,11 @@
-import { TAG_LABELS_BG, type Tag } from '@family/shared';
+import { type PrepTimeRange, TAG_LABELS_BG, type Tag } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatMinutes } from './format';
 import { useRecipes } from './queries';
-import { TagChips } from './TagChips';
+import { TagChips, TimeChips, toggled } from './TagChips';
 import { useDebouncedValue } from './useDebouncedValue';
 import './recipes.css';
 
@@ -13,12 +13,14 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 export function RecipeList() {
   const [search, setSearch] = useState('');
-  const [tag, setTag] = useState<Tag | undefined>();
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [times, setTimes] = useState<PrepTimeRange[]>([]);
   const [includeArchived, setIncludeArchived] = useState(false);
   const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
   const recipes = useRecipes({
     ...(q ? { q } : {}),
-    ...(tag ? { tag } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
+    ...(times.length > 0 ? { times } : {}),
     includeArchived,
   });
 
@@ -48,8 +50,13 @@ export function RecipeList() {
         />
         <TagChips
           label="Таг"
-          selected={tag ? [tag] : []}
-          onToggle={(next) => setTag(next === tag ? undefined : next)}
+          selected={tags}
+          onToggle={(tag) => setTags((current) => toggled(current, tag))}
+        />
+        <TimeChips
+          label="Време"
+          selected={times}
+          onToggle={(time) => setTimes((current) => toggled(current, time))}
         />
         <label className="checkbox">
           <input

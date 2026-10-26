@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { tagSchema } from '../food/tags.js';
 import {
   checkPinchQuantity,
@@ -83,10 +84,23 @@ export const recipeSummarySchema = recipeSchema.pick({
 
 export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
 
-/** `GET /api/recipes`: `q` matches anywhere in the title ignoring case, `tag` keeps recipes with that tag. */
+/** A query parameter that may repeat (`?tag=lunch&tag=dinner`): one value arrives as a string, several as an array. */
+function repeated<T extends z.ZodType>(item: T) {
+  return z.preprocess(
+    (value) => (value === undefined || Array.isArray(value) ? value : [value]),
+    z.array(item).default([]),
+  );
+}
+
+/**
+ * `GET /api/recipes`: `q` matches anywhere in the title ignoring case. `tag` repeats: slot tags match any of them
+ * (обяд или вечеря), the other tags all of them. `time` repeats: recipes whose prep time is in any of the intervals
+ * (a recipe without a time does not match).
+ */
 export const recipesQuerySchema = z.object({
   q: z.string().trim().optional(),
-  tag: tagSchema.optional(),
+  tag: repeated(tagSchema),
+  time: repeated(prepTimeRangeSchema),
   includeArchived: z.stringbool().default(false),
 });
 

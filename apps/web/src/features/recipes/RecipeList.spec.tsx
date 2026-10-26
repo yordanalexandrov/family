@@ -49,6 +49,35 @@ describe('RecipeList', () => {
     expect(queries[0]?.has('tag')).toBe(false);
   });
 
+  it('няколко тага и интервала за време влизат в query-то; второ натискане маха избора', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const queries = serveRecipes();
+
+    renderApp('/recipes');
+    await screen.findByRole('link', { name: /Омлет/ });
+    for (const name of [
+      'обяд',
+      'вечеря',
+      'подходящо за дете',
+      'до 15 мин',
+      '30–45 мин',
+      'над 60 мин',
+    ]) {
+      await user.click(screen.getByRole('button', { name }));
+    }
+    await user.click(screen.getByRole('button', { name: 'над 60 мин' }));
+
+    await expect
+      .poll(() => queries.at(-1)?.getAll('tag'))
+      .toEqual(['lunch', 'dinner', 'kid_friendly']);
+    expect(queries.at(-1)?.getAll('time')).toEqual(['0-15', '30-45']);
+    expect(screen.getByRole('button', { name: 'над 60 мин' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
   it('търсенето праща q, а „покажи архивираните“ праща includeArchived', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
