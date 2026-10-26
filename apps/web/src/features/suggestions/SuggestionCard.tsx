@@ -1,6 +1,11 @@
-import { type RecipeSuggestion, TAG_LABELS_BG } from '@family/shared';
+import {
+  type RecipeSuggestion,
+  type Suggestion,
+  TAG_LABELS_BG,
+} from '@family/shared';
 import { Link } from '@tanstack/react-router';
-import { useId } from 'react';
+import { useId, useState } from 'react';
+import { formatQuantity } from '../../lib/format';
 import { formatMinutes, productCount, sourceDomain } from '../recipes/format';
 
 /** Едно предложение в резултатите: отхвърлените са избледнели, одобрените водят към рецептата. */
@@ -10,6 +15,8 @@ export function SuggestionCard({
   suggestion: RecipeSuggestion;
 }) {
   const titleId = useId();
+  const previewId = useId();
+  const [previewOpen, setPreviewOpen] = useState(false);
   const { payload, status } = suggestion;
   const newCount = payload.ingredients.filter((i) => i.isNew).length;
   return (
@@ -37,6 +44,15 @@ export function SuggestionCard({
         )}
       </p>
       <div className="recipes__actions">
+        <button
+          type="button"
+          className="button button--quiet"
+          aria-expanded={previewOpen}
+          aria-controls={previewId}
+          onClick={() => setPreviewOpen((open) => !open)}
+        >
+          Съставки и стъпки
+        </button>
         {status === 'proposed' && (
           <Link
             to="/recipes/suggest/$requestId/$suggestionId"
@@ -65,6 +81,50 @@ export function SuggestionCard({
           </>
         )}
       </div>
+      <div id={previewId} hidden={!previewOpen}>
+        {previewOpen && <SuggestionPreview suggestion={payload} />}
+      </div>
     </article>
+  );
+}
+
+/** Бърз преглед само за четене: продуктите и стъпките, за да се прецени дали предложението си струва. */
+function SuggestionPreview({ suggestion }: { suggestion: Suggestion }) {
+  const ingredientsId = useId();
+  const stepsId = useId();
+  return (
+    <div className="suggestion-preview">
+      <h3 className="suggestion-preview__title" id={ingredientsId}>
+        Продукти
+      </h3>
+      <ul className="suggestion-preview__lines" aria-labelledby={ingredientsId}>
+        {suggestion.ingredients.map((line) => (
+          <li key={line.name} className="suggestion-preview__line">
+            <span>{line.name}</span>{' '}
+            <span className="suggestion-preview__quantity">
+              {formatQuantity(line)}
+            </span>
+            {line.isNew && (
+              <>
+                {' '}
+                <span className="suggestion-card__new">нов</span>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      <h3 className="suggestion-preview__title" id={stepsId}>
+        Стъпки
+      </h3>
+      <ol
+        className="recipe-view__steps suggestion-preview__steps"
+        aria-labelledby={stepsId}
+      >
+        {suggestion.steps.map((step, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id, а редът им е смисълът.
+          <li key={index}>{step}</li>
+        ))}
+      </ol>
+    </div>
   );
 }
