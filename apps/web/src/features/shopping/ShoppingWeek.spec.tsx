@@ -33,7 +33,35 @@ describe('ShoppingWeek', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+    delete document.documentElement.dataset.theme;
   });
+
+  // Без layout в jsdom: вариантите проверяват, че екранът се показва цял с всяка тема и ширина; вида — скрийншоти.
+  it.each([
+    { theme: 'light', device: 'телефон', width: 390 },
+    { theme: 'dark', device: 'телефон', width: 390 },
+    { theme: 'light', device: 'таблет', width: 1024 },
+    { theme: 'dark', device: 'таблет', width: 1024 },
+  ])(
+    '$theme тема, $device ($width px): списъкът се показва',
+    async ({ theme, width }) => {
+      localStorage.setItem('family.theme', theme);
+      vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(width);
+      serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+
+      expect(await screen.findByText('5 от 6')).toBeInTheDocument();
+      expect(document.documentElement.dataset.theme).toBe(theme);
+      expect(
+        screen.getByRole('region', { name: 'Плод и зеленчук' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('checkbox', { name: 'Кафе' }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it('седмица без меню: „Няма меню за тази седмица“ с линк към менюто', async () => {
     serveShopping();
