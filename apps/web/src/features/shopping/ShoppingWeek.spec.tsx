@@ -316,7 +316,8 @@ describe('ShoppingWeek', () => {
     });
     const labels = within(nav)
       .getAllByRole('link')
-      .map((link) => link.textContent);
+      // Без надпис връзката носи името си в aria-label.
+      .map((link) => link.getAttribute('aria-label') ?? link.textContent);
     expect(
       labels.slice(labels.indexOf('Меню'), labels.indexOf('Меню') + 2),
     ).toEqual(['Меню', 'Пазаруване']);
