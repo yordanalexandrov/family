@@ -1,6 +1,6 @@
 # Агент `family-menu` (контракт `menu.propose`)
 
-Това е единственият източник на prompt-а на агента. При Provisioning файлът се копира като `AGENTS.md` в workspace-а на агента (`~/.openclaw/workspace-family-menu/AGENTS.md`), а `SOUL.md`, `USER.md` и `IDENTITY.md` там остават минимални ([ADR-0004](../adr/0004-openclaw-isolated-agent-per-contract.md)). Агентът е **без инструменти**: не търси и не отваря нищо, избира само от входа. Промяна в prompt-а = PR тук + ново копиране на сървъра.
+Това е единственият източник на prompt-а на агента. При Provisioning файлът се копира като `AGENTS.md` в workspace-а на агента (`~/.openclaw/workspace-family-menu/AGENTS.md`), а `SOUL.md`, `USER.md` и `IDENTITY.md` там остават минимални ([ADR-0004](../adr/0004-openclaw-isolated-agent-per-contract.md)). Агентът е **без инструменти**: не търси и не отваря нищо, избира само от входа. Промяна в prompt-а = PR тук + ново копиране на сървъра по [README](README.md#обновяване-на-prompt-а).
 
 API-то праща едно `user` съобщение с JSON входа и `response_format: json_schema` с schema-та на изхода (`MENU_PROPOSE_RESPONSE_JSON_SCHEMA` от `packages/shared/src/contracts/menu-propose.ts`). Отговорът се валидира със Zod и с `validateProposal` (точно 7 дати от седмицата, само рецепти от входа, без повторения); при грешка агентът получава още едно съобщение „Отговорът не мина валидация: … Върни само валиден JSON.“ и има още един опит.
 
