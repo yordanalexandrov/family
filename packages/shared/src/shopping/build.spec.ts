@@ -7,7 +7,7 @@ import {
   type ShoppingItemRecord,
   shoppingListSchema,
 } from '../schemas/shopping.js';
-import { buildShoppingList } from './build.js';
+import { buildShoppingList, checkState, withCheck } from './build.js';
 
 const DANI = '00000000-0000-4000-8000-000000000001';
 const POLI = '00000000-0000-4000-8000-000000000002';
@@ -486,5 +486,84 @@ describe('buildShoppingList overlay', () => {
     );
 
     expect(shoppingListSchema.parse(list)).toEqual(list);
+  });
+});
+
+describe('withCheck', () => {
+  const breakfast = recipe('Закуска', 2, [
+    [MILK, 200, 'ml'],
+    [EGG, 2, 'pcs'],
+    [RICE, 100, 'g'],
+  ]);
+  const week = [meal('2026-10-26', breakfast)];
+  const milkKey = `${MILK.id}:ml`;
+  const riceKey = `${RICE.id}:g`;
+  const milkChecked = record(milkKey, {
+    checkedBy: DANI,
+    checkedAt: CHECKED_AT,
+  });
+  const riceHidden = record(riceKey, { hidden: true });
+
+  it.each([
+    {
+      name: 'a checked item drops to the end of its aisle',
+      records: [],
+      key: milkKey,
+      check: { checkedBy: POLI, checkedAt: CHECKED_AT },
+      dairy: ['яйце', 'прясно мляко'],
+      remaining: 2,
+    },
+    {
+      name: 'an unchecked item goes back to title order',
+      records: [milkChecked],
+      key: milkKey,
+      check: { checkedBy: null, checkedAt: null },
+      dairy: ['прясно мляко', 'яйце'],
+      remaining: 3,
+    },
+    {
+      name: 'a hidden item stays hidden and does not count',
+      records: [riceHidden],
+      key: riceKey,
+      check: { checkedBy: POLI, checkedAt: CHECKED_AT },
+      dairy: ['прясно мляко', 'яйце'],
+      remaining: 2,
+    },
+    {
+      name: 'an unknown key changes nothing',
+      records: [milkChecked],
+      key: `${BREAD.id}:pcs`,
+      check: { checkedBy: POLI, checkedAt: CHECKED_AT },
+      dairy: ['яйце', 'прясно мляко'],
+      remaining: 2,
+    },
+  ])('$name', ({ records, key, check, dairy, remaining }) => {
+    const before = build(week, [breakfast], records);
+
+    const after = withCheck(before, key, check);
+
+    expect(
+      after.aisles
+        .find(({ aisle }) => aisle === 'dairy')
+        ?.items.map(({ title }) => title),
+    ).toEqual(dairy);
+    expect(after.remaining).toBe(remaining);
+    expect(after.total).toBe(before.total);
+    const item = [
+      ...after.aisles.flatMap(({ items }) => items),
+      ...after.hidden,
+    ].find((row) => row.key === key);
+    if (item) {
+      expect(item).toMatchObject(check);
+    }
+  });
+});
+
+describe('checkState', () => {
+  it.each([
+    { checked: true, expected: { checkedBy: DANI, checkedAt: CHECKED_AT } },
+    { checked: false, expected: { checkedBy: null, checkedAt: null } },
+  ])('checked: $checked', ({ checked, expected }) => {
+    expect(checkState(checked, DANI, CHECKED_AT)).toEqual(expected);
   });
 });

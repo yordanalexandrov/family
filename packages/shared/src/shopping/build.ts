@@ -98,6 +98,20 @@ export function buildShoppingList({
 }
 
 /**
+ * A check (GLOSSARY: Отметка) as an item's `checkedBy`/`checkedAt`: who and when for a checked item, both `null` for
+ * an unchecked one. `at` is an ISO string in the list and a `Date` in the database.
+ */
+export function checkState<At>(
+  checked: boolean,
+  by: string | null,
+  at: At,
+): { checkedBy: string | null; checkedAt: At | null } {
+  return checked
+    ? { checkedBy: by, checkedAt: at }
+    : { checkedBy: null, checkedAt: null };
+}
+
+/**
  * The list with one item checked (`checkedBy` set) or unchecked (`null`), ordered as `buildShoppingList` orders it:
  * the item moves to the end of its aisle or back, `remaining` is recounted. An unknown key leaves the list as is.
  * The PWA applies an offline check with it before the api has seen it.

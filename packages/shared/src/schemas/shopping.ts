@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { aisleSchema } from '../food/aisles.js';
-import { quantitySchema, unitSchema } from '../food/units.js';
+import { type Aisle, aisleSchema } from '../food/aisles.js';
+import { quantitySchema, type Unit, unitSchema } from '../food/units.js';
 import { dateKeySchema, instantSchema } from './dates.js';
 import { weekStartSchema } from './menu.js';
 
@@ -65,8 +65,8 @@ export interface ShoppingItemRecord {
   kind: ShoppingItemKind;
   title: string | null;
   quantity: number | null;
-  unit: z.infer<typeof unitSchema> | null;
-  aisle: z.infer<typeof aisleSchema> | null;
+  unit: Unit | null;
+  aisle: Aisle | null;
   hidden: boolean;
   checkedBy: string | null;
   /** ISO 8601 instant. */
