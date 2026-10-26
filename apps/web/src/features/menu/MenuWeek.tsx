@@ -38,14 +38,18 @@ export interface MenuSearch {
   proposal?: string;
 }
 
+/**
+ * Невалидният параметър става изрично `undefined`: router-ът слива резултата върху суровия search на root route-а,
+ * така че изпуснат ключ би оставил суровата стойност.
+ */
 export function parseMenuSearch(search: Record<string, unknown>): MenuSearch {
   const week = weekStartSchema.safeParse(search.week);
   const proposal = menuProposalRequestSchema.shape.id.safeParse(
     search.proposal,
   );
   return {
-    ...(week.success ? { week: week.data } : {}),
-    ...(proposal.success ? { proposal: proposal.data } : {}),
+    week: week.success ? week.data : undefined,
+    proposal: proposal.success ? proposal.data : undefined,
   };
 }
 
