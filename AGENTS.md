@@ -17,6 +17,10 @@ This repo is public. Never put secrets, tokens, Cloudflare AUD/team domain, e-ma
 
 Implementing a ticket in its own worktree (e.g. an `/implement-spec` implementer): follow `docs/agents/worktrees.md`.
 
+## Writing tickets
+
+Splitting a spec into tickets (e.g. `/to-tickets`): follow `docs/agents/tickets.md`.
+
 ## Agent skills
 
 ### Issue tracker
