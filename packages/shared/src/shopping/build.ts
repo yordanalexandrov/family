@@ -97,6 +97,27 @@ export function buildShoppingList({
   };
 }
 
+/**
+ * The list with one item checked (`checkedBy` set) or unchecked (`null`), ordered as `buildShoppingList` orders it:
+ * the item moves to the end of its aisle or back, `remaining` is recounted. An unknown key leaves the list as is.
+ * The PWA applies an offline check with it before the api has seen it.
+ */
+export function withCheck(
+  list: ShoppingList,
+  key: string,
+  check: Pick<ShoppingItem, 'checkedBy' | 'checkedAt'>,
+): ShoppingList {
+  const apply = (item: ShoppingItem) =>
+    item.key === key ? { ...item, ...check } : item;
+  const visible = list.aisles.flatMap(({ items }) => items).map(apply);
+  return {
+    ...list,
+    aisles: byAisle(visible),
+    hidden: list.hidden.map(apply),
+    remaining: visible.filter((item) => item.checkedBy === null).length,
+  };
+}
+
 /** A manual item (GLOSSARY: Ръчен ред) as written; without an aisle it is in `other`. */
 function toManualItem(record: ShoppingItemRecord): ShoppingItem {
   return {
