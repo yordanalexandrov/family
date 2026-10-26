@@ -6,11 +6,13 @@ import { servingsSchema } from './menu.js';
 import { syncStatusSchema } from './sync.js';
 
 /**
- * „Днес се готви“ for one slot: the recipe title (or the note of the meal), who cooks it (`null` when nobody is set)
- * and the servings per user. `servings` is optional so a client keeps reading a server from before Меню 4.
+ * „Днес се готви“ for one slot: the recipe title (or the note of the meal), the recipe (`null` for a note), who cooks it
+ * (`null` when nobody is set) and the servings per user. `recipeId` and `servings` are optional so a client keeps
+ * reading an older server.
  */
 export const cookingMealSchema = z.object({
   title: z.string(),
+  recipeId: z.uuid().nullable().optional(),
   cookUserId: z.uuid().nullable(),
   servings: servingsSchema.optional(),
 });

@@ -35,6 +35,8 @@ interface CoreProps {
   onSelectEvent?: (eventId: string) => void;
   /** kiosk, телефон: „Днес се готви“ води към менюто. */
   opensMenu?: boolean;
+  /** телефон: днешна рецепта в „Днес се готви“ води към рецептата вместо към менюто. */
+  opensRecipe?: boolean;
   /** kiosk: останалото ядро води към календара (връзка под съдържанието, по целия кръг). */
   opensCalendar?: boolean;
 }
@@ -50,6 +52,7 @@ export function Core({
   showHiddenCount = false,
   onSelectEvent,
   opensMenu = false,
+  opensRecipe = false,
   opensCalendar = false,
 }: CoreProps) {
   const { unconfigured, stale } = syncNotes(sync, now);
@@ -112,7 +115,11 @@ export function Core({
             )}
           </ul>
         )}
-        <TodayCooking dinner={cooking.dinner} opensMenu={opensMenu} />
+        <TodayCooking
+          dinner={cooking.dinner}
+          opensMenu={opensMenu}
+          opensRecipe={opensRecipe}
+        />
       </div>
     </Card>
   );

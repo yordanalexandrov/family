@@ -6,6 +6,7 @@ import {
   type UpdateMeal,
   type User,
 } from '@family/shared';
+import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -25,7 +26,7 @@ interface MealSheetProps {
   onClose: () => void;
 }
 
-/** Листът на едно ястие: рецепта, бележка, готвач и порции; всяко действие е отделен `PATCH`. */
+/** Листът на едно ястие: връзка към рецептата, рецепта, бележка, готвач и порции; всяко действие е отделен `PATCH`. */
 export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
   const day = formatDayLong(meal.date);
@@ -37,6 +38,17 @@ export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
   return (
     <Sheet title={day} onClose={onClose}>
       {update.isError && <ErrorBox error={update.error} />}
+      {meal.recipeId !== null && (
+        <div className="sheet__section">
+          <Link
+            to="/recipes/$id"
+            params={{ id: meal.recipeId }}
+            className="button button--quiet"
+          >
+            Към рецептата
+          </Link>
+        </div>
+      )}
       <RecipePicker meal={meal} plan={plan} onPick={patch} />
       <NoteField key={meal.note} meal={meal} onSave={patch} />
       <CookPicker meal={meal} users={users} onPick={patch} />

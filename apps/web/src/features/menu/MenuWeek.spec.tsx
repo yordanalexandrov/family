@@ -208,6 +208,38 @@ describe('MenuWeek', () => {
     expect(row).not.toHaveTextContent('Бързо за понеделник.');
   });
 
+  it('листът на ден с рецепта води към рецептата; празен ден — не', async () => {
+    const user = userEvent.setup();
+    const [chicken] = dinnerRecipes;
+    servePlans({
+      [thisWeek]: planFor(thisWeek, {
+        0: {
+          recipeId: chicken.id,
+          recipe: { title: chicken.title, archivedAt: null },
+        },
+      }),
+    });
+    serveDinnerRecipes();
+
+    renderApp('/menu');
+    await user.click(
+      await screen.findByRole('button', { name: /Пиле с ориз/ }),
+    );
+    expect(
+      within(
+        screen.getByRole('dialog', { name: 'понеделник, 2 ноември' }),
+      ).getByRole('link', { name: 'Към рецептата' }),
+    ).toHaveAttribute('href', `/recipes/${chicken.id}`);
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+
+    await user.click(screen.getByRole('button', { name: /вт/ }));
+    expect(
+      within(
+        screen.getByRole('dialog', { name: 'вторник, 3 ноември' }),
+      ).queryByRole('link', { name: 'Към рецептата' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('промяна на днешното ястие се вижда веднага в „Днес се готви“', async () => {
     const user = userEvent.setup();
     // Сряда, 4 ноември (`fixtureNow`) е третият ден от седмицата.
