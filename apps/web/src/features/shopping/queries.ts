@@ -9,11 +9,15 @@ import {
   setHiddenSchema,
   shoppingItemResponseSchema,
   shoppingListResponseSchema,
-  withCheck,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
+import {
+  ApiError,
+  apiFetch,
+  isConnectionError,
+  JSON_HEADERS,
+} from '../../api/client';
 import { readActingUserId } from '../../app/acting-user';
 import {
   applyQueuedChecks,
@@ -48,11 +52,6 @@ const listPath = (weekStart: DateKey) => `/shopping-lists/${weekStart}`;
 const itemPath = (weekStart: DateKey, key: string) =>
   `${listPath(weekStart)}/items/${encodeURIComponent(key)}`;
 
-/** Мрежова грешка или 5xx: същата заявка може да мине след малко; 4xx няма да мине. */
-function isConnectionError(error: unknown): boolean {
-  return !(error instanceof ApiError) || error.isServerError();
-}
-
 function isNoPlan(error: unknown): boolean {
   return (
     error instanceof ApiError &&
@@ -67,7 +66,9 @@ function sendCheck(entry: QueuedCheck) {
     shoppingItemResponseSchema,
     {
       method: 'PUT',
-      headers: JSON_HEADERS,
+      headers: entry.actingUser
+        ? { ...JSON_HEADERS, 'X-Acting-User': entry.actingUser }
+        : JSON_HEADERS,
       body: JSON.stringify(setCheckedSchema.parse({ checked: entry.checked })),
     },
   );
@@ -103,7 +104,7 @@ async function fetchShoppingWeek(
   const queue = await queuedChecks(weekStart);
   return {
     kind: 'list',
-    list: applyQueuedChecks(list, queue, readActingUserId()),
+    list: applyQueuedChecks(list, queue),
     staleSince,
     pending: queue.length,
   };
@@ -123,30 +124,32 @@ export function useShoppingWeek(weekStart: DateKey) {
 }
 
 /**
- * Отметка/разотметка: веднага в списъка на екрана и в опашката; после списъкът се презарежда, което изпраща
- * опашката, ако има връзка.
+ * Отметка/разотметка: първо в опашката, после веднага в списъка на екрана; после списъкът се презарежда, което
+ * изпраща опашката, ако има връзка. Опашката е първа, за да не я пропусне презареждане, тръгнало междувременно.
  */
 export function useToggleCheck(weekStart: DateKey) {
   const queryClient = useQueryClient();
   return useCallback(
     async (item: ShoppingItem) => {
       const queryKey = shoppingKeys.list(weekStart);
-      const checked = item.checkedBy === null;
-      const at = new Date().toISOString();
+      const entry = {
+        weekStart,
+        key: item.key,
+        checked: item.checkedBy === null,
+        actingUser: readActingUserId(),
+        at: new Date().toISOString(),
+      };
+      await enqueueCheck(entry);
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<ShoppingWeekData>(queryKey, (data) =>
         data?.kind === 'list'
           ? {
               ...data,
-              list: withCheck(data.list, item.key, {
-                checkedBy: checked ? readActingUserId() : null,
-                checkedAt: checked ? at : null,
-              }),
+              list: applyQueuedChecks(data.list, [entry]),
               pending: data.pending + 1,
             }
           : data,
       );
-      await enqueueCheck({ weekStart, key: item.key, checked, at });
       await queryClient.invalidateQueries({ queryKey });
     },
     [queryClient, weekStart],

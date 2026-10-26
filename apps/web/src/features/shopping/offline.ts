@@ -1,11 +1,12 @@
 import {
+  checkState,
   type DateKey,
   type ShoppingList,
   shoppingListSchema,
   withCheck,
 } from '@family/shared';
 import { get, set, update } from 'idb-keyval';
-import { ApiError } from '../../api/client';
+import { ApiError, isConnectionError } from '../../api/client';
 import { logger } from '../../logger';
 
 /*
@@ -18,9 +19,13 @@ const QUEUE_KEY = 'family.shopping.queue';
 
 /** Отметка или разотметка, която чака връзка; изпраща се по реда си като `PUT …/checked`. */
 export interface QueuedCheck {
+  /** Отличава записа в опашката, за да се махне точно той. */
+  id: string;
   weekStart: DateKey;
   key: string;
   checked: boolean;
+  /** Действащият потребител, който я е направил; изпраща се като `X-Acting-User` и след смяна на потребителя. */
+  actingUser: string | null;
   /** Кога е направена (ISO); локално е `checkedAt`, докато api-то не запише своя. */
   at: string;
 }
@@ -78,22 +83,25 @@ export async function queuedChecks(weekStart: DateKey): Promise<QueuedCheck[]> {
   return (await readQueue()).filter((entry) => entry.weekStart === weekStart);
 }
 
-export async function enqueueCheck(entry: QueuedCheck): Promise<void> {
-  await update<QueuedCheck[]>(QUEUE_KEY, (queue = []) => [...queue, entry]);
+export async function enqueueCheck(
+  entry: Omit<QueuedCheck, 'id'>,
+): Promise<void> {
+  const queued = { ...entry, id: crypto.randomUUID() };
+  await update<QueuedCheck[]>(QUEUE_KEY, (queue = []) => [...queue, queued]);
 }
 
-/** Чакащите отметки върху списъка, по реда им; ключ, който вече го няма, се пропуска. */
+/** Чакащите отметки върху списъка, по реда им, всяка от името на този, който я е направил. */
 export function applyQueuedChecks(
   list: ShoppingList,
-  queue: QueuedCheck[],
-  actingUserId: string | null,
+  queue: Omit<QueuedCheck, 'id'>[],
 ): ShoppingList {
   return queue.reduce(
     (current, entry) =>
-      withCheck(current, entry.key, {
-        checkedBy: entry.checked ? actingUserId : null,
-        checkedAt: entry.checked ? entry.at : null,
-      }),
+      withCheck(
+        current,
+        entry.key,
+        checkState(entry.checked, entry.actingUser, entry.at),
+      ),
     list,
   );
 }
@@ -102,48 +110,70 @@ export function applyQueuedChecks(
 let flushing: Promise<number> = Promise.resolve(0);
 
 /**
- * Изпраща опашката по реда ѝ с `send`. Изпратеното и непоправимото (4xx, напр. 404: редът вече не е в менюто)
- * се махат; мрежова грешка, 5xx или изтекла сесия спират изпращането и оставят останалото за следващия път.
- * Връща колко записа са махнати.
+ * Изпраща опашката по реда ѝ с `send`. Изпратеното и 404 (редът или менюто вече ги няма) се махат. Друг 4xx
+ * остава за следващия път, а по-късните отметки за същия ред чакат с него, за да не се разменя редът им. Мрежова
+ * грешка, 5xx или изтекла сесия спират изпращането и оставят всичко останало. Не хвърля: повреден IndexedDB само
+ * се логва, за да не пречи на четенето на списъка. Връща колко записа са махнати.
  */
 export function flushQueuedChecks(
   send: (entry: QueuedCheck) => Promise<unknown>,
 ): Promise<number> {
-  flushing = flushing.then(
-    () => sendAll(send),
-    () => sendAll(send),
-  );
+  const run = () =>
+    sendAll(send).catch((error: unknown) => {
+      logger.warn('Опашката с отметки не се изпрати', error);
+      return 0;
+    });
+  flushing = flushing.then(run, run);
   return flushing;
 }
+
+type Outcome = 'done' | 'retry_later' | 'stop';
 
 async function sendAll(
   send: (entry: QueuedCheck) => Promise<unknown>,
 ): Promise<number> {
   let removed = 0;
+  const waiting = new Set<string>();
+  const slot = (entry: QueuedCheck) => `${entry.weekStart}|${entry.key}`;
   for (;;) {
-    const [entry] = await readQueue();
+    const entry = (await readQueue()).find((e) => !waiting.has(slot(e)));
     if (!entry) {
       return removed;
     }
-    try {
-      await send(entry);
-    } catch (error) {
-      if (!isPermanent(error)) {
-        return removed;
-      }
-      logger.warn('Отметката е отхвърлена и се маха от опашката', error);
+    const outcome = await sendOne(send, entry);
+    if (outcome === 'stop') {
+      return removed;
     }
-    await update<QueuedCheck[]>(QUEUE_KEY, (queue = []) => queue.slice(1));
+    if (outcome === 'retry_later') {
+      waiting.add(slot(entry));
+      continue;
+    }
+    await update<QueuedCheck[]>(QUEUE_KEY, (queue = []) =>
+      queue.filter((e) => e.id !== entry.id),
+    );
     removed += 1;
   }
 }
 
-/** 4xx от api-то няма да мине и при следващ опит; изтеклата сесия ще мине след нов вход. */
-function isPermanent(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    !error.isServerError() &&
-    !error.isSessionExpired() &&
-    error.code !== 'http_error'
-  );
+async function sendOne(
+  send: (entry: QueuedCheck) => Promise<unknown>,
+  entry: QueuedCheck,
+): Promise<Outcome> {
+  try {
+    await send(entry);
+    return 'done';
+  } catch (error) {
+    if (
+      isConnectionError(error) ||
+      (error instanceof ApiError && error.isSessionExpired())
+    ) {
+      return 'stop';
+    }
+    if (error instanceof ApiError && error.status === 404) {
+      logger.warn('Редът вече го няма; отметката се маха от опашката', error);
+      return 'done';
+    }
+    logger.warn('Отметката е отхвърлена; остава за следващия път', error);
+    return 'retry_later';
+  }
 }

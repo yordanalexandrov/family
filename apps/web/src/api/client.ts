@@ -60,6 +60,14 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Няма връзка с api-то: fetch е паднал без отговор или отговорът е 5xx. Същата заявка може да мине след малко;
+ * 4xx или изтекла сесия — не, без промяна.
+ */
+export function isConnectionError(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.isServerError();
+}
+
 /** Headers of a request with a JSON body. */
 export const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
@@ -71,8 +79,9 @@ export async function apiFetch<T>(
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   // Само телефонът има действащ потребител; на kiosk/TV останал запис не се праща.
+  // Изрично подаден (напр. отметка от опашката, направена от друг) има предимство.
   const actingUserId = readDeviceMode() === 'phone' ? readActingUserId() : null;
-  if (actingUserId) {
+  if (actingUserId && !headers.has('X-Acting-User')) {
     headers.set('X-Acting-User', actingUserId);
   }
 
