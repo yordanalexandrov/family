@@ -1,5 +1,5 @@
 /* Екраните на регистъра рецепти: телефон (една колона) и таблет (две). Докосване ≥ 44 px (2.75rem). */
-.recipes {
+.screen.recipes {
   align-items: stretch;
   justify-content: flex-start;
   gap: var(--space-4);
