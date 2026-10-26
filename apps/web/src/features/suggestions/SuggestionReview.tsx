@@ -162,14 +162,8 @@ function Review({ suggestion }: { suggestion: RecipeSuggestion }) {
           onSubmit={(input) =>
             approve.mutate(
               { id: suggestion.id, input },
-              {
-                onSuccess({ recipe }) {
-                  void navigate({
-                    to: '/recipes/$id',
-                    params: { id: recipe.id },
-                  });
-                },
-              },
+              // Обратно към заявката: там са и другите предложения, а одобреното води към рецептата.
+              { onSuccess: backToRequest },
             )
           }
           onCancel={backToRequest}
