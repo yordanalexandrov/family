@@ -805,7 +805,7 @@ describe('cooking.dinner in GET /api/dashboard', () => {
     return response.json().cooking;
   }
 
-  it('is today’s recipe and its cook', async () => {
+  it('is today’s recipe, its id and its cook', async () => {
     const plan = await createPlan(WEEK);
     await patchMeal(plan.meals[1].id, {
       recipeId: recipeId(2),
@@ -816,6 +816,7 @@ describe('cooking.dinner in GET /api/dashboard', () => {
       lunch: null,
       dinner: {
         title: 'Леща яхния',
+        recipeId: recipeId(2),
         cookUserId: POLI.id,
         servings: { [DANI.id]: 1, [POLI.id]: 1 },
       },
@@ -843,6 +844,7 @@ describe('cooking.dinner in GET /api/dashboard', () => {
       lunch: null,
       dinner: {
         title: 'ядем навън',
+        recipeId: null,
         cookUserId: null,
         servings: { [DANI.id]: 1, [POLI.id]: 1 },
       },

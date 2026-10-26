@@ -137,7 +137,24 @@ describe('DashboardScreen', () => {
       expect(row.queryByText(/порци/)).not.toBeInTheDocument();
     });
 
-    it('докосване на „Днес се готви“ отваря менюто', async () => {
+    it('днешна рецепта → „Днес се готви“ води към рецептата', async () => {
+      const recipeId = 'bbbbbbbb-0000-4000-8000-000000000001';
+      respondWith(
+        dashboardWith({
+          cooking: {
+            lunch: null,
+            dinner: { title: 'Мусака', recipeId, cookUserId: null },
+          },
+        }),
+      );
+      renderApp('/');
+
+      expect(
+        (await core()).getByRole('link', { name: /Днес се готви/ }),
+      ).toHaveAttribute('href', `/recipes/${recipeId}`);
+    });
+
+    it('без рецепта докосване на „Днес се готви“ отваря менюто', async () => {
       const user = userEvent.setup();
       const { router } = renderApp('/');
 

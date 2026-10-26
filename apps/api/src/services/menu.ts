@@ -299,7 +299,7 @@ export function createMenuService({
 }
 
 /**
- * „Днес се готви“ for `date` (a day in Sofia): the recipe title, or else the note, of that day's dinner, with its cook.
+ * „Днес се готви“ for `date` (a day in Sofia): the recipe title and id, or else the note, of that day's dinner, with its cook.
  * `null` without a plan for the day or for an empty meal. Lunch is not planned in phase 1.
  */
 export async function readCooking(
@@ -312,7 +312,12 @@ export async function readCooking(
     lunch: null,
     dinner:
       dinner && title
-        ? { title, cookUserId: dinner.cookUserId, servings: dinner.servings }
+        ? {
+            title,
+            recipeId: dinner.recipeId,
+            cookUserId: dinner.cookUserId,
+            servings: dinner.servings,
+          }
         : null,
   };
 }

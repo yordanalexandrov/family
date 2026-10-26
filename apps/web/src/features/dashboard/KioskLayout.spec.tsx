@@ -99,13 +99,17 @@ describe('KioskLayout', () => {
     expect(await region('Днес накратко')).toBeTruthy();
   });
 
-  it('докосване на „Днес се готви“ в ядрото отваря менюто, не календара', async () => {
+  it('докосване на „Днес се готви“ в ядрото отваря менюто, не календара, и с рецепта', async () => {
     const user = userEvent.setup();
     respondWith(
       dashboardWith({
         cooking: {
           lunch: null,
-          dinner: { title: 'Мусака', cookUserId: null },
+          dinner: {
+            title: 'Мусака',
+            recipeId: 'bbbbbbbb-0000-4000-8000-000000000001',
+            cookUserId: null,
+          },
         },
       }),
     );

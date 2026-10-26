@@ -100,6 +100,7 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
         sync={data.sync.calendar}
         onSelectEvent={selectTodayEvent}
         opensMenu
+        opensRecipe
       />
       <TodayList today={today} now={now} sync={data.sync.calendar} />
       <BudgetPanel budget={data.budget} now={now} sync={data.sync.budget} />

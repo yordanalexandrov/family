@@ -13,13 +13,19 @@ interface TodayCookingProps {
   dinner: CookingMeal | null;
   /** kiosk, телефон: докосване на реда отваря менюто на тази седмица. TV: само показва. */
   opensMenu?: boolean;
+  /** телефон: при днешна рецепта редът отваря нея вместо менюто. */
+  opensRecipe?: boolean;
 }
 
 /**
  * Редът „Днес се готви“ в ядрото: днешната вечеря от менюто (заглавието на
  * рецептата или бележката) и аватарът на готвача; без план — „Няма меню за днес“.
  */
-export function TodayCooking({ dinner, opensMenu = false }: TodayCookingProps) {
+export function TodayCooking({
+  dinner,
+  opensMenu = false,
+  opensRecipe = false,
+}: TodayCookingProps) {
   const users = useUsers();
   const cook = dinner?.cookUserId
     ? users.data?.find((user) => user.id === dinner.cookUserId)
@@ -38,7 +44,10 @@ export function TodayCooking({ dinner, opensMenu = false }: TodayCookingProps) {
       : null;
 
   return (
-    <Row opensMenu={opensMenu}>
+    <Row
+      opensMenu={opensMenu}
+      recipeId={opensRecipe ? (dinner?.recipeId ?? null) : null}
+    >
       <small>Днес се готви</small>
       {dinner ? (
         <span className="core__cooking-meal">
@@ -64,13 +73,26 @@ export function TodayCooking({ dinner, opensMenu = false }: TodayCookingProps) {
 
 function Row({
   opensMenu,
+  recipeId,
   children,
 }: {
   opensMenu: boolean;
+  recipeId: string | null;
   children: ReactNode;
 }) {
   if (!opensMenu) {
     return <div className="core__cooking">{children}</div>;
+  }
+  if (recipeId) {
+    return (
+      <Link
+        to="/recipes/$id"
+        params={{ id: recipeId }}
+        className="core__cooking core__cooking--link"
+      >
+        {children}
+      </Link>
+    );
   }
   // Екранът „Меню“ без параметри показва тази седмица.
   return (
