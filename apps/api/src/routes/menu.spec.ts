@@ -17,14 +17,12 @@ import {
   it,
 } from 'vitest';
 import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
-import { menuProposalRequest } from '../db/schema/menu.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
   openclaw,
-  TEST_OPENCLAW,
 } from '../test/openclaw.js';
 import { DANI, POLI } from '../test/users.js';
 
@@ -613,24 +611,6 @@ describe('POST /api/menu/proposals', () => {
     });
   });
 
-  it('retries once with the problems when the answer breaks the rules, then makes the plan', async () => {
-    const repeated = fixture();
-    repeated.days[0] = day('2026-11-02', recipeId(3));
-    repeated.days[1] = day('2026-11-03', recipeId(3));
-    const bodies = answerInTurn(
-      JSON.stringify(repeated),
-      JSON.stringify(fixture()),
-    );
-
-    const proposal = await propose({ weekStart: WEEK });
-
-    expect(await finished(proposal.id)).toMatchObject({ status: 'done' });
-    expect(bodies).toHaveLength(2);
-    const retry = bodies[1]?.messages.at(-1)?.content;
-    expect(retry).toContain('Отговорът не мина валидация');
-    expect(retry).toContain('вече е в седмицата');
-  });
-
   it('fails as invalid_output when the retry is invalid too, and makes no plan', async () => {
     const sixDays = fixture();
     sixDays.days.pop();
@@ -697,46 +677,6 @@ describe('POST /api/menu/proposals', () => {
     release();
     await finished(pending.id);
   });
-
-  it('answers 503 openclaw_unavailable when OpenClaw is not configured', async () => {
-    const disabled = buildTestApp({ openclaw: undefined, now: () => clock });
-    try {
-      const response = await inject(
-        'POST',
-        '/api/menu/proposals',
-        { weekStart: WEEK },
-        disabled,
-      );
-
-      expect(response.statusCode).toBe(503);
-      expect(response.json()).toMatchObject({ error: 'openclaw_unavailable' });
-    } finally {
-      await disabled.close();
-    }
-  });
-
-  it('fails as timeout when the agent does not answer in time', async () => {
-    const slow = buildTestApp({
-      openclaw: { ...TEST_OPENCLAW, timeoutMs: 100 },
-      now: () => clock,
-    });
-    openclaw.use(
-      http.post(CHAT_COMPLETIONS_URL, async () => {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        return HttpResponse.json(completion(JSON.stringify(fixture())));
-      }),
-    );
-    try {
-      const proposal = await propose({ weekStart: WEEK }, slow);
-
-      expect(await finished(proposal.id, slow)).toMatchObject({
-        status: 'failed',
-        error: 'timeout',
-      });
-    } finally {
-      await slow.close();
-    }
-  });
 });
 
 describe('GET /api/menu/proposals/:id', () => {
@@ -747,50 +687,6 @@ describe('GET /api/menu/proposals/:id', () => {
     );
 
     expect(response.statusCode).toBe(404);
-  });
-
-  it('fails pending proposals older than 10 minutes as stale at start, and leaves younger ones pending', async () => {
-    const [old, young] = await testDb()
-      .insert(menuProposalRequest)
-      .values([
-        {
-          weekStart: '2026-11-09',
-          requestedBy: DANI.id,
-          createdAt: new Date(Date.now() - 11 * 60 * 1000),
-        },
-        {
-          weekStart: '2026-11-16',
-          requestedBy: DANI.id,
-          createdAt: new Date(Date.now() - 60 * 1000),
-        },
-      ])
-      .returning({ id: menuProposalRequest.id });
-
-    const restarted = buildTestApp({ now: () => clock });
-    await restarted.ready();
-    try {
-      const stale = await inject(
-        'GET',
-        `/api/menu/proposals/${old?.id}`,
-        undefined,
-        restarted,
-      );
-      const pending = await inject(
-        'GET',
-        `/api/menu/proposals/${young?.id}`,
-        undefined,
-        restarted,
-      );
-
-      expect(stale.json().proposal).toMatchObject({
-        status: 'failed',
-        error: 'stale',
-        finishedAt: expect.any(String),
-      });
-      expect(pending.json().proposal.status).toBe('pending');
-    } finally {
-      await restarted.close();
-    }
   });
 });
 

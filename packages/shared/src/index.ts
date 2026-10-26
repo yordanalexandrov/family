@@ -3,6 +3,7 @@ export * from './contracts/failure.js';
 export * from './contracts/hint.js';
 export * from './contracts/menu-propose.js';
 export * from './contracts/recipe-suggest.js';
+export * from './contracts/request.js';
 export * from './dashboard/budget.js';
 export * from './dashboard/dedupe.js';
 export * from './dashboard/freshness.js';

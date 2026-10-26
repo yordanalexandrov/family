@@ -1,7 +1,5 @@
 import {
-  type ContractFailure,
-  type MenuProposalStatus,
-  menuProposalStatusSchema,
+  contractRequestStatusSchema,
   type Servings,
   type Slot,
   slotSchema,
@@ -19,7 +17,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { oneOf } from './checks.js';
-import { createdAt } from './columns.js';
+import { contractRequestColumns, createdAt } from './columns.js';
 import { recipe } from './food.js';
 import { user } from './user.js';
 
@@ -74,22 +72,11 @@ export const meal = pgTable(
 export const menuProposalRequest = pgTable(
   'menu_proposal_request',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    ...contractRequestColumns(),
     weekStart: date('week_start', { mode: 'string' }).notNull(),
-    hint: text('hint'),
-    status: text('status')
-      .$type<MenuProposalStatus>()
-      .notNull()
-      .default('pending'),
-    error: text('error').$type<ContractFailure>(),
-    requestedBy: uuid('requested_by')
-      .notNull()
-      .references(() => user.id),
     planId: uuid('plan_id').references(() => mealPlan.id, {
       onDelete: 'set null',
     }),
-    createdAt: createdAt(),
-    finishedAt: timestamp('finished_at', { withTimezone: true }),
   },
   (t) => [
     uniqueIndex('menu_proposal_request_pending_week_key')
@@ -97,7 +84,7 @@ export const menuProposalRequest = pgTable(
       .where(sql`${t.status} = 'pending'`),
     check(
       'menu_proposal_request_status_check',
-      oneOf(t.status, menuProposalStatusSchema.options),
+      oneOf(t.status, contractRequestStatusSchema.options),
     ),
   ],
 );

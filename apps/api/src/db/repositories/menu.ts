@@ -1,5 +1,4 @@
 import type {
-  ContractFailure,
   Meal,
   MealPlan,
   MealPlanSummary,
@@ -7,16 +6,7 @@ import type {
   Servings,
   Slot,
 } from '@family/shared';
-import {
-  and,
-  asc,
-  between,
-  eq,
-  inArray,
-  isNotNull,
-  lt,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, between, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe } from '../schema/food.js';
 import { meal, mealPlan, menuProposalRequest } from '../schema/menu.js';
@@ -286,40 +276,14 @@ export async function hasPendingProposal(
   return row !== undefined;
 }
 
-/** `done` with the plan it made, or `failed` with a short error code; sets `finished_at`. */
-export async function finishProposal(
+/** The plan a `done` proposal made. */
+export async function setProposalPlan(
   db: DbExecutor,
   id: string,
-  outcome:
-    | { status: 'done'; planId: string }
-    | { status: 'failed'; error: ContractFailure },
+  planId: string,
 ): Promise<void> {
   await db
     .update(menuProposalRequest)
-    .set({
-      status: outcome.status,
-      planId: outcome.status === 'done' ? outcome.planId : null,
-      error: outcome.status === 'failed' ? outcome.error : null,
-      finishedAt: new Date(),
-    })
+    .set({ planId })
     .where(eq(menuProposalRequest.id, id));
-}
-
-/** Proposals still `pending` that were created before `cutoff` become `failed` with `error`; returns how many. */
-export async function failPendingProposalsBefore(
-  db: DbExecutor,
-  cutoff: Date,
-  error: ContractFailure,
-): Promise<number> {
-  const rows = await db
-    .update(menuProposalRequest)
-    .set({ status: 'failed', error, finishedAt: new Date() })
-    .where(
-      and(
-        eq(menuProposalRequest.status, 'pending'),
-        lt(menuProposalRequest.createdAt, cutoff),
-      ),
-    )
-    .returning({ id: menuProposalRequest.id });
-  return rows.length;
 }

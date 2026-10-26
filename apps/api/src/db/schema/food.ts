@@ -3,7 +3,7 @@ import {
   aisleSchema,
   type BaseUnit,
   baseUnitSchema,
-  type ContractFailure,
+  contractRequestStatusSchema,
   type Nutrition,
   type PrepTimeRange,
   prepTimeRangeSchema,
@@ -11,9 +11,7 @@ import {
   recipeSuggestionStatusSchema,
   type Slot,
   type Suggestion,
-  type SuggestionRequestStatus,
   slotSchema,
-  suggestionRequestStatusSchema,
   type Tag,
   tagSchema,
   type Unit,
@@ -33,7 +31,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { literals, oneOf } from './checks.js';
-import { createdAt } from './columns.js';
+import { contractRequestColumns, createdAt } from './columns.js';
 import { user } from './user.js';
 
 /** A generic ingredient (GLOSSARY: Продукт); the canonical name is unique ignoring case and outer spaces. */
@@ -112,7 +110,7 @@ export const recipeIngredient = pgTable(
 export const recipeSuggestionRequest = pgTable(
   'recipe_suggestion_request',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    ...contractRequestColumns(),
     slots: text('slots').array().$type<Slot[]>().notNull(),
     times: text('times')
       .array()
@@ -120,17 +118,6 @@ export const recipeSuggestionRequest = pgTable(
       .notNull()
       .default(sql`'{}'`),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
-    hint: text('hint'),
-    status: text('status')
-      .$type<SuggestionRequestStatus>()
-      .notNull()
-      .default('pending'),
-    error: text('error').$type<ContractFailure>(),
-    requestedBy: uuid('requested_by')
-      .notNull()
-      .references(() => user.id),
-    createdAt: createdAt(),
-    finishedAt: timestamp('finished_at', { withTimezone: true }),
   },
   (t) => [
     check(
@@ -143,7 +130,7 @@ export const recipeSuggestionRequest = pgTable(
     ),
     check(
       'recipe_suggestion_request_status_check',
-      oneOf(t.status, suggestionRequestStatusSchema.options),
+      oneOf(t.status, contractRequestStatusSchema.options),
     ),
     check(
       'recipe_suggestion_request_tags_check',

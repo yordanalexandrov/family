@@ -10,10 +10,8 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { recipeSuggestionRequest } from '../db/schema/food.js';
 import type { CloudflareAccessOptions } from '../plugins/cloudflare-access.js';
 import { buildTestApp } from '../test/app.js';
-import { testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -244,27 +242,6 @@ describe('without a gateway password', () => {
       );
     }
   });
-
-  it('answers 503 openclaw_unavailable in dev mode and stores no request', async () => {
-    const disabled = buildTestApp({
-      openclaw: { ...TEST_OPENCLAW, gatewayPassword: undefined },
-    });
-    await disabled.ready();
-    try {
-      const response = await postRequest({ slots: ['lunch'] }, disabled);
-
-      expect(response.statusCode).toBe(503);
-      expect(response.json()).toMatchObject({ error: 'openclaw_unavailable' });
-      const list = await disabled.inject({
-        method: 'GET',
-        url: '/api/recipe-suggestions/requests',
-        headers,
-      });
-      expect(list.json()).toEqual({ requests: [] });
-    } finally {
-      await disabled.close();
-    }
-  });
 });
 
 describe('POST /api/recipe-suggestions/requests validation', () => {
@@ -453,42 +430,5 @@ describe('POST /api/recipe-suggestions/:id/reject', () => {
       (await decide(suggestion.id, 'approve', await editedInput(suggestion)))
         .statusCode,
     ).toBe(409);
-  });
-});
-
-describe('at start', () => {
-  it('fails pending requests older than 10 minutes as stale, and leaves younger ones pending', async () => {
-    // Arrange as a restart leaves it: two runs that were in flight when the previous process ended.
-    const [old, young] = await testDb()
-      .insert(recipeSuggestionRequest)
-      .values([
-        {
-          slots: ['lunch'],
-          requestedBy: DANI.id,
-          createdAt: new Date(Date.now() - 11 * 60 * 1000),
-        },
-        {
-          slots: ['dinner'],
-          requestedBy: DANI.id,
-          createdAt: new Date(Date.now() - 60 * 1000),
-        },
-      ])
-      .returning({ id: recipeSuggestionRequest.id });
-
-    const restarted = buildTestApp();
-    await restarted.ready();
-    try {
-      const stale = await getRequest(old?.id ?? '', restarted);
-      const pending = await getRequest(young?.id ?? '', restarted);
-
-      expect(stale.json().request).toMatchObject({
-        status: 'failed',
-        error: 'stale',
-      });
-      expect(stale.json().request.finishedAt).toEqual(expect.any(String));
-      expect(pending.json().request.status).toBe('pending');
-    } finally {
-      await restarted.close();
-    }
   });
 });

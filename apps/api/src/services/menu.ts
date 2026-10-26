@@ -11,24 +11,21 @@ import {
   type MealPlanSummary,
   type MenuProposalRequest,
   type MenuProposeInput,
+  type MenuProposeOutput,
   type MenuSlot,
   mealTitle,
-  menuPropose,
   oneServingEach,
   type Servings,
   type UpdateMeal,
 } from '@family/shared';
-import type { FastifyBaseLogger } from 'fastify';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
   deletePlan,
-  failPendingProposalsBefore,
   findMeal,
   findMealOn,
   findPlanByWeek,
   findPlanSummary,
   findProposal,
-  finishProposal,
   hasPendingProposal,
   insertPlan,
   insertProposal,
@@ -36,6 +33,7 @@ import {
   listRecipeIdsOfWeeks,
   lockWeek,
   type NewMeal,
+  setProposalPlan,
   updateMeal,
 } from '../db/repositories/menu.js';
 import {
@@ -44,16 +42,15 @@ import {
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
 import { listUsers } from '../db/repositories/users.js';
-import {
-  createContractRuns,
-  type OpenClawAgent,
-  staleCutoff,
-} from './contract-runs.js';
+import { menuProposalRequest } from '../db/schema/menu.js';
+import type {
+  ContractRequestHandle,
+  ContractRequestStore,
+} from './contract-requests.js';
 import {
   ConflictError,
   InvalidReferenceError,
   NotFoundError,
-  OpenClawUnavailableError,
 } from './errors.js';
 
 /** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
@@ -81,50 +78,56 @@ export interface MenuService {
     actingUserId: string,
   ): Promise<MenuProposalRequest>;
   getProposal(id: string): Promise<MenuProposalRequest>;
-  /** At start: `pending` proposals older than 10 minutes were cut off by a restart and become `failed`/`stale`. */
-  failStaleProposals(): Promise<number>;
-  /** Aborts the runs still going (they end `failed`/`aborted`) and waits for them, before the pool closes. */
-  close(): Promise<void>;
+}
+
+/** `menu.propose` as AI requests (GLOSSARY: Предложение за меню), registered in `buildApp()`. */
+export type MenuProposals = ContractRequestHandle<
+  CreateMenuProposal,
+  MenuProposalRequest
+>;
+
+/** Run it in a transaction: holds the week's lock until the plan or the proposal is inserted. */
+async function refuseTakenWeek(
+  tx: DbExecutor,
+  weekStart: string,
+): Promise<void> {
+  await lockWeek(tx, weekStart);
+  if (await findPlanByWeek(tx, weekStart)) {
+    throw new ConflictError(WEEK_HAS_PLAN);
+  }
+  if (await hasPendingProposal(tx, weekStart)) {
+    throw new ConflictError(WEEK_HAS_PENDING);
+  }
 }
 
 /**
- * The weekly menu (GLOSSARY: Седмично меню, Ястие, Предложение за меню). Runs `menu.propose` in the api process, so it
- * keeps the runs in flight; created once in `buildApp()` as `app.menu`. `openclaw: null` = proposals are refused.
+ * How `menu.propose` requests are stored: refused without enough dinner recipes or for a taken week; the input is the
+ * dinner registry and the recipes of the 2 previous weeks; a valid answer becomes the week's plan.
  */
-export function createMenuService({
-  db,
-  openclaw,
-  log,
-  now,
-}: {
-  db: Db;
-  /** The agent that answers `menu.propose` (`OPENCLAW_MENU_AGENT`). */
-  openclaw: OpenClawAgent | null;
-  log: FastifyBaseLogger;
-  now: () => Date;
-}): MenuService {
-  const runs = createContractRuns(log);
+export const menuProposalStore: ContractRequestStore<
+  CreateMenuProposal,
+  MenuProposalRequest,
+  MenuProposeInput,
+  MenuProposeOutput
+> = {
+  table: menuProposalRequest,
 
-  /** Run it in a transaction: holds the week's lock until the plan or the proposal is inserted. */
-  async function refuseTakenWeek(
-    tx: DbExecutor,
-    weekStart: string,
-  ): Promise<void> {
-    await lockWeek(tx, weekStart);
-    if (await findPlanByWeek(tx, weekStart)) {
-      throw new ConflictError(WEEK_HAS_PLAN);
+  async insert(tx, params, requestedBy) {
+    const have = await countMenuRecipes(tx, DINNER);
+    if (have < MENU_PROPOSE_MIN_RECIPES) {
+      throw new ConflictError(
+        `За предложение трябват поне ${MENU_PROPOSE_MIN_RECIPES} вечерни рецепти`,
+        { code: 'not_enough_recipes', have, need: MENU_PROPOSE_MIN_RECIPES },
+      );
     }
-    if (await hasPendingProposal(tx, weekStart)) {
-      throw new ConflictError(WEEK_HAS_PENDING);
-    }
-  }
+    await refuseTakenWeek(tx, params.weekStart);
+    return insertProposal(tx, params, requestedBy);
+  },
 
-  async function runProposal(
-    { client, agent }: OpenClawAgent,
-    proposal: MenuProposalRequest,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const input: MenuProposeInput = {
+  find: findProposal,
+
+  async buildInput(db, proposal) {
+    return {
       weekStart: proposal.weekStart,
       slots: [...MENU_SLOTS],
       recipes: await listMenuRecipes(db, DINNER),
@@ -134,34 +137,42 @@ export function createMenuService({
       ]),
       hint: proposal.hint,
     };
-    const output = await client.complete(menuPropose, input, {
-      agent,
-      signal,
-    });
-    const servings = await defaultServings(db);
-    await db.transaction(async (tx) => {
-      const plan = await insertPlan(
-        tx,
-        {
-          weekStart: proposal.weekStart,
-          summary: output.summary,
-          createdBy: proposal.requestedBy,
-        },
-        output.days.map((day) => ({
-          date: day.date,
-          slot: day.slot,
-          recipeId: day.recipeId,
-          why: day.why,
-          servings,
-        })),
-      );
-      await finishProposal(tx, proposal.id, {
-        status: 'done',
-        planId: plan.id,
-      });
-    });
-  }
+  },
 
+  async onDone(tx, proposal, output) {
+    const servings = await defaultServings(tx);
+    const plan = await insertPlan(
+      tx,
+      {
+        weekStart: proposal.weekStart,
+        summary: output.summary,
+        createdBy: proposal.requestedBy,
+      },
+      output.days.map((day) => ({
+        date: day.date,
+        slot: day.slot,
+        recipeId: day.recipeId,
+        why: day.why,
+        servings,
+      })),
+    );
+    await setProposalPlan(tx, proposal.id, plan.id);
+  },
+};
+
+/**
+ * The weekly menu (GLOSSARY: Седмично меню, Ястие, Предложение за меню); created once in `buildApp()` as `app.menu`.
+ * Proposals go through `proposals`, the `menu.propose` requests registered with {@link menuProposalStore}.
+ */
+export function createMenuService({
+  db,
+  proposals,
+  now,
+}: {
+  db: Db;
+  proposals: MenuProposals;
+  now: () => Date;
+}): MenuService {
   return {
     async getPlan(weekStart) {
       const plan = await findPlanByWeek(db, weekStart);
@@ -243,49 +254,16 @@ export function createMenuService({
       });
     },
 
-    async requestProposal(params, actingUserId) {
-      const gateway = openclaw;
-      if (!gateway) {
-        throw new OpenClawUnavailableError(
-          'Предложенията не са достъпни: OpenClaw не е настроен',
-        );
-      }
-      const have = await countMenuRecipes(db, DINNER);
-      if (have < MENU_PROPOSE_MIN_RECIPES) {
-        throw new ConflictError(
-          `За предложение трябват поне ${MENU_PROPOSE_MIN_RECIPES} вечерни рецепти`,
-          { code: 'not_enough_recipes', have, need: MENU_PROPOSE_MIN_RECIPES },
-        );
-      }
-      const proposal = await db.transaction(async (tx) => {
-        await refuseTakenWeek(tx, params.weekStart);
-        return insertProposal(tx, params, actingUserId);
-      });
-      // The client polls GET …/proposals/:id.
-      runs.start({
-        contract: 'menu.propose',
-        logContext: { proposalId: proposal.id },
-        run: (signal) => runProposal(gateway, proposal, signal),
-        fail: (code) =>
-          finishProposal(db, proposal.id, { status: 'failed', error: code }),
-      });
-      return proposal;
+    requestProposal(params, actingUserId) {
+      return proposals.request(params, actingUserId);
     },
 
     async getProposal(id) {
-      const proposal = await findProposal(db, id);
+      const proposal = await proposals.get(id);
       if (!proposal) {
         throw new NotFoundError(NO_SUCH_PROPOSAL);
       }
       return proposal;
-    },
-
-    failStaleProposals() {
-      return failPendingProposalsBefore(db, staleCutoff(), 'stale');
-    },
-
-    close() {
-      return runs.close();
     },
   };
 }

@@ -1,19 +1,10 @@
 import { z } from 'zod';
 import { contractFailureSchema } from '../contracts/failure.js';
 import { suggestionSchema } from '../contracts/recipe-suggest.js';
+import { contractRequestStatusSchema } from '../contracts/request.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
 import { recipeSchema } from './recipe.js';
-
-export const suggestionRequestStatusSchema = z.enum([
-  'pending',
-  'done',
-  'failed',
-]);
-
-export type SuggestionRequestStatus = z.infer<
-  typeof suggestionRequestStatusSchema
->;
 
 /** One run of `recipe.suggest` by a user (GLOSSARY: Заявка за предложения). */
 export const suggestionRequestSchema = z.object({
@@ -22,7 +13,7 @@ export const suggestionRequestSchema = z.object({
   times: z.array(prepTimeRangeSchema),
   tags: z.array(tagSchema),
   hint: z.string().optional(),
-  status: suggestionRequestStatusSchema,
+  status: contractRequestStatusSchema,
   error: contractFailureSchema.optional(),
   requestedBy: z.uuid(),
   createdAt: z.iso.datetime(),

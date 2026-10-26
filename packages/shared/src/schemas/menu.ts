@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { contractFailureSchema } from '../contracts/failure.js';
 import { hintSchema } from '../contracts/hint.js';
+import { contractRequestStatusSchema } from '../contracts/request.js';
 import { slotSchema } from '../food/tags.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
@@ -99,10 +100,6 @@ export const updateMealSchema = z
 
 export type UpdateMeal = z.infer<typeof updateMealSchema>;
 
-export const menuProposalStatusSchema = z.enum(['pending', 'done', 'failed']);
-
-export type MenuProposalStatus = z.infer<typeof menuProposalStatusSchema>;
-
 /**
  * One run of `menu.propose` for a week (GLOSSARY: Предложение за меню). The plan is created only when it is `done`
  * (`planId`); `error` uses the same failure codes as `recipe.suggest`.
@@ -111,7 +108,7 @@ export const menuProposalRequestSchema = z.object({
   id: z.uuid(),
   weekStart: weekStartSchema,
   hint: z.string().optional(),
-  status: menuProposalStatusSchema,
+  status: contractRequestStatusSchema,
   error: contractFailureSchema.optional(),
   requestedBy: z.uuid(),
   planId: z.uuid().optional(),
