@@ -53,7 +53,12 @@ function serveReview(
     http.get(`/api/recipe-suggestions/requests/${requestId}`, () =>
       HttpResponse.json({
         request: doneRequest,
-        suggestions: [suggestion, ...suggestions.slice(1)],
+        suggestions: [
+          approved.length > 0
+            ? { ...suggestion, status: 'approved', recipeId }
+            : suggestion,
+          ...suggestions.slice(1),
+        ],
       }),
     ),
     http.get('/api/ingredients', ({ request }) => {
@@ -96,7 +101,7 @@ function ingredientRow(index: number) {
 }
 
 describe('SuggestionReview', () => {
-  it('„Одобри“ с нов продукт отваря диалог само с него; след свързване праща recipeInput с реални ingredientId', async () => {
+  it('„Одобри“ с нов продукт отваря диалог само с него; след свързване праща recipeInput с реални ingredientId и връща към предложенията', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const { approved, searches } = serveReview();
@@ -144,9 +149,18 @@ describe('SuggestionReview', () => {
     expect(approved).toEqual([]);
     await user.click(confirm);
 
+    // Обратно към заявката: одобреното е отбелязано, другите предложения са там.
     expect(
-      await screen.findByRole('heading', { name: 'Пилешки шишчета' }),
+      await screen.findByRole('heading', { name: 'Предложения' }),
     ).toBeInTheDocument();
+    const card = within(
+      await screen.findByRole('article', { name: 'Пилешки шишчета' }),
+    );
+    expect(await card.findByText('Одобрено')).toBeInTheDocument();
+    expect(card.getByRole('link', { name: 'Към рецептата' })).toHaveAttribute(
+      'href',
+      '/recipes/bbbbbbbb-0000-4000-8000-000000000010',
+    );
     expect(approved).toEqual([
       {
         title: 'Пилешки шишчета',
@@ -212,7 +226,7 @@ describe('SuggestionReview', () => {
     ).toBeInTheDocument();
     await user.click(dialog.getByRole('button', { name: 'Одобри' }));
 
-    await screen.findByRole('heading', { name: 'Пилешки шишчета' });
+    await screen.findByRole('heading', { name: 'Предложения' });
     expect(created).toEqual([
       { name: 'кокосово мляко', unit: 'ml', aisle: 'canned' },
     ]);
@@ -242,7 +256,7 @@ describe('SuggestionReview', () => {
     ).toHaveValue('сумак');
     await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
-    await screen.findByRole('heading', { name: 'Пилешки шишчета' });
+    await screen.findByRole('heading', { name: 'Предложения' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approved[0]?.ingredients[1]).toEqual({
       ingredientId: sumac.id,
@@ -273,7 +287,7 @@ describe('SuggestionReview', () => {
     ).toHaveValue('Пилешки шишчета');
     await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
-    await screen.findByRole('heading', { name: 'Пилешки шишчета' });
+    await screen.findByRole('heading', { name: 'Предложения' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approved[0]?.ingredients.map((i) => i.ingredientId)).toEqual([
       chicken.id,
