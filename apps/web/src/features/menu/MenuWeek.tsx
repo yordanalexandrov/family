@@ -21,6 +21,8 @@ import { formatDate } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { MealRow } from './MealRow';
 import { MealSheet } from './MealSheet';
+import { PrototypeVotes } from './prototype-votes/PrototypeVotes';
+import { VARIANTS, type VariantKey } from './prototype-votes/shared';
 import {
   notEnoughRecipes,
   useCreatePlan,
@@ -36,6 +38,8 @@ import './menu.css';
 export interface MenuSearch {
   week?: DateKey;
   proposal?: string;
+  /** PROTOTYPE (#63): `?variant=A|B|C` показва „Меню с гласове“. */
+  variant?: VariantKey;
 }
 
 /**
@@ -50,6 +54,9 @@ export function parseMenuSearch(search: Record<string, unknown>): MenuSearch {
   return {
     week: week.success ? week.data : undefined,
     proposal: proposal.success ? proposal.data : undefined,
+    variant: VARIANTS.some(([key]) => key === search.variant)
+      ? (search.variant as VariantKey)
+      : undefined,
   };
 }
 
@@ -129,6 +136,7 @@ export function MenuWeek() {
         canDelete={!hasWeekStarted(weekStart, now)}
         proposalId={search.proposal}
         onProposal={setProposal}
+        variant={import.meta.env.DEV ? search.variant : undefined}
       />
     </main>
   );
@@ -140,6 +148,7 @@ interface WeekProps {
   canDelete: boolean;
   proposalId: string | undefined;
   onProposal: (id: string | undefined) => void;
+  variant?: VariantKey | undefined;
 }
 
 function Week({
@@ -148,6 +157,7 @@ function Week({
   canDelete,
   proposalId,
   onProposal,
+  variant,
 }: WeekProps) {
   const plan = usePlan(weekStart);
   const users = useUsers();
@@ -196,6 +206,16 @@ function Week({
           void plan.refetch();
           void users.refetch();
         }}
+      />
+    );
+  }
+  if (variant) {
+    return (
+      <PrototypeVotes
+        variant={variant}
+        plan={plan.data}
+        weekStart={weekStart}
+        users={users.data}
       />
     );
   }

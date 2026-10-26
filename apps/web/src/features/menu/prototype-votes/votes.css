@@ -1,0 +1,477 @@
+/* PROTOTYPE (#63): стиловете на „Меню с гласове“. */
+.pv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-end: 9rem;
+}
+
+.pv-muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pv-h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+/* изходи */
+.pv-out--agreed {
+  --pv-out: var(--color-success);
+}
+.pv-out--replace {
+  --pv-out: var(--color-danger);
+}
+.pv-out--discuss {
+  --pv-out: var(--color-warning);
+}
+.pv-out--waiting,
+.pv-out--empty {
+  --pv-out: var(--color-line);
+}
+
+.pv-chip {
+  align-self: flex-start;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--pv-chip, var(--color-surface-2));
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+.pv-chip--agreed {
+  --pv-chip: color-mix(in srgb, var(--color-success) 25%, transparent);
+}
+.pv-chip--replace {
+  --pv-chip: color-mix(in srgb, var(--color-danger) 25%, transparent);
+}
+.pv-chip--discuss {
+  --pv-chip: color-mix(in srgb, var(--color-warning) 30%, transparent);
+}
+
+.pv-banner {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  font-weight: 600;
+}
+.pv-banner--ok {
+  border: 2px solid var(--color-success);
+}
+
+/* гласове */
+.pv-myvote {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+.pv-vote {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font: inherit;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.pv-vote[aria-pressed="true"] {
+  filter: none;
+  opacity: 1;
+}
+.pv-vote--up[aria-pressed="true"] {
+  border-color: var(--color-success);
+  box-shadow: inset 0 0 0 2px var(--color-success);
+}
+.pv-vote--down[aria-pressed="true"] {
+  border-color: var(--color-danger);
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+.pv-vote:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+.pv-myvote--big {
+  display: flex;
+  gap: var(--space-3);
+}
+.pv-myvote--big .pv-vote {
+  flex: 1;
+  min-block-size: 3.5rem;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.pv-person {
+  position: relative;
+  display: inline-flex;
+}
+.pv-person__mark {
+  position: absolute;
+  inset-block-end: -4px;
+  inset-inline-end: -6px;
+  display: grid;
+  place-items: center;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px var(--color-line);
+}
+.pv-person--up .pv-person__mark {
+  background: var(--color-success);
+  color: var(--color-accent-ink);
+}
+.pv-person--down .pv-person__mark {
+  background: var(--color-danger);
+  color: var(--color-accent-ink);
+}
+.pv-person--none {
+  opacity: 0.55;
+}
+
+.pv-detail__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+.pv-detail__votes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pv-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pv-thread__msg {
+  align-self: flex-start;
+  max-inline-size: 85%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+.pv-thread__msg--mine {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.pv-thread__system {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+.pv-thread__form {
+  display: flex;
+  gap: var(--space-2);
+}
+.pv-thread__form .field__input {
+  flex: 1;
+}
+
+.pv-change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* влачене */
+.pv-handle {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2.75rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  cursor: grab;
+  user-select: none;
+}
+[data-dragging="true"] {
+  opacity: 0.85;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.25));
+}
+[data-over="true"] {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* A */
+.pv-filters {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+}
+.pv-filters .menu__tab {
+  flex: none;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+}
+.pv-filters .menu__tab[aria-selected="true"] {
+  background: var(--color-accent);
+}
+.pv-a-row {
+  display: grid;
+  grid-template-columns: auto 3.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-1);
+  border: 1px solid var(--glass-border);
+  border-inline-start: 5px solid var(--pv-out);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  cursor: pointer;
+}
+.pv-a-votes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* B */
+.pv-b-card,
+.pv-b-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-block-size: 22rem;
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow);
+}
+.pv-b-done {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.pv-b-card__title {
+  margin: var(--space-4) 0;
+  font-size: var(--font-size-xl);
+  text-align: center;
+}
+.pv-b-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.pv-b-pile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-3);
+  border-inline-start: 4px solid var(--pv-out);
+}
+.pv-b-item {
+  padding: var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+}
+.pv-b-item > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+.pv-b-item[open] > summary {
+  margin-block-end: var(--space-3);
+}
+.pv-b-arrange {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pv-b-arrange__day {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 1fr;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+.pv-b-slot {
+  min-block-size: 3rem;
+  padding: var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-block-end: 3px solid var(--pv-out);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  text-align: start;
+  cursor: pointer;
+}
+.pv-b-slot[aria-pressed="true"] {
+  outline: 3px solid var(--color-accent);
+}
+
+/* C */
+.pv-c-progress {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.pv-c-progress__bar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: color-mix(in srgb, var(--color-success) 30%, transparent);
+  transition: inline-size var(--motion-base);
+}
+.pv-c-progress > span {
+  position: relative;
+}
+.pv-c-grid {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 1fr;
+  gap: var(--space-2);
+}
+.pv-c-rowwrap {
+  display: contents;
+}
+.pv-c-head {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-align: center;
+}
+.pv-c-day {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+}
+.pv-c-cell {
+  display: flex;
+  min-block-size: 5rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--pv-out) 22%, var(--glass-bg));
+  border: 1px solid color-mix(in srgb, var(--pv-out) 60%, transparent);
+}
+.pv-c-cell--empty {
+  background: transparent;
+  border: 1px dashed var(--color-line);
+}
+.pv-c-tile {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.pv-c-tile__title {
+  padding-inline-end: 1.5rem;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pv-c-tile__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pv-c-tile__foot .avatar {
+  transform: scale(0.8);
+}
+.pv-handle--corner {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  font-size: var(--font-size-sm);
+}
+.pv-c-lock {
+  align-self: stretch;
+}
+
+/* инструментите на прототипа: видимо чужди на дизайна */
+.pv-switcher,
+.pv-state {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+.pv-switcher {
+  position: fixed;
+  inset-block-end: calc(var(--bottom-nav-space) + 8px);
+  inset-inline-start: 50%;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #111;
+  color: #ff0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.pv-switcher button,
+.pv-state button {
+  padding: 4px 8px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #222;
+  color: #ff0;
+  font: inherit;
+  cursor: pointer;
+}
+.pv-state button[aria-pressed="true"] {
+  background: #ff0;
+  color: #111;
+}
+.pv-state {
+  position: fixed;
+  inset-block-end: calc(var(--bottom-nav-space) + 52px);
+  inset-inline: 8px;
+  z-index: 29;
+  max-block-size: 50dvh;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(17, 17, 17, 0.92);
+  color: #eee;
+}
+.pv-state__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pv-state table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+.pv-state td {
+  padding: 2px 4px;
+  border-block-end: 1px solid #333;
+}
+.pv-state__log {
+  margin: 4px 0 0;
+  padding-inline-start: 16px;
+  color: #aaa;
+}
