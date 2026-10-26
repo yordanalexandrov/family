@@ -1,3 +1,4 @@
+import { menuPropose, recipeSuggest } from '@family/shared';
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -31,10 +32,16 @@ import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
 import { createCalendarSync } from './services/calendar-sync.js';
-import { createMenuService, type MenuService } from './services/menu.js';
+import { createContractRequests } from './services/contract-requests.js';
+import {
+  createMenuService,
+  type MenuService,
+  menuProposalStore,
+} from './services/menu.js';
 import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
+  suggestionRequestStore,
 } from './services/recipe-suggestions.js';
 import type { Sync } from './services/sync-mutex.js';
 import { createUsersService, type UsersService } from './services/users.js';
@@ -50,9 +57,9 @@ declare module 'fastify' {
     budgetSync: Sync | null;
     /** The clock of the app; specs fix it. */
     now: () => Date;
-    /** Keeps the `recipe.suggest` runs in flight; `app.close()` aborts and awaits them before the pool closes. */
+    /** Suggestion requests (`recipe.suggest`) and decisions on their suggestions. */
     recipeSuggestions: RecipeSuggestionsService;
-    /** The weekly menu; keeps the `menu.propose` runs in flight like `recipeSuggestions`. */
+    /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
   }
 }
@@ -138,44 +145,45 @@ export function buildApp({
   if (calendarSources) {
     app.addHook('onReady', () => upsertCalendarSources(db, calendarSources));
   }
-  const client =
-    openclaw &&
-    createOpenClawClient(openclaw, app.log.child({ module: 'openclaw' }));
-  const recipeSuggestions = createRecipeSuggestionsService({
+  // Without a gateway password (dev only) there is no client and every AI request is refused with 503.
+  const contractRequests = createContractRequests({
     db,
-    openclaw:
-      openclaw && client ? { client, agent: openclaw.recipeAgent } : null,
+    client: openclaw
+      ? createOpenClawClient(openclaw, app.log.child({ module: 'openclaw' }))
+      : null,
     log: app.log,
   });
-  app.decorate('recipeSuggestions', recipeSuggestions);
-  const menu = createMenuService({
-    db,
-    openclaw: openclaw && client ? { client, agent: openclaw.menuAgent } : null,
-    log: app.log,
-    now,
-  });
-  app.decorate('menu', menu);
+  // Without OpenClaw nothing is sent, so the agent ids do not matter then.
+  const agents = openclaw ?? { recipeAgent: '', menuAgent: '' };
+  app.decorate(
+    'recipeSuggestions',
+    createRecipeSuggestionsService({
+      db,
+      requests: contractRequests.register(
+        recipeSuggest,
+        suggestionRequestStore,
+        agents.recipeAgent,
+      ),
+    }),
+  );
+  app.decorate(
+    'menu',
+    createMenuService({
+      db,
+      proposals: contractRequests.register(
+        menuPropose,
+        menuProposalStore,
+        agents.menuAgent,
+      ),
+      now,
+    }),
+  );
   app.addHook('onClose', async () => {
-    await Promise.all([recipeSuggestions.close(), menu.close()]);
+    await contractRequests.close();
     await closeDb(db);
   });
-  // Runs once the app is ready, i.e. after `server.ts` applied the migrations. Not fatal: the api serves without it.
-  const staleRequests = [
-    ['suggestion requests', () => recipeSuggestions.failStaleRequests()],
-    ['menu proposals', () => menu.failStaleProposals()],
-  ] as const;
-  app.addHook('onReady', async () => {
-    for (const [what, failStale] of staleRequests) {
-      try {
-        const failed = await failStale();
-        if (failed > 0) {
-          app.log.warn({ failed }, `stale ${what} marked failed`);
-        }
-      } catch (error) {
-        app.log.error({ err: error }, `could not fail stale ${what}`);
-      }
-    }
-  });
+  // Runs once the app is ready, i.e. after `server.ts` applied the migrations.
+  app.addHook('onReady', () => contractRequests.failStale());
 
   app.register(errorHandler);
   app.register(cloudflareAccess, auth);

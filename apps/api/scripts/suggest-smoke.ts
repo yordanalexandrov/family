@@ -4,9 +4,8 @@
 import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
-  RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
   type RecipeSuggestInput,
-  recipeSuggestAgentOutputSchema,
+  recipeSuggest,
   recipeSuggestParamsSchema,
 } from '@family/shared';
 import { z } from 'zod';
@@ -67,14 +66,8 @@ process.stderr.write(
 );
 const started = performance.now();
 try {
-  const output = await client.complete({
+  const output = await client.complete(recipeSuggest, input, {
     agent: config.recipeAgent,
-    input,
-    outputSchema: recipeSuggestAgentOutputSchema,
-    jsonSchema: {
-      name: 'recipe_suggest',
-      schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
-    },
   });
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
 

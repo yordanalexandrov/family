@@ -1,4 +1,4 @@
-import type { SUGGESTION_FAILURES, SuggestionFailure } from '@family/shared';
+import type { CONTRACT_FAILURES, ContractFailure } from '@family/shared';
 import { ApiError } from '../api/client';
 
 /**
@@ -13,7 +13,7 @@ const OPENCLAW_UNAVAILABLE = 'AI не е наличен в момента';
 
 const TRY_AGAIN = 'Нещо се обърка, опитай пак';
 
-const FAILURE_MESSAGES: Record<(typeof SUGGESTION_FAILURES)[number], string> = {
+const FAILURE_MESSAGES: Record<(typeof CONTRACT_FAILURES)[number], string> = {
   timeout: 'Не успях навреме, опитай пак',
   invalid_output: 'Получих нечетим отговор',
   stale: 'Сървърът се рестартира, докато търсех. Опитай пак',
@@ -22,13 +22,13 @@ const FAILURE_MESSAGES: Record<(typeof SUGGESTION_FAILURES)[number], string> = {
 };
 
 function isHttpFailure(
-  error: SuggestionFailure,
-): error is Extract<SuggestionFailure, `http_${number}`> {
+  error: ContractFailure,
+): error is Extract<ContractFailure, `http_${number}`> {
   return error.startsWith('http_');
 }
 
 /** Съобщение по кода на неуспешна заявка (`request.error`). */
-export function failureMessage(error: SuggestionFailure | undefined): string {
+export function failureMessage(error: ContractFailure | undefined): string {
   if (error === undefined) {
     return TRY_AGAIN;
   }

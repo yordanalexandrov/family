@@ -1,22 +1,18 @@
-import {
-  RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
-  type Recipe,
-  type RecipeInput,
-  type RecipeSuggestInput,
-  type RecipeSuggestion,
-  type RecipeSuggestParams,
-  recipeSuggestAgentOutputSchema,
-  type SuggestionRequest,
-  type SuggestionRequestDetail,
+import type {
+  Recipe,
+  RecipeInput,
+  RecipeSuggestInput,
+  RecipeSuggestion,
+  RecipeSuggestOutput,
+  RecipeSuggestParams,
+  SuggestionRequest,
+  SuggestionRequestDetail,
 } from '@family/shared';
-import type { FastifyBaseLogger } from 'fastify';
 import type { Db, DbExecutor } from '../db/client.js';
 import { listIngredientNames } from '../db/repositories/ingredients.js';
 import {
   decideSuggestion,
-  failPendingRequestsBefore,
   findSuggestionRequest,
-  finishSuggestionRequest,
   insertSuggestionRequest,
   insertSuggestions,
   listSuggestionRequests,
@@ -24,16 +20,12 @@ import {
   lockSuggestion,
 } from '../db/repositories/recipe-suggestions.js';
 import { listActiveRecipeTitles } from '../db/repositories/recipes.js';
-import {
-  createContractRuns,
-  type OpenClawAgent,
-  staleCutoff,
-} from './contract-runs.js';
-import {
-  ConflictError,
-  NotFoundError,
-  OpenClawUnavailableError,
-} from './errors.js';
+import { recipeSuggestionRequest } from '../db/schema/food.js';
+import type {
+  ContractRequestHandle,
+  ContractRequestStore,
+} from './contract-requests.js';
+import { ConflictError, NotFoundError } from './errors.js';
 import { addRecipe } from './recipes.js';
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
@@ -54,34 +46,30 @@ export interface RecipeSuggestionsService {
     actingUserId: string,
   ): Promise<{ recipe: Recipe; suggestion: RecipeSuggestion }>;
   rejectSuggestion(id: string, actingUserId: string): Promise<RecipeSuggestion>;
-  /** At start: `pending` requests older than 10 minutes were cut off by a restart and become `failed`/`stale`. */
-  failStaleRequests(): Promise<number>;
-  /** Aborts the runs still going (they end `failed`/`aborted`) and waits for them, before the pool closes. */
-  close(): Promise<void>;
 }
 
-/**
- * `recipe.suggest` (GLOSSARY: Заявка за предложения): runs in the api process, so it keeps the runs in flight;
- * created once in `buildApp()` as `app.recipeSuggestions`. `openclaw: null` = disabled, requests are refused.
- */
-export function createRecipeSuggestionsService({
-  db,
-  openclaw,
-  log,
-}: {
-  db: Db;
-  /** The agent that answers `recipe.suggest` (`OPENCLAW_RECIPE_AGENT`). */
-  openclaw: OpenClawAgent | null;
-  log: FastifyBaseLogger;
-}): RecipeSuggestionsService {
-  const runs = createContractRuns(log);
+/** `recipe.suggest` as AI requests (GLOSSARY: Заявка за предложения), registered in `buildApp()`. */
+export type SuggestionRequests = ContractRequestHandle<
+  RecipeSuggestParams,
+  SuggestionRequest
+>;
 
-  async function runRequest(
-    { client, agent }: OpenClawAgent,
-    request: SuggestionRequest,
-    signal: AbortSignal,
-  ): Promise<void> {
-    const input: RecipeSuggestInput = {
+/**
+ * How `recipe.suggest` requests are stored: the input is the request plus the registry context (active recipe titles,
+ * ingredient names); a valid answer stores the suggestions in the agent's order.
+ */
+export const suggestionRequestStore: ContractRequestStore<
+  RecipeSuggestParams,
+  SuggestionRequest,
+  RecipeSuggestInput,
+  RecipeSuggestOutput
+> = {
+  table: recipeSuggestionRequest,
+  insert: insertSuggestionRequest,
+  find: findSuggestionRequest,
+
+  async buildInput(db, request) {
+    return {
       slots: request.slots,
       times: request.times.length > 0 ? request.times : undefined,
       tags: request.tags.length > 0 ? request.tags : undefined,
@@ -89,22 +77,25 @@ export function createRecipeSuggestionsService({
       existingRecipeTitles: await listActiveRecipeTitles(db),
       ingredientNames: await listIngredientNames(db),
     };
-    const output = await client.complete({
-      agent,
-      input,
-      outputSchema: recipeSuggestAgentOutputSchema,
-      jsonSchema: {
-        name: 'recipe_suggest',
-        schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,
-      },
-      signal,
-    });
-    await db.transaction(async (tx) => {
-      await insertSuggestions(tx, request.id, output.suggestions);
-      await finishSuggestionRequest(tx, request.id, 'done', null);
-    });
-  }
+  },
 
+  async onDone(tx, request, output) {
+    await insertSuggestions(tx, request.id, output.suggestions);
+  },
+};
+
+/**
+ * Suggestion requests and the decisions on their suggestions (GLOSSARY: Заявка за предложения, Предложение за рецепта);
+ * created once in `buildApp()` as `app.recipeSuggestions`. Requests go through `requests`, registered with
+ * {@link suggestionRequestStore}.
+ */
+export function createRecipeSuggestionsService({
+  db,
+  requests,
+}: {
+  db: Db;
+  requests: SuggestionRequests;
+}): RecipeSuggestionsService {
   async function decide(id: string, tx: DbExecutor): Promise<RecipeSuggestion> {
     const suggestion = await lockSuggestion(tx, id);
     if (!suggestion) {
@@ -117,22 +108,8 @@ export function createRecipeSuggestionsService({
   }
 
   return {
-    async requestSuggestions(params, actingUserId) {
-      const gateway = openclaw;
-      if (!gateway) {
-        throw new OpenClawUnavailableError(
-          'Предложенията не са достъпни: OpenClaw не е настроен',
-        );
-      }
-      const request = await insertSuggestionRequest(db, params, actingUserId);
-      // The client polls GET …/requests/:id.
-      runs.start({
-        contract: 'recipe.suggest',
-        logContext: { requestId: request.id },
-        run: (signal) => runRequest(gateway, request, signal),
-        fail: (code) => finishSuggestionRequest(db, request.id, 'failed', code),
-      });
-      return request;
+    requestSuggestions(params, actingUserId) {
+      return requests.request(params, actingUserId);
     },
 
     listRequests(limit) {
@@ -140,7 +117,7 @@ export function createRecipeSuggestionsService({
     },
 
     async getRequest(id) {
-      const request = await findSuggestionRequest(db, id);
+      const request = await requests.get(id);
       if (!request) {
         throw new NotFoundError(NO_SUCH_REQUEST);
       }
@@ -169,14 +146,6 @@ export function createRecipeSuggestionsService({
           decidedBy: actingUserId,
         });
       });
-    },
-
-    failStaleRequests() {
-      return failPendingRequestsBefore(db, staleCutoff(), 'stale');
-    },
-
-    close() {
-      return runs.close();
     },
   };
 }

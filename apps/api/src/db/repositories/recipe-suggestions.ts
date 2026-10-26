@@ -3,11 +3,9 @@ import type {
   RecipeSuggestionStatus,
   RecipeSuggestParams,
   Suggestion,
-  SuggestionFailure,
   SuggestionRequest,
-  SuggestionRequestStatus,
 } from '@family/shared';
-import { and, asc, desc, eq, lt, sql } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipeSuggestion, recipeSuggestionRequest } from '../schema/food.js';
 
@@ -87,38 +85,6 @@ export async function listSuggestionRequests(
     .orderBy(desc(recipeSuggestionRequest.createdAt))
     .limit(limit);
   return rows.map(toRequest);
-}
-
-/** Sets the final status (`done` or `failed` with a short error code) and `finished_at`. */
-export async function finishSuggestionRequest(
-  db: DbExecutor,
-  id: string,
-  status: Exclude<SuggestionRequestStatus, 'pending'>,
-  error: SuggestionFailure | null,
-): Promise<void> {
-  await db
-    .update(recipeSuggestionRequest)
-    .set({ status, error, finishedAt: new Date() })
-    .where(eq(recipeSuggestionRequest.id, id));
-}
-
-/** Requests still `pending` that were created before `cutoff` become `failed` with `error`; returns how many. */
-export async function failPendingRequestsBefore(
-  db: DbExecutor,
-  cutoff: Date,
-  error: SuggestionFailure,
-): Promise<number> {
-  const rows = await db
-    .update(recipeSuggestionRequest)
-    .set({ status: 'failed', error, finishedAt: new Date() })
-    .where(
-      and(
-        eq(recipeSuggestionRequest.status, 'pending'),
-        lt(recipeSuggestionRequest.createdAt, cutoff),
-      ),
-    )
-    .returning({ id: recipeSuggestionRequest.id });
-  return rows.length;
 }
 
 /** Stores the agent's suggestions of a request, numbered in its order. */

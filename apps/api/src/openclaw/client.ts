@@ -1,18 +1,16 @@
-import type { SuggestionFailure } from '@family/shared';
+import type { AiContract, ContractFailure } from '@family/shared';
 import { type ZodType, z } from 'zod';
 import type { OpenClawConfig } from '../config.js';
 
 /**
  * One agent turn of OpenClaw over its OpenAI-compatible `POST /v1/chat/completions` (docs/research/openclaw-invocation.md,
- * ADR-0004): fixed JSON in, JSON out validated with the contract's Zod schema, one retry with the issues. Shared by every
- * AI contract (`recipe.suggest`, later `menu.propose`).
+ * ADR-0004): one {@link AiContract} at a time, its input checked before sending, the answer validated with the contract's
+ * output schema for that input, one retry with the issues. Shared by every AI contract (`recipe.suggest`, `menu.propose`).
  */
 
-/**
- * Why a call failed, as a short code that callers store as is (`recipe_suggestion_request.error` for `recipe.suggest`).
- */
+/** Why a call failed, as a short code that callers store as is (the `error` of an AI request). */
 export type OpenClawFailure = Extract<
-  SuggestionFailure,
+  ContractFailure,
   'timeout' | 'invalid_output' | `http_${number}`
 >;
 
@@ -60,7 +58,7 @@ export class OpenClawInvalidOutputError extends OpenClawError {
  * What a failed background run stores as its `error`: the client's own code, `aborted` when the caller aborted
  * (e.g. the app shutting down), otherwise `error` (a bug).
  */
-export function failureCode(error: unknown): SuggestionFailure {
+export function failureCode(error: unknown): ContractFailure {
   if (error instanceof OpenClawError) {
     return error.code;
   }
@@ -70,14 +68,9 @@ export function failureCode(error: unknown): SuggestionFailure {
   return 'error';
 }
 
-export interface CompleteOptions<T> {
-  /** Agent id; sent as `model: openclaw/<agent>`. */
+export interface CompleteOptions {
+  /** Agent id (configuration, not part of the contract: ADR-0004); sent as `model: openclaw/<agent>`. */
   agent: string;
-  /** The contract input, sent as the only user message (`JSON.stringify`). */
-  input: unknown;
-  outputSchema: ZodType<T>;
-  /** `response_format.json_schema`: best effort on the gateway's side, so the output is still parsed with `outputSchema`. */
-  jsonSchema: { name: string; schema: Record<string, unknown> };
   /** Defaults to the client's `timeoutMs`; one budget for the whole call, the retry included. */
   timeoutMs?: number;
   /** Aborting it (e.g. the app shutting down) cancels the request like a timeout does. */
@@ -91,7 +84,15 @@ export interface OpenClawLog {
 }
 
 export interface OpenClawClient {
-  complete<T>(options: CompleteOptions<T>): Promise<T>;
+  /**
+   * One answer of `contract` to `input`, valid for `contract.outputSchema(input)`. An input that fails
+   * `contract.inputSchema` is a bug in the caller: it throws a plain `Error` (code `error`) and nothing is sent.
+   */
+  complete<I, O>(
+    contract: AiContract<I, O>,
+    input: I,
+    options: CompleteOptions,
+  ): Promise<O>;
 }
 
 type Message = { role: 'user' | 'assistant'; content: string };
@@ -125,8 +126,9 @@ export function createOpenClawClient(
   }
 
   /** One attempt; `timeout` is the signal of the whole call, so a retry gets only what is left of the budget. */
-  async function send<T>(
-    options: CompleteOptions<T>,
+  async function send(
+    responseFormat: AiContract<unknown, unknown>['responseFormat'],
+    options: CompleteOptions,
     messages: Message[],
     attempt: number,
     { timeout, timeoutMs }: { timeout: AbortSignal; timeoutMs: number },
@@ -151,7 +153,7 @@ export function createOpenClawClient(
           messages,
           response_format: {
             type: 'json_schema',
-            json_schema: { ...options.jsonSchema, strict: true },
+            json_schema: { ...responseFormat, strict: true },
           },
           max_completion_tokens: MAX_COMPLETION_TOKENS,
         }),
@@ -195,15 +197,28 @@ export function createOpenClawClient(
   }
 
   return {
-    async complete(options) {
+    async complete(contract, input, options) {
+      const checked = contract.inputSchema.safeParse(input);
+      if (!checked.success) {
+        throw new Error(
+          `${contract.id}: the input does not match the contract: ${describeIssues(checked.error)}`,
+        );
+      }
+      const outputSchema = contract.outputSchema(checked.data);
       const timeoutMs = options.timeoutMs ?? config.timeoutMs;
       const budget = { timeout: AbortSignal.timeout(timeoutMs), timeoutMs };
       const messages: Message[] = [
-        { role: 'user', content: JSON.stringify(options.input) },
+        { role: 'user', content: JSON.stringify(checked.data) },
       ];
 
-      const first = await send(options, messages, 1, budget);
-      const firstResult = parseOutput(first, options.outputSchema);
+      const first = await send(
+        contract.responseFormat,
+        options,
+        messages,
+        1,
+        budget,
+      );
+      const firstResult = parseOutput(first, outputSchema);
       if (firstResult.ok) {
         return firstResult.value;
       }
@@ -219,8 +234,14 @@ export function createOpenClawClient(
           content: `Отговорът не мина валидация: ${firstResult.issues}. Върни само валиден JSON.`,
         },
       );
-      const second = await send(options, messages, 2, budget);
-      const secondResult = parseOutput(second, options.outputSchema);
+      const second = await send(
+        contract.responseFormat,
+        options,
+        messages,
+        2,
+        budget,
+      );
+      const secondResult = parseOutput(second, outputSchema);
       if (secondResult.ok) {
         return secondResult.value;
       }

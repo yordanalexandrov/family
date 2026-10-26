@@ -1,6 +1,6 @@
 import {
+  type ContractRequestStatus,
   type Slot,
-  type SuggestionRequestStatus,
   TAG_LABELS_BG,
 } from '@family/shared';
 
@@ -10,7 +10,7 @@ export function slotLabel(slot: Slot): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export const REQUEST_STATUS_LABELS: Record<SuggestionRequestStatus, string> = {
+export const REQUEST_STATUS_LABELS: Record<ContractRequestStatus, string> = {
   pending: 'чака',
   done: 'готова',
   failed: 'неуспешна',
