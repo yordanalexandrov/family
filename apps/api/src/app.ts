@@ -57,9 +57,9 @@ import {
   type MenuSchedule,
 } from './services/menu-schedule.js';
 import {
+  createRecipeImportStore,
   createRecipeImportsService,
   type RecipeImportsService,
-  recipeImportStore,
 } from './services/recipe-imports.js';
 import {
   createRecipeSuggestionsService,
@@ -212,7 +212,7 @@ export function buildApp({
       db,
       requests: contractRequests.register(
         recipeNormalize,
-        recipeImportStore,
+        createRecipeImportStore(),
         agents.importAgent,
       ),
     }),

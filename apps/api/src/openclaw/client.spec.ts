@@ -204,6 +204,67 @@ describe('OpenClaw client: complete(contract, input)', () => {
     );
   });
 
+  it('sends images as image_url parts of the input message, after the JSON input as text', async () => {
+    const calls = answerInTurn(VALID);
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+
+    await client.complete(echo, INPUT, {
+      agent: AGENT,
+      images: [{ mediaType: 'image/jpeg', data: jpeg }],
+    });
+
+    const body = calls.bodies[0] as {
+      messages: { role: string; content: unknown }[];
+    };
+    expect(body.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: JSON.stringify(INPUT) },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('sends the images again in the last message of the retry, and only there', async () => {
+    const calls = answerInTurn(THREE, VALID);
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const image = {
+      type: 'image_url',
+      image_url: { url: `data:image/png;base64,${png.toString('base64')}` },
+    };
+
+    const output = await client.complete(echo, INPUT, {
+      agent: AGENT,
+      images: [{ mediaType: 'image/png', data: png }],
+    });
+
+    expect(output).toEqual({ words: ['супа', 'супа'] });
+    const retry = calls.bodies[1] as {
+      messages: { role: string; content: unknown }[];
+    };
+    expect(retry.messages).toEqual([
+      { role: 'user', content: JSON.stringify(INPUT) },
+      { role: 'assistant', content: THREE },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: expect.stringMatching(/^Отговорът не мина валидация: /),
+          },
+          image,
+        ],
+      },
+    ]);
+  });
+
   it('fails with invalid_output after two invalid answers', async () => {
     const calls = answerInTurn('Ето думите: …', THREE);
 

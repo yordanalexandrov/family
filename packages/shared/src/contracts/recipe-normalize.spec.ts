@@ -75,6 +75,12 @@ describe('recipeNormalize.inputSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts a photo as a source of its own kind, the picture outside the JSON', () => {
+    const input = { source: { kind: 'photo' }, ingredients: [] };
+
+    expect(recipeNormalize.inputSchema.parse(input)).toEqual(input);
+  });
+
   it('refuses an unknown kind of source', () => {
     expect(
       recipeNormalize.inputSchema.safeParse({

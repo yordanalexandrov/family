@@ -64,17 +64,17 @@ function selectRequests(db: DbExecutor) {
     );
 }
 
-/** A new `pending` import; the pasted text and the link are kept with it. */
+/** A new `pending` import; the pasted text and the link are kept with it, a photo never is. */
 export async function insertImportRequest(
   db: DbExecutor,
-  params: RecipeImportParams,
+  params: RecipeImportParams | { kind: 'photo' },
   requestedBy: string,
 ): Promise<RecipeImportRequest> {
   const [row] = await db
     .insert(recipeImportRequest)
     .values({
       source: params.kind,
-      url: params.url ?? null,
+      url: params.kind === 'photo' ? null : (params.url ?? null),
       text: params.kind === 'text' ? params.text : null,
       requestedBy,
     })
@@ -118,10 +118,11 @@ export async function setImportNoResults(
     .where(eq(recipeImportRequest.id, id));
 }
 
-/** What an import kept of its source: the pasted text (and its link), or the link to fetch. */
+/** What an import kept of its source: the pasted text (and its link), the link to fetch, or that it was a photo. */
 export type ImportSource =
   | { kind: 'text'; text: string; url?: string }
-  | { kind: 'url'; url: string };
+  | { kind: 'url'; url: string }
+  | { kind: 'photo' };
 
 export async function findImportSource(
   db: DbExecutor,
@@ -138,6 +139,9 @@ export async function findImportSource(
     .limit(1);
   if (row?.source === 'url' && row.url !== null) {
     return { kind: 'url', url: row.url };
+  }
+  if (row?.source === 'photo') {
+    return { kind: 'photo' };
   }
   if (!row || row.text === null) {
     throw new Error(`recipe_import_request ${id} has no text`);

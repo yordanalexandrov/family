@@ -6,7 +6,11 @@ import {
   failPendingContractRequestsBefore,
   finishContractRequest,
 } from '../db/repositories/contract-requests.js';
-import { failureCode, type OpenClawClient } from '../openclaw/client.js';
+import {
+  type ContractImage,
+  failureCode,
+  type OpenClawClient,
+} from '../openclaw/client.js';
 import { OpenClawUnavailableError } from './errors.js';
 
 /** A `pending` request older than this cannot still be running (one api instance, 180 s timeout) after a restart. */
@@ -56,6 +60,12 @@ export interface ContractRequestStore<
    * with its code before the agent is asked.
    */
   buildInput(db: DbExecutor, request: R): Promise<I>;
+  /**
+   * Pictures that go to the agent next to the input (the photo of an import), taken when the run starts: the store
+   * keeps them only until then, in memory. Throws {@link ContractRequestFailure} when the request needs one it no
+   * longer has. No method = none.
+   */
+  images?(request: R): ContractImage[];
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
   /** After that transaction has committed, e.g. to signal the change (`app.events`). Must not throw. */
@@ -132,10 +142,12 @@ export function createContractRequests({
       ): Promise<void> {
         const logContext = { requestId: request.id };
         try {
+          const images = store.images?.(request) ?? [];
           const input = await store.buildInput(db, request);
           const output = await gateway.complete(contract, input, {
             agent,
             signal: shutdown.signal,
+            ...(images.length > 0 ? { images } : {}),
           });
           const noResults = store.noResults?.(output) ?? null;
           if (noResults !== null) {

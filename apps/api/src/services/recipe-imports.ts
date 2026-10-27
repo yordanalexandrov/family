@@ -23,6 +23,7 @@ import {
   setImportUrl,
 } from '../db/repositories/recipe-imports.js';
 import { recipeImportRequest } from '../db/schema/food.js';
+import type { ContractImage } from '../openclaw/client.js';
 import {
   ContractRequestFailure,
   type ContractRequestHandle,
@@ -33,9 +34,17 @@ import { readRecipePage } from './recipe-page/index.js';
 
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
+/**
+ * What the api imports: the client's JSON (text, link), or a photo from the multipart form, whose bytes stay in memory
+ * until its run starts and are never stored.
+ */
+export type ImportParams =
+  | RecipeImportParams
+  | { kind: 'photo'; photo: ContractImage };
+
 /** `recipe.normalize` as AI requests (GLOSSARY: Внасяне на рецепта), registered in `buildApp()`. */
 export type RecipeImportRequests = ContractRequestHandle<
-  RecipeImportParams,
+  ImportParams,
   RecipeImportRequest
 >;
 
@@ -44,53 +53,82 @@ export type RecipeImportRequests = ContractRequestHandle<
  * stores its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none.
  * A link already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the
  * page of a link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
- * `fetch_blocked` or `fetch_failed` without asking the agent. Approval and rejection of the suggestion are the
+ * `fetch_blocked` or `fetch_failed` without asking the agent. A photo is kept in this store's memory from the `POST`
+ * until its run starts, then goes to the agent as an image next to the input (`{ kind: 'photo' }`); the database
+ * never sees it, and a run whose photo is gone ends `stale`. Approval and rejection of the suggestion are the
  * suggestions' own (`app.recipeSuggestions`).
  */
-export const recipeImportStore: ContractRequestStore<
-  RecipeImportParams,
+export function createRecipeImportStore(): ContractRequestStore<
+  ImportParams,
   RecipeImportRequest,
   RecipeNormalizeInput,
   RecipeNormalizeOutput
-> = {
-  table: recipeImportRequest,
-  async insert(tx, params, requestedBy) {
-    if (params.kind === 'url' && !params.force) {
-      const matches = await findSourceUrlMatches(tx, params.url);
-      if (matches.recipe || matches.suggestion) {
-        throw new AlreadyImportedError(
-          matches.recipe
-            ? `Вече е в регистъра: ${matches.recipe.title}`
-            : `Вече чака одобрение: ${matches.suggestion?.title}`,
-          matches,
+> {
+  const photos = new Map<string, ContractImage>();
+  return {
+    table: recipeImportRequest,
+    async insert(tx, params, requestedBy) {
+      if (params.kind === 'photo') {
+        const request = await insertImportRequest(
+          tx,
+          { kind: 'photo' },
+          requestedBy,
+        );
+        photos.set(request.id, params.photo);
+        return request;
+      }
+      if (params.kind === 'url' && !params.force) {
+        const matches = await findSourceUrlMatches(tx, params.url);
+        if (matches.recipe || matches.suggestion) {
+          throw new AlreadyImportedError(
+            matches.recipe
+              ? `Вече е в регистъра: ${matches.recipe.title}`
+              : `Вече чака одобрение: ${matches.suggestion?.title}`,
+            matches,
+          );
+        }
+      }
+      return insertImportRequest(tx, params, requestedBy);
+    },
+    find: findImportRequest,
+
+    images(request) {
+      if (request.source !== 'photo') {
+        return [];
+      }
+      const photo = photos.get(request.id);
+      photos.delete(request.id);
+      if (!photo) {
+        throw new ContractRequestFailure(
+          'stale',
+          'the photo of the import is no longer in memory',
         );
       }
-    }
-    return insertImportRequest(tx, params, requestedBy);
-  },
-  find: findImportRequest,
+      return [photo];
+    },
 
-  async buildInput(db, request) {
-    return {
-      source: await agentSource(db, request.id),
-      ingredients: await listRegistryIngredients(db),
-    };
-  },
+    async buildInput(db, request) {
+      return {
+        source: await agentSource(db, request.id),
+        ingredients: await listRegistryIngredients(db),
+      };
+    },
 
-  async onDone(tx, request, output) {
-    if (output.recipe) {
-      await insertImportedSuggestion(tx, request.id, output.recipe);
-    }
-  },
+    async onDone(tx, request, output) {
+      if (output.recipe) {
+        await insertImportedSuggestion(tx, request.id, output.recipe);
+      }
+    },
 
-  noResults(output) {
-    return output.noResults;
-  },
+    noResults(output) {
+      return output.noResults;
+    },
 
-  async onNoResults(tx, request, reason) {
-    await setImportNoResults(tx, request.id, reason);
-  },
-};
+    async onNoResults(tx, request, reason) {
+      await setImportNoResults(tx, request.id, reason);
+    },
+  };
+}
 
 /** Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps. */
 async function agentSource(
@@ -98,7 +136,7 @@ async function agentSource(
   id: string,
 ): Promise<RecipeNormalizeSource> {
   const source = await findImportSource(db, id);
-  if (source.kind === 'text') {
+  if (source.kind === 'text' || source.kind === 'photo') {
     return source;
   }
   const page = await readRecipePage(source.url);
@@ -119,7 +157,7 @@ async function agentSource(
 export interface RecipeImportsService {
   /** Stores a `pending` import and starts its run in the background; the import is returned at once. */
   requestImport(
-    params: RecipeImportParams,
+    params: ImportParams,
     actingUserId: string,
   ): Promise<RecipeImportRequest>;
   listImports(limit: number): Promise<RecipeImportRequest[]>;

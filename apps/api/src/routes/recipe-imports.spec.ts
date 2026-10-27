@@ -9,6 +9,7 @@ import {
   recipeImportDetailSchema,
   recipeImportRequestSchema,
 } from '@family/shared';
+import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -91,10 +92,33 @@ async function finished(
   }
 }
 
+type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 interface ChatBody {
   model: string;
-  messages: { role: string; content: string }[];
+  messages: { role: string; content: string | ContentPart[] }[];
   response_format: { json_schema: { name: string } };
+}
+
+/** The text of a message: its content, or its text part when it has images too. */
+function textOf(message: ChatBody['messages'][number] | undefined): string {
+  const content = message?.content ?? '';
+  if (typeof content === 'string') {
+    return content;
+  }
+  return content.find((part) => part.type === 'text')?.text ?? '';
+}
+
+/** The `image_url` parts of a message. */
+function imagesOf(message: ChatBody['messages'][number] | undefined) {
+  const content = message?.content ?? '';
+  return typeof content === 'string'
+    ? []
+    : content.flatMap((part) =>
+        part.type === 'image_url' ? [part.image_url.url] : [],
+      );
 }
 
 /** Answers the chat completions in turn, each built from the contract input; returns the request bodies it got. */
@@ -106,7 +130,7 @@ function answerInTurn(
     http.post(CHAT_COMPLETIONS_URL, async ({ request }) => {
       const body = (await request.json()) as ChatBody;
       bodies.push(body);
-      const input = JSON.parse(body.messages[0]?.content ?? '');
+      const input = JSON.parse(textOf(body.messages[0]));
       const answer = answers[bodies.length - 1] ?? answers.at(-1);
       return HttpResponse.json(
         completion(JSON.stringify(answer?.(input) ?? '')),
@@ -186,7 +210,7 @@ describe('POST /api/recipe-imports', () => {
     const [call] = calls.bodies;
     expect(call?.model).toBe('openclaw/family-import');
     expect(call?.response_format.json_schema.name).toBe('recipe_normalize');
-    const input = JSON.parse(call?.messages[0]?.content ?? '');
+    const input = JSON.parse(textOf(call?.messages[0]));
     expect(input.source).toEqual({
       kind: 'text',
       text: BLOG_TEXT,
@@ -276,7 +300,7 @@ describe('an import by link', () => {
     expect(body.suggestion).toMatchObject({ status: 'proposed' });
 
     expect(calls.bodies).toHaveLength(1);
-    const input = JSON.parse(calls.bodies[0]?.messages[0]?.content ?? '');
+    const input = JSON.parse(textOf(calls.bodies[0]?.messages[0]));
     expect(input.source).toEqual({
       kind: 'page',
       url: KEBAP_URL,
@@ -296,7 +320,7 @@ describe('an import by link', () => {
     const body = await finished(await imported({ kind: 'url', url: BLOG_URL }));
 
     expect(body.request.status).toBe('done');
-    const { source } = JSON.parse(calls.bodies[0]?.messages[0]?.content ?? '');
+    const { source } = JSON.parse(textOf(calls.bodies[0]?.messages[0]));
     expect(source).toMatchObject({ kind: 'page', url: BLOG_URL });
     expect(source).not.toHaveProperty('jsonLd');
     expect(source.text).toContain('Необходими продукти (за 4 порции):');
@@ -330,6 +354,137 @@ describe('an import by link', () => {
     expect(
       (await postImport({ kind: 'url', url: 'file:///etc/passwd' })).statusCode,
     ).toBe(400);
+  });
+});
+
+/** The photo fixture: a cookbook page, made for the purpose (`src/test/fixtures/recipe-photos/`). */
+const PHOTO = readFileSync(
+  new URL('../test/fixtures/recipe-photos/banitsa.jpg', import.meta.url),
+);
+
+/** `POST /api/recipe-imports` as the screen sends a photo: multipart with one file in the field `photo`. */
+function postPhoto(bytes: Uint8Array, type = 'image/jpeg', field = 'photo') {
+  const form = new FormData();
+  form.append(field, new Blob([bytes], { type }), 'photo.jpg');
+  return app.inject({
+    method: 'POST',
+    url: '/api/recipe-imports',
+    headers,
+    payload: form,
+  });
+}
+
+async function importedPhoto(): Promise<RecipeImportRequest> {
+  const response = await postPhoto(PHOTO);
+  expect(response.statusCode).toBe(202);
+  return recipeImportRequestSchema.parse(response.json().request);
+}
+
+describe('an import by photo', () => {
+  it('sends the photo as an image_url part of the last message, next to the input with a photo source', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+
+    const request = await importedPhoto();
+
+    expect(request).toMatchObject({ status: 'pending', source: 'photo' });
+    expect(request).not.toHaveProperty('url');
+    const body = await finished(request);
+    expect(body.request.status).toBe('done');
+    expect(body).not.toHaveProperty('text');
+    expect(body.suggestion?.payload.title).toBe('Пилешко филе с ориз на фурна');
+
+    expect(calls.bodies).toHaveLength(1);
+    const messages = calls.bodies[0]?.messages ?? [];
+    expect(messages).toHaveLength(1);
+    const input = JSON.parse(textOf(messages[0]));
+    expect(input.source).toEqual({ kind: 'photo' });
+    expect(input.ingredients.length).toBeGreaterThan(100);
+    expect(imagesOf(messages[0])).toEqual([
+      `data:image/jpeg;base64,${PHOTO.toString('base64')}`,
+    ]);
+  });
+
+  it('sends the photo again with the retry after an invalid answer', async () => {
+    const calls = answerInTurn(withForeignId, normalizeAnswer);
+
+    const body = await finished(await importedPhoto());
+
+    expect(body.request.status).toBe('done');
+    expect(calls.bodies).toHaveLength(2);
+    const retry = calls.bodies[1]?.messages ?? [];
+    expect(imagesOf(retry.at(-1))).toEqual([
+      `data:image/jpeg;base64,${PHOTO.toString('base64')}`,
+    ]);
+  });
+
+  it('takes the type from the picture itself, not from what the phone says', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+
+    const response = await postPhoto(png, 'application/octet-stream');
+
+    expect(response.statusCode).toBe(202);
+    await finished(recipeImportRequestSchema.parse(response.json().request));
+    expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual([
+      `data:image/png;base64,${png.toString('base64')}`,
+    ]);
+  });
+
+  it('keeps nothing of the photo: no column holds its bytes', async () => {
+    answerInTurn(normalizeAnswer);
+
+    const request = await importedPhoto();
+    await finished(request);
+
+    const result = await app.db.execute(
+      sql`select row_to_json(r)::text as row from recipe_import_request r where id = ${request.id}`,
+    );
+    const row = String(result.rows[0]?.row);
+    expect(row).toContain('"source":"photo"');
+    expect(row).toContain('"text":null');
+    expect(row).toContain('"url":null');
+    expect(row).not.toContain(PHOTO.subarray(0, 64).toString('base64'));
+  });
+
+  it('answers 413 photo_too_large for a photo over 10 MB, without a request', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+    const big = Buffer.alloc(10 * 1024 * 1024 + 1);
+    PHOTO.copy(big);
+
+    const response = await postPhoto(big);
+
+    expect(response.statusCode).toBe(413);
+    expect(response.json()).toMatchObject({ error: 'photo_too_large' });
+    expect(calls.bodies).toHaveLength(0);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/recipe-imports',
+      headers,
+    });
+    expect(list.json().requests).toEqual([]);
+  });
+
+  it('answers 415 unsupported_photo for a file that is not a JPEG, PNG, WebP or HEIC picture', async () => {
+    const gif = Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'latin1');
+    const pdf = Buffer.from('%PDF-1.7\n%…', 'utf8');
+
+    for (const [bytes, type] of [
+      [gif, 'image/gif'],
+      [pdf, 'image/jpeg'],
+    ] as const) {
+      const response = await postPhoto(bytes, type);
+      expect(response.statusCode).toBe(415);
+      expect(response.json()).toMatchObject({ error: 'unsupported_photo' });
+    }
+  });
+
+  it('answers 400 for a form without the photo', async () => {
+    const response = await postPhoto(PHOTO, 'image/jpeg', 'picture');
+
+    expect(response.statusCode).toBe(400);
   });
 });
 
