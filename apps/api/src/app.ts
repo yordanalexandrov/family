@@ -188,6 +188,7 @@ export function buildApp({
       push: app.push,
       now,
       log: app.log.child({ module: 'reminders' }),
+      events,
       menuNotifications,
     }),
   );

@@ -1,5 +1,5 @@
 import type { NotificationKind } from '@family/shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, inArray } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { notificationLog } from '../schema/notifications.js';
 
@@ -11,10 +11,10 @@ export interface NotificationLogEntry {
   userId: string;
 }
 
-/** The reminders of `kind` sent on any of `onDates`. */
+/** The reminders of any of `kinds` sent on any of `onDates`. */
 export async function listNotificationLog(
   db: DbExecutor,
-  kind: NotificationKind,
+  kinds: NotificationKind[],
   onDates: string[],
 ): Promise<NotificationLogEntry[]> {
   return db
@@ -27,7 +27,7 @@ export async function listNotificationLog(
     .from(notificationLog)
     .where(
       and(
-        eq(notificationLog.kind, kind),
+        inArray(notificationLog.kind, kinds),
         inArray(notificationLog.onDate, onDates),
       ),
     );

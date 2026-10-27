@@ -60,6 +60,19 @@ export const pushDisabledSchema = z.object({
 
 export type PushDisabled = z.infer<typeof pushDisabledSchema>;
 
+/**
+ * 409 of `POST /api/menu/meals/:id/cook-claim` („Аз“ on „Кой готви довечера“): the meal has a cook, `cookUserId`, who
+ * answered first or was picked in the menu.
+ */
+export const cookTakenSchema = z.object({
+  error: z.literal('conflict'),
+  code: z.literal('cook_taken'),
+  message: z.string(),
+  cookUserId: z.uuid(),
+});
+
+export type CookTaken = z.infer<typeof cookTakenSchema>;
+
 /** `POST /api/notifications/test`: how many of the person's devices the push service took the notification for. */
 export const pushTestResponseSchema = z.object({
   sent: z.number().int().nonnegative(),

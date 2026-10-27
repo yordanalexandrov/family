@@ -17,6 +17,8 @@ const MUSAKA: ReminderMeal = {
   date: '2026-11-05',
   title: 'Мусака',
   ingredients: [ONION, KAIMA, PORK],
+  note: null,
+  cookUserId: null,
   thawedAt: null,
 };
 
@@ -159,5 +161,107 @@ describe('dueReminders: „Извади месото“', () => {
     };
     const [first] = dueReminders(MORNING, state({ meals: [changed] }));
     expect(first?.message.body).toBe('Пълнени чушки: кайма');
+  });
+});
+
+/** 16:00 in Sofia on Thursday 5 November, the day of the dinner. */
+const AFTERNOON = new Date('2026-11-05T14:00:00Z');
+
+function cookReminders(at: Date, overrides: Partial<ReminderState> = {}) {
+  return dueReminders(at, state(overrides)).filter(
+    (reminder) => reminder.kind === 'cook',
+  );
+}
+
+function youCook(userId: string): DueReminder {
+  return {
+    userId,
+    kind: 'cook',
+    subjectId: MUSAKA.id,
+    onDate: '2026-11-05',
+    message: {
+      title: 'Довечера готвиш ти',
+      body: 'Мусака',
+      tag: `cook-${MUSAKA.id}`,
+      url: '/menu?week=2026-11-02',
+    },
+  };
+}
+
+function whoCooks(userId: string, body = 'Мусака'): DueReminder {
+  return {
+    userId,
+    kind: 'cook',
+    subjectId: MUSAKA.id,
+    onDate: '2026-11-05',
+    message: {
+      title: 'Кой готви довечера?',
+      body,
+      tag: `cook-${MUSAKA.id}`,
+      url: '/menu?week=2026-11-02',
+      actions: [
+        {
+          action: 'cook-claim',
+          title: 'Аз',
+          post: `/api/menu/meals/${MUSAKA.id}/cook-claim`,
+        },
+      ],
+    },
+  };
+}
+
+describe('dueReminders: „Кой готви довечера“', () => {
+  it('tells the cook of today’s dinner at 16:00, and no one else', () => {
+    const meals = [{ ...MUSAKA, cookUserId: POLI.id }];
+    expect(cookReminders(AFTERNOON, { meals })).toEqual([youCook(POLI.id)]);
+  });
+
+  it('asks both who cooks, with „Аз“, when the dinner has no cook', () => {
+    expect(cookReminders(AFTERNOON)).toEqual([
+      whoCooks(DANI.id),
+      whoCooks(POLI.id),
+    ]);
+  });
+
+  it('names the note of a dinner without a recipe', () => {
+    const note: ReminderMeal = {
+      ...MUSAKA,
+      title: null,
+      ingredients: [],
+      note: 'Пица от Мама Миа',
+    };
+    expect(cookReminders(AFTERNOON, { meals: [note] })).toEqual([
+      whoCooks(DANI.id, 'Пица от Мама Миа'),
+      whoCooks(POLI.id, 'Пица от Мама Миа'),
+    ]);
+  });
+
+  it('sends nothing for an empty dinner', () => {
+    const empty: ReminderMeal = {
+      ...MUSAKA,
+      title: null,
+      ingredients: [],
+      cookUserId: POLI.id,
+    };
+    expect(cookReminders(AFTERNOON, { meals: [empty] })).toEqual([]);
+  });
+
+  it('sends nothing to a person with `cook` off', () => {
+    const users = [
+      { id: DANI.id, settings: ALL_ON },
+      { id: POLI.id, settings: { ...ALL_ON, cook: false } },
+    ];
+    expect(cookReminders(AFTERNOON, { users })).toEqual([whoCooks(DANI.id)]);
+    const meals = [{ ...MUSAKA, cookUserId: POLI.id }];
+    expect(cookReminders(AFTERNOON, { users, meals })).toEqual([]);
+  });
+
+  it('is due from 16:00 for 2 hours, only for today’s dinner, and once', () => {
+    expect(cookReminders(new Date('2026-11-05T13:59:00Z'))).toEqual([]);
+    expect(cookReminders(new Date('2026-11-05T16:00:00Z'))).toHaveLength(2);
+    expect(cookReminders(new Date('2026-11-05T16:01:00Z'))).toEqual([]);
+    expect(cookReminders(new Date('2026-11-04T14:00:00Z'))).toEqual([]);
+    const log = [whoCooks(DANI.id)].map(({ message, ...entry }) => entry);
+    expect(cookReminders(AFTERNOON, { log })).toEqual([whoCooks(POLI.id)]);
   });
 });

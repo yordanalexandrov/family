@@ -1,15 +1,17 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
 import { meal } from '../schema/menu.js';
 import { pantryItem } from '../schema/pantry.js';
 
-/** A dinner as the reminders read it: its recipe's title and products (in the recipe's order), and „Извадих“. */
+/** A dinner as the reminders read it: its recipe's title and products (in the recipe's order), note, cook and „Извадих“. */
 export interface ReminderMealRow {
   id: string;
   date: string;
   title: string | null;
   ingredients: { id: string; name: string }[];
+  note: string | null;
+  cookUserId: string | null;
   thawedAt: Date | null;
 }
 
@@ -24,6 +26,8 @@ export async function listReminderDinners(
       date: meal.date,
       recipeId: meal.recipeId,
       title: recipe.title,
+      note: meal.note,
+      cookUserId: meal.cookUserId,
       thawedAt: meal.thawedAt,
     })
     .from(meal)
@@ -82,4 +86,21 @@ export async function markMealThawed(
     .where(eq(meal.id, id))
     .returning({ thawedAt: meal.thawedAt });
   return rows.length > 0;
+}
+
+/**
+ * „Аз“ on „Кой готви довечера“: `userId` becomes the cook of the meal unless it has one. Answers the plan of the meal
+ * when it did, else `null` (the meal has a cook, or there is no such meal).
+ */
+export async function claimMealCook(
+  db: DbExecutor,
+  id: string,
+  userId: string,
+): Promise<{ planId: string } | null> {
+  const [row] = await db
+    .update(meal)
+    .set({ cookUserId: userId })
+    .where(and(eq(meal.id, id), isNull(meal.cookUserId)))
+    .returning({ planId: meal.planId });
+  return row ?? null;
 }

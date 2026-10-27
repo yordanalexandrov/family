@@ -12,4 +12,14 @@ export const remindersRoutes: FastifyPluginAsyncZod = async (app) => {
       return reply.code(204).send();
     },
   );
+
+  // „Аз“ on „Кой готви довечера“: first wins; 409 `cook_taken` (`cookTakenSchema`) after.
+  app.post(
+    '/api/menu/meals/:id/cook-claim',
+    { schema: { params: idParamsSchema } },
+    async (request, reply) => {
+      await app.reminders.claimCook(request.params.id, request.actor.id);
+      return reply.code(204).send();
+    },
+  );
 };
