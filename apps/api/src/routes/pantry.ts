@@ -1,6 +1,7 @@
 import {
   alreadyInPantrySchema,
   createPantryItemSchema,
+  notStapleSchema,
   pantryItemResponseSchema,
   pantryResponseSchema,
   updatePantryItemSchema,
@@ -10,6 +11,7 @@ import {
   addPantryItem,
   changePantryItem,
   getPantry,
+  markPantryRanOut,
   removePantryItem,
 } from '../services/pantry.js';
 import { idParamsSchema } from './params.js';
@@ -52,6 +54,19 @@ export const pantryRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => ({
       item: await changePantryItem(deps, request.params.id, request.body),
+    }),
+  );
+
+  app.post(
+    '/api/pantry/:id/ran-out',
+    {
+      schema: {
+        params: idParamsSchema,
+        response: { 200: pantryItemResponseSchema, 409: notStapleSchema },
+      },
+    },
+    async (request) => ({
+      item: await markPantryRanOut(deps, request.params.id, app.now()),
     }),
   );
 

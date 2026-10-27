@@ -284,3 +284,41 @@ describe('pantry signals', () => {
     expect(signals).toEqual([]);
   });
 });
+
+describe('POST /api/pantry/:id/ran-out', () => {
+  it('marks a staple as ran out and signals every list', async () => {
+    const salt = await seedIngredient('сол');
+    const item = await add(salt.id, 'staple');
+
+    let response: Awaited<ReturnType<typeof inject>> | undefined;
+    const signals = await signalsOf(async () => {
+      response = await inject('POST', `/api/pantry/${item.id}/ran-out`);
+    });
+
+    expect(response?.statusCode).toBe(200);
+    const ranOut = pantryItemResponseSchema.parse(response?.json()).item;
+    expect(ranOut.ranOutAt).not.toBeNull();
+    expect(await pantry()).toEqual([ranOut]);
+    expect(signals).toEqual([{ type: 'shopping.changed' }]);
+  });
+
+  it('answers 409 not_staple for a use-up item and leaves it as it is', async () => {
+    const cheese = await seedIngredient('сирене');
+    const item = await add(cheese.id, 'use_up');
+
+    const response = await inject('POST', `/api/pantry/${item.id}/ran-out`);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'conflict',
+      code: 'not_staple',
+    });
+    expect(await pantry()).toEqual([item]);
+  });
+
+  it('answers 404 for an unknown item', async () => {
+    const response = await inject('POST', `/api/pantry/${UNKNOWN_ID}/ran-out`);
+
+    expect(response.statusCode).toBe(404);
+  });
+});

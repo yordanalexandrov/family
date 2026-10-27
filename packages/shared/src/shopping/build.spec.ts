@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Aisle } from '../food/aisles.js';
 import type { Unit } from '../food/units.js';
 import type { Meal, MealPlan } from '../schemas/menu.js';
+import type { PantryItem } from '../schemas/pantry.js';
 import type { Recipe } from '../schemas/recipe.js';
 import {
   type ShoppingItemRecord,
@@ -126,8 +127,9 @@ function build(
   meals: Meal[],
   recipes: Recipe[],
   items: ShoppingItemRecord[] = [],
+  pantry: PantryItem[] = [],
 ) {
-  return buildShoppingList({ plan: plan(meals), recipes, items });
+  return buildShoppingList({ plan: plan(meals), recipes, items, pantry });
 }
 
 /** Every visible row as `title quantity unit`, in display order. */
@@ -488,6 +490,181 @@ describe('buildShoppingList overlay', () => {
     );
 
     expect(shoppingListSchema.parse(list)).toEqual(list);
+  });
+});
+
+const RAN_OUT_AT = '2026-10-27T09:00:00.000Z';
+
+function inPantry(
+  ingredient: Ingredient,
+  kind: PantryItem['kind'],
+  overrides: Partial<PantryItem> = {},
+): PantryItem {
+  return {
+    id: uuid('6'),
+    ingredient: {
+      id: ingredient.id,
+      name: ingredient.name,
+      aisle: ingredient.aisle,
+    },
+    kind,
+    note: null,
+    ranOutAt: null,
+    createdAt: INSTANT,
+    ...overrides,
+  };
+}
+
+describe('buildShoppingList pantry', () => {
+  const dinner = recipe('Вечеря', 2, [
+    [ONION, 100, 'g'],
+    [RICE, 200, 'g'],
+  ]);
+  const week = [meal('2026-10-26', dinner)];
+
+  it('hides a staple from its aisle into pantryHidden, apart from the hidden items', () => {
+    const rice = inPantry(RICE, 'staple');
+
+    const list = build(week, [dinner], [], [rice]);
+
+    expect(lines(list)).toEqual(['лук 100 g']);
+    expect(list.hidden).toEqual([]);
+    expect(list.pantryHidden).toMatchObject([
+      {
+        key: `${RICE.id}:g`,
+        title: 'ориз',
+        quantity: 200,
+        hidden: false,
+        pantry: { id: rice.id, kind: 'staple', ranOut: false },
+      },
+    ]);
+    expect(list.total).toBe(1);
+  });
+
+  it('keeps a manually hidden staple in hidden; showing it leaves it hidden by the pantry', () => {
+    const rice = inPantry(RICE, 'staple');
+    const hidden = build(
+      week,
+      [dinner],
+      [record(`${RICE.id}:g`, { hidden: true })],
+      [rice],
+    );
+    const shown = build(week, [dinner], [], [rice]);
+
+    expect(hidden.hidden.map(({ title }) => title)).toEqual(['ориз']);
+    expect(hidden.pantryHidden).toEqual([]);
+    expect(shown.pantryHidden.map(({ title }) => title)).toEqual(['ориз']);
+    expect(lines(shown)).toEqual(['лук 100 g']);
+  });
+
+  it('shows a staple that ran out with its quantity when the menu wants it', () => {
+    const list = build(
+      week,
+      [dinner],
+      [],
+      [inPantry(RICE, 'staple', { ranOutAt: RAN_OUT_AT })],
+    );
+
+    expect(lines(list)).toEqual(['лук 100 g', 'ориз 200 g']);
+    expect(list.pantryHidden).toEqual([]);
+    expect(list.aisles[1]?.items[0]?.pantry).toMatchObject({
+      kind: 'staple',
+      ranOut: true,
+    });
+  });
+
+  it('adds a row without a quantity in its aisle for a staple that ran out and the menu does not want', () => {
+    const oil = {
+      id: '10000000-0000-4000-8000-000000000008',
+      name: 'олио',
+      unit: 'ml',
+      aisle: 'spices',
+    } as const;
+    const item = inPantry(oil, 'staple', { ranOutAt: RAN_OUT_AT });
+
+    const list = build(week, [dinner], [], [item]);
+
+    expect(list.aisles.at(-1)).toEqual({
+      aisle: 'spices',
+      items: [
+        {
+          key: `${oil.id}:none`,
+          kind: 'computed',
+          title: 'олио',
+          quantity: null,
+          unit: null,
+          aisle: 'spices',
+          checkedBy: null,
+          checkedAt: null,
+          hidden: false,
+          sources: [],
+          pantry: { id: item.id, kind: 'staple', ranOut: true },
+        },
+      ],
+    });
+    expect(list.total).toBe(3);
+    expect(shoppingListSchema.parse(list)).toEqual(list);
+  });
+
+  it('does not count a check from before the staple ran out', () => {
+    const list = build(
+      week,
+      [dinner],
+      [record(`${RICE.id}:g`, { checkedBy: DANI, checkedAt: INSTANT })],
+      [inPantry(RICE, 'staple', { ranOutAt: RAN_OUT_AT })],
+    );
+
+    expect(list.aisles[1]?.items[0]).toMatchObject({
+      title: 'ориз',
+      checkedBy: null,
+      pantry: { ranOut: true },
+    });
+    expect(list.remaining).toBe(2);
+  });
+
+  it('keeps a checked staple row visible once it is bought, also without the menu', () => {
+    const salt = inPantry(SALT, 'staple');
+
+    const list = build(
+      week,
+      [dinner],
+      [
+        record(`${RICE.id}:g`, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+        record(`${SALT.id}:none`, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+      ],
+      [inPantry(RICE, 'staple'), salt],
+    );
+
+    expect(lines(list)).toEqual(['лук 100 g', 'ориз 200 g', 'сол null null']);
+    expect(list.pantryHidden).toEqual([]);
+    expect(list.remaining).toBe(1);
+  });
+
+  it('leaves a use-up item visible with its note and the quantity as computed', () => {
+    const list = build(
+      week,
+      [dinner],
+      [],
+      [inPantry(ONION, 'use_up', { note: 'фризер' })],
+    );
+
+    expect(list.aisles[0]?.items[0]).toMatchObject({
+      title: 'лук',
+      quantity: 100,
+      pantry: { kind: 'use_up', note: 'фризер', ranOut: false },
+    });
+  });
+
+  it('adds nothing for a use-up item or a staple the menu does not want', () => {
+    const list = build(
+      week,
+      [dinner],
+      [],
+      [inPantry(MILK, 'use_up'), inPantry(SALT, 'staple')],
+    );
+
+    expect(lines(list)).toEqual(['лук 100 g', 'ориз 200 g']);
+    expect(list.pantryHidden).toEqual([]);
   });
 });
 

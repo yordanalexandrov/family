@@ -16,6 +16,17 @@ describe('item keys', () => {
     });
   });
 
+  it('writes the key of a row without a unit as <ingredientId>:none and reads it back', () => {
+    const key = computedItemKey(ONION, null);
+
+    expect(key).toBe(`${ONION}:none`);
+    expect(parseItemKey(key)).toEqual({
+      kind: 'computed',
+      ingredientId: ONION,
+      unit: null,
+    });
+  });
+
   it('writes a manual key as manual:<id> and reads it back', () => {
     const key = manualItemKey(MANUAL);
 

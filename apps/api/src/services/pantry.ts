@@ -12,6 +12,7 @@ import {
   insertPantryItem,
   listPantryItems,
   PANTRY_INGREDIENT_UNIQUE,
+  setPantryRanOut,
   updatePantryItem,
 } from '../db/repositories/pantry.js';
 import {
@@ -95,4 +96,26 @@ export async function removePantryItem(
     throw notFound();
   }
   signal(events);
+}
+
+/**
+ * „Свърши“: the staple ran out at `now`, so every shopping list shows it until it is bought. An unknown id is a
+ * `NotFoundError`; a use-up item does not run out, a `ConflictError` `not_staple`.
+ */
+export async function markPantryRanOut(
+  { db, events }: PantryDeps,
+  id: string,
+  now: Date,
+): Promise<PantryItem> {
+  const found = await findPantryItem(db, id);
+  if (!found) {
+    throw notFound();
+  }
+  if (found.kind !== 'staple' || !(await setPantryRanOut(db, id, now))) {
+    throw new ConflictError('Свършва само постоянен продукт', {
+      code: 'not_staple',
+    });
+  }
+  signal(events);
+  return { ...found, ranOutAt: now.toISOString() };
 }
