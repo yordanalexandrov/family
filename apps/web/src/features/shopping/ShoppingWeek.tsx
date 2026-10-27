@@ -335,11 +335,11 @@ function ListView({ list, weekStart, users }: ListViewProps) {
                 ))}
               </ul>
               {!online && <p className="shopping__hint">Иска връзка</p>}
-              <Link to="/pantry" className="shopping__pantry-link">
-                Към килера
-              </Link>
             </>
           )}
+          <Link to="/pantry" className="shopping__pantry-link">
+            Към килера
+          </Link>
         </section>
       )}
       {sourcesOf && (

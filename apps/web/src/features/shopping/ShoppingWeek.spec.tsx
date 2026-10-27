@@ -344,6 +344,11 @@ describe('ShoppingWeek', () => {
       expect(
         screen.queryByRole('list', { name: 'Скрити от килера' }),
       ).not.toBeInTheDocument();
+      // Лентата води до килера и свита.
+      expect(screen.getByRole('link', { name: 'Към килера' })).toHaveAttribute(
+        'href',
+        '/pantry',
+      );
       await user.click(toggle);
 
       const hidden = screen.getByRole('list', { name: 'Скрити от килера' });
