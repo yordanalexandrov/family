@@ -372,7 +372,7 @@ describe('PATCH /api/menu/meals/:id', () => {
     const expected = {
       ...monday,
       recipeId: recipeId(5),
-      recipe: { title: 'Мусака', archivedAt: null },
+      recipe: { title: 'Мусака', archivedAt: null, rating: null },
       cookUserId: POLI.id,
       servings: { [DANI.id]: 2, [POLI.id]: 0 },
       note: 'с двойна порция',
@@ -498,6 +498,22 @@ describe('PATCH /api/menu/meals/:id', () => {
     expect(meal.recipe).toEqual({
       title: monday.recipe.title,
       archivedAt: expect.any(String),
+      rating: null,
+    });
+  });
+
+  it('shows the rating of the meal’s recipe, for “Как беше?”', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await inject('PUT', `/api/recipes/${monday.recipeId}/rating`, {
+      rating: 4,
+    });
+
+    const meal = (await getPlan(WEEK)).json().plan.meals[0];
+
+    expect(meal.recipe).toMatchObject({
+      title: monday.recipe.title,
+      rating: 4,
     });
   });
 
@@ -1122,7 +1138,7 @@ describe('POST /api/menu/proposals', () => {
         cookUserId: null,
         note: null,
         servings: { [DANI.id]: 1, [POLI.id]: 1 },
-        recipe: { title: expect.any(String), archivedAt: null },
+        recipe: { title: expect.any(String), archivedAt: null, rating: null },
       });
     }
   });

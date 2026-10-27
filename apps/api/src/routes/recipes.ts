@@ -1,4 +1,5 @@
 import {
+  putRatingSchema,
   recipeInputSchema,
   recipeResponseSchema,
   recipesQuerySchema,
@@ -9,6 +10,7 @@ import {
   createRecipe,
   findRecipes,
   getRecipe,
+  rateRecipe,
   replaceRecipe,
   setRecipeArchived,
 } from '../services/recipes.js';
@@ -87,4 +89,32 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
       }),
     );
   }
+
+  // GLOSSARY: Оценка. Not a change to the menu, so no `menu.changed`.
+  app.put(
+    '/api/recipes/:id/rating',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: putRatingSchema,
+        response: { 200: recipeResponseSchema },
+      },
+    },
+    async (request) => ({
+      recipe: await rateRecipe(app.db, request.params.id, request.body.rating),
+    }),
+  );
+
+  app.delete(
+    '/api/recipes/:id/rating',
+    {
+      schema: {
+        params: idParamsSchema,
+        response: { 200: recipeResponseSchema },
+      },
+    },
+    async (request) => ({
+      recipe: await rateRecipe(app.db, request.params.id, null),
+    }),
+  );
 };

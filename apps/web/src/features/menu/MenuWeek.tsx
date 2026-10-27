@@ -10,6 +10,7 @@ import {
   type MealPlan,
   mealOutcome,
   menuProposalRequestSchema,
+  type Rating,
   type User,
   weekStartOf,
   weekStartSchema,
@@ -25,6 +26,7 @@ import { Spinner } from '../../components/Spinner';
 import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
 import { formatDate } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
+import { useRateRecipe } from '../recipes/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
 import { MealRow } from './MealRow';
 import { MealSheet } from './MealSheet';
@@ -390,6 +392,7 @@ function PlanView({
   const [openMealId, setOpenMealId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const vote = useVote(plan.weekStart);
+  const rate = useRateRecipe();
   const openMeal = plan.meals.find((meal) => meal.id === openMealId);
   const userIds = users.map((user) => user.id);
   const outcomeOf = (meal: MealPlan['meals'][number]) =>
@@ -410,6 +413,8 @@ function PlanView({
           meal: MealPlan['meals'][number],
           value: 'up' | 'down' | null,
         ) => vote.mutate({ meal, userId: voterId, value }),
+        onRate: (id: string, rating: Rating | null) =>
+          rate.mutate({ id, rating }),
       }
     : undefined;
 
@@ -447,6 +452,7 @@ function PlanView({
         </div>
       )}
       {vote.isError && <ErrorBox error={vote.error} />}
+      {rate.isError && <ErrorBox error={rate.error} />}
       {voting && !readOnly ? (
         <MealDrag plan={plan}>
           <ol className="menu__meals" aria-label="Вечери">

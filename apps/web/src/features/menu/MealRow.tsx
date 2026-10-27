@@ -5,6 +5,7 @@ import {
   type MealComment,
   mealOutcome,
   mealTitle,
+  type Rating,
   totalServings,
   type User,
   type VoteValue,
@@ -12,6 +13,7 @@ import {
 import type { ReactNode } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { formatDate, formatServings, formatWeekday } from '../../lib/format';
+import { RatingStars } from '../recipes/Stars';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 /** Гласуването на реда: само в телефонния изглед, с действащ потребител. */
@@ -20,6 +22,8 @@ export interface RowVoting {
   userId: string;
   today: DateKey;
   onVote: (meal: Meal, value: VoteValue | null) => void;
+  /** Оценка на рецептата на отминало ястие („Как беше?“). */
+  onRate: (recipeId: string, rating: Rating | null) => void;
 }
 
 interface MealRowProps {
@@ -35,7 +39,8 @@ interface MealRowProps {
 
 /**
  * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода и последният
- * ред от разговора. Минал ден е приглушен, без бутони за глас и без изход.
+ * ред от разговора. Минал ден е приглушен, без бутони за глас и без изход. Под минало ястие с неоценена рецепта
+ * телефонът пита „Как беше?“: оценката е на рецептата, не на ястието, затова денят остава само за четене.
  */
 export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
@@ -91,6 +96,8 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
     : [];
   const me = voting && users.find((user) => user.id === voting.userId);
   const outcomeClass = voting && !past ? ` meal-row--${outcome}` : '';
+  const askRating =
+    voting && past && meal.recipeId !== null && meal.recipe?.rating === null;
   return (
     <div className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}>
       {onOpen ? (
@@ -124,6 +131,18 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
               />
             )}
           </span>
+        </div>
+      )}
+      {askRating && meal.recipeId !== null && (
+        <div className="meal-row__rate">
+          <span aria-hidden="true">Как беше?</span>
+          <RatingStars
+            label="Как беше?"
+            rating={null}
+            onRate={(rating) =>
+              meal.recipeId !== null && voting.onRate(meal.recipeId, rating)
+            }
+          />
         </div>
       )}
     </div>

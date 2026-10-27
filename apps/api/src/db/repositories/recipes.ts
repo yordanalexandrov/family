@@ -2,11 +2,13 @@ import {
   type MenuProposeRecipe,
   PREP_TIME_RANGES,
   type PrepTimeRange,
+  type Rating,
   type Recipe,
   type RecipeIngredient,
   type RecipeInput,
   type RecipeLine,
   type RecipeSummary,
+  type RecipesSort,
   type Slot,
   slotSchema,
   type Tag,
@@ -47,6 +49,7 @@ function toRecipe(row: RecipeRow, ingredients: RecipeLine[]): Recipe {
     nutritionPer100g: row.nutritionPer100g ?? undefined,
     ingredients,
     archivedAt: row.archivedAt?.toISOString() ?? null,
+    rating: row.rating,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -132,11 +135,13 @@ export async function listRecipes(
     tag = [],
     time = [],
     includeArchived,
+    sort = 'title',
   }: {
     q?: string;
     tag?: readonly Tag[];
     time?: readonly PrepTimeRange[];
     includeArchived: boolean;
+    sort?: RecipesSort;
   },
 ): Promise<RecipeSummary[]> {
   const rows = await db
@@ -147,6 +152,7 @@ export async function listRecipes(
       prepMinutes: recipe.prepMinutes,
       tags: recipe.tags,
       archivedAt: recipe.archivedAt,
+      rating: recipe.rating,
     })
     .from(recipe)
     .where(
@@ -157,7 +163,11 @@ export async function listRecipes(
         includeArchived ? undefined : isNull(recipe.archivedAt),
       ),
     )
-    .orderBy(asc(recipe.title), asc(recipe.createdAt));
+    .orderBy(
+      ...(sort === 'rating' ? [sql`${recipe.rating} desc nulls last`] : []),
+      asc(recipe.title),
+      asc(recipe.createdAt),
+    );
   return rows.map((row) => ({
     ...row,
     prepMinutes: row.prepMinutes ?? undefined,
@@ -215,6 +225,23 @@ export async function setRecipeArchivedAt(
         archived ? isNull(recipe.archivedAt) : isNotNull(recipe.archivedAt),
       ),
     );
+}
+
+/**
+ * Sets (`1..5`) or clears (`null`) the family's rating; `updated_at` stays, a rating is not an edit of the recipe.
+ * `false` when there is no such recipe.
+ */
+export async function setRecipeRating(
+  db: DbExecutor,
+  id: string,
+  rating: Rating | null,
+): Promise<boolean> {
+  const rows = await db
+    .update(recipe)
+    .set({ rating })
+    .where(eq(recipe.id, id))
+    .returning({ id: recipe.id });
+  return rows.length > 0;
 }
 
 /** Replaces all ingredient lines of a recipe, numbered in the given order; run it in a transaction. */

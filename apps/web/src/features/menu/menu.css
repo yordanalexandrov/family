@@ -148,8 +148,20 @@ button.meal-row__content:hover {
 }
 
 /* Минал ден: приглушен, без бутони за глас и без изход. */
-.meal-row--past {
+/* Приглушено е съдържанието, не „Как беше?“, което кани да се оцени. */
+.meal-row--past > :not(.meal-row__rate) {
   opacity: 0.6;
+}
+
+.meal-row__rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-2);
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .meal-row__votes {

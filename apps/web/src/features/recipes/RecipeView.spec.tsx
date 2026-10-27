@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { apiError, dani, server } from '../../test/msw';
-import { chickenWithRice } from '../../test/recipes';
+import { chickenWithRice, serveRating } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 
 function serveRecipe(recipe: Recipe = chickenWithRice) {
@@ -87,6 +87,58 @@ describe('RecipeView', () => {
     ).toBeInTheDocument();
     expect(archived).toBe(true);
     expect(screen.getByText('Архивирана')).toBeInTheDocument();
+  });
+
+  it('звездите под заглавието поставят оценката, а натискане на същата звезда я маха', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+    const calls = serveRating();
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+    const stars = await screen.findByRole('group', { name: 'Оценка' });
+    expect(stars).toHaveAccessibleDescription('Неоценена');
+
+    await user.click(within(stars).getByRole('button', { name: '4 от 5' }));
+
+    expect(
+      within(stars).getByRole('button', { name: '4 от 5' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect
+      .poll(() => calls)
+      .toEqual([{ id: chickenWithRice.id, rating: 4 }]);
+
+    await user.click(within(stars).getByRole('button', { name: '2 от 5' }));
+    await user.click(within(stars).getByRole('button', { name: '2 от 5' }));
+
+    await expect.poll(() => calls.length).toBe(3);
+    expect(calls.at(-1)).toEqual({ id: chickenWithRice.id, rating: null });
+    expect(stars).toHaveAccessibleDescription('Неоценена');
+    for (const star of within(stars).getAllByRole('button')) {
+      expect(star).toHaveAttribute('aria-pressed', 'false');
+    }
+  });
+
+  it('при грешка оценката се връща', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveRecipe({ ...chickenWithRice, rating: 3 });
+    server.use(
+      http.put('/api/recipes/:id/rating', () =>
+        apiError(404, 'not_found', 'Няма такава рецепта'),
+      ),
+    );
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+    const stars = await screen.findByRole('group', { name: 'Оценка' });
+    await user.click(within(stars).getByRole('button', { name: '5 от 5' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Няма такава рецепта',
+    );
+    expect(
+      within(stars).getByRole('button', { name: '3 от 5' }),
+    ).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('за непозната рецепта показва съобщението от api', async () => {

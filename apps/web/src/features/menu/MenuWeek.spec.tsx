@@ -111,7 +111,7 @@ describe('MenuWeek', () => {
         {
           0: {
             recipeId: chicken.id,
-            recipe: { title: chicken.title, archivedAt: null },
+            recipe: { title: chicken.title, archivedAt: null, rating: null },
             cookUserId: poli.id,
             why: 'Бързо за понеделник.',
             servings: { [dani.id]: 2, [poli.id]: 1 },
@@ -121,6 +121,7 @@ describe('MenuWeek', () => {
             recipe: {
               title: lentils.title,
               archivedAt: '2026-10-01T10:00:00.000Z',
+              rating: null,
             },
           },
           4: { note: 'ядем навън', servings: { [dani.id]: 0, [poli.id]: 0 } },
@@ -160,12 +161,12 @@ describe('MenuWeek', () => {
     const plan = planFor(thisWeek, {
       3: {
         recipeId: chicken.id,
-        recipe: { title: chicken.title, archivedAt: null },
+        recipe: { title: chicken.title, archivedAt: null, rating: null },
         why: 'Бързо за четвъртък.',
       },
       2: {
         recipeId: moussaka.id,
-        recipe: { title: moussaka.title, archivedAt: null },
+        recipe: { title: moussaka.title, archivedAt: null, rating: null },
       },
     });
     servePlans({
@@ -173,7 +174,7 @@ describe('MenuWeek', () => {
       [lastWeek]: planFor(lastWeek, {
         3: {
           recipeId: fish.id,
-          recipe: { title: fish.title, archivedAt: null },
+          recipe: { title: fish.title, archivedAt: null, rating: null },
         },
       }),
     });
@@ -219,7 +220,7 @@ describe('MenuWeek', () => {
       [thisWeek]: planFor(thisWeek, {
         0: {
           recipeId: chicken.id,
-          recipe: { title: chicken.title, archivedAt: null },
+          recipe: { title: chicken.title, archivedAt: null, rating: null },
         },
       }),
     });

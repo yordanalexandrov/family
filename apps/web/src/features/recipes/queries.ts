@@ -4,9 +4,14 @@ import {
   ingredientConflictSchema,
   ingredientResponseSchema,
   ingredientsResponseSchema,
+  type MealPlan,
   type PrepTimeRange,
+  putRatingSchema,
+  type Rating,
   type Recipe,
   type RecipeInput,
+  type RecipeSummary,
+  type RecipesSort,
   recipeResponseSchema,
   recipesResponseSchema,
   type Tag,
@@ -19,6 +24,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
+import { menuKeys } from '../menu/queries';
 
 /** Филтрите на регистъра; празните не влизат в query-то. */
 export interface RecipesParams {
@@ -26,6 +32,8 @@ export interface RecipesParams {
   tags?: readonly Tag[];
   times?: readonly PrepTimeRange[];
   includeArchived?: boolean;
+  /** Без него — по заглавие. */
+  sort?: RecipesSort;
 }
 
 export const recipeKeys = {
@@ -50,6 +58,9 @@ function recipesSearch(params: RecipesParams): string {
   }
   if (params.includeArchived) {
     search.set('includeArchived', 'true');
+  }
+  if (params.sort && params.sort !== 'title') {
+    search.set('sort', params.sort);
   }
   const text = search.toString();
   return text ? `?${text}` : '';
@@ -111,6 +122,86 @@ export function useArchiveRecipe() {
       ).then((body) => body.recipe),
     onSuccess(recipe) {
       storeRecipe(queryClient, recipe);
+    },
+  });
+}
+
+export interface RatingChange {
+  id: string;
+  /** `null` маха оценката. */
+  rating: Rating | null;
+}
+
+/** Плановете на менюто (не разговорите под тях, които делят префикса на ключа). */
+const menuPlans = {
+  queryKey: menuKeys.all,
+  predicate: (query: { queryKey: readonly unknown[] }) =>
+    query.queryKey[1] === 'plan' && query.queryKey.length === 3,
+};
+
+/**
+ * Оценка на рецепта (GLOSSARY: Оценка): `PUT` поставя, `DELETE` маха. Оптимистично в рецептата, в списъците и в
+ * ястията на менюто с нея; при грешка всичко се връща, а накрая рецептите и менюто се презареждат.
+ */
+export function useRateRecipe() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, rating }: RatingChange) =>
+      apiFetch(
+        `/recipes/${id}/rating`,
+        recipeResponseSchema,
+        rating === null
+          ? { method: 'DELETE' }
+          : {
+              method: 'PUT',
+              headers: JSON_HEADERS,
+              body: JSON.stringify(putRatingSchema.parse({ rating })),
+            },
+      ).then((body) => body.recipe),
+    async onMutate({ id, rating }) {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: recipeKeys.all }),
+        queryClient.cancelQueries(menuPlans),
+      ]);
+      const previous = [
+        ...queryClient.getQueriesData({ queryKey: recipeKeys.all }),
+        ...queryClient.getQueriesData(menuPlans),
+      ];
+      queryClient.setQueryData<Recipe>(recipeKeys.detail(id), (recipe) =>
+        recipe ? { ...recipe, rating } : recipe,
+      );
+      queryClient.setQueriesData<RecipeSummary[]>(
+        { queryKey: recipeKeys.lists },
+        (list) =>
+          list?.map((recipe) =>
+            recipe.id === id ? { ...recipe, rating } : recipe,
+          ),
+      );
+      queryClient.setQueriesData<MealPlan | null>(menuPlans, (plan) =>
+        plan
+          ? {
+              ...plan,
+              meals: plan.meals.map((meal) =>
+                meal.recipeId === id && meal.recipe
+                  ? { ...meal, recipe: { ...meal.recipe, rating } }
+                  : meal,
+              ),
+            }
+          : plan,
+      );
+      return { previous };
+    },
+    onError(_error, _change, context) {
+      for (const [key, data] of context?.previous ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSuccess(recipe) {
+      queryClient.setQueryData(recipeKeys.detail(recipe.id), recipe);
+    },
+    onSettled() {
+      void queryClient.invalidateQueries({ queryKey: recipeKeys.lists });
+      void queryClient.invalidateQueries(menuPlans);
     },
   });
 }

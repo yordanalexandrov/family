@@ -23,11 +23,11 @@ function plan() {
   return planFor(thisWeek, {
     0: {
       recipeId: chicken.id,
-      recipe: { title: chicken.title, archivedAt: null },
+      recipe: { title: chicken.title, archivedAt: null, rating: null },
     },
     3: {
       recipeId: moussaka.id,
-      recipe: { title: moussaka.title, archivedAt: null },
+      recipe: { title: moussaka.title, archivedAt: null, rating: null },
     },
   });
 }

@@ -150,6 +150,7 @@ export function serveDinnerRecipes() {
             servings: 4,
             tags: ['dinner'],
             archivedAt: null,
+            rating: null,
           })),
       });
     }),
@@ -178,7 +179,9 @@ export function serveMealUpdates(plan: MealPlan) {
       const next: Meal = { ...current, ...body };
       if ('recipeId' in body && body.recipeId !== current.recipeId) {
         const recipe = dinnerRecipes.find((r) => r.id === body.recipeId);
-        next.recipe = recipe ? { title: recipe.title, archivedAt: null } : null;
+        next.recipe = recipe
+          ? { title: recipe.title, archivedAt: null, rating: null }
+          : null;
         next.why = null;
       }
       plan.meals = plan.meals.map((m) => (m.id === id ? next : m));

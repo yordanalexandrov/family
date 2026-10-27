@@ -81,6 +81,7 @@ function recipe(
       ingredient: { ...ingredient },
     })),
     archivedAt: null,
+    rating: null,
     createdAt: INSTANT,
     updatedAt: INSTANT,
   };
@@ -102,7 +103,7 @@ function meal(
     cookUserId: null,
     servings,
     why: null,
-    recipe: of ? { title: of.title, archivedAt: null } : null,
+    recipe: of ? { title: of.title, archivedAt: null, rating: null } : null,
     votes: [],
     commentCount: 0,
   };

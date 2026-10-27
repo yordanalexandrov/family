@@ -24,7 +24,7 @@ const meal = {
   cookUserId: DANI,
   servings: { [DANI]: 1, [POLI]: 2 },
   why: 'Бързо за понеделник, без месо след уикенда.',
-  recipe: { title: 'Леща яхния', archivedAt: null },
+  recipe: { title: 'Леща яхния', archivedAt: null, rating: null },
   votes: [
     { userId: DANI, value: 'up' },
     { userId: POLI, value: 'down' },

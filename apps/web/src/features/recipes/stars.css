@@ -1,0 +1,44 @@
+/* Звездите на оценката (GLOSSARY: Оценка): запълнените са в цвета на предупреждението, който е златист в двете теми. */
+fieldset.stars {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.stars__star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stars__star--on {
+  color: var(--color-warning);
+}
+
+.stars__star:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.stars__star:disabled {
+  cursor: default;
+}
+
+.stars-badge {
+  color: var(--color-warning);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}

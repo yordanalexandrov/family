@@ -6,6 +6,7 @@ import { slotSchema } from '../food/tags.js';
 import { voteSchema, voteValueSchema } from '../menu/votes.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
+import { ratingSchema } from './recipe.js';
 
 /** The Monday that identifies a weekly menu, as `YYYY-MM-DD`. */
 export const weekStartSchema = dateKeySchema.refine(isWeekStart, {
@@ -73,9 +74,16 @@ export const mealSchema = z.object({
   cookUserId: z.uuid().nullable(),
   servings: servingsSchema,
   why: z.string().nullable(),
-  /** The recipe as the menu shows it; an archived recipe stays visible in an old plan. `null` without a recipe. */
+  /**
+   * The recipe as the menu shows it; an archived recipe stays visible in an old plan. `null` without a recipe. The
+   * rating (GLOSSARY: Оценка) lets a past meal ask “Как беше?” while its recipe is unrated.
+   */
   recipe: z
-    .object({ title: z.string(), archivedAt: instantSchema.nullable() })
+    .object({
+      title: z.string(),
+      archivedAt: instantSchema.nullable(),
+      rating: ratingSchema.nullable(),
+    })
     .nullable(),
   /**
    * GLOSSARY: Глас. The users' votes for the current recipe and note, by user id; the outcome is not sent, the client

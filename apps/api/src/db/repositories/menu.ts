@@ -63,7 +63,7 @@ function toProposal(row: ProposalRow): MenuProposalRequest {
   };
 }
 
-/** A meal with the title and archive state of its recipe. */
+/** A meal with the title, archive state and rating of its recipe. */
 const mealColumns = {
   id: meal.id,
   planId: meal.planId,
@@ -76,6 +76,7 @@ const mealColumns = {
   why: meal.why,
   recipeTitle: recipe.title,
   recipeArchivedAt: recipe.archivedAt,
+  recipeRating: recipe.rating,
 };
 
 function selectMeals(db: DbExecutor) {
@@ -100,7 +101,7 @@ interface Thread {
 }
 
 function toMeal(
-  { recipeTitle, recipeArchivedAt, ...row }: MealRow,
+  { recipeTitle, recipeArchivedAt, recipeRating, ...row }: MealRow,
   votes: Vote[],
   thread: Thread,
 ): Meal {
@@ -113,6 +114,7 @@ function toMeal(
         ? {
             title: recipeTitle,
             archivedAt: recipeArchivedAt?.toISOString() ?? null,
+            rating: recipeRating,
           }
         : null,
   };
