@@ -28,7 +28,8 @@
 }
 
 .shopping__aisle,
-.shopping__hidden {
+.shopping__hidden,
+.shopping__pantry {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -200,5 +201,56 @@
   border: 1px solid var(--color-warning);
   border-radius: var(--radius-md);
   background: var(--glass-bg-strong);
+  font-size: var(--font-size-sm);
+}
+
+/* Значките на килера до количеството: „свърши“ е акцент, „в килера — провери“ е подсказка. */
+.shopping-item__badge {
+  padding: 0.1em 0.55em;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.shopping-item__badge--ran-out {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+/* Лентата „🏠 Скрити от килера: N“ в края на списъка. */
+.shopping__pantry-toggle {
+  min-block-size: 2.75rem;
+  padding: 0.5em 0.85em;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.shopping__pantry-link {
+  align-self: flex-start;
+  min-block-size: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.shopping__sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+.shopping__hint {
+  margin: 0;
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }

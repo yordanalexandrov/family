@@ -457,3 +457,171 @@ describe('manual items', () => {
     expect(response.json().code).toBe('no_plan');
   });
 });
+
+describe('the pantry in the list', () => {
+  const NEXT_WEEK = '2026-11-09';
+  const oilKey = () => `${ids.oil}:ml`;
+
+  /** NEXT_WEEK's menu: a stew on Monday, so tomato and salt but no oil. */
+  async function seedNextWeek() {
+    const plan = (
+      await created(
+        await inject('POST', '/api/menu/plans', { weekStart: NEXT_WEEK }),
+      )
+    ).plan;
+    await patchMeal(plan.meals[0].id, { recipeId: recipes.stew });
+  }
+
+  async function addToPantry(
+    ingredientId: string,
+    kind: 'staple' | 'use_up',
+    note?: string,
+  ) {
+    const body = await created(
+      await inject('POST', '/api/pantry', { ingredientId, kind, note }),
+    );
+    return body.item.id as string;
+  }
+
+  function ranOut(pantryId: string) {
+    return inject('POST', `/api/pantry/${pantryId}/ran-out`);
+  }
+
+  async function listOf(weekStart = WEEK) {
+    const response = await getList(weekStart);
+    expect(response.statusCode).toBe(200);
+    return response.json().list;
+  }
+
+  beforeEach(async () => {
+    await seedMenu();
+    await seedNextWeek();
+  });
+
+  it('hides the row of a staple in every week, apart from the hidden rows', async () => {
+    const pantryId = await addToPantry(ids.salt, 'staple');
+
+    const list = await listOf();
+    expect(rows(list)).toEqual([
+      'produce зелен домат 1280 g ×5',
+      'dairy пъдпъдъчи яйца 3 pcs ×1',
+      'spices гроздово олио 110 ml ×3',
+    ]);
+    expect(list.hidden).toEqual([]);
+    expect(list.pantryHidden).toMatchObject([
+      {
+        title: 'хималайска сол',
+        unit: 'g',
+        pantry: { id: pantryId, kind: 'staple', ranOut: false },
+      },
+      { title: 'хималайска сол', unit: 'pinch' },
+    ]);
+    expect(list).toMatchObject({ total: 3, remaining: 3 });
+    expect(rows(await listOf(NEXT_WEEK))).toEqual([
+      'produce зелен домат 150 g ×1',
+    ]);
+  });
+
+  it('shows a staple that ran out with its quantity where the menu wants it and without one where it does not', async () => {
+    const pantryId = await addToPantry(ids.oil, 'staple');
+
+    const response = await ranOut(pantryId);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().item).toMatchObject({
+      kind: 'staple',
+      ranOutAt: NOW.toISOString(),
+    });
+    const list = await listOf();
+    expect(rows(list)).toContain('spices гроздово олио 110 ml ×3');
+    expect(list.pantryHidden).toEqual([]);
+    expect(await itemOf(oilKey())).toMatchObject({
+      pantry: { id: pantryId, kind: 'staple', ranOut: true },
+    });
+    expect(rows(await listOf(NEXT_WEEK))).toEqual([
+      'produce зелен домат 150 g ×1',
+      'spices гроздово олио null null ×0',
+      'spices хималайска сол 10 g ×1',
+    ]);
+  });
+
+  it('clears the ran-out flag with the check, signals every list, and keeps it cleared after unchecking', async () => {
+    const pantryId = await addToPantry(ids.oil, 'staple');
+    await ranOut(pantryId);
+    const signals: unknown[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const response = await inject(
+      'PUT',
+      `/api/shopping-lists/${NEXT_WEEK}/items/${encodeURIComponent(`${ids.oil}:none`)}/checked`,
+      { checked: true },
+    );
+    unsubscribe();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().item).toMatchObject({
+      checkedBy: DANI.id,
+      pantry: { ranOut: false },
+    });
+    expect(signals).toEqual([{ type: 'shopping.changed' }]);
+    const [item] = (await inject('GET', '/api/pantry')).json().items;
+    expect(item.ranOutAt).toBeNull();
+    // Bought: the row stays checked in the list it was checked in, and is hidden by the pantry everywhere else.
+    expect(rows(await listOf(NEXT_WEEK))).toContain(
+      'spices гроздово олио null null ×0',
+    );
+    expect((await listOf()).pantryHidden).toMatchObject([{ key: oilKey() }]);
+
+    await inject(
+      'PUT',
+      `/api/shopping-lists/${NEXT_WEEK}/items/${encodeURIComponent(`${ids.oil}:none`)}/checked`,
+      { checked: false },
+    );
+    expect(rows(await listOf(NEXT_WEEK))).not.toContain(
+      'spices гроздово олио null null ×0',
+    );
+    expect(
+      (await inject('GET', '/api/pantry')).json().items[0].ranOutAt,
+    ).toBeNull();
+  });
+
+  it('does not count a check from before the staple ran out', async () => {
+    await setChecked(oilKey(), true);
+    const pantryId = await addToPantry(ids.oil, 'staple');
+    clock = new Date('2026-10-29T08:00:00Z');
+    await ranOut(pantryId);
+
+    expect(await itemOf(oilKey())).toMatchObject({
+      checkedBy: null,
+      pantry: { ranOut: true },
+    });
+  });
+
+  it('keeps the row of a use-up item visible, with its note and the full quantity', async () => {
+    const pantryId = await addToPantry(ids.eggs, 'use_up', 'фризер');
+
+    const list = await listOf();
+    expect(rows(list)).toContain('dairy пъдпъдъчи яйца 3 pcs ×1');
+    expect(await itemOf(key.eggs())).toMatchObject({
+      pantry: { id: pantryId, kind: 'use_up', note: 'фризер', ranOut: false },
+    });
+  });
+
+  it('keeps the manual hidden apart from the pantry', async () => {
+    const pantryId = await addToPantry(ids.oil, 'staple');
+    await setHidden(oilKey(), true);
+    let list = await listOf();
+    expect(list.hidden).toMatchObject([{ key: oilKey() }]);
+    expect(list.pantryHidden).toEqual([]);
+
+    // „Покажи“ does not touch the pantry: the row is still hidden by it.
+    await setHidden(oilKey(), false);
+    list = await listOf();
+    expect(list.hidden).toEqual([]);
+    expect(list.pantryHidden).toMatchObject([{ key: oilKey() }]);
+
+    // Out of the pantry, the row is back.
+    await inject('DELETE', `/api/pantry/${pantryId}`);
+    expect(rows(await listOf())).toContain('spices гроздово олио 110 ml ×3');
+  });
+});

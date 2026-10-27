@@ -66,7 +66,7 @@ export interface PantryRequest {
 }
 
 /**
- * `/api/pantry` като api: килер в паметта, `POST` с 409 за продукт, който вече е там, `PATCH` и `DELETE`;
+ * `/api/pantry` като api: килер в паметта, `POST` с 409 за продукт, който вече е там, `PATCH`, „Свърши“ и `DELETE`;
  * `/api/ingredients?q=` търси в `pantryIngredients`. Връща заявките за промяна по ред.
  */
 export function servePantry(initial: PantryItem[] = []) {
@@ -126,6 +126,20 @@ export function servePantry(initial: PantryItem[] = []) {
         );
       }
       const item = { ...current, ...body };
+      items = items.map((other) => (other.id === id ? item : other));
+      return HttpResponse.json({ item });
+    }),
+    http.post('/api/pantry/:id/ran-out', ({ params }) => {
+      const id = String(params.id);
+      requests.push({ method: 'POST', id });
+      const current = items.find((item) => item.id === id);
+      if (!current) {
+        return HttpResponse.json(
+          { error: 'not_found', message: 'Няма такъв продукт в килера' },
+          { status: 404 },
+        );
+      }
+      const item = { ...current, ranOutAt: new Date().toISOString() };
       items = items.map((other) => (other.id === id ? item : other));
       return HttpResponse.json({ item });
     }),

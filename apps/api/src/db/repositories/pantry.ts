@@ -1,5 +1,5 @@
 import type { PantryItem, PantryKind } from '@family/shared';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { ingredient } from '../schema/food.js';
 import { pantryItem } from '../schema/pantry.js';
@@ -102,6 +102,23 @@ export async function deletePantryItem(
   const rows = await db
     .delete(pantryItem)
     .where(eq(pantryItem.id, id))
+    .returning({ id: pantryItem.id });
+  return rows.length > 0;
+}
+
+/**
+ * Sets or clears `ran_out_at` of a staple („Свърши“, or bought); whether there was such a staple. A use-up item never
+ * runs out, so it is left as it is.
+ */
+export async function setPantryRanOut(
+  db: DbExecutor,
+  id: string,
+  ranOutAt: Date | null,
+): Promise<boolean> {
+  const rows = await db
+    .update(pantryItem)
+    .set({ ranOutAt })
+    .where(and(eq(pantryItem.id, id), eq(pantryItem.kind, 'staple')))
     .returning({ id: pantryItem.id });
   return rows.length > 0;
 }

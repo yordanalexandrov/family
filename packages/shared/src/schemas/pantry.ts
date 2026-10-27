@@ -76,3 +76,12 @@ export const alreadyInPantrySchema = z.object({
 });
 
 export type AlreadyInPantry = z.infer<typeof alreadyInPantrySchema>;
+
+/** 409 of `POST /api/pantry/:id/ran-out`: only a staple runs out („Свърши“). */
+export const notStapleSchema = z.object({
+  error: z.literal('conflict'),
+  code: z.literal('not_staple'),
+  message: z.string(),
+});
+
+export type NotStaple = z.infer<typeof notStapleSchema>;
