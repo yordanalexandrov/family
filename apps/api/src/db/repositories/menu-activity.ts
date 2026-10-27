@@ -1,3 +1,4 @@
+import type { DateKey } from '@family/shared';
 import { lte, ne, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { menuActivity } from '../schema/notifications.js';
@@ -8,7 +9,7 @@ export type MenuActivityKind = 'votes' | 'comments' | 'swaps';
 
 /** The gathered actions of others on one week, for one person. */
 export interface MenuActivity {
-  weekStart: string;
+  weekStart: DateKey;
   recipientUserId: string;
   votes: number;
   comments: number;

@@ -25,6 +25,7 @@ import {
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
+  claimMealCook,
   deleteComment,
   deleteOtherVotes,
   deletePlan,
@@ -43,6 +44,7 @@ import {
   listPlans,
   listProposalsOfWeek,
   lockWeek,
+  markMealThawed,
   type NewMeal,
   setProposalPlan,
   swapMealDates,
@@ -87,6 +89,8 @@ const PAST_MEAL_THREAD = 'Денят е минал: в разговора веч
 const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
 const SYSTEM_LINE = 'Редовете за промените не се трият';
 const NOT_SWAPPABLE = 'Разменят се само ястия от едно меню и едно хранене';
+/** The 409 of „Аз“ when someone else answered first or the cook was picked in the menu. */
+const COOK_TAKEN = 'Някой вече готви';
 
 export interface MenuService {
   /** The plan of the week with its meals. */
@@ -120,6 +124,17 @@ export interface MenuService {
     withMealId: string,
     actingUserId: string,
   ): Promise<MealPlan>;
+  /**
+   * „Извадих“ for a meal (GLOSSARY), from either person: the morning „Извади месото“ is not sent to anyone. Pressed
+   * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it.
+   */
+  markThawed(id: string): Promise<void>;
+  /**
+   * „Аз“ on „Кой готви довечера“: `actingUserId` becomes the cook unless the meal has one, so the first to answer
+   * wins; signalled as a cook picked in the menu. 409 `cook_taken` with `cookUserId` once the meal has a cook (the one
+   * answering included); 404 for an unknown meal. Returns the meal.
+   */
+  claimCook(id: string, actingUserId: string): Promise<Meal>;
   /** The meal's thread (GLOSSARY: Разговор), oldest first; readable for a past meal too. */
   listComments(mealId: string): Promise<MealComment[]>;
   /** A comment of `actingUserId`; refused for a past meal. Signals only `menu.changed`. */
@@ -429,6 +444,33 @@ export function createMenuService({
       });
       signalWeek(events, plan.weekStart);
       return plan;
+    },
+
+    async markThawed(id) {
+      if (!(await markMealThawed(db, id, now()))) {
+        throw new NotFoundError(NO_SUCH_MEAL);
+      }
+    },
+
+    async claimCook(id, actingUserId) {
+      const { meal, weekStart } = await db.transaction(async (tx) => {
+        const claimed = await claimMealCook(tx, id, actingUserId);
+        if (!claimed) {
+          const current = await findMeal(tx, id);
+          if (!current) {
+            throw new NotFoundError(NO_SUCH_MEAL);
+          }
+          throw new ConflictError(COOK_TAKEN, {
+            code: 'cook_taken',
+            cookUserId: current.cookUserId,
+          });
+        }
+        // As a cook picked in the menu: the plan changed now.
+        await updateMeal(tx, id, claimed.planId, {}, now());
+        return reread(tx, id, claimed.planId);
+      });
+      signalWeek(events, weekStart);
+      return meal;
     },
 
     async listComments(mealId) {

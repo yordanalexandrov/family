@@ -1,4 +1,4 @@
-import type { NotificationKind } from '@family/shared';
+import type { DateKey, NotificationKind } from '@family/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { notificationLog } from '../schema/notifications.js';
@@ -7,7 +7,7 @@ import { notificationLog } from '../schema/notifications.js';
 export interface NotificationLogEntry {
   kind: NotificationKind;
   subjectId: string;
-  onDate: string;
+  onDate: DateKey;
   userId: string;
 }
 
@@ -15,7 +15,7 @@ export interface NotificationLogEntry {
 export async function listNotificationLog(
   db: DbExecutor,
   kinds: NotificationKind[],
-  onDates: string[],
+  onDates: DateKey[],
 ): Promise<NotificationLogEntry[]> {
   return db
     .select({

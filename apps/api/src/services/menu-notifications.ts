@@ -1,4 +1,8 @@
-import { addDays, type MenuProposalRequest } from '@family/shared';
+import {
+  addDays,
+  type DateKey,
+  type MenuProposalRequest,
+} from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
 import {
@@ -6,6 +10,7 @@ import {
   takeQuietMenuActivity,
 } from '../db/repositories/menu-activity.js';
 import { listUsers } from '../db/repositories/users.js';
+import { menuWeekUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
 
 /** How long the other has to be quiet on the menu before the gathered notification goes. */
@@ -39,7 +44,7 @@ const dayMonth = new Intl.DateTimeFormat('bg-BG', {
 });
 
 /** „3–9 ноември“, or „30 ноември – 6 декември“ for a week across two months. */
-function weekRange(weekStart: string): string {
+function weekRange(weekStart: DateKey): string {
   const parts = (key: string) => {
     const all = dayMonth.formatToParts(new Date(`${key}T00:00:00Z`));
     const value = (type: string) =>
@@ -54,8 +59,8 @@ function weekRange(weekStart: string): string {
 }
 
 /** Where a menu notification opens, and the tag that makes the newer one of a week replace the older. */
-function ofWeek(weekStart: string): Pick<PushMessage, 'tag' | 'url'> {
-  return { tag: `menu-${weekStart}`, url: `/menu?week=${weekStart}` };
+function ofWeek(weekStart: DateKey): Pick<PushMessage, 'tag' | 'url'> {
+  return { tag: notificationTag.menu(weekStart), url: menuWeekUrl(weekStart) };
 }
 
 /** Notifications of kind `menu` (GLOSSARY: Известие от Съгласуването); created once in `buildApp()`. */

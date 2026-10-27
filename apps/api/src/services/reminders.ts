@@ -2,35 +2,27 @@ import {
   addDays,
   type DateKey,
   dateKeyInSofia,
+  type Meal,
   mealTitle,
-  type NotificationKind,
   type NotificationSettings,
   startOfDayInSofia,
-  weekStartOf,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
 import {
-  findMeal,
-  findPlanSummary,
-  updateMeal,
-} from '../db/repositories/menu.js';
-import {
   claimNotification,
   listNotificationLog,
   listNotifiedUsers,
+  type NotificationLogEntry,
 } from '../db/repositories/notification-log.js';
 import {
-  claimMealCook,
   listFrozenIngredientIds,
   listReminderDinners,
-  markMealThawed,
+  type ReminderMeal,
 } from '../db/repositories/reminders.js';
 import { listUsers } from '../db/repositories/users.js';
-import { ConflictError, NotFoundError } from './errors.js';
-import { type EventBus, menuAndShoppingChanged } from './events.js';
-import { NO_SUCH_MEAL } from './menu.js';
 import type { MenuNotifications } from './menu-notifications.js';
+import { mealDayUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
 
 /** „Извади месото“ comes at these hours in Sofia: the evening before the dinner and its morning. Changed by PR. */
@@ -43,27 +35,6 @@ export const REMINDER_GRACE_MS = 2 * 3_600_000;
 
 const HOUR_MS = 3_600_000;
 
-/** A dinner of the menu as the reminders see it; `title` and `ingredients` are its recipe's, `null`/empty without one. */
-export interface ReminderMeal {
-  id: string;
-  date: DateKey;
-  title: string | null;
-  /** The recipe's products, in its order. */
-  ingredients: { id: string; name: string }[];
-  note: string | null;
-  cookUserId: string | null;
-  /** „Извадих“ (GLOSSARY): someone took the meat out. */
-  thawedAt: Date | null;
-}
-
-/** A reminder sent before, from `notification_log`. */
-export interface ReminderLogEntry {
-  kind: NotificationKind;
-  subjectId: string;
-  onDate: DateKey;
-  userId: string;
-}
-
 /** What {@link dueReminders} decides from. */
 export interface ReminderState {
   /** The dinners of today and tomorrow in Sofia (more do no harm). */
@@ -72,11 +43,11 @@ export interface ReminderState {
   frozen: string[];
   /** Everyone, with the kinds each has on. */
   users: { id: string; settings: NotificationSettings }[];
-  log: ReminderLogEntry[];
+  log: NotificationLogEntry[];
 }
 
 /** One reminder to send to one person; once sent it goes to `notification_log` with these `kind`, `subjectId` and `onDate`. */
-export interface DueReminder extends ReminderLogEntry {
+export interface DueReminder extends NotificationLogEntry {
   message: PushMessage;
 }
 
@@ -103,8 +74,8 @@ function thawMessage(
   return {
     title,
     body: `${meal.title}: ${products.join(', ')}`,
-    tag: `thaw-${meal.id}`,
-    url: menuUrl(meal.date),
+    tag: notificationTag.thaw(meal.id),
+    url: mealDayUrl(meal.date),
     actions: [
       {
         action: 'thawed',
@@ -156,7 +127,7 @@ function dueThaw(now: Date, state: ReminderState): DueReminder[] {
         continue;
       }
       for (const user of state.users) {
-        const entry: ReminderLogEntry = {
+        const entry: NotificationLogEntry = {
           kind: 'thaw',
           subjectId: meal.id,
           onDate,
@@ -188,8 +159,8 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
     }
     const base = {
       body: title,
-      tag: `cook-${meal.id}`,
-      url: menuUrl(meal.date),
+      tag: notificationTag.cook(meal.id),
+      url: mealDayUrl(meal.date),
     };
     const message: PushMessage = meal.cookUserId
       ? { ...base, title: 'Довечера готвиш ти' }
@@ -222,12 +193,12 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
   return due;
 }
 
-/** The menu at the week of `date`: the web has no parameter for a day. */
-function menuUrl(date: DateKey): string {
-  return `/menu?week=${weekStartOf(startOfDayInSofia(date))}`;
-}
-
-function logKey({ kind, subjectId, onDate, userId }: ReminderLogEntry): string {
+function logKey({
+  kind,
+  subjectId,
+  onDate,
+  userId,
+}: NotificationLogEntry): string {
   return `${kind}|${subjectId}|${onDate}|${userId}`;
 }
 
@@ -239,34 +210,24 @@ export interface Reminders {
    */
   run(): Promise<void>;
   /**
-   * „Извадих“ for a meal (GLOSSARY), from either person: the morning „Извади месото“ is not sent to anyone. Pressed
-   * again, nothing changes; 404 for an unknown meal.
+   * After „Аз“ on „Кой готви довечера“ made `cookUserId` the cook of `meal` (`app.menu.claimCook`): whoever got the
+   * question, on whichever day, gets the answer in its place on every device: „Довечера готвиш ти“ for the cook,
+   * „Довечера готви <име>“ for the others.
    */
-  thawed(mealId: string): Promise<void>;
-  /**
-   * „Аз“ on „Кой готви довечера“ from `userId`: the first to answer becomes the cook of the meal, as when the cook is
-   * picked in the menu (`menu.changed`), and whoever else got the question gets „Довечера готви <име>“ in its place.
-   * 409 `cook_taken` with `cookUserId` once the meal has a cook; 404 for an unknown meal.
-   */
-  claimCook(mealId: string, userId: string): Promise<void>;
+  cookClaimed(meal: Meal, cookUserId: string): Promise<void>;
 }
-
-/** The 409 of „Аз“ when someone else answered first or the cook was picked in the menu. */
-export const COOK_TAKEN = 'Някой вече готви';
 
 export function createReminders({
   db,
   push,
   now,
   log,
-  events,
   menuNotifications,
 }: {
   db: Db;
   push: PushService;
   now: () => Date;
   log: Pick<FastifyBaseLogger, 'info'>;
-  events: EventBus;
   menuNotifications: MenuNotifications;
 }): Reminders {
   async function sendDue() {
@@ -300,48 +261,18 @@ export function createReminders({
       await menuNotifications.sendQuietActivity();
     },
 
-    async thawed(mealId) {
-      if (!(await markMealThawed(db, mealId, now()))) {
-        throw new NotFoundError(NO_SUCH_MEAL);
-      }
-    },
-
-    async claimCook(mealId, userId) {
-      const at = now();
-      const { meal, weekStart } = await db.transaction(async (tx) => {
-        const claimed = await claimMealCook(tx, mealId, userId);
-        const current = await findMeal(tx, mealId);
-        if (!current) {
-          throw new NotFoundError(NO_SUCH_MEAL);
-        }
-        if (!claimed) {
-          throw new ConflictError(COOK_TAKEN, {
-            code: 'cook_taken',
-            cookUserId: current.cookUserId,
-          });
-        }
-        // As a cook picked in the menu: the plan changed now.
-        await updateMeal(tx, mealId, claimed.planId, {}, at);
-        const plan = await findPlanSummary(tx, claimed.planId);
-        if (!plan) {
-          throw new Error('plan of a meal vanished');
-        }
-        return { meal: current, weekStart: plan.weekStart };
-      });
-      for (const event of menuAndShoppingChanged(weekStart)) {
-        events.publish(event);
-      }
-      const cook = (await listUsers(db)).find((user) => user.id === userId);
-      // Same tag: it takes the place of the question on every device that got it, the answerer's other ones too.
-      for (const asked of await listNotifiedUsers(db, 'cook', mealId)) {
+    async cookClaimed(meal, cookUserId) {
+      const cook = (await listUsers(db)).find((user) => user.id === cookUserId);
+      // Same tag: it takes the place of the question on every device that got it, the cook's other ones too.
+      for (const asked of await listNotifiedUsers(db, 'cook', meal.id)) {
         await push.send(asked, 'cook', {
           title:
-            asked === userId
+            asked === cookUserId
               ? 'Довечера готвиш ти'
               : `Довечера готви ${cook?.name ?? ''}`.trim(),
           body: mealTitle(meal) ?? '',
-          tag: `cook-${mealId}`,
-          url: menuUrl(meal.date),
+          tag: notificationTag.cook(meal.id),
+          url: mealDayUrl(meal.date),
         });
       }
     },

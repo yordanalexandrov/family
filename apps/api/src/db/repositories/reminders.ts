@@ -1,25 +1,28 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import type { DateKey } from '@family/shared';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
 import { meal } from '../schema/menu.js';
 import { pantryItem } from '../schema/pantry.js';
 
-/** A dinner as the reminders read it: its recipe's title and products (in the recipe's order), note, cook and „Извадих“. */
-export interface ReminderMealRow {
+/** A dinner of the menu as the reminders see it; `title` and `ingredients` are its recipe's, `null`/empty without one. */
+export interface ReminderMeal {
   id: string;
-  date: string;
+  date: DateKey;
   title: string | null;
+  /** The recipe's products, in its order. */
   ingredients: { id: string; name: string }[];
   note: string | null;
   cookUserId: string | null;
+  /** „Извадих“ (GLOSSARY): someone took the meat out. */
   thawedAt: Date | null;
 }
 
 /** The dinners on `dates`, of whatever plan holds them; a meal without a recipe has no title and no products. */
 export async function listReminderDinners(
   db: DbExecutor,
-  dates: string[],
-): Promise<ReminderMealRow[]> {
+  dates: DateKey[],
+): Promise<ReminderMeal[]> {
   const meals = await db
     .select({
       id: meal.id,
@@ -70,37 +73,4 @@ export async function listFrozenIngredientIds(
     .from(pantryItem)
     .where(eq(pantryItem.frozen, true));
   return rows.map((row) => row.id);
-}
-
-/** „Извадих“ for the meal at `at`, unless it is already; answers `false` when there is no such meal. */
-export async function markMealThawed(
-  db: DbExecutor,
-  id: string,
-  at: Date,
-): Promise<boolean> {
-  const rows = await db
-    .update(meal)
-    .set({
-      thawedAt: sql`coalesce(${meal.thawedAt}, ${at.toISOString()}::timestamptz)`,
-    })
-    .where(eq(meal.id, id))
-    .returning({ thawedAt: meal.thawedAt });
-  return rows.length > 0;
-}
-
-/**
- * „Аз“ on „Кой готви довечера“: `userId` becomes the cook of the meal unless it has one. Answers the plan of the meal
- * when it did, else `null` (the meal has a cook, or there is no such meal).
- */
-export async function claimMealCook(
-  db: DbExecutor,
-  id: string,
-  userId: string,
-): Promise<{ planId: string } | null> {
-  const [row] = await db
-    .update(meal)
-    .set({ cookUserId: userId })
-    .where(and(eq(meal.id, id), isNull(meal.cookUserId)))
-    .returning({ planId: meal.planId });
-  return row ?? null;
 }

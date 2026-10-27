@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { ReminderMeal } from '../db/repositories/reminders.js';
 import { DANI, POLI } from '../test/users.js';
 import {
   type DueReminder,
   dueReminders,
-  type ReminderMeal,
   type ReminderState,
 } from './reminders.js';
 
