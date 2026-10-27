@@ -11,8 +11,8 @@ import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
 
 /**
- * AI contract `recipe.suggest` (GLOSSARY: AI контракт): fixed JSON in → 3–5 normalized recipes out,
- * validated in the API. Everything the agent writes is in Bulgarian.
+ * AI contract `recipe.suggest` (GLOSSARY: AI контракт): fixed JSON in → 3–5 normalized recipes out, or none and
+ * the reason in `noResults`, validated in the API. Everything the agent writes is in Bulgarian.
  */
 
 /** What the client asks for (GLOSSARY: Заявка за предложения). */
@@ -116,13 +116,44 @@ function checkDistinctSources(
   });
 }
 
-const recipeSuggestOutputSchema = z.object({
-  suggestions: z
-    .array(suggestionSchema)
-    .min(3)
-    .max(5)
-    .superRefine(checkDistinctSources),
-});
+/** An answer without `noResults` has this many suggestions. */
+const MIN_SUGGESTIONS = 3;
+const MAX_SUGGESTIONS = 5;
+
+/** Either 3–5 suggestions and no `noResults`, or none and the reason in `noResults`: never placeholder records. */
+function checkAnswerShape(
+  output: { suggestions: Suggestion[]; noResults: string | null },
+  ctx: z.RefinementCtx,
+): void {
+  if (output.noResults !== null) {
+    if (output.suggestions.length > 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['noResults'],
+        message: `noResults е само с празен списък suggestions: или ${MIN_SUGGESTIONS}–${MAX_SUGGESTIONS} предложения, или нито едно и причината.`,
+      });
+    }
+    return;
+  }
+  if (output.suggestions.length < MIN_SUGGESTIONS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['suggestions'],
+      message: `Поне ${MIN_SUGGESTIONS} предложения; ако няма толкова, върни празен списък и причината в noResults.`,
+    });
+  }
+}
+
+const recipeSuggestOutputSchema = z
+  .object({
+    suggestions: z
+      .array(suggestionSchema)
+      .max(MAX_SUGGESTIONS)
+      .superRefine(checkDistinctSources),
+    /** Why there are no suggestions, in Bulgarian; `null` when there are. */
+    noResults: z.string().trim().min(1).nullable(),
+  })
+  .superRefine(checkAnswerShape);
 
 export type RecipeSuggestOutput = z.infer<typeof recipeSuggestOutputSchema>;
 
@@ -139,14 +170,16 @@ const recipeSuggestWireSchema = z.object({
         nutritionPer100g: nutritionSchema.nullable(),
       }),
     )
-    .min(3)
-    .max(5),
+    // 0 for an answer with `noResults`; the 3–5 otherwise is checked by the contract only.
+    .min(0)
+    .max(MAX_SUGGESTIONS),
+  noResults: z.string().nullable(),
 });
 
 /**
  * JSON Schema of the output for `response_format: { type: 'json_schema', strict: true }`: every object closed and
- * every property required, `nutritionPer100g` nullable. Refinements (a pinch has no quantity) are not expressible
- * there; the API still parses with {@link recipeSuggestAgentOutputSchema}.
+ * every property required, `nutritionPer100g` and `noResults` nullable. Refinements (3–5 suggestions without
+ * `noResults`, a pinch has no quantity) are not expressible there; the API still parses with {@link recipeSuggestAgentOutputSchema}.
  */
 const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
   recipeSuggestWireSchema,

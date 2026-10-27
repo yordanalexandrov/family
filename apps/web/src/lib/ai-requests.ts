@@ -16,6 +16,7 @@ const TRY_AGAIN = 'Нещо се обърка, опитай пак';
 const FAILURE_MESSAGES: Record<(typeof CONTRACT_FAILURES)[number], string> = {
   timeout: 'Не успях навреме, опитай пак',
   invalid_output: 'Получих нечетим отговор',
+  no_results: 'Не намерих подходящи рецепти. Опитай пак или с друга подсказка.',
   stale: 'Сървърът се рестартира, докато търсех. Опитай пак',
   aborted: 'Търсенето беше прекъснато. Опитай пак',
   error: TRY_AGAIN,

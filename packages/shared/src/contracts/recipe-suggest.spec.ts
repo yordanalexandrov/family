@@ -47,6 +47,44 @@ describe('recipeSuggest.outputSchema', () => {
     expect(issuePaths(output)).toEqual(['suggestions']);
   });
 
+  it('accepts no suggestions with the reason in noResults', () => {
+    const output = {
+      suggestions: [],
+      noResults:
+        'Не намерих рецепти с риба за закуска в сайтовете, които отворих.',
+    };
+
+    expect(outputSchema.parse(output)).toEqual(output);
+  });
+
+  it('rejects suggestions together with noResults', () => {
+    const output = validOutput();
+    output.noResults = 'Няма достатъчно рецепти.';
+
+    expect(issuePaths(output)).toEqual(['noResults']);
+  });
+
+  it('rejects no suggestions without noResults', () => {
+    expect(issuePaths({ suggestions: [], noResults: null })).toEqual([
+      'suggestions',
+    ]);
+  });
+
+  it('rejects one or two suggestions, with or without noResults', () => {
+    const output = validOutput();
+    output.suggestions = output.suggestions.slice(0, 1);
+    expect(issuePaths(output)).toEqual(['suggestions']);
+
+    output.noResults = 'Намерих само една.';
+    expect(issuePaths(output)).toEqual(['noResults']);
+  });
+
+  it('rejects a blank noResults', () => {
+    expect(issuePaths({ suggestions: [], noResults: '  ' })).toEqual([
+      'noResults',
+    ]);
+  });
+
   it('rejects two suggestions from the same page', () => {
     const output = validOutput();
     // Same page: other case of the host, `www.`, a trailing slash, query and fragment.
@@ -188,7 +226,7 @@ describe('recipeSuggest.responseFormat', () => {
     expect(recipeSuggest.responseFormat.name).toBe('recipe_suggest');
   });
 
-  it('describes 3 to 5 suggestions with the required fields for response_format', () => {
+  it('describes up to 5 suggestions with the required fields for response_format', () => {
     const schema = recipeSuggest.responseFormat.schema as unknown as {
       properties: {
         suggestions: {
@@ -200,7 +238,8 @@ describe('recipeSuggest.responseFormat', () => {
     };
     const suggestions = schema.properties.suggestions;
 
-    expect(suggestions.minItems).toBe(3);
+    // 0 for an answer with noResults; 3–5 otherwise is checked by the Zod contract.
+    expect(suggestions.minItems).toBe(0);
     expect(suggestions.maxItems).toBe(5);
     expect(suggestions.items.required).toEqual(
       expect.arrayContaining([
@@ -266,6 +305,16 @@ describe('recipeSuggest.responseFormat', () => {
     walk(recipeSuggest.responseFormat.schema, '$');
 
     expect(problems).toEqual([]);
+  });
+
+  it('asks for noResults as a string or null', () => {
+    const schema = recipeSuggest.responseFormat.schema as unknown as {
+      required: string[];
+      properties: { noResults: unknown };
+    };
+
+    expect(schema.required).toContain('noResults');
+    expect(schema.properties.noResults).toEqual({ type: ['string', 'null'] });
   });
 
   it('asks for nutritionPer100g as an object or null', () => {

@@ -192,6 +192,10 @@ describe('SuggestionRequestView', () => {
 
   it.each<[ContractFailure, string]>([
     ['invalid_output', 'Получих нечетим отговор'],
+    [
+      'no_results',
+      'Не намерих подходящи рецепти. Опитай пак или с друга подсказка.',
+    ],
     ['stale', 'Сървърът се рестартира, докато търсех. Опитай пак'],
     ['http_502', 'AI отговори с грешка 502, опитай пак'],
   ])('failed/%s показва „%s“', async (code, message) => {

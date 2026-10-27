@@ -1,5 +1,6 @@
 import type { AiContract } from '@family/shared';
 import { eq } from 'drizzle-orm';
+import type { FastifyBaseLogger } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import {
   afterAll,
@@ -101,14 +102,20 @@ const store: ContractRequestStore<
       .set({ tags: ['quick'] })
       .where(eq(table.id, request.id));
   },
+  noResults(output) {
+    return output.word === 'нищо' ? 'Агентът не намери нищо.' : null;
+  },
 };
 
 const silent = { info() {}, warn() {}, error() {} };
 
 let requests: ContractRequests;
 
-function create(client = createOpenClawClient(TEST_OPENCLAW, silent)) {
-  requests = createContractRequests({ db: testDb(), client, log: silent });
+function create(
+  client = createOpenClawClient(TEST_OPENCLAW, silent),
+  log: Pick<FastifyBaseLogger, 'warn' | 'error'> = silent,
+) {
+  requests = createContractRequests({ db: testDb(), client, log });
   return requests.register(echo, store, 'family-test');
 }
 
@@ -185,6 +192,30 @@ describe('AI requests (contract-requests)', () => {
       error: 'http_502',
       tags: [],
     });
+  });
+
+  it('fails as no_results without writing the answer when the store finds nothing in it, and logs why', async () => {
+    const warnings: [object, string][] = [];
+    const handle = create(undefined, {
+      ...silent,
+      warn: ((details: object, message: string) => {
+        warnings.push([details, message]);
+      }) as FastifyBaseLogger['warn'],
+    });
+
+    const request = await handle.request({ word: 'нищо' }, DANI.id);
+
+    expect(await finished(handle, request.id)).toMatchObject({
+      status: 'failed',
+      error: 'no_results',
+      tags: [],
+    });
+    expect(warnings).toEqual([
+      [
+        { requestId: request.id, noResults: 'Агентът не намери нищо.' },
+        'test.echo found no results',
+      ],
+    ]);
   });
 
   it('fails as error, not done, when writing the answer fails', async () => {

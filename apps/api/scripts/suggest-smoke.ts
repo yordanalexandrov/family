@@ -85,6 +85,9 @@ try {
   process.stdout.write(
     `${lines.join('\n')}${output.suggestions.length} предложения за ${seconds} s\n`,
   );
+  if (output.noResults !== null) {
+    process.stdout.write(`Няма резултати: ${output.noResults}\n`);
+  }
 
   if (values.save) {
     await writeFile(values.save, `${JSON.stringify(output, null, 2)}\n`);

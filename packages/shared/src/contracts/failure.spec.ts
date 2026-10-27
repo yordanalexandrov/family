@@ -6,6 +6,7 @@ describe('contractFailureSchema', () => {
     for (const code of [
       'timeout',
       'invalid_output',
+      'no_results',
       'aborted',
       'stale',
       'error',

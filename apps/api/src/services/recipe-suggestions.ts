@@ -56,7 +56,8 @@ export type SuggestionRequests = ContractRequestHandle<
 
 /**
  * How `recipe.suggest` requests are stored: the input is the request plus the registry context (active recipe titles,
- * ingredient names); a valid answer stores the suggestions in the agent's order.
+ * ingredient names); a valid answer stores the suggestions in the agent's order, or ends `no_results` when the agent
+ * found none.
  */
 export const suggestionRequestStore: ContractRequestStore<
   RecipeSuggestParams,
@@ -81,6 +82,10 @@ export const suggestionRequestStore: ContractRequestStore<
 
   async onDone(tx, request, output) {
     await insertSuggestions(tx, request.id, output.suggestions);
+  },
+
+  noResults(output) {
+    return output.noResults;
   },
 };
 
