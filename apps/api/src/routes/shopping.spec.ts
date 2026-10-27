@@ -585,6 +585,48 @@ describe('the pantry in the list', () => {
     ).toBeNull();
   });
 
+  it('buying one row of a staple in several units returns its other rows to the pantry', async () => {
+    const pantryId = await addToPantry(ids.salt, 'staple');
+    await ranOut(pantryId);
+    const saltRows = (list: {
+      aisles: { items: { title: string; unit: string | null }[] }[];
+    }) =>
+      list.aisles
+        .flatMap(({ items }) => items)
+        .filter((item) => item.title === 'хималайска сол')
+        .map((item) => item.unit);
+    expect(saltRows(await listOf())).toEqual(['g', 'pinch']);
+
+    await setChecked(`${ids.salt}:g`, true);
+
+    // The check is the purchase of the staple: the flag is cleared, so the unchecked pinch row is hidden by the pantry.
+    const list = await listOf();
+    expect(saltRows(list)).toEqual(['g']);
+    expect(await itemOf(`${ids.salt}:g`)).toMatchObject({
+      checkedBy: DANI.id,
+      pantry: { ranOut: false },
+    });
+    expect(list.pantryHidden).toMatchObject([{ key: `${ids.salt}:pinch` }]);
+  });
+
+  it('shows a staple that ran out also where its row is hidden by hand, and „Покажи“ leaves the pantry as it is', async () => {
+    const pantryId = await addToPantry(ids.oil, 'staple');
+    await setHidden(oilKey(), true);
+
+    await ranOut(pantryId);
+
+    let list = await listOf();
+    expect(rows(list)).toContain('spices гроздово олио 110 ml ×3');
+    expect(list.hidden).toEqual([]);
+    expect(list.pantryHidden).toEqual([]);
+
+    await setHidden(oilKey(), false);
+    list = await listOf();
+    expect(rows(list)).toContain('spices гроздово олио 110 ml ×3');
+    const [item] = (await inject('GET', '/api/pantry')).json().items;
+    expect(item.ranOutAt).toBe(NOW.toISOString());
+  });
+
   it('does not count a check from before the staple ran out', async () => {
     await setChecked(oilKey(), true);
     const pantryId = await addToPantry(ids.oil, 'staple');

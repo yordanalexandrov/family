@@ -178,6 +178,10 @@ describe('buildShoppingList', () => {
       `${ONION.id}:g`,
       `${ONION.id}:pcs`,
     ]);
+    expect(list.aisles[0]?.items.map((item) => item.ingredientId)).toEqual([
+      ONION.id,
+      ONION.id,
+    ]);
   });
 
   it('turns kg into g before summing', () => {
@@ -591,6 +595,7 @@ describe('buildShoppingList pantry', () => {
         {
           key: `${oil.id}:none`,
           kind: 'computed',
+          ingredientId: oil.id,
           title: 'олио',
           quantity: null,
           unit: null,

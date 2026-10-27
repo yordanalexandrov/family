@@ -21,6 +21,7 @@ function computed(
   return {
     key: `${ingredient(n)}:${unit}`,
     kind: 'computed',
+    ingredientId: ingredient(n),
     title: '',
     quantity: null,
     unit,

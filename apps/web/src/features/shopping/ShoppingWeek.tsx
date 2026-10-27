@@ -7,7 +7,6 @@ import {
   formatAge,
   type MealPlan,
   mealsToAgree,
-  parseItemKey,
   type ShoppingItem,
   type ShoppingList,
   type User,
@@ -221,14 +220,12 @@ function ListView({ list, weekStart, users }: ListViewProps) {
   };
 
   function alwaysHave(item: ShoppingItem) {
-    const parsed = parseItemKey(item.key);
-    if (parsed?.kind !== 'computed') {
+    const { ingredientId } = item;
+    if (ingredientId === undefined) {
       return;
     }
     makeStaple.mutate(
-      item.pantry
-        ? { pantryId: item.pantry.id }
-        : { ingredientId: parsed.ingredientId },
+      item.pantry ? { pantryId: item.pantry.id } : { ingredientId },
       { onError, onSuccess: () => setSourcesOf(null) },
     );
   }

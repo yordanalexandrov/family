@@ -18,7 +18,7 @@ export function SourcesSheet({
   onClose: () => void;
 }) {
   const canMakeStaple =
-    item.kind === 'computed' && item.pantry?.kind !== 'staple';
+    item.ingredientId !== undefined && item.pantry?.kind !== 'staple';
   return (
     <Sheet title={item.title} onClose={onClose}>
       {item.sources.length > 0 ? (

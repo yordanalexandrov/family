@@ -28,8 +28,9 @@ export interface BuildShoppingListInput {
  * rounded up; a pinch is one row without a quantity. The stored records add checks, hidden items and manual items.
  *
  * The pantry: a row of a staple is hidden by the pantry (`pantryHidden`) unless it ran out or is checked; a staple
- * that ran out and the menu does not want gets a row without a quantity, kept while it is checked. A check from
- * before the staple ran out does not count. A row of a use-up item stays as it is, marked with the note.
+ * that ran out and the menu does not want gets a row without a quantity, kept while it is checked. A staple that ran
+ * out is visible in every list, also where its row is hidden by hand. A check from before the staple ran out does not
+ * count. A row of a use-up item stays as it is, marked with the note.
  */
 export function buildShoppingList({
   plan,
@@ -38,8 +39,7 @@ export function buildShoppingList({
   pantry = [],
 }: BuildShoppingListInput): ShoppingList {
   const recipesById = new Map(recipes.map((r) => [r.id, r]));
-  const computed = new Map<string, ShoppingItem>();
-  const ingredientOf = new Map<string, string>();
+  const computed = new Map<string, ShoppingItem & { ingredientId: string }>();
   const notInMenu = new Set<string>();
   const meals = [...plan.meals].sort((a, b) => a.date.localeCompare(b.date));
   for (const meal of meals) {
@@ -55,6 +55,7 @@ export function buildShoppingList({
       const item = computed.get(key) ?? {
         key,
         kind: 'computed',
+        ingredientId: line.ingredientId,
         title: line.ingredient.name,
         quantity: null,
         unit,
@@ -75,21 +76,23 @@ export function buildShoppingList({
         });
       }
       computed.set(key, item);
-      ingredientOf.set(key, line.ingredientId);
     }
   }
   const pantryByIngredient = new Map(
     pantry.map((entry) => [entry.ingredient.id, entry]),
   );
+  const wanted = new Set(
+    [...computed.values()].map((item) => item.ingredientId),
+  );
   for (const entry of pantry) {
-    const wanted = [...ingredientOf.values()].includes(entry.ingredient.id);
-    if (entry.kind !== 'staple' || wanted) {
+    if (entry.kind !== 'staple' || wanted.has(entry.ingredient.id)) {
       continue;
     }
     const key = computedItemKey(entry.ingredient.id, null);
     computed.set(key, {
       key,
       kind: 'computed',
+      ingredientId: entry.ingredient.id,
       title: entry.ingredient.name,
       quantity: null,
       unit: null,
@@ -99,7 +102,6 @@ export function buildShoppingList({
       hidden: false,
       sources: [],
     });
-    ingredientOf.set(key, entry.ingredient.id);
     notInMenu.add(key);
   }
   const overlays = new Map(
@@ -107,7 +109,7 @@ export function buildShoppingList({
   );
   const computedItems = [...computed.values()].flatMap((item) => {
     const overlay = overlays.get(item.key);
-    const entry = pantryByIngredient.get(ingredientOf.get(item.key) ?? '');
+    const entry = pantryByIngredient.get(item.ingredientId);
     const ranOutAt = entry?.kind === 'staple' ? entry.ranOutAt : null;
     // A check from before the staple ran out was of the last purchase.
     const counts =
@@ -121,7 +123,8 @@ export function buildShoppingList({
           : roundUp(item.quantity, item.unit),
       checkedBy: counts ? (overlay?.checkedBy ?? null) : null,
       checkedAt: counts ? (overlay?.checkedAt ?? null) : null,
-      hidden: overlay?.hidden ?? false,
+      // Every list shows a staple that ran out, so a hand-hidden row of it is visible until it is bought.
+      hidden: (overlay?.hidden ?? false) && ranOutAt === null,
       ...(entry && { pantry: pantryOf(entry) }),
     };
     // The row of a staple the menu does not want lives only while it ran out or is checked.

@@ -39,11 +39,13 @@ export type ShoppingItemPantry = z.infer<typeof shoppingItemPantrySchema>;
  * `<ingredientId>:<unit>`, with `quantity: null` for a pinch; a manual item is keyed `manual:<id>` and has no sources.
  * `checkedBy`/`checkedAt` are the check (GLOSSARY: Отметка); `hidden` is a hidden item, computed only. `pantry` is
  * there when the ingredient is in the pantry; a staple that ran out and the menu does not want is a computed row
- * without quantity and unit, keyed `<ingredientId>:none`.
+ * without quantity and unit, keyed `<ingredientId>:none`. `ingredientId` is the ingredient of a computed row (absent
+ * on a manual one, and in a list cached offline before it was sent).
  */
 export const shoppingItemSchema = z.object({
   key: z.string(),
   kind: shoppingItemKindSchema,
+  ingredientId: z.uuid().optional(),
   title: z.string(),
   quantity: quantitySchema,
   unit: unitSchema.nullable(),
