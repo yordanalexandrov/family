@@ -1,4 +1,5 @@
 import {
+  APPLIANCES,
   approvedSuggestionResponseSchema,
   ingredientsResponseSchema,
   type RecipeInput,
@@ -165,6 +166,17 @@ describe('the recipe.suggest run', () => {
       existingRecipeTitles: [],
     });
     expect(input.ingredientNames).toContain('сол');
+  });
+
+  it('tells the agent the household appliances with every request', async () => {
+    const calls = answerInTurn(VALID());
+
+    await finished(await requested({ slots: ['dinner'] }));
+
+    const body = calls.bodies[0] as { messages: { content: string }[] };
+    expect(JSON.parse(body.messages[0]?.content ?? '').equipment).toEqual(
+      APPLIANCES,
+    );
   });
 
   it('puts only recipes that are not archived into existingRecipeTitles', async () => {

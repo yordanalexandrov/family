@@ -27,10 +27,12 @@ export const recipeSuggestParamsSchema = z.object({
 
 export type RecipeSuggestParams = z.infer<typeof recipeSuggestParamsSchema>;
 
-/** The contract input: the client request plus the registry context the API adds. */
+/** The contract input: the client request plus the registry context and the household appliances the API adds. */
 const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
   existingRecipeTitles: z.array(z.string()),
   ingredientNames: z.array(z.string()),
+  /** The special appliances (GLOSSARY: Уред), a soft preference: `APPLIANCES` from `food/appliances.ts`. */
+  equipment: z.array(z.string()),
 });
 
 export type RecipeSuggestInput = z.infer<typeof recipeSuggestInputSchema>;

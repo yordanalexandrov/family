@@ -4,6 +4,7 @@
 import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
+  APPLIANCES,
   type RecipeSuggestInput,
   recipeSuggest,
   recipeSuggestParamsSchema,
@@ -54,11 +55,12 @@ if (!client) {
   process.exit(2);
 }
 
-// The registry context the api would add: the seed ingredients and an empty registry.
+// The context the api would add: the seed ingredients, an empty registry and the household appliances.
 const input: RecipeSuggestInput = {
   ...params.data,
   existingRecipeTitles: [],
   ingredientNames: seed.ingredients.map((ingredient) => ingredient.name),
+  equipment: [...APPLIANCES],
 };
 
 process.stderr.write(

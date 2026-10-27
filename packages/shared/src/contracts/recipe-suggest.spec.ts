@@ -14,6 +14,7 @@ const INPUT: RecipeSuggestInput = {
   slots: ['dinner'],
   existingRecipeTitles: [],
   ingredientNames: ['сол'],
+  equipment: [],
 };
 
 /** What the OpenClaw client checks an answer with; `recipe.suggest` asks the same of every input. */
@@ -177,6 +178,7 @@ describe('recipeSuggest.inputSchema', () => {
     hint: 'нещо с риба',
     existingRecipeTitles: ['Леща яхния'],
     ingredientNames: ['леща', 'сьомга'],
+    equipment: ['air fryer', 'sous vide'],
   };
 
   it('accepts the client request together with the registry context added by the API', () => {
@@ -188,9 +190,18 @@ describe('recipeSuggest.inputSchema', () => {
       slots: ['lunch'],
       existingRecipeTitles: [],
       ingredientNames: [],
+      equipment: [],
     };
 
     expect(recipeSuggest.inputSchema.parse(minimal)).toEqual(minimal);
+  });
+
+  it('rejects an input without the household appliances', () => {
+    const { equipment: _none, ...withoutEquipment } = input;
+
+    expect(recipeSuggest.inputSchema.safeParse(withoutEquipment).success).toBe(
+      false,
+    );
   });
 
   it('rejects a hint longer than 200 characters', () => {
