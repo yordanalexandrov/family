@@ -82,6 +82,7 @@ export function ResolveIngredientsSheet({
                 query={row.query}
                 unit={row.unit}
                 isNew={row.isNew}
+                newProduct={row.newProduct}
                 onQueryChange={(query) => onQueryChange(key, query)}
                 onSelect={(ingredient) => onSelect(key, ingredient)}
               />

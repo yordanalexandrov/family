@@ -1,6 +1,7 @@
 import {
   type BaseUnit,
   type Ingredient,
+  type NewProduct,
   type Nutrition,
   type Recipe,
   type RecipeInput,
@@ -22,6 +23,8 @@ export interface IngredientRowValues {
   note?: string;
   /** Продукт, който го няма в регистъра (от предложение): откроен като „нов продукт“, докато не се свърже. */
   isNew?: boolean;
+  /** Новият продукт, както го предлага внасянето: попълва формата „Нов продукт“ (име, основна единица, щанд). */
+  newProduct?: NewProduct;
 }
 
 /** Основната единица за нов продукт по единицата в рецептата: kg → g, l → ml; лъжиците и „по вкус“ → g. */

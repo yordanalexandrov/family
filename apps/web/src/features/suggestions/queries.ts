@@ -1,4 +1,5 @@
 import {
+  type AnyRecipeSuggestion,
   approvedSuggestionResponseSchema,
   type RecipeInput,
   type RecipeSuggestParams,
@@ -12,6 +13,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch, JSON_HEADERS } from '../../api/client';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
+import { importKeys } from '../recipe-import/queries';
 import { storeRecipe } from '../recipes/queries';
 
 const RECENT_LIMIT = 10;
@@ -82,6 +84,13 @@ export function useSuggestionRequest(id: string) {
   });
 }
 
+/** Заявката, от която е предложението: заявка за предложения или внасяне; пита се наново след решение. */
+function requestKeyOf(suggestion: AnyRecipeSuggestion) {
+  return suggestion.origin === 'import'
+    ? importKeys.all
+    : suggestionKeys.request(suggestion.requestId);
+}
+
 /** Одобрение с редактирания `recipeInput` → нова рецепта в регистъра. */
 export function useApproveSuggestion() {
   const queryClient = useQueryClient();
@@ -99,7 +108,7 @@ export function useApproveSuggestion() {
     onSuccess({ recipe, suggestion }) {
       storeRecipe(queryClient, recipe);
       void queryClient.invalidateQueries({
-        queryKey: suggestionKeys.request(suggestion.requestId),
+        queryKey: requestKeyOf(suggestion),
       });
     },
   });
@@ -116,7 +125,7 @@ export function useRejectSuggestion() {
       ).then((body) => body.suggestion),
     onSuccess(suggestion) {
       void queryClient.invalidateQueries({
-        queryKey: suggestionKeys.request(suggestion.requestId),
+        queryKey: requestKeyOf(suggestion),
       });
     },
   });

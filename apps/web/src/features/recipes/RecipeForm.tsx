@@ -275,6 +275,7 @@ export function RecipeForm({
                     query={row.query}
                     unit={row.unit}
                     isNew={row.isNew}
+                    newProduct={row.newProduct}
                     onQueryChange={(query) =>
                       updateRow(index, { query, ingredient: null })
                     }

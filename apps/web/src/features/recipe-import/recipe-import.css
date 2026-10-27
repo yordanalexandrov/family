@@ -1,0 +1,38 @@
+/* „Внеси рецепта“: табове за източника и формата под тях; телефон първо. Докосване ≥ 44 px (2.75rem). */
+.import-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+
+.import-tabs__tab {
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.import-tabs__tab[aria-selected="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.import-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.import-form__text {
+  min-block-size: 14rem;
+  resize: vertical;
+}
