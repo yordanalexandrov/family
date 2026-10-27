@@ -30,6 +30,8 @@ export const pantryItemSchema = z.object({
   }),
   kind: pantryKindSchema,
   note: z.string().nullable(),
+  /** GLOSSARY: Във фризера. „Извади месото“ reads this flag, never the note. */
+  frozen: z.boolean(),
   ranOutAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 });
@@ -47,20 +49,25 @@ export const useUpSchema = z.object({
 
 export type UseUp = z.infer<typeof useUpSchema>;
 
-/** `POST /api/pantry`: an ingredient not in the pantry yet. */
+/** `POST /api/pantry`: an ingredient not in the pantry yet; not in the freezer unless said so. */
 export const createPantryItemSchema = z.object({
   ingredientId: z.uuid(),
   kind: pantryKindSchema,
   note: pantryNoteSchema.optional(),
+  frozen: z.boolean().default(false),
 });
 
 export type CreatePantryItem = z.infer<typeof createPantryItemSchema>;
 
-/** `PATCH /api/pantry/:id`: the kind, the note, or both. A staple that becomes a use-up item no longer ran out. */
+/**
+ * `PATCH /api/pantry/:id`: any of the kind, the note and „Във фризера“. A staple that becomes a use-up item no longer
+ * ran out.
+ */
 export const updatePantryItemSchema = z
   .object({
     kind: pantryKindSchema,
     note: pantryNoteSchema,
+    frozen: z.boolean(),
   })
   .partial();
 

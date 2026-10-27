@@ -1,13 +1,20 @@
 import { type PantryKind, pantryKindSchema } from '@family/shared';
 import { sql } from 'drizzle-orm';
-import { check, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { oneOf } from './checks.js';
 import { createdAt } from './columns.js';
 import { ingredient } from './food.js';
 
 /**
  * GLOSSARY: Килер. At most one row per ingredient, without a quantity: a staple (Постоянен продукт) or a use-up item
- * (Временен продукт). `ran_out_at` is set only on a staple someone said ran out, until it is bought.
+ * (Временен продукт), maybe in the freezer (Във фризера). `ran_out_at` is set only on a staple someone said ran out, until it is bought.
  */
 export const pantryItem = pgTable(
   'pantry_item',
@@ -19,6 +26,8 @@ export const pantryItem = pgTable(
       .references(() => ingredient.id, { onDelete: 'cascade' }),
     kind: text('kind').$type<PantryKind>().notNull(),
     note: text('note'),
+    /** GLOSSARY: Във фризера. */
+    frozen: boolean('frozen').notNull().default(false),
     ranOutAt: timestamp('ran_out_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
