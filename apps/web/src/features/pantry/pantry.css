@@ -38,6 +38,7 @@
 
 .pantry-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-block-size: 3.25rem;
@@ -50,17 +51,17 @@
 
 .pantry-item__main {
   display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
+  flex: 1 1 6rem;
+  flex-direction: column;
+  gap: 0.125rem;
   min-inline-size: 0;
+  padding-block: var(--space-1);
 }
 
 .pantry-item__name {
   color: var(--color-text);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .pantry-item__note,
@@ -70,17 +71,31 @@
 }
 
 .pantry-item__age {
+  font-size: var(--font-size-xs);
   white-space: nowrap;
 }
 
-.pantry-item__action {
+.pantry-item__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.pantry-item .pantry-item__action {
   flex: none;
   min-block-size: 2.75rem;
   padding-inline: var(--space-2);
   font-size: var(--font-size-sm);
 }
 
-.pantry-item__action.button--quiet {
+.pantry-item .pantry-item__used {
+  min-inline-size: 0;
+  padding-inline: var(--space-3);
+}
+
+.pantry-item .pantry-item__action.button--quiet {
   background: transparent;
   color: var(--color-text-muted);
   font-weight: 500;

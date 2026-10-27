@@ -112,26 +112,28 @@ function Groups({
                     {item.ingredient.name}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  className="button button--quiet pantry-item__action"
-                  aria-label={`Направи временен: ${item.ingredient.name}`}
-                  disabled={isPending(item)}
-                  onClick={() =>
-                    setKind.mutate({ item, kind: 'use_up' }, options)
-                  }
-                >
-                  временен
-                </button>
-                <button
-                  type="button"
-                  className="button button--quiet pantry-item__action"
-                  aria-label={`Махни: ${item.ingredient.name}`}
-                  disabled={isPending(item)}
-                  onClick={() => remove.mutate(item, options)}
-                >
-                  махни
-                </button>
+                <span className="pantry-item__actions">
+                  <button
+                    type="button"
+                    className="button button--quiet pantry-item__action"
+                    aria-label={`Направи временен: ${item.ingredient.name}`}
+                    disabled={isPending(item)}
+                    onClick={() =>
+                      setKind.mutate({ item, kind: 'use_up' }, options)
+                    }
+                  >
+                    временен
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--quiet pantry-item__action"
+                    aria-label={`Махни: ${item.ingredient.name}`}
+                    disabled={isPending(item)}
+                    onClick={() => remove.mutate(item, options)}
+                  >
+                    махни
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
@@ -159,26 +161,28 @@ function Groups({
                     {formatPantryAge(item.createdAt, today)}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  className="button button--quiet pantry-item__action"
-                  aria-label={`Направи постоянен: ${item.ingredient.name}`}
-                  disabled={isPending(item)}
-                  onClick={() =>
-                    setKind.mutate({ item, kind: 'staple' }, options)
-                  }
-                >
-                  постоянен
-                </button>
-                <button
-                  type="button"
-                  className="button pantry-item__action pantry-item__used"
-                  aria-label={`Използвано: ${item.ingredient.name}`}
-                  disabled={isPending(item)}
-                  onClick={() => remove.mutate(item, options)}
-                >
-                  Използвано
-                </button>
+                <span className="pantry-item__actions">
+                  <button
+                    type="button"
+                    className="button button--quiet pantry-item__action"
+                    aria-label={`Направи постоянен: ${item.ingredient.name}`}
+                    disabled={isPending(item)}
+                    onClick={() =>
+                      setKind.mutate({ item, kind: 'staple' }, options)
+                    }
+                  >
+                    постоянен
+                  </button>
+                  <button
+                    type="button"
+                    className="button pantry-item__action pantry-item__used"
+                    aria-label={`Използвано: ${item.ingredient.name}`}
+                    disabled={isPending(item)}
+                    onClick={() => remove.mutate(item, options)}
+                  >
+                    Използвано
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
