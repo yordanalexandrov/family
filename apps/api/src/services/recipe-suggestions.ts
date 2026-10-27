@@ -57,8 +57,8 @@ export type SuggestionRequests = ContractRequestHandle<
 
 /**
  * How `recipe.suggest` requests are stored: the input is the request plus the registry context (active recipe titles,
- * ingredient names) and the household appliances; a valid answer stores the suggestions in the agent's order, or ends `no_results` when the agent
- * found none.
+ * ingredient names) and the household appliances; a valid answer stores the suggestions in the agent's order, or ends
+ * `no_results` when the agent found none.
  */
 export const suggestionRequestStore: ContractRequestStore<
   RecipeSuggestParams,
