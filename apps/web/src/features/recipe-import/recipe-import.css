@@ -36,3 +36,9 @@
   min-block-size: 14rem;
   resize: vertical;
 }
+
+.import-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

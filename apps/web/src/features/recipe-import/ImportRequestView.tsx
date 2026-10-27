@@ -1,4 +1,4 @@
-import type { RecipeImportDetail } from '@family/shared';
+import type { RecipeImportDetail, RecipeImportParams } from '@family/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
@@ -68,36 +68,63 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   );
 }
 
-/** Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст. */
+/** Същото внасяне наново: същият текст или същият линк; `undefined`, ако няма какво да се повтори. */
+function retryParams({
+  request,
+  text,
+}: RecipeImportDetail): RecipeImportParams | undefined {
+  if (text !== undefined) {
+    return { kind: 'text', text, ...(request.url ? { url: request.url } : {}) };
+  }
+  if (request.source === 'url' && request.url) {
+    return { kind: 'url', url: request.url, force: true };
+  }
+  return undefined;
+}
+
+/**
+ * Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст или линк.
+ * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам.
+ */
 function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
   const retry = useRequestImport();
   const navigate = useNavigate();
-  const { request, text } = detail;
+  const { request } = detail;
+  const unreadable =
+    request.error === 'fetch_blocked' || request.error === 'fetch_failed';
+  const again = unreadable ? undefined : retryParams(detail);
   return (
     <>
       <div className="error-box" role="alert">
         <p className="error-box__message">{importFailureMessage(request)}</p>
-        {text !== undefined && (
+        {unreadable && (
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              void navigate({
+                to: '/recipes/import',
+                search: { tab: 'text', url: request.url },
+              })
+            }
+          >
+            Постави текста
+          </button>
+        )}
+        {again && (
           <button
             type="button"
             className="button"
             disabled={retry.isPending}
             onClick={() =>
-              retry.mutate(
-                {
-                  kind: 'text',
-                  text,
-                  ...(request.url ? { url: request.url } : {}),
+              retry.mutate(again, {
+                onSuccess(next) {
+                  void navigate({
+                    to: '/recipes/import/$requestId',
+                    params: { requestId: next.id },
+                  });
                 },
-                {
-                  onSuccess(next) {
-                    void navigate({
-                      to: '/recipes/import/$requestId',
-                      params: { requestId: next.id },
-                    });
-                  },
-                },
-              )
+              })
             }
           >
             Опитай пак

@@ -42,7 +42,11 @@ export function useRequestImport() {
     onSuccess(request, params) {
       queryClient.setQueryData<RecipeImportDetail>(
         importKeys.request(request.id),
-        { request, text: params.text, ingredients: [] },
+        {
+          request,
+          ...(params.kind === 'text' ? { text: params.text } : {}),
+          ingredients: [],
+        },
       );
       void queryClient.invalidateQueries({ queryKey: importKeys.recent });
     },

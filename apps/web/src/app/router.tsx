@@ -18,7 +18,10 @@ import { DeviceScreen } from '../features/device/DeviceScreen';
 import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
 import { PantryScreen } from '../features/pantry/PantryScreen';
 import { ImportRequestView } from '../features/recipe-import/ImportRequestView';
-import { ImportScreen } from '../features/recipe-import/ImportScreen';
+import {
+  ImportScreen,
+  parseImportSearch,
+} from '../features/recipe-import/ImportScreen';
 import {
   EditRecipeScreen,
   NewRecipeScreen,
@@ -246,6 +249,7 @@ const importRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes/import',
   component: ImportScreen,
+  validateSearch: parseImportSearch,
 });
 
 const importRequestRoute = createRoute({

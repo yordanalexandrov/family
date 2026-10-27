@@ -7,6 +7,9 @@ interface ImportTextFormProps {
   onSubmit: (params: RecipeImportParams) => void;
   isSubmitting?: boolean;
   submitError?: unknown;
+  /** Попълнени отвън: линкът на страница, която не се прочете („постави текста“), или споделен текст. */
+  initialText?: string | undefined;
+  initialUrl?: string | undefined;
 }
 
 /** Табът „Текст“: поставен текст на рецепта и, по желание, линкът, от който е. */
@@ -14,9 +17,11 @@ export function ImportTextForm({
   onSubmit,
   isSubmitting = false,
   submitError,
+  initialText = '',
+  initialUrl = '',
 }: ImportTextFormProps) {
-  const [text, setText] = useState('');
-  const [url, setUrl] = useState('');
+  const [text, setText] = useState(initialText);
+  const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string>();
 
   function submit(event: FormEvent) {
