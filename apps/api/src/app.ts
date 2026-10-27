@@ -1,4 +1,4 @@
-import { menuPropose, recipeSuggest } from '@family/shared';
+import { mealReplace, menuPropose, recipeSuggest } from '@family/shared';
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -21,9 +21,11 @@ import errorHandler from './plugins/error-handler.js';
 import scheduler, { type SchedulerOptions } from './plugins/scheduler.js';
 import { calendarEventsRoutes } from './routes/calendar-events.js';
 import { dashboardRoutes } from './routes/dashboard.js';
+import { eventsRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
 import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
+import { mealReplacementsRoutes } from './routes/meal-replacements.js';
 import { menuRoutes } from './routes/menu.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
@@ -33,10 +35,15 @@ import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
 import { createCalendarSync } from './services/calendar-sync.js';
 import { createContractRequests } from './services/contract-requests.js';
+import { createEventBus, type EventBus } from './services/events.js';
 import {
+  createMealReplaceStore,
+  type MealReplacements,
+} from './services/meal-replacements.js';
+import {
+  createMenuProposalStore,
   createMenuService,
   type MenuService,
-  menuProposalStore,
 } from './services/menu.js';
 import {
   createRecipeSuggestionsService,
@@ -61,6 +68,10 @@ declare module 'fastify' {
     recipeSuggestions: RecipeSuggestionsService;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
+    /** „✨ Предложи друго“ for a meal (`meal.replace`). */
+    mealReplacements: MealReplacements;
+    /** Change signals for `GET /api/events`; services publish after their commit. */
+    events: EventBus;
   }
 }
 
@@ -125,6 +136,10 @@ export function buildApp({
   app.decorate('db', db);
   app.decorate('users', createUsersService(db));
   app.decorate('now', now);
+  const events = createEventBus((error) =>
+    app.log.warn({ err: error }, 'event listener failed'),
+  );
+  app.decorate('events', events);
   app.decorate(
     'calendarSync',
     googleCalendar
@@ -154,7 +169,7 @@ export function buildApp({
     log: app.log,
   });
   // Without OpenClaw nothing is sent, so the agent ids do not matter then.
-  const agents = openclaw ?? { recipeAgent: '', menuAgent: '' };
+  const agents = openclaw ?? { recipeAgent: '', menuAgent: '', mealAgent: '' };
   app.decorate(
     'recipeSuggestions',
     createRecipeSuggestionsService({
@@ -172,11 +187,20 @@ export function buildApp({
       db,
       proposals: contractRequests.register(
         menuPropose,
-        menuProposalStore,
+        createMenuProposalStore(events),
         agents.menuAgent,
       ),
       now,
+      events,
     }),
+  );
+  app.decorate(
+    'mealReplacements',
+    contractRequests.register(
+      mealReplace,
+      createMealReplaceStore(now),
+      agents.mealAgent,
+    ),
   );
   app.addHook('onClose', async () => {
     await contractRequests.close();
@@ -202,7 +226,9 @@ export function buildApp({
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
   app.register(menuRoutes);
+  app.register(mealReplacementsRoutes);
   app.register(shoppingRoutes);
+  app.register(eventsRoutes);
 
   return app;
 }

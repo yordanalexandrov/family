@@ -1,16 +1,23 @@
 import {
   contractRequestStatusSchema,
+  type MealCommentKind,
+  type MealReplaceCandidate,
+  mealCommentKindSchema,
   type Servings,
   type Slot,
   slotSchema,
+  type VoteValue,
+  voteValueSchema,
 } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   check,
   date,
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -66,6 +73,59 @@ export const meal = pgTable(
 );
 
 /**
+ * GLOSSARY: Глас. At most one per meal and user, for the meal's current recipe and note; it goes with the meal (and so
+ * with the plan).
+ */
+export const mealVote = pgTable(
+  'meal_vote',
+  {
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    value: text('value').$type<VoteValue>().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.mealId, t.userId] }),
+    check('meal_vote_value_check', oneOf(t.value, voteValueSchema.options)),
+  ],
+);
+
+/**
+ * GLOSSARY: Разговор. The lines of a meal's thread, read by `(meal_id, created_at, seq)`; they go with the meal and stay
+ * when its recipe or note changes. A `system` line records a change by `author_user_id` and is never deleted.
+ */
+export const mealComment = pgTable(
+  'meal_comment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<MealCommentKind>().notNull(),
+    authorUserId: uuid('author_user_id')
+      .notNull()
+      .references(() => user.id),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    /** Write order: breaks the tie of two lines with the same `created_at` (a change and its system line). */
+    seq: bigint('seq', { mode: 'number' }).generatedAlwaysAsIdentity(),
+  },
+  (t) => [
+    index('meal_comment_meal_created_idx').on(t.mealId, t.createdAt),
+    check(
+      'meal_comment_kind_check',
+      oneOf(t.kind, mealCommentKindSchema.options),
+    ),
+  ],
+);
+
+/**
  * GLOSSARY: Предложение за меню. One run of `menu.propose` for a week; `plan_id` is set when it is `done`.
  * At most one `pending` per week.
  */
@@ -84,6 +144,30 @@ export const menuProposalRequest = pgTable(
       .where(sql`${t.status} = 'pending'`),
     check(
       'menu_proposal_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+  ],
+);
+
+/**
+ * One run of `meal.replace` for a meal („✨ Предложи друго“, GLOSSARY: AI заявка); `candidates` (recipe, why, title,
+ * time) are written when it is `done`. It goes with the meal; at most one `pending` per meal.
+ */
+export const mealReplaceRequest = pgTable(
+  'meal_replace_request',
+  {
+    ...contractRequestColumns(),
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    candidates: jsonb('candidates').$type<MealReplaceCandidate[]>(),
+  },
+  (t) => [
+    uniqueIndex('meal_replace_request_pending_meal_key')
+      .on(t.mealId)
+      .where(sql`${t.status} = 'pending'`),
+    check(
+      'meal_replace_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
     ),
   ],

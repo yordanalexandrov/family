@@ -18,6 +18,9 @@ export class NotFoundError extends ServiceRefusal {}
 /** 409 `conflict`: the record clashes with an existing one; `details` carry it (e.g. `{ ingredient }`). */
 export class ConflictError extends ServiceRefusal {}
 
+/** 403 `forbidden`: the record belongs to someone else (e.g. another user's comment). */
+export class ForbiddenError extends ServiceRefusal {}
+
 /** 400 `invalid_reference`: the input points at a record that does not exist. */
 export class InvalidReferenceError extends ServiceRefusal {}
 

@@ -1,17 +1,39 @@
 import type {
   Meal,
+  MealComment,
+  MealCommentKind,
   MealPlan,
   MealPlanSummary,
   MenuProposalRequest,
   Servings,
   Slot,
+  Vote,
+  VoteValue,
 } from '@family/shared';
-import { and, asc, between, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  between,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe } from '../schema/food.js';
-import { meal, mealPlan, menuProposalRequest } from '../schema/menu.js';
+import {
+  meal,
+  mealComment,
+  mealPlan,
+  mealVote,
+  menuProposalRequest,
+} from '../schema/menu.js';
 
 type PlanRow = typeof mealPlan.$inferSelect;
+type CommentRow = typeof mealComment.$inferSelect;
 type ProposalRow = typeof menuProposalRequest.$inferSelect;
 
 function toPlanSummary(row: PlanRow): MealPlanSummary {
@@ -64,9 +86,27 @@ function selectMeals(db: DbExecutor) {
 
 type MealRow = Awaited<ReturnType<typeof selectMeals>>[number];
 
-function toMeal({ recipeTitle, recipeArchivedAt, ...row }: MealRow): Meal {
+function toComment({ seq: _seq, createdAt, ...row }: CommentRow): MealComment {
+  return { ...row, createdAt: createdAt.toISOString() };
+}
+
+/** Lines of a thread in the order they were written. */
+const threadOrder = [asc(mealComment.createdAt), asc(mealComment.seq)];
+
+interface Thread {
+  lastComment?: MealComment;
+  commentCount: number;
+}
+
+function toMeal(
+  { recipeTitle, recipeArchivedAt, ...row }: MealRow,
+  votes: Vote[],
+  thread: Thread,
+): Meal {
   return {
     ...row,
+    votes,
+    ...thread,
     recipe:
       row.recipeId !== null && recipeTitle !== null
         ? {
@@ -77,11 +117,77 @@ function toMeal({ recipeTitle, recipeArchivedAt, ...row }: MealRow): Meal {
   };
 }
 
+/** The newest line and the number of lines of each meal's thread. */
+async function threadsOf(
+  db: DbExecutor,
+  mealIds: string[],
+): Promise<Map<string, Thread>> {
+  const counts = await db
+    .select({ mealId: mealComment.mealId, n: count() })
+    .from(mealComment)
+    .where(inArray(mealComment.mealId, mealIds))
+    .groupBy(mealComment.mealId);
+  const last = await db
+    .selectDistinctOn([mealComment.mealId])
+    .from(mealComment)
+    .where(inArray(mealComment.mealId, mealIds))
+    .orderBy(
+      asc(mealComment.mealId),
+      desc(mealComment.createdAt),
+      desc(mealComment.seq),
+    );
+  const threads = new Map<string, Thread>();
+  for (const { mealId, n } of counts) {
+    threads.set(mealId, { commentCount: n });
+  }
+  for (const row of last) {
+    threads.set(row.mealId, {
+      commentCount: threads.get(row.mealId)?.commentCount ?? 0,
+      lastComment: toComment(row),
+    });
+  }
+  return threads;
+}
+
+/** The meals of `rows` with their votes, by user id, and the newest line of their thread. */
+async function withVotes(db: DbExecutor, rows: MealRow[]): Promise<Meal[]> {
+  if (rows.length === 0) {
+    return [];
+  }
+  const threads = await threadsOf(
+    db,
+    rows.map((row) => row.id),
+  );
+  const votes = await db
+    .select({
+      mealId: mealVote.mealId,
+      userId: mealVote.userId,
+      value: mealVote.value,
+    })
+    .from(mealVote)
+    .where(
+      inArray(
+        mealVote.mealId,
+        rows.map((row) => row.id),
+      ),
+    )
+    .orderBy(asc(mealVote.userId));
+  return rows.map((row) =>
+    toMeal(
+      row,
+      votes
+        .filter((vote) => vote.mealId === row.id)
+        .map(({ userId, value }) => ({ userId, value })),
+      threads.get(row.id) ?? { commentCount: 0 },
+    ),
+  );
+}
+
 async function withMeals(db: DbExecutor, row: PlanRow): Promise<MealPlan> {
   const meals = await selectMeals(db)
     .where(eq(meal.planId, row.id))
     .orderBy(asc(meal.date), asc(meal.slot));
-  return { ...toPlanSummary(row), meals: meals.map(toMeal) };
+  return { ...toPlanSummary(row), meals: await withVotes(db, meals) };
 }
 
 /**
@@ -173,8 +279,8 @@ export async function findMeal(
   db: DbExecutor,
   id: string,
 ): Promise<Meal | undefined> {
-  const [row] = await selectMeals(db).where(eq(meal.id, id)).limit(1);
-  return row && toMeal(row);
+  const rows = await selectMeals(db).where(eq(meal.id, id)).limit(1);
+  return (await withVotes(db, rows))[0];
 }
 
 /** The meal of a day and slot in whichever plan holds that date. */
@@ -183,10 +289,10 @@ export async function findMealOn(
   date: string,
   slot: Slot,
 ): Promise<Meal | undefined> {
-  const [row] = await selectMeals(db)
+  const rows = await selectMeals(db)
     .where(and(eq(meal.date, date), eq(meal.slot, slot)))
     .limit(1);
-  return row && toMeal(row);
+  return (await withVotes(db, rows))[0];
 }
 
 /** Writes the given columns of a meal and sets `updated_at` of its plan to `at`. */
@@ -209,6 +315,117 @@ export async function updateMeal(
     .update(mealPlan)
     .set({ updatedAt: at })
     .where(eq(mealPlan.id, planId));
+}
+
+/** Puts the vote of `userId` for a meal, replacing the one it had. */
+/**
+ * Swaps the days of two meals of one plan and slot. `(plan_id, date, slot)` is unique and checked row by row (not
+ * deferrable), so a one-statement swap can collide halfway. A temporary value instead of a deferrable constraint (no
+ * migration): `a` first parks 100 years back, a day no meal of its plan has, then `b` takes `a`'s day and `a` `b`'s.
+ */
+export async function swapMealDates(
+  db: DbExecutor,
+  a: Meal,
+  b: Meal,
+  at: Date,
+): Promise<void> {
+  await db
+    .update(meal)
+    .set({ date: sql`(${meal.date} - interval '100 years')::date` })
+    .where(eq(meal.id, a.id));
+  await db.update(meal).set({ date: a.date }).where(eq(meal.id, b.id));
+  await db.update(meal).set({ date: b.date }).where(eq(meal.id, a.id));
+  await db
+    .update(mealPlan)
+    .set({ updatedAt: at })
+    .where(eq(mealPlan.id, a.planId));
+}
+
+export async function upsertVote(
+  db: DbExecutor,
+  mealId: string,
+  userId: string,
+  value: VoteValue,
+  at: Date,
+): Promise<void> {
+  await db
+    .insert(mealVote)
+    .values({ mealId, userId, value, updatedAt: at })
+    .onConflictDoUpdate({
+      target: [mealVote.mealId, mealVote.userId],
+      set: { value, updatedAt: at },
+    });
+}
+
+export async function deleteVote(
+  db: DbExecutor,
+  mealId: string,
+  userId: string,
+): Promise<void> {
+  await db
+    .delete(mealVote)
+    .where(and(eq(mealVote.mealId, mealId), eq(mealVote.userId, userId)));
+}
+
+/** Drops the votes of everyone but `userId` for a meal. */
+export async function deleteOtherVotes(
+  db: DbExecutor,
+  mealId: string,
+  userId: string,
+): Promise<void> {
+  await db
+    .delete(mealVote)
+    .where(and(eq(mealVote.mealId, mealId), ne(mealVote.userId, userId)));
+}
+
+/** The thread of a meal (GLOSSARY: Разговор) in the order it was written. */
+export async function listComments(
+  db: DbExecutor,
+  mealId: string,
+): Promise<MealComment[]> {
+  const rows = await db
+    .select()
+    .from(mealComment)
+    .where(eq(mealComment.mealId, mealId))
+    .orderBy(...threadOrder);
+  return rows.map(toComment);
+}
+
+export async function findComment(
+  db: DbExecutor,
+  id: string,
+): Promise<MealComment | undefined> {
+  const [row] = await db
+    .select()
+    .from(mealComment)
+    .where(eq(mealComment.id, id))
+    .limit(1);
+  return row && toComment(row);
+}
+
+/** A line of a meal's thread, written at `at`. */
+export async function insertComment(
+  db: DbExecutor,
+  line: {
+    mealId: string;
+    kind: MealCommentKind;
+    authorUserId: string;
+    body: string;
+  },
+  at: Date,
+): Promise<MealComment> {
+  const [row] = await db
+    .insert(mealComment)
+    .values({ ...line, createdAt: at })
+    .returning();
+  if (!row) {
+    throw new Error('insert into meal_comment returned no row');
+  }
+  return toComment(row);
+}
+
+export async function deleteComment(db: DbExecutor, id: string): Promise<void> {
+  await db.delete(mealComment).where(eq(mealComment.id, id));
 }
 
 /** Distinct recipes of the meals in the plans of the given weeks. */

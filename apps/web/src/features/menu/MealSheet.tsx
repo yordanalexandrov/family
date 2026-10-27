@@ -1,10 +1,14 @@
 import {
   addDays,
+  type DateKey,
+  isPastMeal,
   MEAL_NOTE_MAX,
   type Meal,
   type MealPlan,
+  mealOutcome,
   type UpdateMeal,
   type User,
+  type VoteValue,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
@@ -15,7 +19,11 @@ import { Spinner } from '../../components/Spinner';
 import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
+import { MealReplace } from './MealReplace';
+import { MoveMeal } from './MoveMeal';
 import { usePlan, useUpdateMeal } from './queries';
+import { Thread } from './Thread';
+import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -23,13 +31,34 @@ interface MealSheetProps {
   meal: Meal;
   plan: MealPlan;
   users: User[];
+  today: DateKey;
+  /** Минала седмица: всичко се чете (и разговорът), нищо не се сменя. */
+  readOnly?: boolean;
+  /** Действащият потребител, който гласува; без него листът е без гласове. */
+  voterId?: string;
+  onVote?: (meal: Meal, value: VoteValue | null) => void;
   onClose: () => void;
 }
 
-/** Листът на едно ястие: връзка към рецептата, рецепта, бележка, готвач и порции; всяко действие е отделен `PATCH`. */
-export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
+/**
+ * Листът на едно ястие: отгоре гласовете на двамата и разговорът, после връзка към рецептата, „Избери сам“ (изборът
+ * от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
+ * готвачът и порциите се сменят; разговорът му се чете, но не се пише. В минала седмица (`readOnly`) не се сменят и те.
+ */
+export function MealSheet({
+  meal,
+  plan,
+  users,
+  today,
+  readOnly = false,
+  voterId,
+  onVote,
+  onClose,
+}: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
   const day = formatDayLong(meal.date);
+  const past = readOnly || isPastMeal(meal, today);
+  const [picking, setPicking] = useState(false);
 
   function patch(change: UpdateMeal) {
     update.mutate({ id: meal.id, patch: change });
@@ -38,6 +67,41 @@ export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
   return (
     <Sheet title={day} onClose={onClose}>
       {update.isError && <ErrorBox error={update.error} />}
+      {voterId && (
+        <fieldset className="sheet__section meal-votes" aria-label="Гласове">
+          <legend className="field__label">Гласове</legend>
+          <div className="meal-votes__people">
+            {users.map((user) => (
+              <PersonVote key={user.id} meal={meal} user={user} showName />
+            ))}
+            {!past && (
+              <OutcomeLabel
+                outcome={mealOutcome(
+                  meal.votes,
+                  users.map((user) => user.id),
+                )}
+              />
+            )}
+          </div>
+          {!past && onVote && (
+            <MyVote
+              meal={meal}
+              userId={voterId}
+              onVote={(value) => onVote(meal, value)}
+              big
+            />
+          )}
+        </fieldset>
+      )}
+      {voterId && (
+        <Thread
+          meal={meal}
+          weekStart={plan.weekStart}
+          users={users}
+          userId={voterId}
+          readOnly={past}
+        />
+      )}
       {meal.recipeId !== null && (
         <div className="sheet__section">
           <Link
@@ -49,10 +113,44 @@ export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
           </Link>
         </div>
       )}
-      <RecipePicker meal={meal} plan={plan} onPick={patch} />
-      <NoteField key={meal.note} meal={meal} onSave={patch} />
-      <CookPicker meal={meal} users={users} onPick={patch} />
-      <ServingsEditor meal={meal} users={users} onChange={patch} />
+      {past ? (
+        <p className="sheet__section meal-votes__past">
+          {readOnly
+            ? 'Седмицата е минала: менюто се чете, но не се сменя.'
+            : 'Денят е минал: ястието и бележката не се сменят.'}
+        </p>
+      ) : (
+        <>
+          {picking ? (
+            <RecipePicker meal={meal} plan={plan} onPick={patch} />
+          ) : (
+            <div className="sheet__section">
+              <button
+                type="button"
+                className="button"
+                onClick={() => setPicking(true)}
+              >
+                Избери сам
+              </button>
+            </div>
+          )}
+          <div className="sheet__section">
+            <MealReplace
+              key={meal.id}
+              meal={meal}
+              onPick={({ recipeId, why }) => patch({ recipeId, why })}
+            />
+          </div>
+          <NoteField key={meal.note} meal={meal} onSave={patch} />
+          {voterId && <MoveMeal meal={meal} plan={plan} today={today} />}
+        </>
+      )}
+      {!readOnly && (
+        <>
+          <CookPicker meal={meal} users={users} onPick={patch} />
+          <ServingsEditor meal={meal} users={users} onChange={patch} />
+        </>
+      )}
     </Sheet>
   );
 }

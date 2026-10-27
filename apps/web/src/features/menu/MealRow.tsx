@@ -1,19 +1,51 @@
-import { type Meal, mealTitle, totalServings, type User } from '@family/shared';
+import {
+  type DateKey,
+  isPastMeal,
+  type Meal,
+  type MealComment,
+  mealOutcome,
+  mealTitle,
+  totalServings,
+  type User,
+  type VoteValue,
+} from '@family/shared';
+import type { ReactNode } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { formatDate, formatServings, formatWeekday } from '../../lib/format';
+import { MyVote, OutcomeLabel, PersonVote } from './Votes';
+
+/** Гласуването на реда: само в телефонния изглед, с действащ потребител. */
+export interface RowVoting {
+  /** Действащият потребител. */
+  userId: string;
+  today: DateKey;
+  onVote: (meal: Meal, value: VoteValue | null) => void;
+}
 
 interface MealRowProps {
   meal: Meal;
   users: User[];
-  /** Без него редът е само за четене (минала седмица). */
+  /** Без него редът не се отваря (kiosk, TV). */
   onOpen?: () => void;
+  /** Без него редът е без гласове и без разговор (kiosk, TV): изглежда както преди съгласуването. */
+  voting?: RowVoting;
+  /** Дръжката за влачене (`MealDrag`), в реда с гласовете. */
+  handle?: ReactNode;
 }
 
-/** Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“. */
-export function MealRow({ meal, users, onOpen }: MealRowProps) {
+/**
+ * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода и последният
+ * ред от разговора. Минал ден е приглушен, без бутони за глас и без изход.
+ */
+export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
   const title = mealTitle(meal);
   const servings = totalServings(meal.servings);
+  const past = voting ? isPastMeal(meal, voting.today) : false;
+  const outcome = mealOutcome(
+    meal.votes,
+    users.map((user) => user.id),
+  );
   const content = (
     <>
       <span className="meal-row__day">
@@ -24,13 +56,20 @@ export function MealRow({ meal, users, onOpen }: MealRowProps) {
         <span
           className={`meal-row__title${title ? '' : ' meal-row__title--empty'}`}
         >
-          {title ?? (onOpen ? 'Избери ястие' : '—')}
+          {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
           {meal.recipe?.archivedAt && <span className="badge">архивирана</span>}
         </span>
         {meal.recipe && meal.note && (
           <span className="meal-row__note">{meal.note}</span>
         )}
         {meal.why && <span className="meal-row__why">{meal.why}</span>}
+        {voting && meal.lastComment && (
+          <LastComment
+            line={meal.lastComment}
+            count={meal.commentCount}
+            users={users}
+          />
+        )}
       </span>
       <span className="meal-row__side">
         {cook ? (
@@ -47,11 +86,75 @@ export function MealRow({ meal, users, onOpen }: MealRowProps) {
       </span>
     </>
   );
-  return onOpen ? (
-    <button type="button" className="meal-row" onClick={onOpen}>
-      {content}
-    </button>
-  ) : (
-    <div className="meal-row">{content}</div>
+  const others = voting
+    ? users.filter((user) => user.id !== voting.userId)
+    : [];
+  const me = voting && users.find((user) => user.id === voting.userId);
+  const outcomeClass = voting && !past ? ` meal-row--${outcome}` : '';
+  return (
+    <div className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}>
+      {onOpen ? (
+        <button type="button" className="meal-row__content" onClick={onOpen}>
+          {content}
+        </button>
+      ) : (
+        <div className="meal-row__content">{content}</div>
+      )}
+      {voting && (
+        <div className="meal-row__votes">
+          {handle ? (
+            <span className="meal-row__lead">
+              {handle}
+              {!past && <OutcomeLabel outcome={outcome} />}
+            </span>
+          ) : (
+            !past && <OutcomeLabel outcome={outcome} />
+          )}
+          <span className="meal-row__people">
+            {others.map((user) => (
+              <PersonVote key={user.id} meal={meal} user={user} />
+            ))}
+            {past ? (
+              me && <PersonVote meal={meal} user={me} />
+            ) : (
+              <MyVote
+                meal={meal}
+                userId={voting.userId}
+                onVote={(value) => voting.onVote(meal, value)}
+              />
+            )}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Последният ред от разговора, на един ред: „Поли: пак пиле?“ или „Дани смени …“, и броят редове. */
+function LastComment({
+  line,
+  count,
+  users,
+}: {
+  line: MealComment;
+  count: number;
+  users: User[];
+}) {
+  const name =
+    users.find((user) => user.id === line.authorUserId)?.name ?? 'Някой';
+  return (
+    <span className="meal-row__comment">
+      <span
+        className={`meal-row__comment-text${line.kind === 'system' ? ' meal-row__comment-text--system' : ''}`}
+      >
+        {line.kind === 'system'
+          ? `${name} ${line.body}`
+          : `${name}: ${line.body}`}
+      </span>
+      <span className="meal-row__comment-count">
+        <span aria-hidden="true">💬</span> {count}
+        <span className="visually-hidden"> в разговора</span>
+      </span>
+    </span>
   );
 }

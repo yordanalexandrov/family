@@ -1,11 +1,16 @@
 import {
+  createMealCommentSchema,
   createMealPlanSchema,
   createMenuProposalSchema,
+  mealCommentResponseSchema,
+  mealCommentsResponseSchema,
   mealPlanResponseSchema,
   mealPlansQuerySchema,
   mealPlansResponseSchema,
   mealResponseSchema,
   menuProposalResponseSchema,
+  putVoteSchema,
+  swapMealsSchema,
   updateMealSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -76,8 +81,101 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      meal: await service.updateMeal(request.params.id, request.body),
+      meal: await service.updateMeal(
+        request.params.id,
+        request.body,
+        request.actor.id,
+      ),
     }),
+  );
+
+  // GLOSSARY: Глас. A second press on the same vote is the client's `DELETE`.
+  app.put(
+    '/api/menu/meals/:id/vote',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: putVoteSchema,
+        response: { 200: mealResponseSchema },
+      },
+    },
+    async (request) => ({
+      meal: await service.vote(
+        request.params.id,
+        request.actor.id,
+        request.body.value,
+      ),
+    }),
+  );
+
+  app.delete(
+    '/api/menu/meals/:id/vote',
+    {
+      schema: { params: idParamsSchema, response: { 200: mealResponseSchema } },
+    },
+    async (request) => ({
+      meal: await service.vote(request.params.id, request.actor.id, null),
+    }),
+  );
+
+  app.post(
+    '/api/menu/meals/:id/swap',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: swapMealsSchema,
+        response: { 200: mealPlanResponseSchema },
+      },
+    },
+    async (request) => ({
+      plan: await service.swapMeals(
+        request.params.id,
+        request.body.withMealId,
+        request.actor.id,
+      ),
+    }),
+  );
+
+  // GLOSSARY: Разговор. Read for any day; written only from today on.
+  app.get(
+    '/api/menu/meals/:id/comments',
+    {
+      schema: {
+        params: idParamsSchema,
+        response: { 200: mealCommentsResponseSchema },
+      },
+    },
+    async (request) => ({
+      comments: await service.listComments(request.params.id),
+    }),
+  );
+
+  app.post(
+    '/api/menu/meals/:id/comments',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: createMealCommentSchema,
+        response: { 201: mealCommentResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const comment = await service.addComment(
+        request.params.id,
+        request.actor.id,
+        request.body.body,
+      );
+      return reply.code(201).send({ comment });
+    },
+  );
+
+  app.delete(
+    '/api/menu/comments/:id',
+    { schema: { params: idParamsSchema } },
+    async (request, reply) => {
+      await service.deleteComment(request.params.id, request.actor.id);
+      return reply.code(204).send();
+    },
   );
 
   app.post(

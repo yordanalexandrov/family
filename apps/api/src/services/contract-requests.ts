@@ -39,6 +39,8 @@ export interface ContractRequestStore<
   buildInput(db: DbExecutor, request: R): Promise<I>;
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
+  /** After that transaction has committed, e.g. to signal the change (`app.events`). Must not throw. */
+  afterDone?(request: R): void;
   /**
    * Why a valid answer has nothing to write, when the agent says so (e.g. `recipe.suggest` found no recipes); the
    * request then ends `failed`/`no_results` without `onDone` or a retry. `null` (or no method) = write the answer.
@@ -128,6 +130,7 @@ export function createContractRequests({
               status: 'done',
             });
           });
+          store.afterDone?.(request);
         } catch (error) {
           const code = failureCode(error);
           if (code === 'error') {

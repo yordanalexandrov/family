@@ -79,6 +79,10 @@ export const handlers = [
     return HttpResponse.json({ user, accessEmail });
   }),
   http.get('/api/dashboard', () => HttpResponse.json(dashboard)),
+  // Листът на ястието чете разговора; без `serveThreads` той е празен.
+  http.get('/api/menu/meals/:id/comments', () =>
+    HttpResponse.json({ comments: [] }),
+  ),
   http.get('/api/calendar/events', ({ request }) => {
     const url = new URL(request.url);
     const from = url.searchParams.get('from') ?? dashboard.today;

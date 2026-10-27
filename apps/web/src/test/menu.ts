@@ -1,6 +1,7 @@
 import {
   daysOfWeek,
   type Meal,
+  type MealComment,
   type MealPlan,
   type MenuProposalRequest,
 } from '@family/shared';
@@ -40,6 +41,8 @@ export function meal(
     servings: { [dani.id]: 1, [poli.id]: 1 },
     why: null,
     recipe: null,
+    votes: [],
+    commentCount: 0,
     ...overrides,
   };
 }
@@ -152,4 +155,161 @@ export function serveMealUpdates(plan: MealPlan) {
     }),
   );
   return patches;
+}
+
+/** Гласовете на `dani` и `poli` за ястие; `undefined` е липсващ глас. */
+export function votesOf(
+  daniVote?: 'up' | 'down',
+  poliVote?: 'up' | 'down',
+): Meal['votes'] {
+  return [
+    ...(daniVote ? [{ userId: dani.id, value: daniVote }] : []),
+    ...(poliVote ? [{ userId: poli.id, value: poliVote }] : []),
+  ];
+}
+
+/**
+ * `PUT`/`DELETE /api/menu/meals/:id/vote` върху ястията на `plan` като api: гласът на `X-Acting-User` се поставя или
+ * маха и се връща ястието. Връща заявките по ред.
+ */
+export function serveVotes(plan: MealPlan) {
+  const requests: { method: string; id: string; body: unknown }[] = [];
+  const handle = async (request: Request, id: string) => {
+    const body = request.method === 'PUT' ? await request.json() : undefined;
+    requests.push({ method: request.method, id, body });
+    const userId = request.headers.get('x-acting-user') ?? '';
+    const current = plan.meals.find((m) => m.id === id);
+    if (!current) {
+      return HttpResponse.json(
+        { error: 'not_found', message: 'Няма такова ястие' },
+        { status: 404 },
+      );
+    }
+    const others = current.votes.filter((vote) => vote.userId !== userId);
+    const value = (body as { value?: 'up' | 'down' } | undefined)?.value;
+    const next: Meal = {
+      ...current,
+      votes: value
+        ? [...others, { userId, value }].sort((a, b) =>
+            a.userId.localeCompare(b.userId),
+          )
+        : others,
+    };
+    plan.meals = plan.meals.map((m) => (m.id === id ? next : m));
+    return HttpResponse.json({ meal: next });
+  };
+  server.use(
+    http.put('/api/menu/meals/:id/vote', ({ params, request }) =>
+      handle(request, String(params.id)),
+    ),
+    http.delete('/api/menu/meals/:id/vote', ({ params, request }) =>
+      handle(request, String(params.id)),
+    ),
+  );
+  return requests;
+}
+
+/** Ред от разговора на ястие; `n` прави id-то и минутата на написване (сряда, 4 ноември, 17:0n в София). */
+export function threadLine(
+  mealId: string,
+  n: number,
+  overrides: Partial<MealComment> = {},
+): MealComment {
+  return {
+    id: `cccccccc-0000-4000-8000-00000000000${n}`,
+    mealId,
+    kind: 'comment',
+    authorUserId: dani.id,
+    body: `коментар ${n}`,
+    createdAt: `2026-11-04T15:0${n}:00.000Z`,
+    ...overrides,
+  };
+}
+
+/**
+ * Разговорите на ястията на `plan` като api: `GET`/`POST /api/menu/meals/:id/comments` и `DELETE
+ * /api/menu/comments/:id` (само свой коментар; 403 за чужд, 409 за системен ред). Брояч и последен ред се
+ * пренасят в ястието. Връща заявките по ред.
+ */
+export function serveThreads(
+  plan: MealPlan,
+  threads: Record<string, MealComment[]> = {},
+) {
+  const requests: { method: string; path: string; body?: unknown }[] = [];
+  let next = 0;
+  const sync = (mealId: string) => {
+    const lines = threads[mealId] ?? [];
+    plan.meals = plan.meals.map((m) => {
+      if (m.id !== mealId) {
+        return m;
+      }
+      const { lastComment: _last, ...rest } = m;
+      const last = lines.at(-1);
+      return {
+        ...rest,
+        commentCount: lines.length,
+        ...(last ? { lastComment: last } : {}),
+      };
+    });
+  };
+  server.use(
+    http.get('/api/menu/meals/:id/comments', ({ params, request }) => {
+      requests.push({ method: 'GET', path: new URL(request.url).pathname });
+      return HttpResponse.json({ comments: threads[String(params.id)] ?? [] });
+    }),
+    http.post('/api/menu/meals/:id/comments', async ({ params, request }) => {
+      const body = (await request.json()) as { body: string };
+      const mealId = String(params.id);
+      requests.push({
+        method: 'POST',
+        path: new URL(request.url).pathname,
+        body,
+      });
+      next += 1;
+      const comment: MealComment = {
+        id: `dddddddd-0000-4000-8000-00000000000${next}`,
+        mealId,
+        kind: 'comment',
+        authorUserId: request.headers.get('x-acting-user') ?? '',
+        body: body.body.trim(),
+        createdAt: '2026-11-04T16:00:00.000Z',
+      };
+      threads[mealId] = [...(threads[mealId] ?? []), comment];
+      sync(mealId);
+      return HttpResponse.json({ comment }, { status: 201 });
+    }),
+    http.delete('/api/menu/comments/:id', ({ params, request }) => {
+      requests.push({ method: 'DELETE', path: new URL(request.url).pathname });
+      const id = String(params.id);
+      for (const [mealId, lines] of Object.entries(threads)) {
+        const line = lines.find((l) => l.id === id);
+        if (!line) {
+          continue;
+        }
+        if (line.kind === 'system') {
+          return HttpResponse.json(
+            { error: 'conflict', message: 'Редовете за промените не се трият' },
+            { status: 409 },
+          );
+        }
+        if (line.authorUserId !== request.headers.get('x-acting-user')) {
+          return HttpResponse.json(
+            {
+              error: 'forbidden',
+              message: 'Можеш да изтриеш само свой коментар',
+            },
+            { status: 403 },
+          );
+        }
+        threads[mealId] = lines.filter((l) => l.id !== id);
+        sync(mealId);
+        return new HttpResponse(null, { status: 204 });
+      }
+      return HttpResponse.json(
+        { error: 'not_found', message: 'Няма такъв коментар' },
+        { status: 404 },
+      );
+    }),
+  );
+  return requests;
 }

@@ -3,7 +3,10 @@ import {
   type Aisle,
   addDays,
   type DateKey,
+  dateKeyInSofia,
   formatAge,
+  type MealPlan,
+  mealsToAgree,
   type ShoppingItem,
   type ShoppingList,
   type User,
@@ -19,6 +22,7 @@ import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
 import { formatDate, formatNumber, formatQuantity } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
+import { usePlan } from '../menu/queries';
 import { AddItemSheet } from './AddItemSheet';
 import {
   OfflineError,
@@ -117,6 +121,7 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
   const { list, staleSince, pending } = week.data;
   return (
     <>
+      <NotAgreed weekStart={weekStart} now={now} />
       <p className="shopping__count">
         <span className="shopping__count-value">
           {list.remaining} от {list.total}
@@ -138,6 +143,42 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
       <ListView list={list} weekStart={weekStart} users={users.data ?? []} />
     </>
   );
+}
+
+/**
+ * Лентата „Менюто още не е съгласувано“ (GLOSSARY: Съгласувано меню), докато има ястие от днес нататък, което не е
+ * „Остава“. Списъкът не се филтрира по гласовете; без план или без връзка лентата я няма.
+ */
+function NotAgreed({ weekStart, now }: { weekStart: DateKey; now: Date }) {
+  const plan = usePlan(weekStart);
+  const users = useUsers();
+  if (!plan.data || !users.data) {
+    return null;
+  }
+  const waiting = countWaiting(plan.data, users.data, now);
+  if (waiting === 0) {
+    return null;
+  }
+  return (
+    <p className="shopping__not-agreed" role="status">
+      Менюто още не е съгласувано:{' '}
+      {waiting === 1 ? '1 ястие чака' : `${waiting} ястия чакат`}.{' '}
+      <Link
+        to="/menu"
+        search={weekStart === weekStartOf(now) ? {} : { week: weekStart }}
+      >
+        Към менюто
+      </Link>
+    </p>
+  );
+}
+
+function countWaiting(plan: MealPlan, users: User[], now: Date): number {
+  return mealsToAgree(
+    plan.meals,
+    users.map((user) => user.id),
+    dateKeyInSofia(now),
+  ).length;
 }
 
 interface ListViewProps {

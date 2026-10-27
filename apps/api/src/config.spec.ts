@@ -28,6 +28,7 @@ const defaults = {
     gatewayPassword: undefined,
     recipeAgent: 'family-recipe',
     menuAgent: 'family-menu',
+    mealAgent: 'family-meal',
     timeoutMs: 180_000,
   },
 };
@@ -82,6 +83,7 @@ describe('loadConfig', () => {
           OPENCLAW_GATEWAY_PASSWORD: 'gateway-secret',
           OPENCLAW_RECIPE_AGENT: 'family-recipe-test',
           OPENCLAW_MENU_AGENT: 'family-menu-test',
+          OPENCLAW_MEAL_AGENT: 'family-meal-test',
           OPENCLAW_TIMEOUT_MS: '60000',
         }),
       ).toMatchObject({
@@ -90,6 +92,7 @@ describe('loadConfig', () => {
           gatewayPassword: 'gateway-secret',
           recipeAgent: 'family-recipe-test',
           menuAgent: 'family-menu-test',
+          mealAgent: 'family-meal-test',
           timeoutMs: 60_000,
         },
       });

@@ -1,17 +1,24 @@
 import {
   type CreateMenuProposal,
+  createMealCommentSchema,
   createMealPlanSchema,
   createMenuProposalSchema,
   type DateKey,
   type Meal,
+  type MealComment,
   type MealPlan,
+  mealCommentResponseSchema,
+  mealCommentsResponseSchema,
   mealPlanResponseSchema,
   mealResponseSchema,
   menuProposalResponseSchema,
   type NotEnoughRecipes,
   notEnoughRecipesSchema,
+  putVoteSchema,
+  swapMealsSchema,
   type UpdateMeal,
   updateMealSchema,
+  type VoteValue,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
@@ -19,7 +26,11 @@ import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 
 export const menuKeys = {
+  all: ['menu'] as const,
   plan: (weekStart: DateKey) => ['menu', 'plan', weekStart] as const,
+  /** Под плана на седмицата, за да го стигне и сигналът `menu.changed`. */
+  thread: (weekStart: DateKey, mealId: string) =>
+    ['menu', 'plan', weekStart, 'thread', mealId] as const,
   proposal: (id: string) => ['menu', 'proposal', id] as const,
 };
 
@@ -93,15 +104,197 @@ export function useUpdateMeal(weekStart: DateKey) {
         body: JSON.stringify(updateMealSchema.parse(patch)),
       }).then((body) => body.meal),
     onSuccess(meal: Meal) {
-      queryClient.setQueryData<MealPlan | null>(
-        menuKeys.plan(weekStart),
-        (plan) =>
-          plan && {
-            ...plan,
-            meals: plan.meals.map((m) => (m.id === meal.id ? meal : m)),
-          },
-      );
+      setMeal(queryClient, weekStart, meal);
+      // Нова рецепта или бележка добавя системен ред в разговора.
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.thread(weekStart, meal.id),
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+/** Подменя ястието в кеширания план на седмицата. */
+function setMeal(
+  queryClient: ReturnType<typeof useQueryClient>,
+  weekStart: DateKey,
+  meal: Meal,
+) {
+  queryClient.setQueryData<MealPlan | null>(
+    menuKeys.plan(weekStart),
+    (plan) =>
+      plan && {
+        ...plan,
+        meals: plan.meals.map((m) => (m.id === meal.id ? meal : m)),
+      },
+  );
+}
+
+export interface VoteChange {
+  meal: Meal;
+  /** Действащият потребител, чийто глас се сменя. */
+  userId: string;
+  /** `null` маха гласа (втори натиск на същия). */
+  value: VoteValue | null;
+}
+
+/**
+ * Глас за ястие (GLOSSARY: Глас): `PUT` поставя, `DELETE` маха. Оптимистично: редът се сменя веднага, а при грешка
+ * се връща както е бил.
+ */
+export function useVote(weekStart: DateKey) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ meal, value }: VoteChange) =>
+      apiFetch(
+        `/menu/meals/${meal.id}/vote`,
+        mealResponseSchema,
+        value === null
+          ? { method: 'DELETE' }
+          : {
+              method: 'PUT',
+              headers: JSON_HEADERS,
+              body: JSON.stringify(putVoteSchema.parse({ value })),
+            },
+      ).then((body) => body.meal),
+    async onMutate({ meal, userId, value }) {
+      await queryClient.cancelQueries({ queryKey: menuKeys.plan(weekStart) });
+      const others = meal.votes.filter((vote) => vote.userId !== userId);
+      setMeal(queryClient, weekStart, {
+        ...meal,
+        votes: value === null ? others : [...others, { userId, value }],
+      });
+      return { previous: meal };
+    },
+    onError(_error, _change, context) {
+      if (context) {
+        setMeal(queryClient, weekStart, context.previous);
+      }
+    },
+    onSuccess(meal) {
+      setMeal(queryClient, weekStart, meal);
+    },
+  });
+}
+
+/** `meal` и `withMeal` разменят дните си (без да се местят гласовете и разговорът им); планът остава подреден по ден. */
+export function swapDates(
+  plan: MealPlan,
+  meal: Meal,
+  withMeal: Meal,
+): MealPlan {
+  return {
+    ...plan,
+    meals: plan.meals
+      .map((m) =>
+        m.id === meal.id
+          ? { ...m, date: withMeal.date }
+          : m.id === withMeal.id
+            ? { ...m, date: meal.date }
+            : m,
+      )
+      .sort(
+        (a, b) => a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot),
+      ),
+  };
+}
+
+export interface MealSwap {
+  meal: Meal;
+  withMeal: Meal;
+}
+
+/**
+ * Размяна на дните на две ястия („Премести на…“ и влачене). Оптимистично: редовете се разменят веднага, а при грешка
+ * планът се връща както е бил. Отговорът е целият план; разговорите получават системен ред, затова се презареждат.
+ */
+export function useSwapMeals(weekStart: DateKey) {
+  const queryClient = useQueryClient();
+  const key = menuKeys.plan(weekStart);
+  return useMutation({
+    mutationFn: ({ meal, withMeal }: MealSwap) =>
+      apiFetch(`/menu/meals/${meal.id}/swap`, mealPlanResponseSchema, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify(
+          swapMealsSchema.parse({ withMealId: withMeal.id }),
+        ),
+      }).then((body) => body.plan),
+    async onMutate({ meal, withMeal }) {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<MealPlan | null>(key);
+      if (previous) {
+        queryClient.setQueryData(key, swapDates(previous, meal, withMeal));
+      }
+      return { previous };
+    },
+    onError(_error, _swap, context) {
+      if (context?.previous) {
+        queryClient.setQueryData(key, context.previous);
+      }
+    },
+    onSuccess(plan) {
+      queryClient.setQueryData(key, plan);
+      void queryClient.invalidateQueries({
+        queryKey: [...key, 'thread'],
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+/** Разговорът на ястието (GLOSSARY: Разговор) по реда на писане. */
+export function useThread(weekStart: DateKey, mealId: string) {
+  return useQuery({
+    queryKey: menuKeys.thread(weekStart, mealId),
+    queryFn: () =>
+      apiFetch(
+        `/menu/meals/${mealId}/comments`,
+        mealCommentsResponseSchema,
+      ).then((body) => body.comments),
+  });
+}
+
+/**
+ * Коментар или триене на свой коментар: разговорът се допълва веднага от отговора, а планът се презарежда заради
+ * последния ред и брояча на реда.
+ */
+export function useAddComment(weekStart: DateKey, mealId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      apiFetch(`/menu/meals/${mealId}/comments`, mealCommentResponseSchema, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify(createMealCommentSchema.parse({ body })),
+      }).then((response) => response.comment),
+    onSuccess(comment) {
+      queryClient.setQueryData<MealComment[]>(
+        menuKeys.thread(weekStart, mealId),
+        (lines) => [...(lines ?? []), comment],
+      );
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.plan(weekStart),
+      });
+    },
+  });
+}
+
+export function useDeleteComment(weekStart: DateKey, mealId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await fetchNoContent(`/menu/comments/${id}`);
+      return id;
+    },
+    onSuccess(id) {
+      queryClient.setQueryData<MealComment[]>(
+        menuKeys.thread(weekStart, mealId),
+        (lines) => lines?.filter((line) => line.id !== id),
+      );
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.plan(weekStart),
+      });
     },
   });
 }

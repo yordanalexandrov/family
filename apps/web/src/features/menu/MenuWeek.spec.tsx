@@ -154,11 +154,12 @@ describe('MenuWeek', () => {
   it('смяна на рецептата от листа праща PATCH само с recipeId и обновява реда', async () => {
     const user = userEvent.setup();
     const [chicken, lentils, moussaka, fish] = dinnerRecipes;
+    // Четвъртък: от днес нататък (`fixtureNow` е сряда), рецептата още се сменя.
     const plan = planFor(thisWeek, {
-      0: {
+      3: {
         recipeId: chicken.id,
         recipe: { title: chicken.title, archivedAt: null },
-        why: 'Бързо за понеделник.',
+        why: 'Бързо за четвъртък.',
       },
       2: {
         recipeId: moussaka.id,
@@ -181,7 +182,8 @@ describe('MenuWeek', () => {
     await user.click(
       await screen.findByRole('button', { name: /Пиле с ориз/ }),
     );
-    const sheet = screen.getByRole('dialog', { name: 'понеделник, 2 ноември' });
+    const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
+    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
     expect(
       await within(sheet).findByRole('button', { name: /Мусака/ }),
     ).toHaveTextContent('в тази седмица');
@@ -201,11 +203,11 @@ describe('MenuWeek', () => {
 
     await expect
       .poll(() => patches)
-      .toEqual([{ id: plan.meals[0]?.id, body: { recipeId: lentils.id } }]);
+      .toEqual([{ id: plan.meals[3]?.id, body: { recipeId: lentils.id } }]);
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
     const row = screen.getByRole('button', { name: /Леща чорба/ });
-    expect(row).toHaveTextContent('пн');
-    expect(row).not.toHaveTextContent('Бързо за понеделник.');
+    expect(row).toHaveTextContent('чт');
+    expect(row).not.toHaveTextContent('Бързо за четвъртък.');
   });
 
   it('листът на ден с рецепта води към рецептата; празен ден — не', async () => {
@@ -285,12 +287,14 @@ describe('MenuWeek', () => {
     servePlans({ [thisWeek]: plan });
     serveDinnerRecipes();
     const patches = serveMealUpdates(plan);
-    const tuesday = plan.meals[1]?.id;
+    // Четвъртък: от днес нататък, бележката още се сменя.
+    const thursday = plan.meals[3]?.id;
 
     renderApp('/menu');
+    // Минал ден е „—“, затова празните редове „Избери ястие“ са от сряда нататък.
     const rows = await screen.findAllByRole('button', { name: /Избери ястие/ });
     await user.click(rows[1] as HTMLElement);
-    const sheet = screen.getByRole('dialog', { name: 'вторник, 3 ноември' });
+    const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
 
     await user.click(within(sheet).getByRole('button', { name: 'Поли' }));
     await expect
@@ -327,11 +331,11 @@ describe('MenuWeek', () => {
 
     await expect.poll(() => patches.length).toBe(5);
     expect(patches).toEqual([
-      { id: tuesday, body: { cookUserId: poli.id } },
-      { id: tuesday, body: { servings: { [dani.id]: 2, [poli.id]: 1 } } },
-      { id: tuesday, body: { servings: { [dani.id]: 2, [poli.id]: 0 } } },
-      { id: tuesday, body: { note: 'ядем навън' } },
-      { id: tuesday, body: { cookUserId: null } },
+      { id: thursday, body: { cookUserId: poli.id } },
+      { id: thursday, body: { servings: { [dani.id]: 2, [poli.id]: 1 } } },
+      { id: thursday, body: { servings: { [dani.id]: 2, [poli.id]: 0 } } },
+      { id: thursday, body: { note: 'ядем навън' } },
+      { id: thursday, body: { cookUserId: null } },
     ]);
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
     expect(
@@ -339,7 +343,7 @@ describe('MenuWeek', () => {
     ).toHaveTextContent('2 порции');
   });
 
-  it('минала седмица е само за четене: без редакция, предложение и изтриване', async () => {
+  it('минала седмица е само за четене: редът отваря листа за четене, без предложение и изтриване', async () => {
     const user = userEvent.setup();
     const asked = servePlans({ [lastWeek]: planFor(lastWeek) });
 
@@ -349,8 +353,16 @@ describe('MenuWeek', () => {
 
     const meals = await screen.findByRole('list', { name: 'Вечери' });
     expect(within(meals).getAllByRole('listitem')).toHaveLength(7);
-    expect(within(meals).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(meals).queryByRole('button', { name: 'За' })).toBeNull();
     expect(meals).not.toHaveTextContent('Избери ястие');
+    await user.click(within(meals).getAllByRole('button')[0] as HTMLElement);
+    const sheet = screen.getByRole('dialog', {
+      name: 'понеделник, 26 октомври',
+    });
+    expect(sheet).toHaveTextContent(
+      'Седмицата е минала: менюто се чете, но не се сменя.',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
     expect(
       screen.queryByRole('button', { name: 'Изтрий плана' }),
     ).not.toBeInTheDocument();
@@ -416,6 +428,9 @@ describe('MenuWeek', () => {
       await screen.findByRole('button', { name: 'Изтрий плана' }),
     );
     expect(deleted).toEqual([]);
+    expect(
+      screen.getByRole('alertdialog', { name: 'Изтриване' }),
+    ).toHaveTextContent('Гласовете и разговорите се трият заедно с менюто.');
     await user.click(screen.getByRole('button', { name: 'Изтрий' }));
 
     expect(

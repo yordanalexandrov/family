@@ -19,6 +19,17 @@ import {
   setManualItemCheck,
 } from '../db/repositories/shopping.js';
 import { InvalidActionError, NotFoundError } from './errors.js';
+import type { EventBus } from './events.js';
+
+/** What a change to the list needs: the database, and the bus that signals `shopping.changed` after the commit. */
+export interface ShoppingDeps {
+  db: Db;
+  events: EventBus;
+}
+
+function signal(events: EventBus, weekStart: string): void {
+  events.publish({ type: 'shopping.changed', weekStart });
+}
 
 /**
  * The week's menu and its shopping list id, the list created on first use. A week without a menu is a 404 `no_plan`
@@ -93,8 +104,8 @@ export async function getShoppingList(
  * Checks or unchecks a row (GLOSSARY: Отметка) as the acting user at `now`; the last write wins, whoever checked it
  * before. A computed key must be in the list as it is now computed.
  */
-export function setItemChecked(
-  db: Db,
+export async function setItemChecked(
+  { db, events }: ShoppingDeps,
   {
     weekStart,
     key,
@@ -109,7 +120,7 @@ export function setItemChecked(
     now: Date;
   },
 ): Promise<ShoppingItem> {
-  return db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
     const { plan, listId } = await openList(tx, weekStart);
     const item = await readItem(tx, plan, listId, key);
     const check = checkState(checked, actingUserId, now);
@@ -123,18 +134,20 @@ export function setItemChecked(
       ...checkState(checked, actingUserId, now.toISOString()),
     };
   });
+  signal(events, weekStart);
+  return updated;
 }
 
 /** Hides or shows a computed row (GLOSSARY: Скрит ред); a manual row is deleted instead, so hiding it is a 400. */
-export function setItemHidden(
-  db: Db,
+export async function setItemHidden(
+  { db, events }: ShoppingDeps,
   {
     weekStart,
     key,
     hidden,
   }: { weekStart: string; key: string; hidden: boolean },
 ): Promise<ShoppingItem> {
-  return db.transaction(async (tx) => {
+  const updated = await db.transaction(async (tx) => {
     const { plan, listId } = await openList(tx, weekStart);
     if (parseItemKey(key)?.kind === 'manual') {
       throw new InvalidActionError('Ръчен ред не се скрива, а се изтрива');
@@ -143,24 +156,28 @@ export function setItemHidden(
     await setComputedItemOverlay(tx, listId, key, { hidden });
     return { ...item, hidden };
   });
+  signal(events, weekStart);
+  return updated;
 }
 
 /** Adds a manual row (GLOSSARY: Ръчен ред), keyed `manual:<id>`. */
-export function addManualItem(
-  db: Db,
+export async function addManualItem(
+  { db, events }: ShoppingDeps,
   weekStart: string,
   input: CreateManualItem,
 ): Promise<ShoppingItem> {
-  return db.transaction(async (tx) => {
+  const item = await db.transaction(async (tx) => {
     const { plan, listId } = await openList(tx, weekStart);
     const record = await insertManualItem(tx, listId, input);
     return readItem(tx, plan, listId, record.itemKey);
   });
+  signal(events, weekStart);
+  return item;
 }
 
 /** Deletes a manual row; a computed row comes from the menu and is hidden instead, so deleting it is a 400. */
 export async function deleteItem(
-  db: Db,
+  { db, events }: ShoppingDeps,
   { weekStart, key }: { weekStart: string; key: string },
 ): Promise<void> {
   const { listId } = await openList(db, weekStart);
@@ -171,4 +188,5 @@ export async function deleteItem(
   if (!parsed || !(await deleteManualItem(db, listId, key))) {
     throw new NotFoundError(NO_SUCH_ITEM);
   }
+  signal(events, weekStart);
 }

@@ -3,6 +3,7 @@ import { contractFailureSchema } from '../contracts/failure.js';
 import { hintSchema } from '../contracts/hint.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { slotSchema } from '../food/tags.js';
+import { voteSchema, voteValueSchema } from '../menu/votes.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
 
@@ -18,6 +19,45 @@ export const MEAL_NOTE_MAX = 80;
 export const servingsSchema = z.record(z.uuid(), z.int().min(0));
 
 export type Servings = z.infer<typeof servingsSchema>;
+
+/** Longest comment in a meal's thread. */
+export const MEAL_COMMENT_MAX = 500;
+
+/** A line someone wrote, or one the API wrote for a change (`systemLine`); only system lines cannot be deleted. */
+export const mealCommentKindSchema = z.enum(['comment', 'system']);
+
+export type MealCommentKind = z.infer<typeof mealCommentKindSchema>;
+
+/**
+ * One line of a meal's thread (GLOSSARY: Разговор). A system line's `authorUserId` is who made the change and its
+ * `body` is the text after the author's name.
+ */
+export const mealCommentSchema = z.object({
+  id: z.uuid(),
+  mealId: z.uuid(),
+  kind: mealCommentKindSchema,
+  authorUserId: z.uuid(),
+  body: z.string(),
+  createdAt: instantSchema,
+});
+
+export type MealComment = z.infer<typeof mealCommentSchema>;
+
+/** `POST /api/menu/meals/:id/comments`: what the acting user writes. */
+export const createMealCommentSchema = z.object({
+  body: z.string().trim().min(1).max(MEAL_COMMENT_MAX),
+});
+
+export type CreateMealComment = z.infer<typeof createMealCommentSchema>;
+
+/** `GET /api/menu/meals/:id/comments`: the whole thread, oldest first. */
+export const mealCommentsResponseSchema = z.object({
+  comments: z.array(mealCommentSchema),
+});
+
+export const mealCommentResponseSchema = z.object({
+  comment: mealCommentSchema,
+});
 
 /**
  * One line of a weekly menu (GLOSSARY: Ястие): a recipe from the registry, a note instead of (or next to) it, or
@@ -37,9 +77,23 @@ export const mealSchema = z.object({
   recipe: z
     .object({ title: z.string(), archivedAt: instantSchema.nullable() })
     .nullable(),
+  /**
+   * GLOSSARY: Глас. The users' votes for the current recipe and note, by user id; the outcome is not sent, the client
+   * computes it with `mealOutcome`.
+   */
+  votes: z.array(voteSchema),
+  /** The newest line of the meal's thread (a comment or a system line), for the row; absent without one. */
+  lastComment: mealCommentSchema.optional(),
+  /** All lines of the thread, system lines included. */
+  commentCount: z.int().min(0),
 });
 
 export type Meal = z.infer<typeof mealSchema>;
+
+/** `PUT /api/menu/meals/:id/vote`: the acting user's vote; `DELETE` on the same path takes it back. */
+export const putVoteSchema = z.object({ value: voteValueSchema });
+
+export type PutVote = z.infer<typeof putVoteSchema>;
 
 /** The plan for one week, Monday to Sunday (GLOSSARY: Седмично меню); at most one per `weekStart`. */
 export const mealPlanSchema = z.object({
@@ -83,10 +137,14 @@ export type CreateMealPlan = z.infer<typeof createMealPlanSchema>;
 
 export const mealResponseSchema = z.object({ meal: mealSchema });
 
-/** `PATCH /api/menu/meals/:id`: any of recipe, note, cook and servings; a blank note means no note. */
+/**
+ * `PATCH /api/menu/meals/:id`: any of recipe, note, cook and servings; a blank note means no note. `why` only comes
+ * with a recipe: the sentence of the `meal.replace` candidate that was picked; a recipe without it clears the why.
+ */
 export const updateMealSchema = z
   .object({
     recipeId: z.uuid().nullable(),
+    why: z.string().trim().min(1),
     note: z
       .string()
       .trim()
@@ -96,9 +154,24 @@ export const updateMealSchema = z
     cookUserId: z.uuid().nullable(),
     servings: servingsSchema,
   })
-  .partial();
+  .partial()
+  .refine(
+    (patch) => patch.why === undefined || typeof patch.recipeId === 'string',
+    {
+      message: 'why идва само заедно с рецепта',
+      path: ['why'],
+    },
+  );
 
 export type UpdateMeal = z.infer<typeof updateMealSchema>;
+
+/**
+ * `POST /api/menu/meals/:id/swap`: the meal and `withMealId` swap days (GLOSSARY: Ястие); both of one plan and slot,
+ * neither past. Each keeps its votes and thread. Answers the plan.
+ */
+export const swapMealsSchema = z.object({ withMealId: z.uuid() });
+
+export type SwapMeals = z.infer<typeof swapMealsSchema>;
 
 /**
  * One run of `menu.propose` for a week (GLOSSARY: Предложение за меню). The plan is created only when it is `done`

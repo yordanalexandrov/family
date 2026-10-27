@@ -3,6 +3,7 @@ import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import {
   ConflictError,
+  ForbiddenError,
   InvalidActionError,
   InvalidReferenceError,
   NotFoundError,
@@ -68,6 +69,7 @@ const REFUSALS: [
 ][] = [
   [NotFoundError, 404, 'not_found'],
   [ConflictError, 409, 'conflict'],
+  [ForbiddenError, 403, 'forbidden'],
   [InvalidReferenceError, 400, 'invalid_reference'],
   [InvalidActionError, 400, 'invalid_action'],
   [OpenClawUnavailableError, 503, 'openclaw_unavailable'],

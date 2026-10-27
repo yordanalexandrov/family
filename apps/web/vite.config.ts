@@ -55,11 +55,14 @@ export default defineConfig({
         navigateFallback: '/index.html',
         // Навигация към api/healthz не е страница на приложението.
         navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],
-        // Фаза 1: /api/* само от мрежата, без кеш.
+        // /api/* само от мрежата, без кеш. Потокът `/api/events` (SSE) не минава през service worker-а
+        // изобщо: браузърът го отваря директно, без посредник, който да го буферира или прекъсне.
         runtimeCaching: [
           {
             urlPattern: ({ url, sameOrigin }) =>
-              sameOrigin && url.pathname.startsWith('/api/'),
+              sameOrigin &&
+              url.pathname.startsWith('/api/') &&
+              url.pathname !== '/api/events',
             handler: 'NetworkOnly',
           },
         ],
