@@ -1,0 +1,404 @@
+import {
+  approvedSuggestionResponseSchema,
+  type ImportedSuggestion,
+  type RecipeImportDetail,
+  type RecipeImportRequest,
+  type RecipeInput,
+  type RecipeNormalizeInput,
+  recipeImportDetailSchema,
+  recipeImportRequestSchema,
+} from '@family/shared';
+import type { FastifyInstance } from 'fastify';
+import { HttpResponse, http } from 'msw';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { buildTestApp } from '../test/app.js';
+import {
+  CHAT_COMPLETIONS_URL,
+  completion,
+  normalizeAnswer,
+  openclaw,
+} from '../test/openclaw.js';
+import { DANI, POLI } from '../test/users.js';
+
+let app: FastifyInstance;
+
+beforeAll(async () => {
+  openclaw.listen({ onUnhandledFrame: 'error' });
+  app = buildTestApp();
+  await app.ready();
+});
+
+afterEach(() => openclaw.resetHandlers());
+
+afterAll(async () => {
+  await app.close();
+  openclaw.close();
+});
+
+const headers = { 'x-acting-user': DANI.id };
+
+const BLOG_TEXT = `Пилешки гърди с ориз на фурна
+
+Продукти:
+- 600 г пилешки гърди
+- 1 чаша ориз
+- 1 ч.л. смлян сумак
+
+Начин на приготвяне:
+Нарежете пилето. Добавете ориза и печете 30 минути.`;
+
+function postImport(payload: object) {
+  return app.inject({
+    method: 'POST',
+    url: '/api/recipe-imports',
+    headers,
+    payload,
+  });
+}
+
+function getImport(id: string) {
+  return app.inject({
+    method: 'GET',
+    url: `/api/recipe-imports/${id}`,
+    headers,
+  });
+}
+
+async function imported(payload: object): Promise<RecipeImportRequest> {
+  const response = await postImport(payload);
+  expect(response.statusCode).toBe(202);
+  return recipeImportRequestSchema.parse(response.json().request);
+}
+
+/** Polls `GET /api/recipe-imports/:id` until the background run has finished. */
+async function finished(
+  request: RecipeImportRequest,
+  timeoutMs = 5_000,
+): Promise<RecipeImportDetail> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const response = await getImport(request.id);
+    expect(response.statusCode).toBe(200);
+    const body = recipeImportDetailSchema.parse(response.json());
+    if (body.request.status !== 'pending') {
+      return body;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`import ${request.id} still pending`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+interface ChatBody {
+  model: string;
+  messages: { role: string; content: string }[];
+  response_format: { json_schema: { name: string } };
+}
+
+/** Answers the chat completions in turn, each built from the contract input; returns the request bodies it got. */
+function answerInTurn(
+  ...answers: ((input: RecipeNormalizeInput) => unknown)[]
+) {
+  const bodies: ChatBody[] = [];
+  openclaw.use(
+    http.post(CHAT_COMPLETIONS_URL, async ({ request }) => {
+      const body = (await request.json()) as ChatBody;
+      bodies.push(body);
+      const input = JSON.parse(body.messages[0]?.content ?? '');
+      const answer = answers[bodies.length - 1] ?? answers.at(-1);
+      return HttpResponse.json(
+        completion(JSON.stringify(answer?.(input) ?? '')),
+      );
+    }),
+  );
+  return { bodies };
+}
+
+/** The recorded answer with a line linked to an id the registry does not have. */
+function withForeignId(input: RecipeNormalizeInput) {
+  const answer = normalizeAnswer(input);
+  const line = answer.recipe?.ingredients[1];
+  if (line) {
+    line.ingredientId = 'f0000000-0000-4000-8000-000000000099';
+  }
+  return answer;
+}
+
+describe('POST /api/recipe-imports', () => {
+  it('answers 202 with a pending text import, then the run stores one suggestion linked to the registry', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+
+    const request = await imported({
+      kind: 'text',
+      text: BLOG_TEXT,
+      url: 'https://blog.example/pile-s-oriz',
+    });
+
+    expect(request).toMatchObject({
+      status: 'pending',
+      source: 'text',
+      url: 'https://blog.example/pile-s-oriz',
+      requestedBy: DANI.id,
+    });
+    expect(request).not.toHaveProperty('suggestionId');
+
+    const body = await finished(request);
+
+    // The source is kept for „Опитай пак“; the list does not carry it.
+    expect(body.text).toBe(BLOG_TEXT);
+
+    expect(body.request).toMatchObject({
+      id: request.id,
+      status: 'done',
+      title: 'Пилешко филе с ориз на фурна',
+    });
+    expect(body.request.finishedAt).toEqual(expect.any(String));
+    const suggestion = body.suggestion as ImportedSuggestion;
+    expect(suggestion).toMatchObject({
+      origin: 'import',
+      importRequestId: request.id,
+      status: 'proposed',
+      payload: { title: 'Пилешко филе с ориз на фурна', servings: 4 },
+    });
+    expect(body.request.suggestionId).toBe(suggestion.id);
+    expect(suggestion.payload).not.toHaveProperty('nutritionPer100g');
+    // The registry ingredients the lines are linked to, for the review; the new product is not among them.
+    const linked = suggestion.payload.ingredients.flatMap((line) =>
+      line.ingredientId ? [line.ingredientId] : [],
+    );
+    expect(body.ingredients.map((i) => i.id).sort()).toEqual(
+      [...new Set(linked)].sort(),
+    );
+    expect(body.ingredients.map((i) => i.name)).toEqual(
+      expect.arrayContaining(['пилешко филе', 'ориз', 'сол']),
+    );
+    expect(
+      suggestion.payload.ingredients.find((line) => line.newProduct),
+    ).toMatchObject({
+      ingredientId: null,
+      newProduct: { name: 'сумак', unit: 'g', aisle: 'spices' },
+    });
+
+    // The family-import agent with the recipe.normalize contract: the text and the whole registry.
+    expect(calls.bodies).toHaveLength(1);
+    const [call] = calls.bodies;
+    expect(call?.model).toBe('openclaw/family-import');
+    expect(call?.response_format.json_schema.name).toBe('recipe_normalize');
+    const input = JSON.parse(call?.messages[0]?.content ?? '');
+    expect(input.source).toEqual({
+      kind: 'text',
+      text: BLOG_TEXT,
+      url: 'https://blog.example/pile-s-oriz',
+    });
+    expect(input.ingredients).toContainEqual({
+      id: expect.any(String),
+      name: 'сол',
+      unit: 'g',
+    });
+    expect(input.ingredients.length).toBeGreaterThan(100);
+  });
+
+  it('refuses empty text, text over 20 000 characters and an unknown kind of source', async () => {
+    expect((await postImport({ kind: 'text', text: '  ' })).statusCode).toBe(
+      400,
+    );
+    expect(
+      (await postImport({ kind: 'text', text: 'а'.repeat(20_001) })).statusCode,
+    ).toBe(400);
+    expect(
+      (await postImport({ kind: 'video', url: 'https://example.com' }))
+        .statusCode,
+    ).toBe(400);
+  });
+});
+
+describe('the recipe.normalize run', () => {
+  it('fails with invalid_output after two answers linking a product the registry does not have', async () => {
+    const calls = answerInTurn(withForeignId);
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(calls.bodies).toHaveLength(2);
+    expect(calls.bodies[1]?.messages.at(-1)?.content).toContain(
+      'f0000000-0000-4000-8000-000000000099',
+    );
+    expect(body.request).toMatchObject({
+      status: 'failed',
+      error: 'invalid_output',
+    });
+    expect(body.suggestion).toBeUndefined();
+  });
+
+  it('takes a valid retry after one answer with a foreign product', async () => {
+    const calls = answerInTurn(withForeignId, normalizeAnswer);
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(calls.bodies).toHaveLength(2);
+    expect(body.request.status).toBe('done');
+    expect(body.suggestion).toBeDefined();
+  });
+
+  it('fails with no_results when the agent says the text has no recipe, without a retry', async () => {
+    const calls = answerInTurn(() => ({
+      recipe: null,
+      noResults: 'Текстът е статия за градинарство, не рецепта.',
+    }));
+
+    const body = await finished(
+      await imported({ kind: 'text', text: 'Как се садят домати.' }),
+    );
+
+    expect(calls.bodies).toHaveLength(1);
+    expect(body.request).toMatchObject({
+      status: 'failed',
+      error: 'no_results',
+      noResults: 'Текстът е статия за градинарство, не рецепта.',
+    });
+    expect(body.suggestion).toBeUndefined();
+  });
+});
+
+describe('GET /api/recipe-imports', () => {
+  it('lists the latest imports newest first, at most limit', async () => {
+    answerInTurn(normalizeAnswer);
+    const first = await finished(
+      await imported({ kind: 'text', text: 'Първа' }),
+    );
+    const second = await finished(
+      await imported({ kind: 'text', text: 'Втора' }),
+    );
+    const third = await finished(
+      await imported({ kind: 'text', text: 'Трета' }),
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/recipe-imports?limit=2',
+      headers,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { requests } = response.json() as {
+      requests: RecipeImportRequest[];
+    };
+    expect(requests.map((r) => r.id)).toEqual([
+      third.request.id,
+      second.request.id,
+    ]);
+    expect(requests[0]).toMatchObject({
+      status: 'done',
+      title: 'Пилешко филе с ориз на фурна',
+      suggestionId: third.suggestion?.id,
+    });
+    expect(first.request.status).toBe('done');
+  });
+
+  it('answers 404 for an unknown import', async () => {
+    const response = await getImport('00000000-0000-4000-8000-000000000000');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: 'not_found' });
+  });
+});
+
+describe('deciding an imported suggestion', () => {
+  async function aSuggestion() {
+    answerInTurn(normalizeAnswer);
+    const body = await finished(
+      await imported({
+        kind: 'text',
+        text: BLOG_TEXT,
+        url: 'https://blog.example/pile-s-oriz',
+      }),
+    );
+    if (!body.suggestion) {
+      throw new Error('import without a suggestion');
+    }
+    return body.suggestion;
+  }
+
+  /** What the review sends: the linked lines as they are, the new product left out (as if unlinked by the person). */
+  function editedInput(suggestion: ImportedSuggestion): RecipeInput {
+    const { title, servings, steps, tags, ingredients } = suggestion.payload;
+    return {
+      title,
+      servings,
+      steps,
+      tags,
+      sourceUrl: 'https://blog.example/pile-s-oriz',
+      ingredients: ingredients.flatMap((line) =>
+        line.ingredientId
+          ? [
+              {
+                ingredientId: line.ingredientId,
+                quantity: line.quantity,
+                unit: line.unit,
+              },
+            ]
+          : [],
+      ),
+    };
+  }
+
+  function decide(id: string, action: 'approve' | 'reject', payload?: object) {
+    return app.inject({
+      method: 'POST',
+      url: `/api/recipe-suggestions/${id}/${action}`,
+      headers: { 'x-acting-user': POLI.id },
+      payload,
+    });
+  }
+
+  it('approval through /api/recipe-suggestions/:id/approve creates the recipe and marks the suggestion approved', async () => {
+    const suggestion = await aSuggestion();
+    const input = editedInput(suggestion);
+
+    const response = await decide(suggestion.id, 'approve', input);
+
+    expect(response.statusCode).toBe(201);
+    const { recipe, suggestion: approved } =
+      approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe).toMatchObject({
+      title: 'Пилешко филе с ориз на фурна',
+      sourceUrl: 'https://blog.example/pile-s-oriz',
+    });
+    expect(recipe.ingredients).toHaveLength(input.ingredients.length);
+    expect(approved).toMatchObject({
+      id: suggestion.id,
+      origin: 'import',
+      importRequestId: suggestion.importRequestId,
+      status: 'approved',
+      recipeId: recipe.id,
+      decidedBy: POLI.id,
+    });
+    const detail = recipeImportDetailSchema.parse(
+      (await getImport(suggestion.importRequestId)).json(),
+    );
+    expect(detail.suggestion).toMatchObject({
+      status: 'approved',
+      recipeId: recipe.id,
+    });
+    expect((await decide(suggestion.id, 'approve', input)).statusCode).toBe(
+      409,
+    );
+  });
+
+  it('rejection marks it rejected', async () => {
+    const suggestion = await aSuggestion();
+
+    const response = await decide(suggestion.id, 'reject');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().suggestion).toMatchObject({
+      id: suggestion.id,
+      origin: 'import',
+      status: 'rejected',
+    });
+  });
+});

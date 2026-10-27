@@ -48,6 +48,8 @@ export interface ContractRequestStore<
    * request then ends `failed`/`no_results` without `onDone` or a retry. `null` (or no method) = write the answer.
    */
   noResults?(output: O): string | null;
+  /** Keeps the reason of {@link ContractRequestStore.noResults}, in the transaction that marks the request failed. */
+  onNoResults?(tx: DbExecutor, request: R, reason: string): Promise<void>;
 }
 
 /** The requests of one registered contract, as its service uses them. */
@@ -124,9 +126,12 @@ export function createContractRequests({
               { ...logContext, noResults },
               `${contract.id} found no results`,
             );
-            await finishContractRequest(db, store.table, request.id, {
-              status: 'failed',
-              error: 'no_results',
+            await db.transaction(async (tx) => {
+              await store.onNoResults?.(tx, request, noResults);
+              await finishContractRequest(tx, store.table, request.id, {
+                status: 'failed',
+                error: 'no_results',
+              });
             });
             return;
           }

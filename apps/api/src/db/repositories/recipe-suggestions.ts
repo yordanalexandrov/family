@@ -1,4 +1,7 @@
 import type {
+  AnyRecipeSuggestion,
+  ImportedSuggestion,
+  NormalizedRecipe,
   RecipeSuggestion,
   RecipeSuggestionStatus,
   RecipeSuggestParams,
@@ -28,16 +31,50 @@ function toRequest(row: RequestRow): SuggestionRequest {
   };
 }
 
-function toSuggestion(row: SuggestionRow): RecipeSuggestion {
+/** The decision part of a suggestion row, whatever its origin. */
+function decisionOf(row: SuggestionRow) {
   return {
     id: row.id,
-    requestId: row.requestId,
-    payload: row.payload,
     status: row.status,
     recipeId: row.recipeId ?? undefined,
     decidedBy: row.decidedBy ?? undefined,
     decidedAt: row.decidedAt?.toISOString() ?? undefined,
   };
+}
+
+/** A suggestion of a suggestion request; the row must have `request_id` (read by it). */
+function toSuggestion(row: SuggestionRow): RecipeSuggestion {
+  if (row.requestId === null) {
+    throw new Error(
+      `recipe_suggestion ${row.id} is not of a suggestion request`,
+    );
+  }
+  return {
+    ...decisionOf(row),
+    origin: 'suggest',
+    requestId: row.requestId,
+    payload: row.payload as Suggestion,
+  };
+}
+
+/** The suggestion of an import; the row must have `import_request_id` (read by it). */
+export function toImportedSuggestion(row: SuggestionRow): ImportedSuggestion {
+  if (row.importRequestId === null) {
+    throw new Error(`recipe_suggestion ${row.id} is not of an import`);
+  }
+  return {
+    ...decisionOf(row),
+    origin: 'import',
+    importRequestId: row.importRequestId,
+    payload: row.payload as NormalizedRecipe,
+  };
+}
+
+/** Either origin, told apart by which request the row points to (exactly one, by `recipe_suggestion_request_check`). */
+function toAnySuggestion(row: SuggestionRow): AnyRecipeSuggestion {
+  return row.importRequestId === null
+    ? toSuggestion(row)
+    : toImportedSuggestion(row);
 }
 
 /** A new `pending` request. */
@@ -121,14 +158,14 @@ export async function listSuggestions(
 export async function lockSuggestion(
   db: DbExecutor,
   id: string,
-): Promise<RecipeSuggestion | undefined> {
+): Promise<AnyRecipeSuggestion | undefined> {
   const [row] = await db
     .select()
     .from(recipeSuggestion)
     .where(eq(recipeSuggestion.id, id))
     .for('update')
     .limit(1);
-  return row && toSuggestion(row);
+  return row && toAnySuggestion(row);
 }
 
 /** Records the decision on a suggestion; returns it as stored. */
@@ -140,7 +177,7 @@ export async function decideSuggestion(
     recipeId: string | null;
     decidedBy: string;
   },
-): Promise<RecipeSuggestion> {
+): Promise<AnyRecipeSuggestion> {
   const [row] = await db
     .update(recipeSuggestion)
     .set({ ...decision, decidedAt: sql`now()` })
@@ -149,5 +186,5 @@ export async function decideSuggestion(
   if (!row) {
     throw new Error('update of recipe_suggestion returned no row');
   }
-  return toSuggestion(row);
+  return toAnySuggestion(row);
 }

@@ -1,8 +1,8 @@
 import type {
+  AnyRecipeSuggestion,
   Recipe,
   RecipeInput,
   RecipeSuggestInput,
-  RecipeSuggestion,
   RecipeSuggestOutput,
   RecipeSuggestParams,
   SuggestionRequest,
@@ -44,8 +44,11 @@ export interface RecipeSuggestionsService {
     id: string,
     input: RecipeInput,
     actingUserId: string,
-  ): Promise<{ recipe: Recipe; suggestion: RecipeSuggestion }>;
-  rejectSuggestion(id: string, actingUserId: string): Promise<RecipeSuggestion>;
+  ): Promise<{ recipe: Recipe; suggestion: AnyRecipeSuggestion }>;
+  rejectSuggestion(
+    id: string,
+    actingUserId: string,
+  ): Promise<AnyRecipeSuggestion>;
 }
 
 /** `recipe.suggest` as AI requests (GLOSSARY: Заявка за предложения), registered in `buildApp()`. */
@@ -90,8 +93,8 @@ export const suggestionRequestStore: ContractRequestStore<
 };
 
 /**
- * Suggestion requests and the decisions on their suggestions (GLOSSARY: Заявка за предложения, Предложение за рецепта);
- * created once in `buildApp()` as `app.recipeSuggestions`. Requests go through `requests`, registered with
+ * Suggestion requests and the decisions on their suggestions (GLOSSARY: Заявка за предложения, Предложение за рецепта),
+ * also on the one suggestion of an import (`recipe.normalize`): approval and rejection do not depend on the origin. Created once in `buildApp()` as `app.recipeSuggestions`. Requests go through `requests`, registered with
  * {@link suggestionRequestStore}.
  */
 export function createRecipeSuggestionsService({
@@ -101,7 +104,10 @@ export function createRecipeSuggestionsService({
   db: Db;
   requests: SuggestionRequests;
 }): RecipeSuggestionsService {
-  async function decide(id: string, tx: DbExecutor): Promise<RecipeSuggestion> {
+  async function decide(
+    id: string,
+    tx: DbExecutor,
+  ): Promise<AnyRecipeSuggestion> {
     const suggestion = await lockSuggestion(tx, id);
     if (!suggestion) {
       throw new NotFoundError(NO_SUCH_SUGGESTION);
