@@ -615,7 +615,7 @@ describe('votes', () => {
     ]);
   });
 
-  it('signals menu.changed and shopping.changed for the week of the meal', async () => {
+  it('signals only menu.changed for the week of the meal: a vote does not change the shopping list', async () => {
     const plan = await createPlan(WEEK);
     const signals: ServerEvent[] = [];
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
@@ -626,9 +626,7 @@ describe('votes', () => {
 
     expect(signals).toEqual([
       { type: 'menu.changed', weekStart: WEEK },
-      { type: 'shopping.changed', weekStart: WEEK },
       { type: 'menu.changed', weekStart: WEEK },
-      { type: 'shopping.changed', weekStart: WEEK },
     ]);
   });
 
@@ -874,7 +872,7 @@ describe('thread of a meal', () => {
     expect((await thread(unknown)).statusCode).toBe(404);
   });
 
-  it('signals menu.changed and shopping.changed when a comment is written or deleted', async () => {
+  it('signals only menu.changed when a comment is written or deleted: the thread does not change the shopping list', async () => {
     const plan = await createPlan(WEEK);
     const signals: ServerEvent[] = [];
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
@@ -884,10 +882,28 @@ describe('thread of a meal', () => {
     await deleteComment(written.id);
     unsubscribe();
 
-    expect(signals.filter((event) => event.type === 'menu.changed')).toEqual([
+    expect(signals).toEqual([
       { type: 'menu.changed', weekStart: WEEK },
       { type: 'menu.changed', weekStart: WEEK },
     ]);
+  });
+
+  it('answers 409 past_meal for deleting an own comment on a day before today, and keeps it', async () => {
+    // Monday 26 October, 10:00 in Sofia.
+    clock = new Date('2026-10-26T08:00:00Z');
+    const plan = await createPlan(THIS_WEEK);
+    const [monday] = plan.meals;
+    const mine = (await comment(monday.id, 'пак пиле?')).json().comment;
+    clock = NOW;
+
+    const response = await deleteComment(mine.id);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'conflict',
+      code: 'past_meal',
+    });
+    expect((await thread(monday.id)).json().comments).toHaveLength(1);
   });
 
   it('goes with the plan when it is deleted', async () => {

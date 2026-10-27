@@ -74,7 +74,8 @@ import { type EventBus, menuAndShoppingChanged } from './events.js';
 const DINNER: MenuSlot = 'dinner';
 
 const NO_SUCH_PLAN = 'Няма меню за тази седмица';
-const NO_SUCH_MEAL = 'Няма такова ястие';
+/** Shared with `meal.replace` (`services/meal-replacements.ts`). */
+export const NO_SUCH_MEAL = 'Няма такова ястие';
 const NO_SUCH_PROPOSAL = 'Няма такова предложение за меню';
 const WEEK_HAS_PLAN = 'Седмицата вече има меню';
 const WEEK_HAS_PENDING = 'За седмицата вече се подготвя предложение';
@@ -102,7 +103,7 @@ export interface MenuService {
     patch: UpdateMeal,
     actingUserId: string,
   ): Promise<Meal>;
-  /** Puts (`value`) or takes back (`null`) the vote of `actingUserId`; refused for a past meal. */
+  /** Puts (`value`) or takes back (`null`) the vote of `actingUserId`; refused for a past meal. Signals only `menu.changed`. */
   vote(
     id: string,
     actingUserId: string,
@@ -119,13 +120,13 @@ export interface MenuService {
   ): Promise<MealPlan>;
   /** The meal's thread (GLOSSARY: Разговор), oldest first; readable for a past meal too. */
   listComments(mealId: string): Promise<MealComment[]>;
-  /** A comment of `actingUserId`; refused for a past meal. */
+  /** A comment of `actingUserId`; refused for a past meal. Signals only `menu.changed`. */
   addComment(
     mealId: string,
     actingUserId: string,
     body: string,
   ): Promise<MealComment>;
-  /** Only the author's own `comment`: 403 for someone else's, 409 for a system line. */
+  /** Only the author's own `comment`: 403 for someone else's, 409 for a system line or a past meal. Signals only `menu.changed`. */
   deleteComment(id: string, actingUserId: string): Promise<void>;
   /** Stores a `pending` proposal and starts `menu.propose` in the background; the proposal is returned at once. */
   requestProposal(
@@ -155,11 +156,16 @@ async function refuseTakenWeek(
   }
 }
 
-/** Signals a change to the plan of the week, or to one of its meals, once it has committed. */
+/** Signals a change to the plan of the week, or to the content of one of its meals, once it has committed. */
 function signalWeek(events: EventBus, weekStart: string): void {
   for (const event of menuAndShoppingChanged(weekStart)) {
     events.publish(event);
   }
+}
+
+/** Signals a vote or a thread line once it has committed: the shopping list is not computed from them. */
+function signalAgreement(events: EventBus, weekStart: string): void {
+  events.publish({ type: 'menu.changed', weekStart });
 }
 
 /**
@@ -233,7 +239,8 @@ export function createMenuProposalStore(
 /**
  * The weekly menu (GLOSSARY: Седмично меню, Ястие, Предложение за меню); created once in `buildApp()` as `app.menu`.
  * Proposals go through `proposals`, the `menu.propose` requests registered with {@link createMenuProposalStore}. Every
- * committed change signals `menu.changed` and `shopping.changed` for its week on `events`.
+ * committed change to a plan or a meal signals `menu.changed` and `shopping.changed` for its week on `events`; a vote or
+ * a thread line only `menu.changed`.
  */
 export function createMenuService({
   db,
@@ -353,7 +360,7 @@ export function createMenuService({
         }
         return reread(tx, id, current.planId);
       });
-      signalWeek(events, weekStart);
+      signalAgreement(events, weekStart);
       return meal;
     },
 
@@ -404,9 +411,7 @@ export function createMenuService({
         if (!meal) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
-        if (isPastMeal(meal, dateKeyInSofia(now()))) {
-          throw new ConflictError(PAST_MEAL_THREAD, { code: 'past_meal' });
-        }
+        refusePastThread(meal, now());
         const comment = await insertComment(
           tx,
           { mealId, kind: 'comment', authorUserId: actingUserId, body },
@@ -414,7 +419,7 @@ export function createMenuService({
         );
         return { comment, weekStart: await weekOf(tx, meal.planId) };
       });
-      signalWeek(events, weekStart);
+      signalAgreement(events, weekStart);
       return comment;
     },
 
@@ -430,14 +435,15 @@ export function createMenuService({
         if (comment.authorUserId !== actingUserId) {
           throw new ForbiddenError(NOT_YOUR_COMMENT);
         }
-        await deleteComment(tx, id);
         const meal = await findMeal(tx, comment.mealId);
         if (!meal) {
           throw new Error('meal of a comment vanished');
         }
+        refusePastThread(meal, now());
+        await deleteComment(tx, id);
         return weekOf(tx, meal.planId);
       });
-      signalWeek(events, weekStart);
+      signalAgreement(events, weekStart);
     },
 
     requestProposal(params, actingUserId) {
@@ -478,10 +484,20 @@ export async function readCooking(
   };
 }
 
-/** 409 `past_meal` for a meal before today in Sofia: its votes, recipe and note are history. */
-function refusePastMeal(meal: Meal, at: Date): void {
+/**
+ * 409 `past_meal` for a meal before today in Sofia: its votes, recipe and note are history. Shared with `meal.replace`
+ * (`services/meal-replacements.ts`), so both answer with one message.
+ */
+export function refusePastMeal(meal: Meal, at: Date): void {
   if (isPastMeal(meal, dateKeyInSofia(at))) {
     throw new ConflictError(PAST_MEAL, { code: 'past_meal' });
+  }
+}
+
+/** 409 `past_meal` for writing to or deleting from the thread of a past meal: it is read, but not written. */
+function refusePastThread(meal: Meal, at: Date): void {
+  if (isPastMeal(meal, dateKeyInSofia(at))) {
+    throw new ConflictError(PAST_MEAL_THREAD, { code: 'past_meal' });
   }
 }
 
