@@ -54,6 +54,19 @@ pnpm --filter api meal:smoke -- --comment "И без бобови, моля" --s
 
 Скриптът (`apps/api/scripts/meal-smoke.ts`) праща входа от фикстурата `packages/shared/src/contracts/fixtures/meal-replace.input.json` (пилето в сряда, разговор „без месо, без риба“, 9 други вечери, някои с оценка или последно сервиране, 2 временни продукта в килера); `--comment` добавя ред от Поли в разговора. Валидира като api-то и печата кандидатите със заглавие, време, тагове и „защо“, отбелязва оценката, последното сервиране, продуктите от килера, които „защо“ споменава, и повторените от седмицата. `--save` записва валидирания JSON, за да замени ръчната фикстура `meal-replace.valid.json`.
 
+## Smoke тест на `recipe.normalize`
+
+Ръчна проверка на „Внеси рецепта“ срещу реалния агент `family-import` (prompt: [docs/openclaw/family-import.md](docs/openclaw/family-import.md), без инструменти); тунелът и паролата са като при `recipe.suggest`:
+
+```bash
+pnpm --filter api import:smoke
+pnpm --filter api import:smoke -- --case bg --save /tmp/recipe-normalize.json
+pnpm --filter api import:smoke -- --text-file /tmp/recepta.txt --url https://…
+pnpm --filter api import:smoke -- --text-file /tmp/recepti/            # всеки *.txt в папката е отделен случай
+```
+
+Скриптът (`apps/api/scripts/import-smoke.ts`) внася два вградени текста: български блог с увод, „Продукти:“ / „Начин на приготвяне:“, порции „6–8“, глава, скилидки и чаени чаши, и английска рецепта с cups и oz (`--case bg|en` пуска единия; `--text-file` внася файл или всеки `*.txt` от папка вместо тях, с `--url` като линк към източника; `--help` изброява опциите). Регистърът е seed продуктите. Валидира като api-то (Zod + id-тата от регистъра, един повторен опит) и печата заглавие, порции, време, тагове, допусканията, всеки продукт (свързан с името и id-то от регистъра или „НОВ“ с име, основна единица и щанд, количество, единица и бележка), стъпките, хранителната стойност и продължителността, а при `noResults` — причината. `--save` записва валидираните изходи по име на случая. Изход 1 = таймаут, HTTP грешка или два невалидни отговора за някой от текстовете.
+
 ## Deploy
 
 Merge в `master` стига до `homesrv` сам: [deploy.yml](.github/workflows/deploy.yml) тръгва на self-hosted runner-а `homesrv-family` и в checkout-а си:
