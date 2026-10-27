@@ -101,3 +101,34 @@ jobs:
           docker compose -p family ps -a
           docker compose -p family logs --tail 100 api
           exit 1
+
+      # Prompt-ите на агентите (docs/openclaw/README.md): чак след като новото api отговаря, за да вървят от един
+      # commit. Името на файла е id-то на агента; копира се текстът под първата линия ---. Workspace-ът се създава
+      # при Provisioning: липсващ е грешка, не се създава тук. В лога само имената, не съдържанието.
+      - name: Sync agent prompts
+        run: |
+          for file in docs/openclaw/family-*.md; do
+            agent=$(basename "$file" .md)
+            workspace="$HOME/.openclaw/workspace-$agent"
+            if [ ! -d "$workspace" ]; then
+              echo "::error::no OpenClaw workspace for $agent ($workspace)"
+              exit 1
+            fi
+            umask 077
+            awk 'f; /^---$/ && !f {f=1}' "$file" > "$workspace/AGENTS.md.new"
+            if [ ! -s "$workspace/AGENTS.md.new" ]; then
+              rm "$workspace/AGENTS.md.new"
+              echo "::error::$file has no prompt below its first --- line"
+              exit 1
+            fi
+            if cmp -s "$workspace/AGENTS.md.new" "$workspace/AGENTS.md"; then
+              rm "$workspace/AGENTS.md.new"
+              echo "$agent: prompt unchanged"
+              continue
+            fi
+            if [ -f "$workspace/AGENTS.md" ]; then
+              cp -p "$workspace/AGENTS.md" "$workspace/AGENTS.md.bak"
+            fi
+            mv "$workspace/AGENTS.md.new" "$workspace/AGENTS.md"
+            echo "$agent: prompt updated"
+          done
