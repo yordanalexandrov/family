@@ -1,8 +1,9 @@
 // Imports recipes through the real `family-import` agent, through the api's OpenClaw client, and prints them.
 // Manual check against the gateway (docs/openclaw/README.md → "Smoke преди merge"); not part of `pnpm test`.
-//   pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--url <source url>] [--save out.json]
-// Without `--text-file` it imports two built-in texts: a Bulgarian blog post („Продукти:“ / „Начин на приготвяне:“, a range
-// of servings, cups and cloves) and an English recipe with cups and ounces. The registry is the seed ingredients.
+//   pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--save out.json]
+// Without `--text-file` or `--url` it imports two built-in texts: a Bulgarian blog post („Продукти:“ / „Начин на
+// приготвяне:“, a range of servings, cups and cloves) and an English recipe with cups and ounces. `--url` fetches and
+// reads the page the way the api does (services/recipe-page) before the agent. The registry is the seed ingredients.
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -16,6 +17,7 @@ import {
 import { loadOpenClawConfig } from '../src/config.js';
 import seed from '../src/db/seed/ingredients.json' with { type: 'json' };
 import { createOpenClawClient } from '../src/openclaw/client.js';
+import { readRecipePage } from '../src/services/recipe-page/index.js';
 
 const BULGARIAN_BLOG = `Мусака с кайма и картофи — като на баба
 
@@ -67,10 +69,15 @@ Mix in the baking soda and salt. Stir in the sugar, beaten egg, and vanilla extr
 Pour the batter into the prepared loaf pan. Bake for 55 to 65 minutes, until a tester inserted into the center comes out clean.
 Remove from oven and let cool in the pan for a few minutes. Then remove the banana bread from the pan and let cool completely before serving.`;
 
-/** One thing to import: a name for the output and the source as the api would send it. */
+/**
+ * One thing to import: a name for the output and the source as the api would send it; for a link, what reading the
+ * page gave (`page`), or why it failed (`fetchFailure`, and then there is no source and no agent call).
+ */
 interface SmokeCase {
   name: string;
-  source: RecipeNormalizeSource;
+  source?: RecipeNormalizeSource;
+  page?: string;
+  fetchFailure?: string;
 }
 
 const BUILT_IN: SmokeCase[] = [
@@ -85,12 +92,14 @@ const BUILT_IN: SmokeCase[] = [
   { name: 'en', source: { kind: 'text', text: ENGLISH_RECIPE } },
 ];
 
-const USAGE = `Usage: pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--url <source url>] [--save out.json]
-  no options       the built-in cases (${BUILT_IN.map((c) => c.name).join(', ')})
-  --case <name>    only that built-in case (repeatable)
-  --text-file <p>  pasted text from a file, or every *.txt in a directory (repeatable); replaces the built-in cases
-  --url <url>      the source link sent with every --text-file
-  --save <file>    the validated outputs by case name, as JSON
+const USAGE = `Usage: pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--save out.json]
+  no options         the built-in cases (${BUILT_IN.map((c) => c.name).join(', ')})
+  --case <name>      only that built-in case (repeatable)
+  --text-file <p>    pasted text from a file, or every *.txt in a directory (repeatable); replaces the built-in cases
+  --source-url <url> the source link sent with every --text-file
+  --url <link>       a recipe page: fetched and read as the api does, then sent to the agent (repeatable);
+                     replaces the built-in cases, goes with --text-file
+  --save <file>      the validated outputs by case name, as JSON
 `;
 
 const { values } = parseArgs({
@@ -99,7 +108,8 @@ const { values } = parseArgs({
   options: {
     case: { type: 'string', multiple: true },
     'text-file': { type: 'string', multiple: true },
-    url: { type: 'string' },
+    'source-url': { type: 'string' },
+    url: { type: 'string', multiple: true },
     save: { type: 'string' },
     help: { type: 'boolean' },
   },
@@ -135,23 +145,56 @@ async function textFileCases(paths: string[], url: string | undefined) {
   );
 }
 
+/** `--url`: each link is fetched and read like the api does it (final URL, JSON-LD or text), one case per link. */
+async function pageCases(links: string[]): Promise<SmokeCase[]> {
+  const cases: SmokeCase[] = [];
+  for (const link of links) {
+    const started = performance.now();
+    const page = await readRecipePage(link);
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    if (!page.ok) {
+      cases.push({
+        name: link,
+        fetchFailure: `${page.failure} (${page.reason}), краен URL ${page.url}, ${seconds} s`,
+      });
+      continue;
+    }
+    const sent = page.jsonLd
+      ? `jsonLd ${JSON.stringify(page.jsonLd).length} знака`
+      : `text ${page.text?.length ?? 0} знака`;
+    cases.push({
+      name: link,
+      page: `краен URL ${page.url}, ${sent}, свалено за ${seconds} s`,
+      source: page.jsonLd
+        ? { kind: 'page', url: page.url, jsonLd: page.jsonLd }
+        : { kind: 'page', url: page.url, text: page.text ?? '' },
+    });
+  }
+  return cases;
+}
+
 /**
- * The cases to run. Each kind of source adds its own option and builder here (#103 a page by link, #105 `--photo`);
- * the loop below runs whatever cases there are.
+ * The cases to run. Each kind of source adds its own option and builder here (`--url` a page by link, #105
+ * `--photo`); the loop below runs whatever cases there are.
  */
 async function selectCases(): Promise<SmokeCase[]> {
   if (values.help) {
     usage();
   }
-  if (values['text-file']) {
-    const cases = await textFileCases(values['text-file'], values.url);
+  if (values['text-file'] || values.url) {
+    const cases = [
+      ...(values['text-file']
+        ? await textFileCases(values['text-file'], values['source-url'])
+        : []),
+      ...(values.url ? await pageCases(values.url) : []),
+    ];
     if (cases.length === 0) {
       usage('No *.txt files found.');
     }
     return cases;
   }
-  if (values.url) {
-    usage('--url goes with --text-file.');
+  if (values['source-url']) {
+    usage('--source-url goes with --text-file.');
   }
   if (!values.case) {
     return BUILT_IN;
@@ -218,10 +261,29 @@ function summary(output: RecipeNormalizeOutput, seconds: string): string {
 
 const saved: Record<string, RecipeNormalizeOutput> = {};
 let failed = false;
-for (const { name, source } of cases) {
+/** What the agent gets, in short: the size of the text or JSON-LD and the link. */
+function described(source: RecipeNormalizeSource): string {
+  const size =
+    source.kind === 'page' && source.jsonLd !== undefined
+      ? `jsonLd ${JSON.stringify(source.jsonLd).length} знака`
+      : `${source.text?.length ?? 0} знака`;
+  return `${size}${source.url ? `, ${source.url}` : ''}`;
+}
+
+for (const { name, source, page, fetchFailure } of cases) {
+  if (fetchFailure !== undefined || !source) {
+    failed = true;
+    process.stdout.write(
+      `[${name}] ✗ страницата не се прочете: ${fetchFailure}\n\n`,
+    );
+    continue;
+  }
+  if (page) {
+    process.stdout.write(`[${name}] ${page}\n`);
+  }
   const input: RecipeNormalizeInput = { source, ingredients };
   process.stderr.write(
-    `→ ${config.url} openclaw/${config.importAgent}, timeout ${config.timeoutMs} ms, ${name}: ${source.text.length} знака${source.url ? `, ${source.url}` : ''}, ${ingredients.length} продукта в регистъра\n`,
+    `→ ${config.url} openclaw/${config.importAgent}, timeout ${config.timeoutMs} ms, ${name}: ${described(source)}, ${ingredients.length} продукта в регистъра\n`,
   );
   const started = performance.now();
   try {

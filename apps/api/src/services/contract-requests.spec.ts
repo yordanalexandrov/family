@@ -23,6 +23,7 @@ import {
 } from '../test/openclaw.js';
 import { DANI } from '../test/users.js';
 import {
+  ContractRequestFailure,
   type ContractRequestStore,
   type ContractRequests,
   createContractRequests,
@@ -91,6 +92,9 @@ const store: ContractRequestStore<
     return row && toRequest(row);
   },
   async buildInput(_db, request) {
+    if (request.word === 'unreachable') {
+      throw new ContractRequestFailure('fetch_failed', 'the page did not open');
+    }
     return { word: request.word };
   },
   async onDone(tx, request, output) {
@@ -192,6 +196,25 @@ describe('AI requests (contract-requests)', () => {
       error: 'http_502',
       tags: [],
     });
+  });
+
+  it('ends failed with the code the store gives when it cannot build the input, without asking the agent', async () => {
+    let calls = 0;
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () => {
+        calls++;
+        return HttpResponse.json({}, { status: 502 });
+      }),
+    );
+    const handle = create();
+
+    const request = await handle.request({ word: 'unreachable' }, DANI.id);
+
+    expect(await finished(handle, request.id)).toMatchObject({
+      status: 'failed',
+      error: 'fetch_failed',
+    });
+    expect(calls).toBe(0);
   });
 
   it('fails as no_results without writing the answer when the store finds nothing in it, and logs why', async () => {

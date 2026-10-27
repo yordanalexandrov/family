@@ -4,8 +4,9 @@ import type {
   RecipeImportRequest,
   RecipeNormalizeInput,
   RecipeNormalizeOutput,
+  RecipeNormalizeSource,
 } from '@family/shared';
-import type { Db } from '../db/client.js';
+import type { Db, DbExecutor } from '../db/client.js';
 import {
   findIngredientsByIds,
   listRegistryIngredients,
@@ -14,17 +15,21 @@ import {
   findImportedSuggestion,
   findImportRequest,
   findImportSource,
+  findSourceUrlMatches,
   insertImportedSuggestion,
   insertImportRequest,
   listImportRequests,
   setImportNoResults,
+  setImportUrl,
 } from '../db/repositories/recipe-imports.js';
 import { recipeImportRequest } from '../db/schema/food.js';
-import type {
-  ContractRequestHandle,
-  ContractRequestStore,
+import {
+  ContractRequestFailure,
+  type ContractRequestHandle,
+  type ContractRequestStore,
 } from './contract-requests.js';
-import { NotFoundError } from './errors.js';
+import { AlreadyImportedError, NotFoundError } from './errors.js';
+import { readRecipePage } from './recipe-page/index.js';
 
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
@@ -35,9 +40,12 @@ export type RecipeImportRequests = ContractRequestHandle<
 >;
 
 /**
- * How imports are stored: the input is the kept source plus the whole registry (id, name, base unit); a valid answer
+ * How imports are stored: the input is the source plus the whole registry (id, name, base unit); a valid answer
  * stores its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none.
- * Approval and rejection of that suggestion are the suggestions' own (`app.recipeSuggestions`).
+ * A link already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the
+ * page of a link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
+ * `fetch_blocked` or `fetch_failed` without asking the agent. Approval and rejection of the suggestion are the
+ * suggestions' own (`app.recipeSuggestions`).
  */
 export const recipeImportStore: ContractRequestStore<
   RecipeImportParams,
@@ -46,12 +54,25 @@ export const recipeImportStore: ContractRequestStore<
   RecipeNormalizeOutput
 > = {
   table: recipeImportRequest,
-  insert: insertImportRequest,
+  async insert(tx, params, requestedBy) {
+    if (params.kind === 'url' && !params.force) {
+      const matches = await findSourceUrlMatches(tx, params.url);
+      if (matches.recipe || matches.suggestion) {
+        throw new AlreadyImportedError(
+          matches.recipe
+            ? `Вече е в регистъра: ${matches.recipe.title}`
+            : `Вече чака одобрение: ${matches.suggestion?.title}`,
+          matches,
+        );
+      }
+    }
+    return insertImportRequest(tx, params, requestedBy);
+  },
   find: findImportRequest,
 
   async buildInput(db, request) {
     return {
-      source: await findImportSource(db, request.id),
+      source: await agentSource(db, request.id),
       ingredients: await listRegistryIngredients(db),
     };
   },
@@ -70,6 +91,30 @@ export const recipeImportStore: ContractRequestStore<
     await setImportNoResults(tx, request.id, reason);
   },
 };
+
+/** Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps. */
+async function agentSource(
+  db: DbExecutor,
+  id: string,
+): Promise<RecipeNormalizeSource> {
+  const source = await findImportSource(db, id);
+  if (source.kind === 'text') {
+    return source;
+  }
+  const page = await readRecipePage(source.url);
+  if (!page.ok) {
+    throw new ContractRequestFailure(
+      page.failure,
+      `${page.reason}: ${page.url}`,
+    );
+  }
+  if (page.url !== source.url) {
+    await setImportUrl(db, id, page.url);
+  }
+  return page.jsonLd
+    ? { kind: 'page', url: page.url, jsonLd: page.jsonLd }
+    : { kind: 'page', url: page.url, text: page.text };
+}
 
 export interface RecipeImportsService {
   /** Stores a `pending` import and starts its run in the background; the import is returned at once. */

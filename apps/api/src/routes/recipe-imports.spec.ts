@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import {
   approvedSuggestionResponseSchema,
   type ImportedSuggestion,
@@ -210,6 +211,223 @@ describe('POST /api/recipe-imports', () => {
       (await postImport({ kind: 'video', url: 'https://example.com' }))
         .statusCode,
     ).toBe(400);
+  });
+});
+
+/** A saved page from `src/test/fixtures/recipe-pages/`. */
+function savedPage(name: string): string {
+  return readFileSync(
+    new URL(`../test/fixtures/recipe-pages/${name}`, import.meta.url),
+    'utf8',
+  );
+}
+
+const SHORT_LINK = 'https://short.example/kebap';
+const KEBAP_URL = 'https://kuhnia.example/recipes/knizhen-kebap/';
+const BLOG_URL = 'https://gladni.example/2024/07/tavche-gravche.html';
+
+/** The recipe sites, at HTTP level: a short link redirecting to a JSON-LD page, a blog without one, a blocking site. */
+function serveSites() {
+  const fetched: string[] = [];
+  const page = (body: string) => () =>
+    new HttpResponse(body, {
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    });
+  openclaw.use(
+    http.all('*', ({ request }) => {
+      if (request.url !== CHAT_COMPLETIONS_URL) {
+        fetched.push(request.url);
+      }
+    }),
+    http.get(SHORT_LINK, () => HttpResponse.redirect(KEBAP_URL, 301)),
+    http.get(KEBAP_URL, page(savedPage('jsonld-graph.html'))),
+    http.get(BLOG_URL, page(savedPage('bg-blog.html'))),
+    http.get(
+      'https://blocked.example/recipe',
+      () =>
+        new HttpResponse('<title>Just a moment...</title>', {
+          status: 403,
+          headers: { 'content-type': 'text/html', 'cf-mitigated': 'challenge' },
+        }),
+    ),
+    http.get(
+      'https://gone.example/recipe',
+      () => new HttpResponse('Not found', { status: 404 }),
+    ),
+  );
+  return { fetched };
+}
+
+describe('an import by link', () => {
+  it('fetches the page, follows the redirect and sends the agent its JSON-LD recipe; the final URL is the source', async () => {
+    serveSites();
+    const calls = answerInTurn(normalizeAnswer);
+
+    const request = await imported({ kind: 'url', url: SHORT_LINK });
+
+    expect(request).toMatchObject({
+      status: 'pending',
+      source: 'url',
+      url: SHORT_LINK,
+    });
+    const body = await finished(request);
+    expect(body.request).toMatchObject({ status: 'done', url: KEBAP_URL });
+    expect(body.text).toBeUndefined();
+    expect(body.suggestion).toMatchObject({ status: 'proposed' });
+
+    expect(calls.bodies).toHaveLength(1);
+    const input = JSON.parse(calls.bodies[0]?.messages[0]?.content ?? '');
+    expect(input.source).toEqual({
+      kind: 'page',
+      url: KEBAP_URL,
+      jsonLd: expect.objectContaining({
+        '@type': 'Recipe',
+        name: 'Книжен кебап с гъби',
+        recipeIngredient: expect.arrayContaining(['300 gram гъби']),
+      }),
+    });
+    expect(input.ingredients.length).toBeGreaterThan(100);
+  });
+
+  it('sends the main text of a page without a JSON-LD recipe', async () => {
+    serveSites();
+    const calls = answerInTurn(normalizeAnswer);
+
+    const body = await finished(await imported({ kind: 'url', url: BLOG_URL }));
+
+    expect(body.request.status).toBe('done');
+    const { source } = JSON.parse(calls.bodies[0]?.messages[0]?.content ?? '');
+    expect(source).toMatchObject({ kind: 'page', url: BLOG_URL });
+    expect(source).not.toHaveProperty('jsonLd');
+    expect(source.text).toContain('Необходими продукти (за 4 порции):');
+    expect(source.text).not.toContain('Архив на блога');
+  });
+
+  it('fails fetch_blocked for a site that refuses, and fetch_failed for a page that does not open, without asking OpenClaw', async () => {
+    serveSites();
+    const calls = answerInTurn(normalizeAnswer);
+
+    const blocked = await finished(
+      await imported({ kind: 'url', url: 'https://blocked.example/recipe' }),
+    );
+    const gone = await finished(
+      await imported({ kind: 'url', url: 'https://gone.example/recipe' }),
+    );
+
+    expect(blocked.request).toMatchObject({
+      status: 'failed',
+      error: 'fetch_blocked',
+      url: 'https://blocked.example/recipe',
+    });
+    expect(gone.request).toMatchObject({
+      status: 'failed',
+      error: 'fetch_failed',
+    });
+    expect(calls.bodies).toHaveLength(0);
+  });
+
+  it('refuses a link that is not http(s)', async () => {
+    expect(
+      (await postImport({ kind: 'url', url: 'file:///etc/passwd' })).statusCode,
+    ).toBe(400);
+  });
+});
+
+describe('a link already in the registry', () => {
+  /** An import by link that has run to its proposed suggestion. */
+  async function proposedFrom(url: string) {
+    answerInTurn(normalizeAnswer);
+    const body = await finished(await imported({ kind: 'url', url }));
+    if (!body.suggestion) {
+      throw new Error('import without a suggestion');
+    }
+    return body.suggestion;
+  }
+
+  it('answers 409 already_imported with the proposed suggestion, before fetching or asking the agent', async () => {
+    const sites = serveSites();
+    const suggestion = await proposedFrom(KEBAP_URL);
+    sites.fetched.length = 0;
+
+    const response = await postImport({
+      kind: 'url',
+      url: 'https://Kuhnia.example/recipes/knizhen-kebap?utm_source=facebook#comments',
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error: 'already_imported',
+      message: expect.any(String),
+      suggestion: {
+        id: suggestion.id,
+        title: 'Пилешко филе с ориз на фурна',
+        importRequestId: suggestion.importRequestId,
+      },
+    });
+    expect(sites.fetched).toEqual([]);
+  });
+
+  it('answers 409 with the recipe once the suggestion is approved, and imports again with force', async () => {
+    serveSites();
+    const suggestion = await proposedFrom(SHORT_LINK);
+    const { title, servings, steps, tags, ingredients } = suggestion.payload;
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/recipe-suggestions/${suggestion.id}/approve`,
+      headers,
+      payload: {
+        title,
+        servings,
+        steps,
+        tags,
+        sourceUrl: KEBAP_URL,
+        ingredients: ingredients.flatMap((line) =>
+          line.ingredientId
+            ? [
+                {
+                  ingredientId: line.ingredientId,
+                  quantity: line.quantity,
+                  unit: line.unit,
+                },
+              ]
+            : [],
+        ),
+      },
+    });
+    expect(approved.statusCode).toBe(201);
+    const recipeId = approved.json().recipe.id;
+
+    const again = await postImport({ kind: 'url', url: KEBAP_URL });
+
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({
+      error: 'already_imported',
+      recipe: { id: recipeId, title: 'Пилешко филе с ориз на фурна' },
+    });
+    expect(again.json()).not.toHaveProperty('suggestion');
+
+    answerInTurn(normalizeAnswer);
+    const forced = await postImport({
+      kind: 'url',
+      url: KEBAP_URL,
+      force: true,
+    });
+    expect(forced.statusCode).toBe(202);
+    expect((await finished(forced.json().request)).request.status).toBe('done');
+  });
+
+  it('lets a link in again once its suggestion is rejected', async () => {
+    serveSites();
+    const suggestion = await proposedFrom(BLOG_URL);
+    await app.inject({
+      method: 'POST',
+      url: `/api/recipe-suggestions/${suggestion.id}/reject`,
+      headers,
+    });
+
+    const again = await postImport({ kind: 'url', url: BLOG_URL });
+    expect(again.statusCode).toBe(202);
+    await finished(again.json().request);
   });
 });
 

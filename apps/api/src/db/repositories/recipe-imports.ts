@@ -1,13 +1,26 @@
-import type {
-  ImportedSuggestion,
-  NormalizedRecipe,
-  RecipeImportParams,
-  RecipeImportRequest,
-  RecipeNormalizeSource,
+import {
+  type AlreadyImported,
+  type ImportedSuggestion,
+  type NormalizedRecipe,
+  normalizeSourceUrl,
+  type RecipeImportParams,
+  type RecipeImportRequest,
 } from '@family/shared';
-import { desc, eq, getTableColumns, sql } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  getTableColumns,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
-import { recipeImportRequest, recipeSuggestion } from '../schema/food.js';
+import {
+  recipe,
+  recipeImportRequest,
+  recipeSuggestion,
+} from '../schema/food.js';
 import { toImportedSuggestion } from './recipe-suggestions.js';
 
 type RequestRow = typeof recipeImportRequest.$inferSelect;
@@ -62,7 +75,7 @@ export async function insertImportRequest(
     .values({
       source: params.kind,
       url: params.url ?? null,
-      text: params.text,
+      text: params.kind === 'text' ? params.text : null,
       requestedBy,
     })
     .returning();
@@ -105,16 +118,27 @@ export async function setImportNoResults(
     .where(eq(recipeImportRequest.id, id));
 }
 
-/** The source as the agent gets it, from what the import kept. */
+/** What an import kept of its source: the pasted text (and its link), or the link to fetch. */
+export type ImportSource =
+  | { kind: 'text'; text: string; url?: string }
+  | { kind: 'url'; url: string };
+
 export async function findImportSource(
   db: DbExecutor,
   id: string,
-): Promise<RecipeNormalizeSource> {
+): Promise<ImportSource> {
   const [row] = await db
-    .select({ url: recipeImportRequest.url, text: recipeImportRequest.text })
+    .select({
+      source: recipeImportRequest.source,
+      url: recipeImportRequest.url,
+      text: recipeImportRequest.text,
+    })
     .from(recipeImportRequest)
     .where(eq(recipeImportRequest.id, id))
     .limit(1);
+  if (row?.source === 'url' && row.url !== null) {
+    return { kind: 'url', url: row.url };
+  }
   if (!row || row.text === null) {
     throw new Error(`recipe_import_request ${id} has no text`);
   }
@@ -122,6 +146,74 @@ export async function findImportSource(
     kind: 'text',
     text: row.text,
     ...(row.url === null ? {} : { url: row.url }),
+  };
+}
+
+/** The page's final URL after redirects: the link the import (and its suggestion's review) shows from now on. */
+export async function setImportUrl(
+  db: DbExecutor,
+  id: string,
+  url: string,
+): Promise<void> {
+  await db
+    .update(recipeImportRequest)
+    .set({ url })
+    .where(eq(recipeImportRequest.id, id));
+}
+
+/**
+ * The recipe (not archived) and the proposed suggestion whose source link is `url`, compared by
+ * `normalizeSourceUrl`: the link of an imported suggestion is its import's (the final URL), a suggested one's is in
+ * its payload. Few rows, so they are compared here rather than in SQL.
+ */
+export async function findSourceUrlMatches(
+  db: DbExecutor,
+  url: string,
+): Promise<Pick<AlreadyImported, 'recipe' | 'suggestion'>> {
+  const wanted = normalizeSourceUrl(url);
+  const same = (candidate: string | null) =>
+    candidate !== null && normalizeSourceUrl(candidate) === wanted;
+
+  const recipes = await db
+    .select({ id: recipe.id, title: recipe.title, url: recipe.sourceUrl })
+    .from(recipe)
+    .where(and(isNull(recipe.archivedAt), isNotNull(recipe.sourceUrl)));
+  const suggestions = await db
+    .select({
+      id: recipeSuggestion.id,
+      title: sql<string>`${recipeSuggestion.payload} ->> 'title'`,
+      requestId: recipeSuggestion.requestId,
+      importRequestId: recipeSuggestion.importRequestId,
+      url: sql<
+        string | null
+      >`coalesce(${recipeImportRequest.url}, ${recipeSuggestion.payload} ->> 'sourceUrl')`,
+    })
+    .from(recipeSuggestion)
+    .leftJoin(
+      recipeImportRequest,
+      eq(recipeSuggestion.importRequestId, recipeImportRequest.id),
+    )
+    .where(eq(recipeSuggestion.status, 'proposed'));
+
+  const matchedRecipe = recipes.find((row) => same(row.url));
+  const matchedSuggestion = suggestions.find((row) => same(row.url));
+  return {
+    ...(matchedRecipe
+      ? { recipe: { id: matchedRecipe.id, title: matchedRecipe.title } }
+      : {}),
+    ...(matchedSuggestion
+      ? {
+          suggestion: {
+            id: matchedSuggestion.id,
+            title: matchedSuggestion.title,
+            ...(matchedSuggestion.importRequestId
+              ? { importRequestId: matchedSuggestion.importRequestId }
+              : matchedSuggestion.requestId
+                ? { requestId: matchedSuggestion.requestId }
+                : {}),
+          },
+        }
+      : {}),
   };
 }
 
