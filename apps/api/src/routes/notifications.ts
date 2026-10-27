@@ -8,11 +8,16 @@ import {
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { NotFoundError } from '../services/errors.js';
+import type { PushService } from '../services/push.js';
 
-function pushDisabled(): NotFoundError {
-  return new NotFoundError('Известията не са включени на сървъра', {
-    code: 'push_disabled',
-  });
+/** The VAPID public key; 404 `push_disabled` when the server has no VAPID keys and sends nothing. */
+function requirePublicKey(push: PushService): string {
+  if (!push.publicKey) {
+    throw new NotFoundError('Известията не са включени на сървъра', {
+      code: 'push_disabled',
+    });
+  }
+  return push.publicKey;
 }
 
 /** Notifications (GLOSSARY: Известие): the acting user's devices and the kinds they want. */
@@ -24,13 +29,7 @@ export const notificationsRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: vapidKeyResponseSchema, 404: pushDisabledSchema },
       },
     },
-    async () => {
-      const { publicKey } = app.push;
-      if (!publicKey) {
-        throw pushDisabled();
-      }
-      return { publicKey };
-    },
+    async () => ({ publicKey: requirePublicKey(app.push) }),
   );
 
   app.put(
@@ -81,9 +80,7 @@ export const notificationsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => {
-      if (!app.push.publicKey) {
-        throw pushDisabled();
-      }
+      requirePublicKey(app.push);
       return { sent: await app.push.sendTest(request.actor.id) };
     },
   );

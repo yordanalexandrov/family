@@ -11,8 +11,8 @@ import type { PushMessage, PushService } from './push.js';
 /** How long the other has to be quiet on the menu before the gathered notification goes. */
 export const MENU_ACTIVITY_QUIET_MS = 10 * 60_000;
 
-/** Known-good forms after a numeral: one, and two or more. */
-const COUNTED = {
+/** The noun of each kind of activity after a numeral, known-good: for one, and for two or more. */
+const ACTIVITY_NOUNS = {
   votes: ['глас', 'гласа'],
   comments: ['коментар', 'коментара'],
   swaps: ['смяна', 'смени'],
@@ -20,12 +20,12 @@ const COUNTED = {
 
 /** „2 гласа, 1 коментар, 1 смяна“: only the kinds that happened. */
 function activitySummary(
-  activity: Pick<MenuActivity, keyof typeof COUNTED>,
+  activity: Pick<MenuActivity, keyof typeof ACTIVITY_NOUNS>,
 ): string {
-  return (Object.keys(COUNTED) as (keyof typeof COUNTED)[])
+  return (Object.keys(ACTIVITY_NOUNS) as (keyof typeof ACTIVITY_NOUNS)[])
     .filter((kind) => activity[kind] > 0)
     .map((kind) => {
-      const [one, many] = COUNTED[kind];
+      const [one, many] = ACTIVITY_NOUNS[kind];
       const count = activity[kind];
       return `${count} ${count === 1 ? one : many}`;
     })
