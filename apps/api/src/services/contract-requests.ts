@@ -39,6 +39,11 @@ export interface ContractRequestStore<
   buildInput(db: DbExecutor, request: R): Promise<I>;
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
+  /**
+   * Why a valid answer has nothing to write, when the agent says so (e.g. `recipe.suggest` found no recipes); the
+   * request then ends `failed`/`no_results` without `onDone` or a retry. `null` (or no method) = write the answer.
+   */
+  noResults?(output: O): string | null;
 }
 
 /** The requests of one registered contract, as its service uses them. */
@@ -105,6 +110,18 @@ export function createContractRequests({
             agent,
             signal: shutdown.signal,
           });
+          const noResults = store.noResults?.(output) ?? null;
+          if (noResults !== null) {
+            log.warn(
+              { ...logContext, noResults },
+              `${contract.id} found no results`,
+            );
+            await finishContractRequest(db, store.table, request.id, {
+              status: 'failed',
+              error: 'no_results',
+            });
+            return;
+          }
           await db.transaction(async (tx) => {
             await store.onDone(tx, request, output);
             await finishContractRequest(tx, store.table, request.id, {

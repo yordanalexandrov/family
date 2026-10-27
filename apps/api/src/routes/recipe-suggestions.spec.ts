@@ -136,8 +136,13 @@ function answerInTurn(...contents: string[]) {
 }
 
 const VALID = () => JSON.stringify(suggestFixture());
+const NO_RESULTS = (reason: string) =>
+  JSON.stringify({ suggestions: [], noResults: reason });
 const TOO_FEW = () =>
-  JSON.stringify({ suggestions: suggestFixture().suggestions.slice(0, 2) });
+  JSON.stringify({
+    suggestions: suggestFixture().suggestions.slice(0, 2),
+    noResults: null,
+  });
 
 describe('the recipe.suggest run', () => {
   it('asks the recipe agent with the recipe.suggest contract: the request plus the registry context', async () => {
@@ -218,6 +223,23 @@ describe('the recipe.suggest run', () => {
     expect(body.request).toMatchObject({
       status: 'failed',
       error: 'invalid_output',
+    });
+    expect(body.request.finishedAt).toEqual(expect.any(String));
+    expect(body.suggestions).toEqual([]);
+  });
+
+  it('fails with no_results when the agent says it found no recipes, without a retry', async () => {
+    const calls = answerInTurn(
+      NO_RESULTS('Не намерих рецепти за закуска с риба.'),
+      VALID(),
+    );
+
+    const body = await finished(await requested({ slots: ['breakfast'] }));
+
+    expect(calls.bodies).toHaveLength(1);
+    expect(body.request).toMatchObject({
+      status: 'failed',
+      error: 'no_results',
     });
     expect(body.request.finishedAt).toEqual(expect.any(String));
     expect(body.suggestions).toEqual([]);
