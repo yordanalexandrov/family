@@ -96,8 +96,9 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
     : [];
   const me = voting && users.find((user) => user.id === voting.userId);
   const outcomeClass = voting && !past ? ` meal-row--${outcome}` : '';
-  const askRating =
-    voting && past && meal.recipeId !== null && meal.recipe?.rating === null;
+  // „Как беше?“ под отминало ястие с рецепта, която още няма оценка.
+  const rateRecipeId =
+    voting && past && meal.recipe?.rating === null ? meal.recipeId : null;
   return (
     <div className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}>
       {onOpen ? (
@@ -133,15 +134,13 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
           </span>
         </div>
       )}
-      {askRating && meal.recipeId !== null && (
+      {voting && rateRecipeId !== null && (
         <div className="meal-row__rate">
           <span aria-hidden="true">Как беше?</span>
           <RatingStars
             label="Как беше?"
             rating={null}
-            onRate={(rating) =>
-              meal.recipeId !== null && voting.onRate(meal.recipeId, rating)
-            }
+            onRate={(rating) => voting.onRate(rateRecipeId, rating)}
           />
         </div>
       )}

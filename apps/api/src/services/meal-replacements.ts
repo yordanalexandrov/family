@@ -4,8 +4,10 @@ import {
   type MealReplaceInput,
   type MealReplaceOutput,
   type MealReplaceRequest,
+  type MenuProposeRecipe,
   mealTitle,
 } from '@family/shared';
+import type { DbExecutor } from '../db/client.js';
 import {
   findReplacement,
   hasPendingReplacement,
@@ -31,6 +33,16 @@ import { ConflictError, NotFoundError } from './errors.js';
 import { NO_SUCH_MEAL, refusePastMeal } from './menu.js';
 
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
+
+/** The registry recipes of the meal's slot other than its own: what `meal.replace` may pick from. */
+async function otherRecipes(
+  db: DbExecutor,
+  meal: { slot: MealReplaceInput['slot']; recipeId: string | null },
+  now: Date,
+): Promise<MenuProposeRecipe[]> {
+  const recipes = await listMenuRecipes(db, meal.slot, dateKeyInSofia(now));
+  return recipes.filter((recipe) => recipe.id !== meal.recipeId);
+}
 
 /**
  * „✨ Предложи друго“: `meal.replace` as AI requests, registered in `buildApp()` as `app.mealReplacements`; the params
@@ -65,9 +77,7 @@ export function createMealReplaceStore(
         throw new NotFoundError(NO_SUCH_MEAL);
       }
       refusePastMeal(meal, now());
-      const have = (
-        await listMenuRecipes(tx, meal.slot, dateKeyInSofia(now()))
-      ).filter((recipe) => recipe.id !== meal.recipeId).length;
+      const have = (await otherRecipes(tx, meal, now())).length;
       if (have < MEAL_REPLACE_MIN_RECIPES) {
         throw new ConflictError(
           `За друго ястие трябват поне ${MEAL_REPLACE_MIN_RECIPES} други рецепти`,
@@ -115,9 +125,7 @@ export function createMealReplaceStore(
             ? [{ date: other.date, title }]
             : [];
         }),
-        recipes: (
-          await listMenuRecipes(db, meal.slot, dateKeyInSofia(now()))
-        ).filter((recipe) => recipe.id !== meal.recipeId),
+        recipes: await otherRecipes(db, meal, now()),
         useUp: await listUseUp(db),
       };
     },
