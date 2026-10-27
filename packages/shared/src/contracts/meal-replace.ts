@@ -2,8 +2,9 @@ import { z } from 'zod';
 import { slotSchema } from '../food/tags.js';
 import { dateKeySchema } from '../schemas/dates.js';
 import { mealCommentKindSchema } from '../schemas/menu.js';
+import { useUpSchema } from '../schemas/pantry.js';
 import type { AiContract } from './contract.js';
-import { menuProposeRecipeSchema, useUpSchema } from './menu-propose.js';
+import { menuProposeRecipeSchema } from './menu-propose.js';
 
 /**
  * AI contract `meal.replace` („✨ Предложи друго“): the API assembles one meal, its thread (GLOSSARY: Разговор), the

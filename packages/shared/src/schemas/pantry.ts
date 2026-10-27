@@ -36,6 +36,17 @@ export const pantryItemSchema = z.object({
 
 export type PantryItem = z.infer<typeof pantryItemSchema>;
 
+/**
+ * A use-up product as the AI contracts `menu.propose` and `meal.replace` see it (GLOSSARY: Временен продукт): the
+ * ingredient's name and the note, for the agent to prefer recipes that use it.
+ */
+export const useUpSchema = z.object({
+  name: z.string(),
+  note: z.string().optional(),
+});
+
+export type UseUp = z.infer<typeof useUpSchema>;
+
 /** `POST /api/pantry`: an ingredient not in the pantry yet. */
 export const createPantryItemSchema = z.object({
   ingredientId: z.uuid(),

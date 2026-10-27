@@ -3,6 +3,7 @@ import { slotSchema, tagSchema } from '../food/tags.js';
 import { daysOfWeek } from '../menu/week.js';
 import { dateKeySchema } from '../schemas/dates.js';
 import { weekStartSchema } from '../schemas/menu.js';
+import { useUpSchema } from '../schemas/pantry.js';
 import { ratingSchema } from '../schemas/recipe.js';
 import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
@@ -25,14 +26,6 @@ export const menuProposeRecipeSchema = z.object({
   rating: ratingSchema.optional(),
   lastServedOn: dateKeySchema.optional(),
 });
-
-/** A use-up product of the pantry (GLOSSARY: Временен продукт), for the agent to prefer recipes that use it. */
-export const useUpSchema = z.object({
-  name: z.string(),
-  note: z.string().optional(),
-});
-
-export type UseUp = z.infer<typeof useUpSchema>;
 
 export type MenuProposeRecipe = z.infer<typeof menuProposeRecipeSchema>;
 
