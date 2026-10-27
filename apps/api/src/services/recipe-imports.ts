@@ -36,12 +36,12 @@ import { readRecipePage } from './recipe-page/index.js';
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
 /**
- * What the api imports: the client's JSON (text, link), or a photo from the multipart form, whose bytes stay in memory
- * until its run starts and are never stored.
+ * What the api imports: the client's JSON (text, link), or the photos from the multipart form (one photo, or the parts
+ * of a long screenshot), whose bytes stay in memory until its run has asked the agent and are never stored.
  */
 export type ImportParams =
   | RecipeImportParams
-  | { kind: 'photo'; photo: ContractImage };
+  | { kind: 'photo'; photos: ContractImage[] };
 
 /** `recipe.normalize` as AI requests (GLOSSARY: Внасяне на рецепта), registered in `buildApp()`. */
 export type RecipeImportRequests = ContractRequestHandle<
@@ -86,7 +86,7 @@ export function createRecipeImportStore(): ContractRequestStore<
     find: findImportRequest,
 
     images(params) {
-      return params.kind === 'photo' ? [params.photo] : [];
+      return params.kind === 'photo' ? params.photos : [];
     },
 
     async buildInput(db, request) {

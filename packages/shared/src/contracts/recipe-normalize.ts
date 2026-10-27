@@ -68,12 +68,16 @@ const pageSourceSchema = z
 
 /**
  * A photo of a recipe (a cookbook page, a handwritten card, a screenshot). The picture itself is not in the JSON: it
- * goes with the input as an image part of the same message (`CompleteOptions.images` of the api's OpenClaw client).
+ * goes with the input as an image part of the same message (`CompleteOptions.images` of the api's OpenClaw client);
+ * a long screenshot as up to 8 parts, top to bottom (`importPhotoLayout`).
  */
 const photoSourceSchema = z.object({ kind: z.literal('photo') });
 
 /** Largest photo of an import, after the client has made it smaller (OpenClaw takes 10 MB per image). */
 export const IMPORT_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+
+/** Largest all photos of one import together, the parts of a long screenshot (OpenClaw takes a 20 MB body). */
+export const IMPORT_PHOTOS_MAX_BYTES = 20 * 1024 * 1024;
 
 /** The media types a photo of an import may have; OpenClaw turns HEIC/HEIF into JPEG itself. */
 export const IMPORT_PHOTO_TYPES = [
@@ -85,13 +89,6 @@ export const IMPORT_PHOTO_TYPES = [
 ] as const;
 
 export type ImportPhotoType = (typeof IMPORT_PHOTO_TYPES)[number];
-
-/**
- * How the client makes a photo smaller before sending it: at most this many pixels on the long side, re-encoded as
- * JPEG of this quality (0–1). A picture the browser cannot decode (HEIC outside Safari) goes as it is.
- */
-export const IMPORT_PHOTO_MAX_SIDE = 2000;
-export const IMPORT_PHOTO_JPEG_QUALITY = 0.85;
 
 /** The source as the agent gets it: pasted text as it is; a link as the page the api read from it; a photo. */
 const normalizeSourceSchema = z.discriminatedUnion('kind', [

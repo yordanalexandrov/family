@@ -55,6 +55,14 @@
   outline-offset: 2px;
 }
 
+.import-photo__previews {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-block-size: 60vh;
+  overflow-y: auto;
+}
+
 .import-photo__preview {
   display: block;
   inline-size: 100%;
@@ -62,4 +70,9 @@
   object-fit: contain;
   border-radius: var(--radius-md);
   background: var(--color-surface-2);
+}
+
+/* Частите на дълъг скрийншот: колона, която се превърта в рамката, а не всяка поотделно. */
+.import-photo__previews:has(> :nth-child(2)) .import-photo__preview {
+  max-block-size: none;
 }

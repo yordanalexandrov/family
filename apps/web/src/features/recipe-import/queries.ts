@@ -29,19 +29,24 @@ export function useRecentImports() {
   });
 }
 
-/** Внасяне от снимка: файлът, вече смален (`resizePhoto`); отива като `multipart/form-data`, не като JSON. */
+/**
+ * Внасяне от снимка: файлът, вече смален (`resizePhoto`) — една снимка или частите на дълъг скрийншот отгоре надолу;
+ * отива като `multipart/form-data`, не като JSON.
+ */
 export interface PhotoImport {
   kind: 'photo';
-  photo: Blob;
+  photos: Blob[];
 }
 
 export type ImportRequestParams = RecipeImportParams | PhotoImport;
 
-/** Текст и линк като JSON; снимка като формуляр с един файл в полето `photo` (браузърът слага boundary-то). */
+/** Текст и линк като JSON; снимка като формуляр с файл за всяка част в полето `photo` (браузърът слага boundary-то). */
 function importBody(params: ImportRequestParams): RequestInit {
   if (params.kind === 'photo') {
     const form = new FormData();
-    form.append('photo', params.photo, 'photo.jpg');
+    for (const photo of params.photos) {
+      form.append('photo', photo, 'photo.jpg');
+    }
     return { method: 'POST', body: form };
   }
   return {

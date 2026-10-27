@@ -115,6 +115,31 @@ describe('Внеси рецепта → таб „Снимка“', () => {
     ]);
   });
 
+  it('дълъг скрийншот се реже на части: всички се показват и „Внеси“ ги праща поред в полето photo', async () => {
+    mockCanvas(1170, 4000);
+    const api = servePhotoImport();
+    await openPhotoTab();
+
+    await userEvent.upload(
+      screen.getByLabelText('Избери от галерията'),
+      new File(['x'.repeat(5000)], 'Screenshot.png', { type: 'image/png' }),
+    );
+
+    expect(
+      await screen.findAllByRole('img', {
+        name: /^Снимката за внасяне, част \d от 3$/,
+      }),
+    ).toHaveLength(3);
+    await userEvent.click(screen.getByRole('button', { name: 'Внеси' }));
+
+    expect(await screen.findByText(WAITING)).toBeInTheDocument();
+    expect(api.forms[0]?.files.map((file) => file.field)).toEqual([
+      'photo',
+      'photo',
+      'photo',
+    ]);
+  });
+
   it('снимка, която браузърът не декодира, отива както е; над 10 MB — съобщение и „Внеси“ остава изключен', async () => {
     vi.stubGlobal(
       'createImageBitmap',

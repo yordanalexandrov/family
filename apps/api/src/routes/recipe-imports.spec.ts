@@ -403,6 +403,30 @@ const PHOTO = readFileSync(
 function postPhoto(bytes: Uint8Array, type = 'image/jpeg', field = 'photo') {
   const form = new FormData();
   form.append(field, new Blob([bytes], { type }), 'photo.jpg');
+  return postForm(form);
+}
+
+/** The parts of a long screenshot: one file each, all in the field `photo`, top to bottom. */
+function postPhotos(parts: Uint8Array[]) {
+  const form = new FormData();
+  parts.forEach((bytes, index) => {
+    form.append(
+      'photo',
+      new Blob([bytes], { type: 'image/jpeg' }),
+      `part-${index + 1}.jpg`,
+    );
+  });
+  return postForm(form);
+}
+
+/** A JPEG of `size` bytes: the fixture's start, then zeros. */
+function jpegOf(size: number): Buffer {
+  const bytes = Buffer.alloc(size);
+  PHOTO.copy(bytes);
+  return bytes;
+}
+
+function postForm(form: FormData) {
   return app.inject({
     method: 'POST',
     url: '/api/recipe-imports',
@@ -441,17 +465,46 @@ describe('an import by photo', () => {
     ]);
   });
 
-  it('sends the photo again with the retry after an invalid answer', async () => {
+  it('sends the parts of a long screenshot as image_url parts in their order, and again with the retry', async () => {
     const calls = answerInTurn(withForeignId, normalizeAnswer);
+    const parts = [jpegOf(PHOTO.length + 1), PHOTO, jpegOf(PHOTO.length + 2)];
 
-    const body = await finished(await importedPhoto());
+    const response = await postPhotos(parts);
 
+    expect(response.statusCode).toBe(202);
+    const body = await finished(response.json().request);
     expect(body.request.status).toBe('done');
+    const sent = parts.map(
+      (part) => `data:image/jpeg;base64,${part.toString('base64')}`,
+    );
+    expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual(sent);
     expect(calls.bodies).toHaveLength(2);
     const retry = calls.bodies[1]?.messages ?? [];
-    expect(imagesOf(retry.at(-1))).toEqual([
-      `data:image/jpeg;base64,${PHOTO.toString('base64')}`,
-    ]);
+    expect(imagesOf(retry.at(-1))).toEqual(sent);
+  });
+
+  it('answers 400 for more than 8 parts, without a request', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+
+    const response = await postPhotos(Array.from({ length: 9 }, () => PHOTO));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'validation_error' });
+    expect(calls.bodies).toHaveLength(0);
+  });
+
+  it('answers 413 photo_too_large for parts over 20 MB together, without a request', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+    const part = jpegOf(7 * 1024 * 1024);
+
+    const response = await postPhotos([part, part, part]);
+
+    expect(response.statusCode).toBe(413);
+    expect(response.json()).toEqual({
+      error: 'photo_too_large',
+      message: 'Снимките са над 20 MB общо. Опитай с по-малка.',
+    });
+    expect(calls.bodies).toHaveLength(0);
   });
 
   it('takes the type from the picture itself, not from what the phone says', async () => {
@@ -494,7 +547,10 @@ describe('an import by photo', () => {
     const response = await postPhoto(big);
 
     expect(response.statusCode).toBe(413);
-    expect(response.json()).toMatchObject({ error: 'photo_too_large' });
+    expect(response.json()).toEqual({
+      error: 'photo_too_large',
+      message: 'Снимката е над 10 MB. Опитай с по-малка.',
+    });
     expect(calls.bodies).toHaveLength(0);
     const list = await app.inject({
       method: 'GET',

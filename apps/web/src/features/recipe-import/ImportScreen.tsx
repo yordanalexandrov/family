@@ -70,7 +70,7 @@ export function ImportScreen() {
   const [shared] = useState(() =>
     search.tab === undefined && !sharingPhoto ? importFromShare(search) : null,
   );
-  const [sharedPhoto, setSharedPhoto] = useState<Blob>();
+  const [sharedPhoto, setSharedPhoto] = useState<Blob[]>();
   const [tab, setTab] = useState<ImportTab>(
     sharingPhoto
       ? 'photo'
@@ -128,9 +128,9 @@ export function ImportScreen() {
     if (!photo) {
       return;
     }
-    const resized = await resizePhoto(photo);
-    setSharedPhoto(resized);
-    submit({ kind: 'photo', photo: resized }, true);
+    const parts = await resizePhoto(photo);
+    setSharedPhoto(parts);
+    submit({ kind: 'photo', photos: parts }, true);
   }
   const formProps = {
     isSubmitting: requestImport.isPending,
@@ -176,7 +176,7 @@ export function ImportScreen() {
           <ImportPhotoForm
             key={sharedPhoto ? 'shared' : 'chosen'}
             {...formProps}
-            initialPhoto={sharedPhoto}
+            initialPhotos={sharedPhoto}
           />
         ) : tab === 'text' ? (
           <ImportTextForm

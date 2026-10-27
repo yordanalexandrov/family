@@ -1,25 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fitWithin, resizePhoto } from './resize-photo';
+import { resizePhoto } from './resize-photo';
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-describe('fitWithin', () => {
-  it('scales the long side down to the limit and keeps the proportions', () => {
-    expect(fitWithin(4032, 3024, 2000)).toEqual({ width: 2000, height: 1500 });
-    expect(fitWithin(1500, 3000, 2000)).toEqual({ width: 1000, height: 2000 });
-  });
-
-  it('leaves a picture within the limit as it is', () => {
-    expect(fitWithin(1280, 960, 2000)).toEqual({ width: 1280, height: 960 });
-  });
-});
-
 /** The browser's decoding and canvas, mocked: a decoded picture of `width`×`height`, and what was drawn. */
 function mockCanvas(width: number, height: number) {
-  const drawn: { width: number; height: number }[] = [];
+  const drawn: { width: number; height: number; top: number }[] = [];
   const encoded: { type?: string; quality?: unknown }[] = [];
   vi.stubGlobal(
     'createImageBitmap',
@@ -28,7 +17,8 @@ function mockCanvas(width: number, height: number) {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
     function (this: HTMLCanvasElement) {
       return {
-        drawImage: () => drawn.push({ width: this.width, height: this.height }),
+        drawImage: (_image: unknown, _x: number, y: number) =>
+          drawn.push({ width: this.width, height: this.height, top: -y }),
       } as unknown as CanvasRenderingContext2D;
     },
   );
@@ -48,11 +38,25 @@ describe('resizePhoto', () => {
       type: 'image/png',
     });
 
-    const resized = await resizePhoto(photo);
+    const parts = await resizePhoto(photo);
 
-    expect(resized.type).toBe('image/jpeg');
-    expect(canvas.drawn).toEqual([{ width: 2000, height: 1500 }]);
+    expect(parts.map((part) => part.type)).toEqual(['image/jpeg']);
+    expect(canvas.drawn).toEqual([{ width: 2000, height: 1500, top: 0 }]);
     expect(canvas.encoded).toEqual([{ type: 'image/jpeg', quality: 0.85 }]);
+  });
+
+  it('cuts a long screenshot into readable parts, top to bottom', async () => {
+    const canvas = mockCanvas(1170, 4000);
+    const screenshot = new File(['x'], 'Screenshot.png', { type: 'image/png' });
+
+    const parts = await resizePhoto(screenshot);
+
+    expect(parts).toHaveLength(3);
+    expect(canvas.drawn).toEqual([
+      { width: 1170, height: 1387, top: 0 },
+      { width: 1170, height: 1387, top: 1307 },
+      { width: 1170, height: 1386, top: 2614 },
+    ]);
   });
 
   it('sends a picture the browser cannot decode (HEIC outside Safari) as it is', async () => {
@@ -64,6 +68,6 @@ describe('resizePhoto', () => {
     );
     const heic = new File(['heic'], 'IMG_2.HEIC', { type: 'image/heic' });
 
-    expect(await resizePhoto(heic)).toBe(heic);
+    expect(await resizePhoto(heic)).toEqual([heic]);
   });
 });

@@ -1,4 +1,7 @@
-import { IMPORT_PHOTO_MAX_BYTES } from '@family/shared';
+import {
+  IMPORT_PHOTO_MAX_BYTES,
+  IMPORT_PHOTOS_MAX_BYTES,
+} from '@family/shared';
 import { type ChangeEvent, type FormEvent, useEffect, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import type { PhotoImport } from './queries';
@@ -9,25 +12,37 @@ interface ImportPhotoFormProps {
   isSubmitting?: boolean;
   submitError?: unknown;
   /** Already chosen and made smaller outside: a photo shared to the app. */
-  initialPhoto?: Blob | undefined;
+  initialPhotos?: Blob[] | undefined;
 }
 
-const TOO_LARGE = 'Снимката е над 10 MB. Опитай с по-малка.';
+const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
+
+/** Защо снимката не може да отиде: част над 10 MB или всички над 20 MB (както отказва api-то). */
+function tooLargeMessage(photos: Blob[]): string | undefined {
+  if (photos.some((photo) => photo.size > IMPORT_PHOTO_MAX_BYTES)) {
+    return `Снимката е над ${megabytes(IMPORT_PHOTO_MAX_BYTES)} MB. Опитай с по-малка.`;
+  }
+  const total = photos.reduce((sum, photo) => sum + photo.size, 0);
+  return total > IMPORT_PHOTOS_MAX_BYTES
+    ? `Снимките са над ${megabytes(IMPORT_PHOTOS_MAX_BYTES)} MB общо. Опитай с по-малка.`
+    : undefined;
+}
 
 /**
  * Табът „Снимка“: „Снимай“ (камерата на телефона) или „Избери от галерията“, после преглед на снимката и „Внеси“.
- * Снимката се смалява тук (`resizePhoto`) и не се пази никъде: api-то я държи в паметта до края на AI заявката.
+ * Снимката се смалява тук (`resizePhoto`; дълъг скрийншот — на части, всички в прегледа) и не се пази никъде: api-то
+ * я държи в паметта до края на AI заявката.
  */
 export function ImportPhotoForm({
   onSubmit,
   isSubmitting = false,
   submitError,
-  initialPhoto,
+  initialPhotos,
 }: ImportPhotoFormProps) {
-  const [photo, setPhoto] = useState<Blob | undefined>(initialPhoto);
+  const [photos, setPhotos] = useState<Blob[] | undefined>(initialPhotos);
   const [preparing, setPreparing] = useState(false);
-  const preview = usePreviewUrl(photo);
-  const tooLarge = photo !== undefined && photo.size > IMPORT_PHOTO_MAX_BYTES;
+  const previews = usePreviewUrls(photos);
+  const tooLarge = photos && tooLargeMessage(photos);
 
   async function choose(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -38,7 +53,7 @@ export function ImportPhotoForm({
     }
     setPreparing(true);
     try {
-      setPhoto(await resizePhoto(file));
+      setPhotos(await resizePhoto(file));
     } finally {
       setPreparing(false);
     }
@@ -46,8 +61,8 @@ export function ImportPhotoForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (photo && !tooLarge) {
-      onSubmit({ kind: 'photo', photo });
+    if (photos && !tooLarge) {
+      onSubmit({ kind: 'photo', photos });
     }
   }
 
@@ -75,12 +90,22 @@ export function ImportPhotoForm({
         </label>
       </div>
       {preparing && <p className="recipes__empty">Подготвям снимката…</p>}
-      {preview ? (
-        <img
-          className="import-photo__preview"
-          src={preview}
-          alt="Снимката за внасяне"
-        />
+      {previews.length > 0 ? (
+        <div className="import-photo__previews">
+          {previews.map((preview, index) => (
+            <img
+              // biome-ignore lint/suspicious/noArrayIndexKey: частите нямат id, а редът им е смисълът.
+              key={index}
+              className="import-photo__preview"
+              src={preview}
+              alt={
+                previews.length === 1
+                  ? 'Снимката за внасяне'
+                  : `Снимката за внасяне, част ${index + 1} от ${previews.length}`
+              }
+            />
+          ))}
+        </div>
       ) : (
         !preparing && (
           <p className="recipes__empty">
@@ -90,7 +115,7 @@ export function ImportPhotoForm({
       )}
       {tooLarge && (
         <p className="field__error" role="alert">
-          {TOO_LARGE}
+          {tooLarge}
         </p>
       )}
       {submitError !== undefined && submitError !== null && (
@@ -99,7 +124,7 @@ export function ImportPhotoForm({
       <button
         type="submit"
         className="button"
-        disabled={!photo || tooLarge || preparing || isSubmitting}
+        disabled={!photos || Boolean(tooLarge) || preparing || isSubmitting}
       >
         Внеси
       </button>
@@ -107,17 +132,21 @@ export function ImportPhotoForm({
   );
 }
 
-/** Адрес за `<img>` на снимката, освободен при смяна или напускане. */
-function usePreviewUrl(photo: Blob | undefined): string | undefined {
-  const [url, setUrl] = useState<string>();
+/** Адресите за `<img>` на частите на снимката, освободени при смяна или напускане. */
+function usePreviewUrls(photos: Blob[] | undefined): string[] {
+  const [urls, setUrls] = useState<string[]>([]);
   useEffect(() => {
-    if (!photo) {
-      setUrl(undefined);
+    if (!photos) {
+      setUrls([]);
       return;
     }
-    const created = URL.createObjectURL(photo);
-    setUrl(created);
-    return () => URL.revokeObjectURL(created);
-  }, [photo]);
-  return url;
+    const created = photos.map((photo) => URL.createObjectURL(photo));
+    setUrls(created);
+    return () => {
+      for (const url of created) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [photos]);
+  return urls;
 }

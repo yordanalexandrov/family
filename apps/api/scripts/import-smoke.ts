@@ -4,8 +4,9 @@
 // Without `--text-file`, `--url` or `--photo` it imports two built-in texts: a Bulgarian blog post („Продукти:“ /
 // „Начин на приготвяне:“, a range of servings, cups and cloves) and an English recipe with cups and ounces. `--url`
 // fetches and reads the page the way the api does (services/recipe-page) before the agent. `--photo` makes the picture
-// smaller the way the screen does (long side ≤ 2000 px, JPEG) and checks it the way the api does (type by its bytes,
-// ≤ 10 MB) before sending it as an image next to `{ kind: 'photo' }`; the fixture is
+// smaller the way the screen does (`importPhotoLayout`: long side ≤ 2000 px, a long screenshot cut into up to 8 parts,
+// JPEG) and checks it the way the api does (type by its bytes, ≤ 10 MB each, ≤ 20 MB together) before sending the
+// parts as images next to `{ kind: 'photo' }`; the fixture is
 // src/test/fixtures/recipe-photos/banitsa.jpg. The registry is the seed ingredients.
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -14,6 +15,8 @@ import {
   IMPORT_PHOTO_JPEG_QUALITY,
   IMPORT_PHOTO_MAX_BYTES,
   IMPORT_PHOTO_MAX_SIDE,
+  IMPORT_PHOTOS_MAX_BYTES,
+  importPhotoLayout,
   type RecipeNormalizeInput,
   type RecipeNormalizeOutput,
   type RecipeNormalizeSource,
@@ -83,14 +86,15 @@ Remove from oven and let cool in the pan for a few minutes. Then remove the bana
 /**
  * One thing to import: a name for the output and the source as the api would send it; what reading the page gave or
  * the photo as sent (`page`); why it cannot go to the agent (`fetchFailure`: a page that does not open, a photo the api
- * would refuse; then there is no source and no agent call); the picture sent next to a photo input (`image`).
+ * would refuse; then there is no source and no agent call); the pictures sent next to a photo input (`images`: one
+ * photo, or the parts of a long screenshot).
  */
 interface SmokeCase {
   name: string;
   source?: RecipeNormalizeSource;
   page?: string;
   fetchFailure?: string;
-  image?: ContractImage;
+  images?: ContractImage[];
 }
 
 const BUILT_IN: SmokeCase[] = [
@@ -113,8 +117,9 @@ const USAGE = `Usage: pnpm --filter api import:smoke -- [--case bg|en] [--text-f
   --url <link>       a recipe page: fetched and read as the api does, then sent to the agent (repeatable);
                      replaces the built-in cases, goes with --text-file
   --photo <p>        a photo (jpeg, png, webp, heic), or every one in a directory (repeatable): made smaller like the
-                     screen does (long side <= ${IMPORT_PHOTO_MAX_SIDE} px, JPEG), checked like the api does, sent as
-                     an image; replaces the built-in cases, goes with --text-file and --url
+                     screen does (long side <= ${IMPORT_PHOTO_MAX_SIDE} px, a long screenshot in up to 8 parts, JPEG),
+                     checked like the api does, sent as images; replaces the built-in cases, goes with --text-file
+                     and --url
   --save <file>      the validated outputs by case name, as JSON
 `;
 
@@ -200,9 +205,10 @@ function sizeOf(bytes: number): string {
 
 /**
  * `--photo`: each picture as the screen sends it, then as the api takes it. The screen (`resize-photo.ts` in web)
- * draws it at most 2000 px on the long side, upright by its EXIF orientation, as JPEG; a picture the browser cannot
- * decode (HEIC outside Safari) goes as it is, and so here a picture sharp cannot decode. The api reads the type from
- * the bytes and refuses over 10 MB (413) or not a picture (415): such a case fails here without an agent call.
+ * draws it upright by its EXIF orientation by `importPhotoLayout` (at most 2000 px on the long side; a long screenshot
+ * at most 1200 px wide in up to 8 overlapping parts), as JPEG; a picture the browser cannot decode (HEIC outside
+ * Safari) goes as it is, and so here a picture sharp cannot decode. The api reads the type from the bytes and refuses
+ * over 10 MB a part or 20 MB together (413) or not a picture (415): such a case fails here without an agent call.
  */
 async function photoCases(paths: string[]): Promise<SmokeCase[]> {
   const files: string[] = [];
@@ -218,34 +224,43 @@ async function photoCases(paths: string[]): Promise<SmokeCase[]> {
   for (const file of files) {
     const name = basename(file);
     const original = await readFile(file);
-    let sent: Buffer;
+    let sent: Buffer[];
     let how: string;
     try {
-      const { data, info } = await sharp(original)
-        .rotate()
-        .resize({
-          width: IMPORT_PHOTO_MAX_SIDE,
-          height: IMPORT_PHOTO_MAX_SIDE,
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: Math.round(IMPORT_PHOTO_JPEG_QUALITY * 100) })
-        .toBuffer({ resolveWithObject: true });
-      const meta = await sharp(original).metadata();
-      sent = data;
-      how = `${meta.width}×${meta.height} → ${info.width}×${info.height} JPEG`;
+      const upright = await sharp(original).rotate().toBuffer();
+      const meta = await sharp(upright).metadata();
+      const layout = importPhotoLayout(meta.width, meta.height);
+      sent = await Promise.all(
+        layout.tiles.map((tile) =>
+          sharp(upright)
+            .resize(layout.width, layout.height)
+            .extract({
+              left: 0,
+              top: tile.top,
+              width: layout.width,
+              height: tile.height,
+            })
+            .jpeg({ quality: Math.round(IMPORT_PHOTO_JPEG_QUALITY * 100) })
+            .toBuffer(),
+        ),
+      );
+      how = `${meta.width}×${meta.height} → ${layout.width}×${layout.height} JPEG, ${layout.tiles.length} ${layout.tiles.length === 1 ? 'част' : 'части'}`;
     } catch (error) {
-      sent = original;
+      sent = [original];
       how = `не се декодира (${error instanceof Error ? error.message : String(error)}), праща се както е`;
     }
-    const mediaType = photoType(sent);
-    const size = `снимка ${sizeOf(original.length)} → изпратена ${sizeOf(sent.length)} ${mediaType ?? '?'}, ${how}`;
-    if (!mediaType) {
+    const types = sent.map((part) => photoType(part));
+    const total = sent.reduce((sum, part) => sum + part.length, 0);
+    const size = `снимка ${sizeOf(original.length)} → изпратена ${sizeOf(total)} ${types[0] ?? '?'}, ${how}`;
+    if (types.some((type) => !type)) {
       cases.push({
         name,
         fetchFailure: `${size}: api-то ще върне 415 unsupported_photo`,
       });
-    } else if (sent.length > IMPORT_PHOTO_MAX_BYTES) {
+    } else if (
+      sent.some((part) => part.length > IMPORT_PHOTO_MAX_BYTES) ||
+      total > IMPORT_PHOTOS_MAX_BYTES
+    ) {
       cases.push({
         name,
         fetchFailure: `${size}: api-то ще върне 413 photo_too_large`,
@@ -255,7 +270,10 @@ async function photoCases(paths: string[]): Promise<SmokeCase[]> {
         name,
         page: size,
         source: { kind: 'photo' },
-        image: { mediaType, data: sent },
+        images: sent.map((data, index) => ({
+          mediaType: types[index] ?? 'image/jpeg',
+          data,
+        })),
       });
     }
   }
@@ -351,13 +369,13 @@ function summary(output: RecipeNormalizeOutput, seconds: string): string {
 
 const saved: Record<string, RecipeNormalizeOutput> = {};
 let failed = false;
-/** What the agent gets, in short: the size of the text or JSON-LD and the link, or the size of the photo. */
+/** What the agent gets, in short: the size of the text or JSON-LD and the link, or the parts of the photo. */
 function described(
   source: RecipeNormalizeSource,
-  image: ContractImage | undefined,
+  images: ContractImage[] | undefined,
 ): string {
   if (source.kind === 'photo') {
-    return `снимка ${image ? sizeOf(image.data.length) : '—'}`;
+    return `снимка ${images ? images.map((image) => sizeOf(image.data.length)).join(' + ') : '—'}`;
   }
   const size =
     source.kind === 'page' && source.jsonLd !== undefined
@@ -366,7 +384,7 @@ function described(
   return `${size}${source.url ? `, ${source.url}` : ''}`;
 }
 
-for (const { name, source, page, fetchFailure, image } of cases) {
+for (const { name, source, page, fetchFailure, images } of cases) {
   if (fetchFailure !== undefined || !source) {
     failed = true;
     process.stdout.write(`[${name}] ✗ ${fetchFailure}\n\n`);
@@ -377,13 +395,13 @@ for (const { name, source, page, fetchFailure, image } of cases) {
   }
   const input: RecipeNormalizeInput = { source, ingredients };
   process.stderr.write(
-    `→ ${config.url} openclaw/${config.importAgent}, timeout ${config.timeoutMs} ms, ${name}: ${described(source, image)}, ${ingredients.length} продукта в регистъра\n`,
+    `→ ${config.url} openclaw/${config.importAgent}, timeout ${config.timeoutMs} ms, ${name}: ${described(source, images)}, ${ingredients.length} продукта в регистъра\n`,
   );
   const started = performance.now();
   try {
     const output = await client.complete(recipeNormalize, input, {
       agent: config.importAgent,
-      ...(image ? { images: [image] } : {}),
+      ...(images ? { images } : {}),
     });
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
     process.stdout.write(`[${name}] ${summary(output, seconds)}\n`);
