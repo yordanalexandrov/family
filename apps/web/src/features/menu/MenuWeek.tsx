@@ -1,9 +1,14 @@
 import {
   addDays,
   type DateKey,
+  dateKeyInSofia,
   HINT_MAX,
   hasWeekStarted,
+  isAgreed,
+  isPastMeal,
+  type MealOutcome,
   type MealPlan,
+  mealOutcome,
   menuProposalRequestSchema,
   type User,
   weekStartOf,
@@ -12,6 +17,7 @@ import {
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { useUsers } from '../../api/queries';
+import { useActingUser } from '../../app/acting-user';
 import { useDeviceMode } from '../../app/device-mode';
 import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -28,7 +34,9 @@ import {
   useMenuProposal,
   usePlan,
   useProposeMenu,
+  useVote,
 } from './queries';
+import { OUTCOME_LABELS } from './Votes';
 import '../recipes/recipes.css';
 import './menu.css';
 
@@ -68,6 +76,8 @@ export function MenuWeek() {
   const { mode } = useDeviceMode();
   const canEdit = mode === 'phone';
   const isPast = weekStart < thisWeek;
+  // Гласове има само в телефонния изглед, с действащ потребител.
+  const { actingUserId } = useActingUser();
 
   const setProposal = useCallback(
     (proposal: string | undefined) =>
@@ -127,6 +137,8 @@ export function MenuWeek() {
         weekStart={weekStart}
         readOnly={isPast || !canEdit}
         canDelete={!hasWeekStarted(weekStart, now)}
+        voterId={canEdit ? actingUserId : null}
+        today={dateKeyInSofia(now)}
         proposalId={search.proposal}
         onProposal={setProposal}
       />
@@ -138,6 +150,8 @@ interface WeekProps {
   weekStart: DateKey;
   readOnly: boolean;
   canDelete: boolean;
+  voterId: string | null;
+  today: DateKey;
   proposalId: string | undefined;
   onProposal: (id: string | undefined) => void;
 }
@@ -146,6 +160,8 @@ function Week({
   weekStart,
   readOnly,
   canDelete,
+  voterId,
+  today,
   proposalId,
   onProposal,
 }: WeekProps) {
@@ -212,6 +228,8 @@ function Week({
       users={users.data}
       readOnly={readOnly}
       canDelete={canDelete}
+      voterId={voterId}
+      today={today}
     />
   );
 }
@@ -303,24 +321,102 @@ interface PlanViewProps {
   users: User[];
   readOnly: boolean;
   canDelete: boolean;
+  /** Действащият потребител, който гласува; `null` без гласове (kiosk). */
+  voterId: string | null;
+  today: DateKey;
 }
 
-function PlanView({ plan, users, readOnly, canDelete }: PlanViewProps) {
+/** Филтрите по изход на ястие; „Остава“ няма свой, защото е целта. */
+const FILTERS = [
+  'discuss',
+  'replace',
+  'pending',
+] as const satisfies readonly MealOutcome[];
+
+type Filter = (typeof FILTERS)[number] | 'all';
+
+function PlanView({
+  plan,
+  users,
+  readOnly,
+  canDelete,
+  voterId,
+  today,
+}: PlanViewProps) {
   const [openMealId, setOpenMealId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
+  const vote = useVote(plan.weekStart);
   const openMeal = plan.meals.find((meal) => meal.id === openMealId);
+  const userIds = users.map((user) => user.id);
+  const outcomeOf = (meal: MealPlan['meals'][number]) =>
+    mealOutcome(meal.votes, userIds);
+  const coming = plan.meals.filter((meal) => !isPastMeal(meal, today));
+  // Съгласуване има, докато в седмицата има ден от днес нататък.
+  const agreement = voterId !== null && coming.length > 0;
+  const agreed = agreement && isAgreed(plan.meals, userIds, today);
+  const meals =
+    filter === 'all'
+      ? plan.meals
+      : coming.filter((meal) => outcomeOf(meal) === filter);
+  const voting = voterId
+    ? {
+        userId: voterId,
+        today,
+        onVote: (
+          meal: MealPlan['meals'][number],
+          value: 'up' | 'down' | null,
+        ) => vote.mutate({ meal, userId: voterId, value }),
+      }
+    : undefined;
+
   return (
     <>
+      {agreed && (
+        <p className="menu__agreed" role="status">
+          <span aria-hidden="true">✓ </span>Менюто е съгласувано
+        </p>
+      )}
+      {agreement && !agreed && (
+        <div className="menu__filters" role="tablist" aria-label="Филтър">
+          {(['all', ...FILTERS] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              className="chip menu__filter"
+              aria-selected={filter === key}
+              onClick={() => setFilter(key)}
+            >
+              {key === 'all' ? (
+                'Всички'
+              ) : (
+                <>
+                  {OUTCOME_LABELS[key]}{' '}
+                  <span className="menu__filter-count">
+                    {coming.filter((meal) => outcomeOf(meal) === key).length}
+                  </span>
+                </>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {vote.isError && <ErrorBox error={vote.error} />}
       <ol className="menu__meals" aria-label="Вечери">
-        {plan.meals.map((meal) => (
+        {meals.map((meal) => (
           <li key={meal.id}>
             <MealRow
               meal={meal}
               users={users}
               {...(readOnly ? {} : { onOpen: () => setOpenMealId(meal.id) })}
+              {...(voting ? { voting } : {})}
             />
           </li>
         ))}
       </ol>
+      {meals.length === 0 && (
+        <p className="recipes__empty">Няма такива ястия.</p>
+      )}
       {plan.summary && <p className="menu__summary">{plan.summary}</p>}
       {!readOnly && canDelete && <DeletePlan plan={plan} />}
       {openMeal && (
@@ -328,6 +424,8 @@ function PlanView({ plan, users, readOnly, canDelete }: PlanViewProps) {
           meal={openMeal}
           plan={plan}
           users={users}
+          today={today}
+          {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
           onClose={() => setOpenMealId(null)}
         />
       )}

@@ -154,3 +154,55 @@ export function serveMealUpdates(plan: MealPlan) {
   );
   return patches;
 }
+
+/** Гласовете на `dani` и `poli` за ястие; `undefined` е липсващ глас. */
+export function votesOf(
+  daniVote?: 'up' | 'down',
+  poliVote?: 'up' | 'down',
+): Meal['votes'] {
+  return [
+    ...(daniVote ? [{ userId: dani.id, value: daniVote }] : []),
+    ...(poliVote ? [{ userId: poli.id, value: poliVote }] : []),
+  ];
+}
+
+/**
+ * `PUT`/`DELETE /api/menu/meals/:id/vote` върху ястията на `plan` като api: гласът на `X-Acting-User` се поставя или
+ * маха и се връща ястието. Връща заявките по ред.
+ */
+export function serveVotes(plan: MealPlan) {
+  const requests: { method: string; id: string; body: unknown }[] = [];
+  const handle = async (request: Request, id: string) => {
+    const body = request.method === 'PUT' ? await request.json() : undefined;
+    requests.push({ method: request.method, id, body });
+    const userId = request.headers.get('x-acting-user') ?? '';
+    const current = plan.meals.find((m) => m.id === id);
+    if (!current) {
+      return HttpResponse.json(
+        { error: 'not_found', message: 'Няма такова ястие' },
+        { status: 404 },
+      );
+    }
+    const others = current.votes.filter((vote) => vote.userId !== userId);
+    const value = (body as { value?: 'up' | 'down' } | undefined)?.value;
+    const next: Meal = {
+      ...current,
+      votes: value
+        ? [...others, { userId, value }].sort((a, b) =>
+            a.userId.localeCompare(b.userId),
+          )
+        : others,
+    };
+    plan.meals = plan.meals.map((m) => (m.id === id ? next : m));
+    return HttpResponse.json({ meal: next });
+  };
+  server.use(
+    http.put('/api/menu/meals/:id/vote', ({ params, request }) =>
+      handle(request, String(params.id)),
+    ),
+    http.delete('/api/menu/meals/:id/vote', ({ params, request }) =>
+      handle(request, String(params.id)),
+    ),
+  );
+  return requests;
+}

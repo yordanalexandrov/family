@@ -10,8 +10,10 @@ import {
   menuProposalResponseSchema,
   type NotEnoughRecipes,
   notEnoughRecipesSchema,
+  putVoteSchema,
   type UpdateMeal,
   updateMealSchema,
+  type VoteValue,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
@@ -94,15 +96,71 @@ export function useUpdateMeal(weekStart: DateKey) {
         body: JSON.stringify(updateMealSchema.parse(patch)),
       }).then((body) => body.meal),
     onSuccess(meal: Meal) {
-      queryClient.setQueryData<MealPlan | null>(
-        menuKeys.plan(weekStart),
-        (plan) =>
-          plan && {
-            ...plan,
-            meals: plan.meals.map((m) => (m.id === meal.id ? meal : m)),
-          },
-      );
+      setMeal(queryClient, weekStart, meal);
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+/** Подменя ястието в кеширания план на седмицата. */
+function setMeal(
+  queryClient: ReturnType<typeof useQueryClient>,
+  weekStart: DateKey,
+  meal: Meal,
+) {
+  queryClient.setQueryData<MealPlan | null>(
+    menuKeys.plan(weekStart),
+    (plan) =>
+      plan && {
+        ...plan,
+        meals: plan.meals.map((m) => (m.id === meal.id ? meal : m)),
+      },
+  );
+}
+
+export interface VoteChange {
+  meal: Meal;
+  /** Действащият потребител, чийто глас се сменя. */
+  userId: string;
+  /** `null` маха гласа (втори натиск на същия). */
+  value: VoteValue | null;
+}
+
+/**
+ * Глас за ястие (GLOSSARY: Глас): `PUT` поставя, `DELETE` маха. Оптимистично: редът се сменя веднага, а при грешка
+ * се връща както е бил.
+ */
+export function useVote(weekStart: DateKey) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ meal, value }: VoteChange) =>
+      apiFetch(
+        `/menu/meals/${meal.id}/vote`,
+        mealResponseSchema,
+        value === null
+          ? { method: 'DELETE' }
+          : {
+              method: 'PUT',
+              headers: JSON_HEADERS,
+              body: JSON.stringify(putVoteSchema.parse({ value })),
+            },
+      ).then((body) => body.meal),
+    async onMutate({ meal, userId, value }) {
+      await queryClient.cancelQueries({ queryKey: menuKeys.plan(weekStart) });
+      const others = meal.votes.filter((vote) => vote.userId !== userId);
+      setMeal(queryClient, weekStart, {
+        ...meal,
+        votes: value === null ? others : [...others, { userId, value }],
+      });
+      return { previous: meal };
+    },
+    onError(_error, _change, context) {
+      if (context) {
+        setMeal(queryClient, weekStart, context.previous);
+      }
+    },
+    onSuccess(meal) {
+      setMeal(queryClient, weekStart, meal);
     },
   });
 }

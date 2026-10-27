@@ -1,19 +1,47 @@
-import { type Meal, mealTitle, totalServings, type User } from '@family/shared';
+import {
+  type DateKey,
+  isPastMeal,
+  type Meal,
+  mealOutcome,
+  mealTitle,
+  totalServings,
+  type User,
+  type VoteValue,
+} from '@family/shared';
 import { Avatar } from '../../components/Avatar';
 import { formatDate, formatServings, formatWeekday } from '../../lib/format';
+import { MyVote, OutcomeLabel, PersonVote } from './Votes';
+
+/** Гласуването на реда: само в телефонния изглед, с действащ потребител. */
+export interface RowVoting {
+  /** Действащият потребител. */
+  userId: string;
+  today: DateKey;
+  onVote: (meal: Meal, value: VoteValue | null) => void;
+}
 
 interface MealRowProps {
   meal: Meal;
   users: User[];
-  /** Без него редът е само за четене (минала седмица). */
+  /** Без него редът е само за четене (минала седмица, kiosk). */
   onOpen?: () => void;
+  /** Без него редът е без гласове (kiosk). */
+  voting?: RowVoting;
 }
 
-/** Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“. */
-export function MealRow({ meal, users, onOpen }: MealRowProps) {
+/**
+ * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода. Минал ден
+ * е приглушен, без бутони за глас и без изход.
+ */
+export function MealRow({ meal, users, onOpen, voting }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
   const title = mealTitle(meal);
   const servings = totalServings(meal.servings);
+  const past = voting ? isPastMeal(meal, voting.today) : false;
+  const outcome = mealOutcome(
+    meal.votes,
+    users.map((user) => user.id),
+  );
   const content = (
     <>
       <span className="meal-row__day">
@@ -47,11 +75,39 @@ export function MealRow({ meal, users, onOpen }: MealRowProps) {
       </span>
     </>
   );
-  return onOpen ? (
-    <button type="button" className="meal-row" onClick={onOpen}>
-      {content}
-    </button>
-  ) : (
-    <div className="meal-row">{content}</div>
+  const others = voting
+    ? users.filter((user) => user.id !== voting.userId)
+    : [];
+  const me = voting && users.find((user) => user.id === voting.userId);
+  const outcomeClass = voting && !past ? ` meal-row--${outcome}` : '';
+  return (
+    <div className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}>
+      {onOpen ? (
+        <button type="button" className="meal-row__content" onClick={onOpen}>
+          {content}
+        </button>
+      ) : (
+        <div className="meal-row__content">{content}</div>
+      )}
+      {voting && (
+        <div className="meal-row__votes">
+          {!past && <OutcomeLabel outcome={outcome} />}
+          <span className="meal-row__people">
+            {others.map((user) => (
+              <PersonVote key={user.id} meal={meal} user={user} />
+            ))}
+            {past ? (
+              me && <PersonVote meal={meal} user={me} />
+            ) : (
+              <MyVote
+                meal={meal}
+                userId={voting.userId}
+                onVote={(value) => voting.onVote(meal, value)}
+              />
+            )}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,10 +1,14 @@
 import {
   addDays,
+  type DateKey,
+  isPastMeal,
   MEAL_NOTE_MAX,
   type Meal,
   type MealPlan,
+  mealOutcome,
   type UpdateMeal,
   type User,
+  type VoteValue,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
@@ -16,6 +20,7 @@ import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
 import { usePlan, useUpdateMeal } from './queries';
+import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -23,13 +28,29 @@ interface MealSheetProps {
   meal: Meal;
   plan: MealPlan;
   users: User[];
+  today: DateKey;
+  /** Действащият потребител, който гласува; без него листът е без гласове. */
+  voterId?: string;
+  onVote?: (meal: Meal, value: VoteValue | null) => void;
   onClose: () => void;
 }
 
-/** Листът на едно ястие: връзка към рецептата, рецепта, бележка, готвач и порции; всяко действие е отделен `PATCH`. */
-export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
+/**
+ * Листът на едно ястие: отгоре гласовете на двамата, после връзка към рецептата, рецепта, бележка, готвач и порции;
+ * всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а готвачът и порциите се сменят.
+ */
+export function MealSheet({
+  meal,
+  plan,
+  users,
+  today,
+  voterId,
+  onVote,
+  onClose,
+}: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
   const day = formatDayLong(meal.date);
+  const past = isPastMeal(meal, today);
 
   function patch(change: UpdateMeal) {
     update.mutate({ id: meal.id, patch: change });
@@ -38,6 +59,32 @@ export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
   return (
     <Sheet title={day} onClose={onClose}>
       {update.isError && <ErrorBox error={update.error} />}
+      {voterId && (
+        <fieldset className="sheet__section meal-votes" aria-label="Гласове">
+          <legend className="field__label">Гласове</legend>
+          <div className="meal-votes__people">
+            {users.map((user) => (
+              <PersonVote key={user.id} meal={meal} user={user} showName />
+            ))}
+            {!past && (
+              <OutcomeLabel
+                outcome={mealOutcome(
+                  meal.votes,
+                  users.map((user) => user.id),
+                )}
+              />
+            )}
+          </div>
+          {!past && onVote && (
+            <MyVote
+              meal={meal}
+              userId={voterId}
+              onVote={(value) => onVote(meal, value)}
+              big
+            />
+          )}
+        </fieldset>
+      )}
       {meal.recipeId !== null && (
         <div className="sheet__section">
           <Link
@@ -49,8 +96,16 @@ export function MealSheet({ meal, plan, users, onClose }: MealSheetProps) {
           </Link>
         </div>
       )}
-      <RecipePicker meal={meal} plan={plan} onPick={patch} />
-      <NoteField key={meal.note} meal={meal} onSave={patch} />
+      {past ? (
+        <p className="sheet__section meal-votes__past">
+          Денят е минал: ястието и бележката не се сменят.
+        </p>
+      ) : (
+        <>
+          <RecipePicker meal={meal} plan={plan} onPick={patch} />
+          <NoteField key={meal.note} meal={meal} onSave={patch} />
+        </>
+      )}
       <CookPicker meal={meal} users={users} onPick={patch} />
       <ServingsEditor meal={meal} users={users} onChange={patch} />
     </Sheet>
