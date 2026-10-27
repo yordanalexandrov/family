@@ -46,6 +46,7 @@ import {
   lockWeek,
   type NewMeal,
   setProposalPlan,
+  swapMealDates,
   updateMeal,
   upsertVote,
 } from '../db/repositories/menu.js';
@@ -63,6 +64,7 @@ import type {
 import {
   ConflictError,
   ForbiddenError,
+  InvalidActionError,
   InvalidReferenceError,
   NotFoundError,
 } from './errors.js';
@@ -81,6 +83,7 @@ const NO_SUCH_COMMENT = 'Няма такъв коментар';
 const PAST_MEAL_THREAD = 'Денят е минал: в разговора вече не се пише';
 const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
 const SYSTEM_LINE = 'Редовете за промените не се трият';
+const NOT_SWAPPABLE = 'Разменят се само ястия от едно меню и едно хранене';
 
 export interface MenuService {
   /** The plan of the week with its meals. */
@@ -105,6 +108,15 @@ export interface MenuService {
     actingUserId: string,
     value: VoteValue | null,
   ): Promise<Meal>;
+  /**
+   * Swaps the days of two meals of one plan and slot (400 otherwise; 409 `past_meal` if either is past). Votes and
+   * threads go with the meals; each gets a `moved` line by `actingUserId`. Returns the plan.
+   */
+  swapMeals(
+    id: string,
+    withMealId: string,
+    actingUserId: string,
+  ): Promise<MealPlan>;
   /** The meal's thread (GLOSSARY: Разговор), oldest first; readable for a past meal too. */
   listComments(mealId: string): Promise<MealComment[]>;
   /** A comment of `actingUserId`; refused for a past meal. */
@@ -341,6 +353,40 @@ export function createMenuService({
       });
       signalWeek(events, weekStart);
       return meal;
+    },
+
+    async swapMeals(id, withMealId, actingUserId) {
+      const plan = await db.transaction(async (tx) => {
+        const a = await findMeal(tx, id);
+        const b = await findMeal(tx, withMealId);
+        if (!a || !b) {
+          throw new NotFoundError(NO_SUCH_MEAL);
+        }
+        if (a.id === b.id || a.planId !== b.planId || a.slot !== b.slot) {
+          throw new InvalidActionError(NOT_SWAPPABLE);
+        }
+        refusePastMeal(a, now());
+        refusePastMeal(b, now());
+        const at = now();
+        await swapMealDates(tx, a, b, at);
+        const moved = (from: Meal, to: Meal) =>
+          writeSystemLine(
+            tx,
+            from.id,
+            actingUserId,
+            { type: 'moved', fromDate: from.date, toDate: to.date },
+            at,
+          );
+        await moved(a, b);
+        await moved(b, a);
+        const plan = await findPlanByWeek(tx, await weekOf(tx, a.planId));
+        if (!plan) {
+          throw new Error('plan of a meal vanished');
+        }
+        return plan;
+      });
+      signalWeek(events, plan.weekStart);
+      return plan;
     },
 
     async listComments(mealId) {

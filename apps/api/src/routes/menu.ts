@@ -10,6 +10,7 @@ import {
   mealResponseSchema,
   menuProposalResponseSchema,
   putVoteSchema,
+  swapMealsSchema,
   updateMealSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -114,6 +115,24 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => ({
       meal: await service.vote(request.params.id, request.actor.id, null),
+    }),
+  );
+
+  app.post(
+    '/api/menu/meals/:id/swap',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: swapMealsSchema,
+        response: { 200: mealPlanResponseSchema },
+      },
+    },
+    async (request) => ({
+      plan: await service.swapMeals(
+        request.params.id,
+        request.body.withMealId,
+        request.actor.id,
+      ),
     }),
   );
 
