@@ -27,8 +27,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Иконите (public/icons/*.png) са рендерирани еднократно от icon.svg.
-      includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png'],
+      // Иконите (public/icons/*.png) са рендерирани еднократно от неоновия рисунък
+      // върху черен фон; maskable е с поле, за да не реже маската триъгълника.
+      includeAssets: ['icons/favicon-48.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'Семейна платформа',
         short_name: 'Семейство',
@@ -43,7 +44,7 @@ export default defineConfig({
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: 'icons/icon-512.png',
+            src: 'icons/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
