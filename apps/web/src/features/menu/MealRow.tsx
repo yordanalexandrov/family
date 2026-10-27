@@ -2,6 +2,7 @@ import {
   type DateKey,
   isPastMeal,
   type Meal,
+  type MealComment,
   mealOutcome,
   mealTitle,
   totalServings,
@@ -59,6 +60,13 @@ export function MealRow({ meal, users, onOpen, voting }: MealRowProps) {
           <span className="meal-row__note">{meal.note}</span>
         )}
         {meal.why && <span className="meal-row__why">{meal.why}</span>}
+        {meal.lastComment && (
+          <LastComment
+            line={meal.lastComment}
+            count={meal.commentCount}
+            users={users}
+          />
+        )}
       </span>
       <span className="meal-row__side">
         {cook ? (
@@ -109,5 +117,34 @@ export function MealRow({ meal, users, onOpen, voting }: MealRowProps) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Последният ред от разговора, на един ред: „Поли: пак пиле?“ или „Дани смени …“, и броят редове. */
+function LastComment({
+  line,
+  count,
+  users,
+}: {
+  line: MealComment;
+  count: number;
+  users: User[];
+}) {
+  const name =
+    users.find((user) => user.id === line.authorUserId)?.name ?? 'Някой';
+  return (
+    <span className="meal-row__comment">
+      <span
+        className={`meal-row__comment-text${line.kind === 'system' ? ' meal-row__comment-text--system' : ''}`}
+      >
+        {line.kind === 'system'
+          ? `${name} ${line.body}`
+          : `${name}: ${line.body}`}
+      </span>
+      <span className="meal-row__comment-count">
+        <span aria-hidden="true">💬</span> {count}
+        <span className="visually-hidden"> в разговора</span>
+      </span>
+    </span>
   );
 }

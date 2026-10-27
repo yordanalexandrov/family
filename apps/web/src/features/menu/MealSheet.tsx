@@ -20,6 +20,7 @@ import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
 import { usePlan, useUpdateMeal } from './queries';
+import { Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -36,8 +37,9 @@ interface MealSheetProps {
 }
 
 /**
- * Листът на едно ястие: отгоре гласовете на двамата, после връзка към рецептата, рецепта, бележка, готвач и порции;
- * всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а готвачът и порциите се сменят.
+ * Листът на едно ястие: отгоре гласовете на двамата и разговорът, после връзка към рецептата, „Избери сам“ (изборът
+ * от регистъра), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
+ * готвачът и порциите се сменят; разговорът му се чете, но не се пише.
  */
 export function MealSheet({
   meal,
@@ -51,6 +53,7 @@ export function MealSheet({
   const update = useUpdateMeal(plan.weekStart);
   const day = formatDayLong(meal.date);
   const past = isPastMeal(meal, today);
+  const [picking, setPicking] = useState(false);
 
   function patch(change: UpdateMeal) {
     update.mutate({ id: meal.id, patch: change });
@@ -85,6 +88,15 @@ export function MealSheet({
           )}
         </fieldset>
       )}
+      {voterId && (
+        <Thread
+          meal={meal}
+          weekStart={plan.weekStart}
+          users={users}
+          userId={voterId}
+          readOnly={past}
+        />
+      )}
       {meal.recipeId !== null && (
         <div className="sheet__section">
           <Link
@@ -102,7 +114,19 @@ export function MealSheet({
         </p>
       ) : (
         <>
-          <RecipePicker meal={meal} plan={plan} onPick={patch} />
+          {picking ? (
+            <RecipePicker meal={meal} plan={plan} onPick={patch} />
+          ) : (
+            <div className="sheet__section">
+              <button
+                type="button"
+                className="button"
+                onClick={() => setPicking(true)}
+              >
+                Избери сам
+              </button>
+            </div>
+          )}
           <NoteField key={meal.note} meal={meal} onSave={patch} />
         </>
       )}

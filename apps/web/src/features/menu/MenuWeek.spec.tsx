@@ -183,6 +183,7 @@ describe('MenuWeek', () => {
       await screen.findByRole('button', { name: /Пиле с ориз/ }),
     );
     const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
+    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
     expect(
       await within(sheet).findByRole('button', { name: /Мусака/ }),
     ).toHaveTextContent('в тази седмица');

@@ -1,10 +1,14 @@
 import {
   type CreateMenuProposal,
+  createMealCommentSchema,
   createMealPlanSchema,
   createMenuProposalSchema,
   type DateKey,
   type Meal,
+  type MealComment,
   type MealPlan,
+  mealCommentResponseSchema,
+  mealCommentsResponseSchema,
   mealPlanResponseSchema,
   mealResponseSchema,
   menuProposalResponseSchema,
@@ -23,6 +27,9 @@ import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 export const menuKeys = {
   all: ['menu'] as const,
   plan: (weekStart: DateKey) => ['menu', 'plan', weekStart] as const,
+  /** Под плана на седмицата, за да го стигне и сигналът `menu.changed`. */
+  thread: (weekStart: DateKey, mealId: string) =>
+    ['menu', 'plan', weekStart, 'thread', mealId] as const,
   proposal: (id: string) => ['menu', 'proposal', id] as const,
 };
 
@@ -97,6 +104,10 @@ export function useUpdateMeal(weekStart: DateKey) {
       }).then((body) => body.meal),
     onSuccess(meal: Meal) {
       setMeal(queryClient, weekStart, meal);
+      // Нова рецепта или бележка добавя системен ред в разговора.
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.thread(weekStart, meal.id),
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
@@ -161,6 +172,62 @@ export function useVote(weekStart: DateKey) {
     },
     onSuccess(meal) {
       setMeal(queryClient, weekStart, meal);
+    },
+  });
+}
+
+/** Разговорът на ястието (GLOSSARY: Разговор) по реда на писане. */
+export function useThread(weekStart: DateKey, mealId: string) {
+  return useQuery({
+    queryKey: menuKeys.thread(weekStart, mealId),
+    queryFn: () =>
+      apiFetch(
+        `/menu/meals/${mealId}/comments`,
+        mealCommentsResponseSchema,
+      ).then((body) => body.comments),
+  });
+}
+
+/**
+ * Коментар или триене на свой коментар: разговорът се допълва веднага от отговора, а планът се презарежда заради
+ * последния ред и брояча на реда.
+ */
+export function useAddComment(weekStart: DateKey, mealId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      apiFetch(`/menu/meals/${mealId}/comments`, mealCommentResponseSchema, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify(createMealCommentSchema.parse({ body })),
+      }).then((response) => response.comment),
+    onSuccess(comment) {
+      queryClient.setQueryData<MealComment[]>(
+        menuKeys.thread(weekStart, mealId),
+        (lines) => [...(lines ?? []), comment],
+      );
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.plan(weekStart),
+      });
+    },
+  });
+}
+
+export function useDeleteComment(weekStart: DateKey, mealId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await fetchNoContent(`/menu/comments/${id}`);
+      return id;
+    },
+    onSuccess(id) {
+      queryClient.setQueryData<MealComment[]>(
+        menuKeys.thread(weekStart, mealId),
+        (lines) => lines?.filter((line) => line.id !== id),
+      );
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.plan(weekStart),
+      });
     },
   });
 }
