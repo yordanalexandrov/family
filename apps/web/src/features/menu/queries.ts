@@ -7,6 +7,7 @@ import {
   type Meal,
   type MealComment,
   type MealPlan,
+  type MenuProposalRequest,
   mealCommentResponseSchema,
   mealCommentsResponseSchema,
   mealPlanResponseSchema,
@@ -21,6 +22,7 @@ import {
   type VoteValue,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
 import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
@@ -32,6 +34,15 @@ export const menuKeys = {
   thread: (weekStart: DateKey, mealId: string) =>
     ['menu', 'plan', weekStart, 'thread', mealId] as const,
   proposal: (id: string) => ['menu', 'proposal', id] as const,
+  /** Последното предложение на седмицата (напр. на крона в сряда); не е под плана, който то презарежда. */
+  weekProposal: (weekStart: DateKey) =>
+    ['menu', 'week-proposal', weekStart] as const,
+  /** Филтър за плановете на всички седмици, без разговорите под тях, които делят префикса на ключа. */
+  plans: {
+    queryKey: ['menu', 'plan'] as const,
+    predicate: (query: { queryKey: readonly unknown[] }) =>
+      query.queryKey.length === 3,
+  },
 };
 
 /** Планът на седмицата или `null`, ако няма (api връща 404). */
@@ -338,6 +349,45 @@ export function useMenuProposal(id: string | undefined) {
     refetchInterval: (query) =>
       query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
   });
+}
+
+/**
+ * Последното предложение на седмицата или `null` (api връща 404); пита отново на 3 s, докато е `pending`, а при
+ * `done` презарежда плана. Така седмица без план вижда и предложението на крона, което никой не е пуснал от екрана.
+ */
+export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: menuKeys.weekProposal(weekStart),
+    queryFn: async (): Promise<MenuProposalRequest | null> => {
+      try {
+        const { proposal } = await apiFetch(
+          `/menu/proposals?${new URLSearchParams({ weekStart })}`,
+          menuProposalResponseSchema,
+        );
+        return proposal;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
+  });
+  // Веднъж на предложение: следващите четения на същото `done` не презареждат плана пак.
+  const doneId = query.data?.status === 'done' ? query.data.id : undefined;
+  useEffect(() => {
+    if (doneId !== undefined) {
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.plan(weekStart),
+        exact: true,
+      });
+    }
+  }, [doneId, weekStart, queryClient]);
+  return query;
 }
 
 /** 409 `not_enough_recipes`: колко вечерни рецепти има и колко трябват. */

@@ -22,7 +22,9 @@ import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
 import { formatDate, formatNumber, formatQuantity } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
+import { useOnline } from '../../lib/use-online';
 import { usePlan } from '../menu/queries';
+import { useMakeStaple, useMarkRanOut } from '../pantry/queries';
 import { AddItemSheet } from './AddItemSheet';
 import {
   OfflineError,
@@ -191,9 +193,13 @@ function ListView({ list, weekStart, users }: ListViewProps) {
   const toggle = useToggleCheck(weekStart);
   const setHidden = useSetHidden(weekStart);
   const deleteItem = useDeleteManualItem(weekStart);
+  const markRanOut = useMarkRanOut();
+  const makeStaple = useMakeStaple();
+  const online = useOnline();
   const [sourcesOf, setSourcesOf] = useState<ShoppingItem | null>(null);
   const [adding, setAdding] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [showPantry, setShowPantry] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   function onError(error: unknown) {
@@ -212,6 +218,17 @@ function ListView({ list, weekStart, users }: ListViewProps) {
     onHide: (item) => setHidden.mutate({ item, hidden: true }, { onError }),
     onDelete: (item) => deleteItem.mutate(item, { onError }),
   };
+
+  function alwaysHave(item: ShoppingItem) {
+    const { ingredientId } = item;
+    if (ingredientId === undefined) {
+      return;
+    }
+    makeStaple.mutate(
+      item.pantry ? { pantryId: item.pantry.id } : { ingredientId },
+      { onError, onSuccess: () => setSourcesOf(null) },
+    );
+  }
 
   return (
     <>
@@ -281,8 +298,57 @@ function ListView({ list, weekStart, users }: ListViewProps) {
           )}
         </section>
       )}
+      {list.pantryHidden.length > 0 && (
+        <section className="shopping__pantry">
+          <button
+            type="button"
+            className="shopping__pantry-toggle"
+            aria-expanded={showPantry}
+            onClick={() => setShowPantry((open) => !open)}
+          >
+            🏠 Скрити от килера: {list.pantryHidden.length}
+          </button>
+          {showPantry && (
+            <>
+              <ul className="shopping__items" aria-label="Скрити от килера">
+                {list.pantryHidden.map((item) => (
+                  <li key={item.key} className="shopping-item">
+                    <span className="shopping-item__main">
+                      <span className="shopping-item__title">{item.title}</span>
+                      <span className="shopping-item__quantity">
+                        {formatItemQuantity(item)}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="button button--quiet shopping-item__action"
+                      aria-label={`Свърши ${item.title}`}
+                      disabled={!online || !item.pantry}
+                      onClick={() =>
+                        item.pantry &&
+                        markRanOut.mutate(item.pantry.id, { onError })
+                      }
+                    >
+                      Свърши
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {!online && <p className="shopping__hint">Иска връзка</p>}
+            </>
+          )}
+          <Link to="/pantry" className="shopping__pantry-link">
+            Към килера
+          </Link>
+        </section>
+      )}
       {sourcesOf && (
-        <SourcesSheet item={sourcesOf} onClose={() => setSourcesOf(null)} />
+        <SourcesSheet
+          item={sourcesOf}
+          online={online}
+          onAlwaysHave={alwaysHave}
+          onClose={() => setSourcesOf(null)}
+        />
       )}
       {adding && (
         <AddItemSheet weekStart={weekStart} onClose={() => setAdding(false)} />
@@ -298,6 +364,26 @@ function formatItemQuantity(item: ShoppingItem): string {
     return item.quantity === null ? '' : formatNumber(item.quantity);
   }
   return formatQuantity({ quantity: item.quantity, unit: item.unit });
+}
+
+/** „свърши“ на свършил постоянен продукт; „🏠 в килера — провери“ и бележката на временен. */
+function PantryBadge({ item }: { item: ShoppingItem }) {
+  if (item.pantry?.ranOut) {
+    return (
+      <span className="shopping-item__badge shopping-item__badge--ran-out">
+        свърши
+      </span>
+    );
+  }
+  if (item.pantry?.kind === 'use_up') {
+    return (
+      <span className="shopping-item__badge">
+        🏠 в килера — провери
+        {item.pantry.note ? ` · ${item.pantry.note}` : ''}
+      </span>
+    );
+  }
+  return null;
 }
 
 interface RowActions {
@@ -343,6 +429,7 @@ function ItemRow({
         <span className="shopping-item__quantity">
           {formatItemQuantity(item)}
         </span>
+        <PantryBadge item={item} />
         {manual && (
           <span
             className="shopping-item__manual"

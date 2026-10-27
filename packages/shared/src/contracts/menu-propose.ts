@@ -3,6 +3,8 @@ import { slotSchema, tagSchema } from '../food/tags.js';
 import { daysOfWeek } from '../menu/week.js';
 import { dateKeySchema } from '../schemas/dates.js';
 import { weekStartSchema } from '../schemas/menu.js';
+import { useUpSchema } from '../schemas/pantry.js';
+import { ratingSchema } from '../schemas/recipe.js';
 import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
 
@@ -11,24 +13,32 @@ import { hintSchema } from './hint.js';
  * registry, the agent answers one recipe from it per day and slot, each with one sentence "why". All in Bulgarian.
  */
 
-/** A registry recipe as the agent sees it: only what it needs to choose and vary. */
+/**
+ * A registry recipe as the agent sees it: only what it needs to choose and vary. `rating` is the family's (GLOSSARY:
+ * Оценка), absent while unrated; `lastServedOn` is the latest meal with it before the proposed week (for `meal.replace`,
+ * before the meal's date), also one still to come this week; absent if none.
+ */
 export const menuProposeRecipeSchema = z.object({
   id: z.string(),
   title: z.string(),
   prepMinutes: z.int().positive().optional(),
   tags: z.array(tagSchema),
   ingredientNames: z.array(z.string()),
+  rating: ratingSchema.optional(),
+  lastServedOn: dateKeySchema.optional(),
 });
 
 export type MenuProposeRecipe = z.infer<typeof menuProposeRecipeSchema>;
 
-/** The contract input: the week, its slots, the recipes to choose from, the last 2 weeks and the hint. */
-const menuProposeInputSchema = z.object({
+/**
+ * The contract input: the week, its slots, the recipes to choose from, the use-up products (oldest first) and the
+ * hint. Strict, so a field the contract dropped (`recentRecipeIds`) is refused rather than sent silently.
+ */
+const menuProposeInputSchema = z.strictObject({
   weekStart: weekStartSchema,
   slots: z.array(slotSchema).min(1),
   recipes: z.array(menuProposeRecipeSchema),
-  /** Recipes of the meals of the 2 previous weeks, to avoid when the choice allows. */
-  recentRecipeIds: z.array(z.string()),
+  useUp: z.array(useUpSchema),
   hint: hintSchema.optional(),
 });
 

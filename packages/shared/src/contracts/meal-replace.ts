@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { slotSchema } from '../food/tags.js';
 import { dateKeySchema } from '../schemas/dates.js';
 import { mealCommentKindSchema } from '../schemas/menu.js';
+import { useUpSchema } from '../schemas/pantry.js';
 import type { AiContract } from './contract.js';
 import { menuProposeRecipeSchema } from './menu-propose.js';
 
@@ -14,7 +15,7 @@ import { menuProposeRecipeSchema } from './menu-propose.js';
 /** Most candidates an answer has; the API refuses a request with fewer recipes to choose from. */
 export const MEAL_REPLACE_MAX_CANDIDATES = 3;
 
-const mealReplaceInputSchema = z.object({
+const mealReplaceInputSchema = z.strictObject({
   date: dateKeySchema,
   slot: slotSchema,
   /** What the meal is now; `title` is the recipe's (it is not among `recipes`). Empty for an empty meal. */
@@ -35,8 +36,8 @@ const mealReplaceInputSchema = z.object({
   week: z.array(z.object({ date: dateKeySchema, title: z.string() })),
   /** Not archived, tagged with the slot, without the current recipe. */
   recipes: z.array(menuProposeRecipeSchema),
-  /** Recipes of the meals of the 2 previous weeks, to avoid when the choice allows. */
-  recentRecipeIds: z.array(z.string()),
+  /** The use-up products of the pantry, oldest first. */
+  useUp: z.array(useUpSchema),
 });
 
 export type MealReplaceInput = z.infer<typeof mealReplaceInputSchema>;

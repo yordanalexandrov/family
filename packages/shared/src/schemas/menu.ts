@@ -6,6 +6,7 @@ import { slotSchema } from '../food/tags.js';
 import { voteSchema, voteValueSchema } from '../menu/votes.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
+import { ratingSchema } from './recipe.js';
 
 /** The Monday that identifies a weekly menu, as `YYYY-MM-DD`. */
 export const weekStartSchema = dateKeySchema.refine(isWeekStart, {
@@ -73,9 +74,16 @@ export const mealSchema = z.object({
   cookUserId: z.uuid().nullable(),
   servings: servingsSchema,
   why: z.string().nullable(),
-  /** The recipe as the menu shows it; an archived recipe stays visible in an old plan. `null` without a recipe. */
+  /**
+   * The recipe as the menu shows it; an archived recipe stays visible in an old plan. `null` without a recipe. The
+   * rating (GLOSSARY: Оценка) lets a past meal ask “Как беше?” while its recipe is unrated.
+   */
   recipe: z
-    .object({ title: z.string(), archivedAt: instantSchema.nullable() })
+    .object({
+      title: z.string(),
+      archivedAt: instantSchema.nullable(),
+      rating: ratingSchema.nullable(),
+    })
     .nullable(),
   /**
    * GLOSSARY: Глас. The users' votes for the current recipe and note, by user id; the outcome is not sent, the client
@@ -101,7 +109,8 @@ export const mealPlanSchema = z.object({
   weekStart: weekStartSchema,
   summary: z.string().nullable(),
   meals: z.array(mealSchema),
-  createdBy: z.uuid(),
+  /** `null` for a plan the cron proposed (`menuProposalTriggerSchema`: `schedule`). */
+  createdBy: z.uuid().nullable(),
   createdAt: instantSchema,
   updatedAt: instantSchema,
 });
@@ -174,8 +183,17 @@ export const swapMealsSchema = z.object({ withMealId: z.uuid() });
 export type SwapMeals = z.infer<typeof swapMealsSchema>;
 
 /**
+ * Who started a proposal: a user with „Предложи меню“, or the api's cron on Wednesday at 09:00 in Sofia for the next
+ * week („Предложено автоматично в сряда“), which has no user.
+ */
+export const menuProposalTriggerSchema = z.enum(['user', 'schedule']);
+
+export type MenuProposalTrigger = z.infer<typeof menuProposalTriggerSchema>;
+
+/**
  * One run of `menu.propose` for a week (GLOSSARY: Предложение за меню). The plan is created only when it is `done`
- * (`planId`); `error` uses the same failure codes as `recipe.suggest`.
+ * (`planId`); `error` uses the same failure codes as `recipe.suggest`. `requestedBy` is `null` exactly when the
+ * `trigger` is `schedule`.
  */
 export const menuProposalRequestSchema = z.object({
   id: z.uuid(),
@@ -183,13 +201,21 @@ export const menuProposalRequestSchema = z.object({
   hint: z.string().optional(),
   status: contractRequestStatusSchema,
   error: contractFailureSchema.optional(),
-  requestedBy: z.uuid(),
+  trigger: menuProposalTriggerSchema,
+  requestedBy: z.uuid().nullable(),
   planId: z.uuid().optional(),
   createdAt: instantSchema,
   finishedAt: instantSchema.optional(),
 });
 
 export type MenuProposalRequest = z.infer<typeof menuProposalRequestSchema>;
+
+/** `GET /api/menu/proposals?weekStart=`: the newest proposal of the week (404 without one), e.g. the cron's. */
+export const menuProposalsQuerySchema = z.object({
+  weekStart: weekStartSchema,
+});
+
+export type MenuProposalsQuery = z.infer<typeof menuProposalsQuerySchema>;
 
 /** `POST /api/menu/proposals`. */
 export const createMenuProposalSchema = z.object({

@@ -2,11 +2,13 @@ import {
   type MenuProposeRecipe,
   PREP_TIME_RANGES,
   type PrepTimeRange,
+  type Rating,
   type Recipe,
   type RecipeIngredient,
   type RecipeInput,
   type RecipeLine,
   type RecipeSummary,
+  type RecipesSort,
   type Slot,
   slotSchema,
   type Tag,
@@ -30,6 +32,7 @@ import {
 import type { DbExecutor } from '../client.js';
 import { likePattern } from '../like.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
+import { meal } from '../schema/menu.js';
 import { ingredientColumns } from './ingredients.js';
 
 type RecipeRow = typeof recipe.$inferSelect;
@@ -47,6 +50,7 @@ function toRecipe(row: RecipeRow, ingredients: RecipeLine[]): Recipe {
     nutritionPer100g: row.nutritionPer100g ?? undefined,
     ingredients,
     archivedAt: row.archivedAt?.toISOString() ?? null,
+    rating: row.rating,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -132,11 +136,13 @@ export async function listRecipes(
     tag = [],
     time = [],
     includeArchived,
+    sort = 'title',
   }: {
     q?: string;
     tag?: readonly Tag[];
     time?: readonly PrepTimeRange[];
     includeArchived: boolean;
+    sort?: RecipesSort;
   },
 ): Promise<RecipeSummary[]> {
   const rows = await db
@@ -147,6 +153,7 @@ export async function listRecipes(
       prepMinutes: recipe.prepMinutes,
       tags: recipe.tags,
       archivedAt: recipe.archivedAt,
+      rating: recipe.rating,
     })
     .from(recipe)
     .where(
@@ -157,7 +164,11 @@ export async function listRecipes(
         includeArchived ? undefined : isNull(recipe.archivedAt),
       ),
     )
-    .orderBy(asc(recipe.title), asc(recipe.createdAt));
+    .orderBy(
+      ...(sort === 'rating' ? [sql`${recipe.rating} desc nulls last`] : []),
+      asc(recipe.title),
+      asc(recipe.createdAt),
+    );
   return rows.map((row) => ({
     ...row,
     prepMinutes: row.prepMinutes ?? undefined,
@@ -217,6 +228,23 @@ export async function setRecipeArchivedAt(
     );
 }
 
+/**
+ * Sets (`1..5`) or clears (`null`) the family's rating; `updated_at` stays, a rating is not an edit of the recipe.
+ * `false` when there is no such recipe.
+ */
+export async function setRecipeRating(
+  db: DbExecutor,
+  id: string,
+  rating: Rating | null,
+): Promise<boolean> {
+  const rows = await db
+    .update(recipe)
+    .set({ rating })
+    .where(eq(recipe.id, id))
+    .returning({ id: recipe.id });
+  return rows.length > 0;
+}
+
 /** Replaces all ingredient lines of a recipe, numbered in the given order; run it in a transaction. */
 export async function replaceRecipeIngredients(
   db: DbExecutor,
@@ -274,12 +302,15 @@ export async function isMenuRecipe(
 }
 
 /**
- * The recipes `menu.propose` chooses from: not archived, tagged with `slot`, by title, each with the names of its
- * products in line order.
+ * The recipes `menu.propose` and `meal.replace` choose from: not archived, tagged with `slot`, by title, each with the
+ * names of its products in line order, its rating and the date of its latest meal strictly before `before`: the
+ * proposed week's Monday, or the date of the meal being replaced. A meal planned before that date counts as served,
+ * also when its day is still to come.
  */
 export async function listMenuRecipes(
   db: DbExecutor,
   slot: Slot,
+  before: string,
 ): Promise<MenuProposeRecipe[]> {
   const rows = await db
     .select({
@@ -287,6 +318,11 @@ export async function listMenuRecipes(
       title: recipe.title,
       prepMinutes: recipe.prepMinutes,
       tags: recipe.tags,
+      rating: recipe.rating,
+      lastServedOn: sql<string | null>`(
+        select max(${meal.date})::text from ${meal}
+        where ${meal.recipeId} = ${recipe.id} and ${meal.date} < ${before}
+      )`,
       ingredientNames: sql<string[]>`coalesce(
         array_agg(${ingredient.name} order by ${recipeIngredient.position})
           filter (where ${ingredient.id} is not null),
@@ -302,6 +338,8 @@ export async function listMenuRecipes(
   return rows.map((row) => ({
     ...row,
     prepMinutes: row.prepMinutes ?? undefined,
+    rating: row.rating ?? undefined,
+    lastServedOn: row.lastServedOn ?? undefined,
   }));
 }
 

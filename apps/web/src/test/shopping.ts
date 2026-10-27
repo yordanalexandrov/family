@@ -21,6 +21,7 @@ function computed(
   return {
     key: `${ingredient(n)}:${unit}`,
     kind: 'computed',
+    ingredientId: ingredient(n),
     title: '',
     quantity: null,
     unit,
@@ -216,4 +217,60 @@ export function serveShopping(lists: Record<string, ShoppingList> = {}) {
     }),
   );
   return { requests, gets, lists };
+}
+
+// Килерът в списъка (#91): временен ред, свършил постоянен с количество и без, двама скрити от килера.
+const pantryId = (n: number) => `dddddddd-1111-4000-8000-00000000000${n}`;
+
+export const mince = computed(7, 'g', {
+  title: 'Кайма',
+  quantity: 500,
+  aisle: 'meat',
+  sources: [{ date: '2026-11-03', mealId: mealId(1), recipeTitle: 'Мусака' }],
+  pantry: { id: pantryId(1), kind: 'use_up', note: 'фризер', ranOut: false },
+});
+
+export const ranOutMilk: ShoppingItem = {
+  ...milk,
+  pantry: { id: pantryId(2), kind: 'staple', ranOut: true },
+};
+
+/** Свършил постоянен продукт, който менюто не иска: ред без количество. */
+export const ranOutOil = computed(8, null, {
+  key: `${ingredient(8)}:none`,
+  title: 'Слънчогледово олио',
+  aisle: 'spices',
+  pantry: { id: pantryId(3), kind: 'staple', ranOut: true },
+});
+
+export const pantrySalt: ShoppingItem = {
+  ...salt,
+  pantry: { id: pantryId(4), kind: 'staple', ranOut: false },
+};
+
+export const pantryRice = computed(9, 'g', {
+  title: 'Ориз',
+  quantity: 400,
+  aisle: 'grains',
+  sources: [
+    { date: '2026-11-02', mealId: mealId(0), recipeTitle: 'Пиле с ориз' },
+  ],
+  pantry: { id: pantryId(5), kind: 'staple', ranOut: false },
+});
+
+/** Списъкът на тази седмица с килера: 4 видими реда и 2 скрити от килера. */
+export function pantryShoppingList(weekStart = thisWeek): ShoppingList {
+  return shoppingListSchema.parse({
+    weekStart,
+    aisles: [
+      { aisle: 'produce', items: [tomatoes] },
+      { aisle: 'meat', items: [mince] },
+      { aisle: 'dairy', items: [ranOutMilk] },
+      { aisle: 'spices', items: [ranOutOil] },
+    ],
+    hidden: [],
+    pantryHidden: [pantryRice, pantrySalt],
+    total: 4,
+    remaining: 4,
+  });
 }

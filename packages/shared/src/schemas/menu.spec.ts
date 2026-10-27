@@ -24,7 +24,7 @@ const meal = {
   cookUserId: DANI,
   servings: { [DANI]: 1, [POLI]: 2 },
   why: 'Бързо за понеделник, без месо след уикенда.',
-  recipe: { title: 'Леща яхния', archivedAt: null },
+  recipe: { title: 'Леща яхния', archivedAt: null, rating: null },
   votes: [
     { userId: DANI, value: 'up' },
     { userId: POLI, value: 'down' },
@@ -256,6 +256,7 @@ describe('menuProposalRequestSchema', () => {
     weekStart: '2026-11-02',
     hint: 'повече риба',
     status: 'pending',
+    trigger: 'user',
     requestedBy: POLI,
     createdAt: '2026-10-25T18:00:00.000Z',
   };
@@ -284,6 +285,19 @@ describe('menuProposalRequestSchema', () => {
     };
 
     expect(menuProposalRequestSchema.parse(failed)).toEqual(failed);
+  });
+
+  it('accepts a proposal of the cron, without a user', () => {
+    const scheduled = { ...pending, trigger: 'schedule', requestedBy: null };
+
+    expect(menuProposalRequestSchema.parse(scheduled)).toEqual(scheduled);
+  });
+
+  it('rejects an unknown trigger', () => {
+    expect(
+      menuProposalRequestSchema.safeParse({ ...pending, trigger: 'cron' })
+        .success,
+    ).toBe(false);
   });
 
   it('rejects an unknown status', () => {

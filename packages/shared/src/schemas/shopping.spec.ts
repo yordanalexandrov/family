@@ -45,11 +45,24 @@ describe('shoppingListSchema', () => {
         { aisle: 'other', items: [coffee] },
       ],
       hidden: [{ ...onion, key: `${ONION}:pcs`, unit: 'pcs', hidden: true }],
+      pantryHidden: [],
       total: 2,
       remaining: 1,
     };
 
     expect(shoppingListSchema.parse(list)).toEqual(list);
+  });
+
+  it('reads a list cached before the pantry as one with nothing hidden by it', () => {
+    const list = {
+      weekStart: '2026-10-26',
+      aisles: [],
+      hidden: [],
+      total: 0,
+      remaining: 0,
+    };
+
+    expect(shoppingListSchema.parse(list).pantryHidden).toEqual([]);
   });
 
   it('refuses a week that does not start on Monday', () => {

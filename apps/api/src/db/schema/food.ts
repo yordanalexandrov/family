@@ -25,6 +25,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -64,6 +65,8 @@ export const recipe = pgTable(
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
     nutritionPer100g: jsonb('nutrition_per_100g').$type<Nutrition>(),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    /** GLOSSARY: Оценка. 1–5 stars, one for the family; `null` = unrated. Not part of `RecipeInput`. */
+    rating: smallint('rating'),
     createdAt: createdAt(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
@@ -72,6 +75,7 @@ export const recipe = pgTable(
   (t) => [
     index('recipe_archived_at_idx').on(t.archivedAt),
     check('recipe_servings_check', sql`${t.servings} >= 1`),
+    check('recipe_rating_check', sql`${t.rating} between 1 and 5`),
     check(
       'recipe_tags_check',
       sql`${t.tags} <@ array[${literals(tagSchema.options)}]::text[]`,

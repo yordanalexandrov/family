@@ -4,7 +4,8 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
 import { formatMinutes } from './format';
-import { useArchiveRecipe, useRecipe } from './queries';
+import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
+import { RatingStars } from './Stars';
 import './recipes.css';
 
 export function RecipeView() {
@@ -37,6 +38,7 @@ function groupByAisle(lines: Recipe['ingredients']) {
 
 function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const archive = useArchiveRecipe();
+  const rate = useRateRecipe();
   const archived = recipe.archivedAt !== null;
   const nutrition = recipe.nutritionPer100g;
 
@@ -44,6 +46,11 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
     <article className="recipe-view">
       <header className="recipe-view__wide recipes__filters">
         <h1 className="recipes__title">{recipe.title}</h1>
+        <RatingStars
+          rating={recipe.rating}
+          onRate={(rating) => rate.mutate({ id: recipe.id, rating })}
+        />
+        {rate.isError && <ErrorBox error={rate.error} />}
         <p className="recipe-view__meta">
           <span>{recipe.servings} порции</span>
           {recipe.prepMinutes !== undefined && (

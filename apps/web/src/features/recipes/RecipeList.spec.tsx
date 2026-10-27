@@ -95,6 +95,38 @@ describe('RecipeList', () => {
       .toBe('true');
   });
 
+  it('оценената рецепта показва звездите до заглавието, неоценената — нищо', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipes([{ ...chickenWithRice, rating: 4 }, omelette]);
+
+    renderApp('/recipes');
+
+    const card = await screen.findByRole('link', { name: /Пиле с ориз/ });
+    expect(
+      within(card).getByRole('img', { name: 'Оценка 4 от 5' }),
+    ).toHaveTextContent('★★★★☆');
+    expect(
+      within(screen.getByRole('link', { name: /Омлет/ })).queryByRole('img'),
+    ).toBeNull();
+  });
+
+  it('„по оценка“ праща sort=rating, „по име“ го маха', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const queries = serveRecipes();
+
+    renderApp('/recipes');
+    await screen.findByRole('link', { name: /Омлет/ });
+    const sort = screen.getByRole('group', { name: 'Подреди' });
+    expect(within(sort).getByRole('radio', { name: 'по име' })).toBeChecked();
+
+    await user.click(within(sort).getByRole('radio', { name: 'по оценка' }));
+    await expect.poll(() => queries.at(-1)?.get('sort')).toBe('rating');
+
+    await user.click(within(sort).getByRole('radio', { name: 'по име' }));
+    await expect.poll(() => queries.at(-1)?.has('sort')).toBe(false);
+  });
+
   it('без рецепти показва празно състояние', async () => {
     setUpDevice('phone', dani.id);
     serveRecipes([]);

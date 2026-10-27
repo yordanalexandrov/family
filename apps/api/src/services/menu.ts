@@ -1,5 +1,4 @@
 import {
-  addDays,
   type CookingMeal,
   type CreateMenuProposal,
   dateKeyInSofia,
@@ -42,7 +41,7 @@ import {
   insertProposal,
   listComments,
   listPlans,
-  listRecipeIdsOfWeeks,
+  listProposalsOfWeek,
   lockWeek,
   type NewMeal,
   setProposalPlan,
@@ -50,6 +49,7 @@ import {
   updateMeal,
   upsertVote,
 } from '../db/repositories/menu.js';
+import { listUseUp } from '../db/repositories/pantry.js';
 import {
   countMenuRecipes,
   isMenuRecipe,
@@ -134,12 +134,15 @@ export interface MenuService {
     actingUserId: string,
   ): Promise<MenuProposalRequest>;
   getProposal(id: string): Promise<MenuProposalRequest>;
+  /** The newest proposal of the week, by a user or the cron; 404 without one. */
+  getLatestProposal(weekStart: string): Promise<MenuProposalRequest>;
 }
 
 /** `menu.propose` as AI requests (GLOSSARY: Предложение за меню), registered in `buildApp()`. */
 export type MenuProposals = ContractRequestHandle<
   CreateMenuProposal,
-  MenuProposalRequest
+  MenuProposalRequest,
+  string | null
 >;
 
 /** Run it in a transaction: holds the week's lock until the plan or the proposal is inserted. */
@@ -170,7 +173,9 @@ function signalAgreement(events: EventBus, weekStart: string): void {
 
 /**
  * How `menu.propose` requests are stored: refused without enough dinner recipes or for a taken week; the input is the
- * dinner registry and the recipes of the 2 previous weeks; a valid answer becomes the week's plan, signalled on `events`.
+ * dinner registry (with ratings and the last serving before the week) and the use-up products; a valid answer becomes
+ * the week's plan, signalled on `events`.
+ * A request without a user (`null`) is the cron's (`services/menu-schedule.ts`), and so is the plan it makes.
  */
 export function createMenuProposalStore(
   events: EventBus,
@@ -178,7 +183,8 @@ export function createMenuProposalStore(
   CreateMenuProposal,
   MenuProposalRequest,
   MenuProposeInput,
-  MenuProposeOutput
+  MenuProposeOutput,
+  string | null
 > {
   return {
     table: menuProposalRequest,
@@ -201,11 +207,8 @@ export function createMenuProposalStore(
       return {
         weekStart: proposal.weekStart,
         slots: [...MENU_SLOTS],
-        recipes: await listMenuRecipes(db, DINNER),
-        recentRecipeIds: await listRecipeIdsOfWeeks(db, [
-          addDays(proposal.weekStart, -14),
-          addDays(proposal.weekStart, -7),
-        ]),
+        recipes: await listMenuRecipes(db, DINNER, proposal.weekStart),
+        useUp: await listUseUp(db),
         hint: proposal.hint,
       };
     },
@@ -456,6 +459,14 @@ export function createMenuService({
         throw new NotFoundError(NO_SUCH_PROPOSAL);
       }
       return proposal;
+    },
+
+    async getLatestProposal(weekStart) {
+      const [latest] = await listProposalsOfWeek(db, weekStart);
+      if (!latest) {
+        throw new NotFoundError(NO_SUCH_PROPOSAL);
+      }
+      return latest;
     },
   };
 }

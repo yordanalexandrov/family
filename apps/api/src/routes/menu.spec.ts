@@ -27,6 +27,7 @@ import {
   completion,
   openclaw,
 } from '../test/openclaw.js';
+import { stockPantry } from '../test/pantry.js';
 import { DANI, POLI } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the week of 2 November has not begun. */
@@ -72,6 +73,7 @@ async function seedFixtureRecipes() {
       steps: ['Сготви.'],
       prepMinutes: entry.prepMinutes,
       tags: entry.tags as (typeof recipe.$inferInsert)['tags'],
+      rating: entry.rating,
     });
     for (const [position, name] of entry.ingredientNames.entries()) {
       await db
@@ -372,7 +374,7 @@ describe('PATCH /api/menu/meals/:id', () => {
     const expected = {
       ...monday,
       recipeId: recipeId(5),
-      recipe: { title: 'Мусака', archivedAt: null },
+      recipe: { title: 'Мусака', archivedAt: null, rating: null },
       cookUserId: POLI.id,
       servings: { [DANI.id]: 2, [POLI.id]: 0 },
       note: 'с двойна порция',
@@ -498,6 +500,22 @@ describe('PATCH /api/menu/meals/:id', () => {
     expect(meal.recipe).toEqual({
       title: monday.recipe.title,
       archivedAt: expect.any(String),
+      rating: monday.recipe.rating,
+    });
+  });
+
+  it('shows the rating of the meal’s recipe, for “Как беше?”', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await inject('PUT', `/api/recipes/${monday.recipeId}/rating`, {
+      rating: 4,
+    });
+
+    const meal = (await getPlan(WEEK)).json().plan.meals[0];
+
+    expect(meal.recipe).toMatchObject({
+      title: monday.recipe.title,
+      rating: 4,
     });
   });
 
@@ -1122,7 +1140,10 @@ describe('POST /api/menu/proposals', () => {
         cookUserId: null,
         note: null,
         servings: { [DANI.id]: 1, [POLI.id]: 1 },
-        recipe: { title: expect.any(String), archivedAt: null },
+        recipe: expect.objectContaining({
+          title: expect.any(String),
+          archivedAt: null,
+        }),
       });
     }
   });
@@ -1144,7 +1165,7 @@ describe('POST /api/menu/proposals', () => {
     unsubscribe();
   });
 
-  it('sends the agent the dinner registry and the recipes of the 2 previous weeks', async () => {
+  it('sends the agent the dinner registry with ratings and last served dates, and the use-up products', async () => {
     const bodies = answerInTurn(JSON.stringify(fixture()));
     // Lunch only and archived: not to choose from.
     await testDb()
@@ -1168,7 +1189,21 @@ describe('POST /api/menu/proposals', () => {
     const lastWeek = await createPlan('2026-10-26');
     await patchMeal(lastWeek.meals[0].id, { recipeId: recipeId(4) });
     await patchMeal(lastWeek.meals[1].id, { note: 'ядем навън' });
+    // The current week counts as served, also its days still to come: Saturday 31 October is recipe 1's latest.
+    await patchMeal(lastWeek.meals[5].id, { recipeId: recipeId(1) });
+    // A meal after the proposed week is not a serving before it.
+    const later = await createPlan('2026-11-09');
+    await patchMeal(later.meals[0].id, { recipeId: recipeId(2) });
+    await patchMeal(later.meals[1].id, { recipeId: recipeId(1) });
     clock = NOW;
+    // Staples stay out of the input; use-up products go in, the oldest first.
+    await stockPantry(app, [
+      { name: 'ориз', kind: 'staple' },
+      ...proposeInput.useUp.map((item) => ({
+        ...item,
+        kind: 'use_up' as const,
+      })),
+    ]);
 
     const proposal = await propose({
       weekStart: WEEK,
@@ -1254,6 +1289,120 @@ describe('POST /api/menu/proposals', () => {
     expect(twice.json()).toMatchObject({ error: 'conflict' });
     release();
     await finished(pending.id);
+  });
+});
+
+describe('menu proposal of the cron (Wednesday 09:00)', () => {
+  let cron: FastifyInstance | undefined;
+
+  afterEach(async () => {
+    await cron?.close();
+    cron = undefined;
+  });
+
+  /** An app whose scheduler runs its jobs at once, as after a start or a deploy. */
+  async function startCron() {
+    cron = buildTestApp({
+      now: () => clock,
+      scheduler: { firstRunDelayMs: 0 },
+    });
+    await cron.ready();
+    return cron;
+  }
+
+  /** The app's cron job; a test app without one fails here instead of passing silently. */
+  function scheduleOf(instance: FastifyInstance) {
+    const { menuSchedule } = instance;
+    expect(menuSchedule).not.toBeNull();
+    if (!menuSchedule) {
+      throw new Error('the test app has no menu schedule');
+    }
+    return menuSchedule;
+  }
+
+  /** The latest proposal of the week, once there is one. */
+  async function latestProposal(weekStart: string) {
+    let proposal: { id: string } | undefined;
+    await vi.waitFor(async () => {
+      const response = await inject(
+        'GET',
+        `/api/menu/proposals?weekStart=${weekStart}`,
+      );
+      expect(response.statusCode).toBe(200);
+      proposal = response.json().proposal;
+    });
+    return proposal as { id: string };
+  }
+
+  it('proposes the next week by itself, without a user, and signals the plan', async () => {
+    const signals: ServerEvent[] = [];
+    const started = await startCron();
+    const unsubscribe = started.events.subscribe((event) =>
+      signals.push(event),
+    );
+
+    const proposal = await latestProposal(WEEK);
+
+    expect(proposal).toMatchObject({
+      weekStart: WEEK,
+      trigger: 'schedule',
+      requestedBy: null,
+    });
+    expect(await finished(proposal.id)).toMatchObject({ status: 'done' });
+    const { plan } = (await getPlan(WEEK)).json();
+    expect(plan).toMatchObject({
+      summary: proposeFixture.summary,
+      createdBy: null,
+    });
+    await vi.waitFor(() =>
+      expect(signals).toContainEqual({ type: 'menu.changed', weekStart: WEEK }),
+    );
+    unsubscribe();
+  });
+
+  it('does not try again after a failure, while a user still can', async () => {
+    answerInTurn('not json');
+    const app2 = await startCron();
+    const failed = await latestProposal(WEEK);
+    expect(await finished(failed.id)).toMatchObject({
+      status: 'failed',
+      trigger: 'schedule',
+    });
+
+    // The next cycle, or a restart, leaves the week to the users.
+    await scheduleOf(app2).run();
+    await app2.close();
+    const restarted = await startCron();
+    await scheduleOf(restarted).run();
+
+    expect(await latestProposal(WEEK)).toMatchObject({ id: failed.id });
+    answerInTurn(JSON.stringify(proposeFixture));
+    const manual = await propose({ weekStart: WEEK });
+    expect(manual).toMatchObject({ trigger: 'user', requestedBy: DANI.id });
+    expect(await finished(manual.id)).toMatchObject({ status: 'done' });
+  });
+
+  it('waits until Wednesday 09:00 in Sofia', async () => {
+    clock = new Date('2026-10-28T06:59:00Z');
+    const early = await startCron();
+    await scheduleOf(early).run();
+
+    const response = await inject(
+      'GET',
+      `/api/menu/proposals?weekStart=${WEEK}`,
+    );
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('still needs a user for a proposal by hand', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/menu/proposals',
+      payload: { weekStart: WEEK },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'missing_acting_user' });
   });
 });
 

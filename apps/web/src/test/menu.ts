@@ -72,9 +72,40 @@ export const pendingProposal: MenuProposalRequest = {
   weekStart: thisWeek,
   hint: 'повече риба',
   status: 'pending',
+  trigger: 'user',
   requestedBy: dani.id,
   createdAt: '2026-11-04T08:00:00.000Z',
 };
+
+/** Предложението на крона в сряда 09:00 за следващата седмица: без подсказка и без потребител. */
+export const scheduledProposal: MenuProposalRequest = {
+  id: 'ffffffff-0000-4000-8000-000000000002',
+  weekStart: nextWeek,
+  status: 'pending',
+  trigger: 'schedule',
+  requestedBy: null,
+  createdAt: '2026-11-04T07:00:00.000Z',
+};
+
+/**
+ * `GET /api/menu/proposals?weekStart=` с поредните състояния на последното предложение на седмицата; последното се
+ * повтаря. Без него (handler-ът по подразбиране) седмицата няма предложение.
+ */
+export function serveWeekProposal(...states: MenuProposalRequest[]) {
+  let calls = 0;
+  server.use(
+    http.get('/api/menu/proposals', ({ request }) => {
+      const weekStart = new URL(request.url).searchParams.get('weekStart');
+      const proposal = states[Math.min(calls, states.length - 1)];
+      if (!proposal || proposal.weekStart !== weekStart) {
+        return notFound();
+      }
+      calls += 1;
+      return HttpResponse.json({ proposal });
+    }),
+  );
+  return () => calls;
+}
 
 function notFound() {
   return HttpResponse.json(
@@ -119,6 +150,7 @@ export function serveDinnerRecipes() {
             servings: 4,
             tags: ['dinner'],
             archivedAt: null,
+            rating: null,
           })),
       });
     }),
@@ -147,7 +179,9 @@ export function serveMealUpdates(plan: MealPlan) {
       const next: Meal = { ...current, ...body };
       if ('recipeId' in body && body.recipeId !== current.recipeId) {
         const recipe = dinnerRecipes.find((r) => r.id === body.recipeId);
-        next.recipe = recipe ? { title: recipe.title, archivedAt: null } : null;
+        next.recipe = recipe
+          ? { title: recipe.title, archivedAt: null, rating: null }
+          : null;
         next.why = null;
       }
       plan.meals = plan.meals.map((m) => (m.id === id ? next : m));

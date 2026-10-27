@@ -57,11 +57,25 @@ export const recipeLineSchema = z.object({
 
 export type RecipeLine = z.infer<typeof recipeLineSchema>;
 
-/** A recipe in the registry; archived ones keep `archivedAt` and are hidden by default. */
+/** GLOSSARY: Оценка. The family's 1–5 stars for a recipe; one per recipe, anyone changes it. */
+export const ratingSchema = z.int().min(1).max(5);
+
+export type Rating = z.infer<typeof ratingSchema>;
+
+/** `PUT /api/recipes/:id/rating`; `DELETE` on the same path makes the recipe unrated again. */
+export const putRatingSchema = z.object({ rating: ratingSchema });
+
+export type PutRating = z.infer<typeof putRatingSchema>;
+
+/**
+ * A recipe in the registry; archived ones keep `archivedAt` and are hidden by default. `rating` is `null` while the
+ * recipe is unrated; it is not part of `RecipeInput`, so replacing a recipe keeps it.
+ */
 export const recipeSchema = recipeInputSchema.extend({
   ingredients: z.array(recipeLineSchema),
   id: z.uuid(),
   archivedAt: z.iso.datetime().nullable(),
+  rating: ratingSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -80,6 +94,7 @@ export const recipeSummarySchema = recipeSchema.pick({
   prepMinutes: true,
   tags: true,
   archivedAt: true,
+  rating: true,
 });
 
 export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
@@ -92,6 +107,11 @@ function repeated<T extends z.ZodType>(item: T) {
   );
 }
 
+/** Order of `GET /api/recipes`: by title, or best rated first with the unrated last (by title within a rating). */
+export const recipesSortSchema = z.enum(['title', 'rating']);
+
+export type RecipesSort = z.infer<typeof recipesSortSchema>;
+
 /**
  * `GET /api/recipes`: `q` matches anywhere in the title ignoring case. `tag` repeats: slot tags match any of them
  * (обяд или вечеря), the other tags all of them. `time` repeats: recipes whose prep time is in any of the intervals
@@ -102,6 +122,7 @@ export const recipesQuerySchema = z.object({
   tag: repeated(tagSchema),
   time: repeated(prepTimeRangeSchema),
   includeArchived: z.stringbool().default(false),
+  sort: recipesSortSchema.default('title'),
 });
 
 export type RecipesQuery = z.infer<typeof recipesQuerySchema>;

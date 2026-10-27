@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { recipeInputSchema, recipeSchema } from './recipe.js';
+import {
+  putRatingSchema,
+  recipeInputSchema,
+  recipeSchema,
+  recipesQuerySchema,
+} from './recipe.js';
 
 const SALT = '44444444-4444-4444-8444-444444444444';
 const POTATO = '55555555-5555-4555-8555-555555555555';
@@ -37,11 +42,30 @@ describe('recipeSchema', () => {
       ],
       id: '66666666-6666-4666-8666-666666666666',
       archivedAt: null,
+      rating: 4,
       createdAt: '2026-10-25T10:00:00.000Z',
       updatedAt: '2026-10-25T10:00:00.000Z',
     };
 
     expect(recipeSchema.parse(stored)).toEqual(stored);
+  });
+});
+
+describe('putRatingSchema', () => {
+  it.each([1, 5])('accepts %j stars', (rating) => {
+    expect(putRatingSchema.parse({ rating })).toEqual({ rating });
+  });
+
+  it.each([0, 6, 2.5, '3', null])('refuses rating %j', (rating) => {
+    expect(putRatingSchema.safeParse({ rating }).success).toBe(false);
+  });
+});
+
+describe('recipesQuerySchema', () => {
+  it('sorts by title unless sort=rating', () => {
+    expect(recipesQuerySchema.parse({}).sort).toBe('title');
+    expect(recipesQuerySchema.parse({ sort: 'rating' }).sort).toBe('rating');
+    expect(recipesQuerySchema.safeParse({ sort: 'stars' }).success).toBe(false);
   });
 });
 

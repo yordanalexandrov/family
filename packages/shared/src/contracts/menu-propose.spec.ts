@@ -91,11 +91,58 @@ describe('menuPropose.inputSchema', () => {
     expect(menuPropose.inputSchema.parse(inputFixture)).toEqual(inputFixture);
   });
 
-  it('accepts an input without hint and without recent recipes', () => {
+  it('accepts rated and served recipes and the use-up products of the pantry', () => {
+    const input = menuPropose.inputSchema.parse(inputFixture);
+
+    expect(input.recipes).toContainEqual(
+      expect.objectContaining({ title: 'Леща яхния', rating: 5 }),
+    );
+    expect(input.recipes).toContainEqual(
+      expect.objectContaining({
+        title: 'Спагети болонезе',
+        lastServedOn: '2026-10-26',
+      }),
+    );
+    expect(input.useUp).toEqual([
+      { name: 'спанак', note: 'фризер, ~400 г' },
+      { name: 'тиквичка' },
+    ]);
+  });
+
+  it('accepts an input without hint, ratings, served dates and use-up products', () => {
     const { hint: _hint, ...rest } = clone(inputFixture);
-    const input = { ...rest, recentRecipeIds: [] };
+    const input = {
+      ...rest,
+      recipes: rest.recipes.map(
+        ({ rating: _rating, lastServedOn: _served, ...recipe }) => recipe,
+      ),
+      useUp: [],
+    };
 
     expect(menuPropose.inputSchema.parse(input)).toEqual(input);
+  });
+
+  it('rejects a rating outside 1 to 5', () => {
+    const input = clone(inputFixture);
+    input.recipes[0] = { ...input.recipes[0], rating: 6 } as never;
+
+    expect(menuPropose.inputSchema.safeParse(input).success).toBe(false);
+  });
+
+  it('rejects a served date that is not a date', () => {
+    const input = clone(inputFixture);
+    input.recipes[0] = { ...input.recipes[0], lastServedOn: 'вчера' } as never;
+
+    expect(menuPropose.inputSchema.safeParse(input).success).toBe(false);
+  });
+
+  it('no longer takes recentRecipeIds', () => {
+    expect(
+      menuPropose.inputSchema.safeParse({
+        ...inputFixture,
+        recentRecipeIds: [],
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects a hint longer than 200 characters', () => {
@@ -167,10 +214,15 @@ describe('menuPropose.outputSchema: rules against the input', () => {
     expect(problems(output)).toContainEqual(expect.stringContaining('lunch'));
   });
 
-  it('allows a recent recipe: avoiding it is a preference, not a rule', () => {
+  it('allows a recently served recipe: avoiding it is a preference, not a rule', () => {
     const input = validInput();
     const output = validOutput();
-    output.days[4].recipeId = input.recentRecipeIds[0];
+    // Served last week, the Monday before the proposed one.
+    const served = input.recipes.find(
+      (recipe) => recipe.lastServedOn === '2026-10-26',
+    );
+    expect(served).toBeDefined();
+    output.days[4].recipeId = served?.id;
 
     expect(problems(output, input)).toEqual([]);
   });

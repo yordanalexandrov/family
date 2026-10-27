@@ -67,7 +67,7 @@
   stroke-linejoin: round;
 }
 
-/* Тесен телефон (≤ 480 px): по-малко въздух; шестте се събират и на 360 px. */
+/* Тесен телефон (≤ 480 px): по-малко въздух; седемте се събират и на 360 px. */
 @media (max-width: 30rem) {
   .bottom-nav {
     padding-inline: var(--space-2);

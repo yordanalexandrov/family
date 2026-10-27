@@ -8,8 +8,14 @@ import { weekStartSchema } from './schemas/menu.js';
 export const serverEventSchema = z.discriminatedUnion('type', [
   /** The plan of the week, or one of its meals, changed (created, deleted, edited, proposed). */
   z.object({ type: z.literal('menu.changed'), weekStart: weekStartSchema }),
-  /** The shopping list of the week changed: a check, a hidden row, a manual row, or the menu it is computed from. */
-  z.object({ type: z.literal('shopping.changed'), weekStart: weekStartSchema }),
+  /**
+   * The shopping list of the week changed: a check, a hidden row, a manual row, or the menu it is computed from.
+   * Without `weekStart` every list changed: the pantry (GLOSSARY: Килер) applies to all weeks.
+   */
+  z.object({
+    type: z.literal('shopping.changed'),
+    weekStart: weekStartSchema.optional(),
+  }),
 ]);
 
 export type ServerEvent = z.infer<typeof serverEventSchema>;

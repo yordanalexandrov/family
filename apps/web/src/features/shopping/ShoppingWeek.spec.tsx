@@ -1,13 +1,18 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextWeek, thisWeek } from '../../test/menu';
 import { dani, fixtureNow } from '../../test/msw';
+import { pantryItem, servePantry } from '../../test/pantry';
 import { renderApp, setUpDevice } from '../../test/render';
 import {
   coffee,
+  mince,
   oil,
   onions,
+  pantryRice,
+  pantryShoppingList,
+  ranOutMilk,
   serveShopping,
   shoppingList,
   tomatoes,
@@ -324,5 +329,192 @@ describe('ShoppingWeek', () => {
     expect(
       within(nav).getByRole('link', { name: 'Пазаруване' }),
     ).toHaveAttribute('aria-current', 'page');
+  });
+
+  describe('килерът', () => {
+    it('лентата „🏠 Скрити от килера: N“ се разгъва до скритите редове и води до килера', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+
+      renderApp('/shopping');
+      const toggle = await screen.findByRole('button', {
+        name: '🏠 Скрити от килера: 2',
+      });
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        screen.queryByRole('list', { name: 'Скрити от килера' }),
+      ).not.toBeInTheDocument();
+      // Лентата води до килера и свита.
+      expect(screen.getByRole('link', { name: 'Към килера' })).toHaveAttribute(
+        'href',
+        '/pantry',
+      );
+      await user.click(toggle);
+
+      const hidden = screen.getByRole('list', { name: 'Скрити от килера' });
+      expect(
+        within(hidden)
+          .getAllByRole('listitem')
+          .map(
+            (row) => row.querySelector('.shopping-item__title')?.textContent,
+          ),
+      ).toEqual(['Ориз', 'Сол']);
+      expect(hidden).toHaveTextContent('400 г');
+      expect(screen.getByRole('link', { name: 'Към килера' })).toHaveAttribute(
+        'href',
+        '/pantry',
+      );
+      expect(screen.queryByRole('checkbox', { name: 'Ориз' })).toBeNull();
+    });
+
+    it('„Свърши“ на скрит ред праща POST /api/pantry/:id/ran-out', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+      const pantry = servePantry([
+        pantryItem(
+          {
+            id: 'c0000000-0000-4000-8000-000000000009',
+            name: 'Ориз',
+            unit: 'g',
+            aisle: 'grains',
+          },
+          { id: pantryRice.pantry?.id ?? '' },
+        ),
+      ]);
+
+      renderApp('/shopping');
+      await user.click(
+        await screen.findByRole('button', { name: '🏠 Скрити от килера: 2' }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Свърши Ориз' }));
+
+      await vi.waitFor(() =>
+        expect(pantry).toEqual([{ method: 'POST', id: pantryRice.pantry?.id }]),
+      );
+    });
+
+    it('значки: „свърши“ на свършил постоянен, „🏠 в килера — провери“ с бележката на временен', async () => {
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+
+      renderApp('/shopping');
+
+      const milk = (
+        await screen.findByRole('checkbox', { name: ranOutMilk.title })
+      ).closest('li');
+      expect(milk).toHaveTextContent('свърши');
+      const oilRow = screen
+        .getByRole('checkbox', { name: 'Слънчогледово олио' })
+        .closest('li');
+      expect(oilRow).toHaveTextContent('свърши');
+      const minceRow = screen
+        .getByRole('checkbox', { name: mince.title })
+        .closest('li');
+      expect(minceRow).toHaveTextContent('🏠 в килера — провери · фризер');
+      expect(minceRow).toHaveTextContent('500 г');
+      const tomatoRow = screen
+        .getByRole('checkbox', { name: tomatoes.title })
+        .closest('li');
+      expect(tomatoRow).not.toHaveTextContent('килера');
+      expect(tomatoRow).not.toHaveTextContent('свърши');
+    });
+
+    it('„Имаме го винаги“ в менюто на реда добавя продукта като постоянен', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+      const pantry = servePantry();
+
+      renderApp('/shopping');
+      await user.click(
+        await screen.findByRole('button', { name: 'Домати: от кои ястия' }),
+      );
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Домати' })).getByRole(
+          'button',
+          { name: 'Имаме го винаги' },
+        ),
+      );
+
+      await vi.waitFor(() =>
+        expect(pantry).toEqual([
+          {
+            method: 'POST',
+            body: {
+              ingredientId: 'c0000000-0000-4000-8000-000000000001',
+              kind: 'staple',
+            },
+          },
+        ]),
+      );
+    });
+
+    it('„Имаме го винаги“ на временен продукт го прави постоянен', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+      const pantry = servePantry();
+
+      renderApp('/shopping');
+      await user.click(
+        await screen.findByRole('button', { name: 'Кайма: от кои ястия' }),
+      );
+      await user.click(
+        within(screen.getByRole('dialog', { name: 'Кайма' })).getByRole(
+          'button',
+          { name: 'Имаме го винаги' },
+        ),
+      );
+
+      await vi.waitFor(() =>
+        expect(pantry).toEqual([
+          { method: 'PATCH', id: mince.pantry?.id, body: { kind: 'staple' } },
+        ]),
+      );
+    });
+
+    it('постоянен продукт няма „Имаме го винаги“', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+
+      renderApp('/shopping');
+      await user.click(
+        await screen.findByRole('button', {
+          name: `${ranOutMilk.title}: от кои ястия`,
+        }),
+      );
+
+      expect(
+        within(screen.getByRole('dialog')).queryByRole('button', {
+          name: 'Имаме го винаги',
+        }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('без връзка „Свърши“ и „Имаме го винаги“ са неактивни с подсказка', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: pantryShoppingList() });
+      renderApp('/shopping');
+      await screen.findByRole('button', { name: '🏠 Скрити от килера: 2' });
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+      act(() => {
+        window.dispatchEvent(new Event('offline'));
+      });
+
+      await user.click(
+        screen.getByRole('button', { name: '🏠 Скрити от килера: 2' }),
+      );
+      expect(
+        screen.getByRole('button', { name: 'Свърши Ориз' }),
+      ).toBeDisabled();
+      await user.click(
+        screen.getByRole('button', { name: 'Домати: от кои ястия' }),
+      );
+      const sheet = screen.getByRole('dialog', { name: 'Домати' });
+      expect(
+        within(sheet).getByRole('button', { name: 'Имаме го винаги' }),
+      ).toBeDisabled();
+      expect(sheet).toHaveTextContent('Иска връзка');
+      expect(screen.getAllByText('Иска връзка').length).toBeGreaterThanOrEqual(
+        2,
+      );
+    });
   });
 });

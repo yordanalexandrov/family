@@ -1,11 +1,12 @@
 import {
-  addDays,
   MEAL_REPLACE_MIN_RECIPES,
   type MealReplaceInput,
   type MealReplaceOutput,
   type MealReplaceRequest,
+  type MenuProposeRecipe,
   mealTitle,
 } from '@family/shared';
+import type { DbExecutor } from '../db/client.js';
 import {
   findReplacement,
   hasPendingReplacement,
@@ -18,8 +19,8 @@ import {
   findPlanByWeek,
   findPlanSummary,
   listComments,
-  listRecipeIdsOfWeeks,
 } from '../db/repositories/menu.js';
+import { listUseUp } from '../db/repositories/pantry.js';
 import { listMenuRecipes } from '../db/repositories/recipes.js';
 import { listUsers } from '../db/repositories/users.js';
 import { mealReplaceRequest } from '../db/schema/menu.js';
@@ -33,6 +34,22 @@ import { NO_SUCH_MEAL, refusePastMeal } from './menu.js';
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
 
 /**
+ * The registry recipes of the meal's slot other than its own: what `meal.replace` may pick from, each last served
+ * before the meal's date.
+ */
+async function otherRecipes(
+  db: DbExecutor,
+  meal: {
+    date: string;
+    slot: MealReplaceInput['slot'];
+    recipeId: string | null;
+  },
+): Promise<MenuProposeRecipe[]> {
+  const recipes = await listMenuRecipes(db, meal.slot, meal.date);
+  return recipes.filter((recipe) => recipe.id !== meal.recipeId);
+}
+
+/**
  * „✨ Предложи друго“: `meal.replace` as AI requests, registered in `buildApp()` as `app.mealReplacements`; the params
  * are the meal's id. One request per meal at a time; picking a candidate is `PATCH` of the meal.
  */
@@ -44,7 +61,8 @@ export type MealReplacements = ContractRequestHandle<
 /**
  * How `meal.replace` requests are stored: refused for an unknown or past meal, with fewer than 3 other recipes of its
  * slot, or while one is pending for the meal. The input is the meal, its thread, the other meals of its week, the
- * registry without its recipe and the recipes of the 2 previous weeks; a valid answer is kept as the candidates.
+ * registry without its recipe (with ratings and last servings) and the use-up products; a valid answer is kept as the
+ * candidates.
  */
 export function createMealReplaceStore(
   now: () => Date,
@@ -64,9 +82,7 @@ export function createMealReplaceStore(
         throw new NotFoundError(NO_SUCH_MEAL);
       }
       refusePastMeal(meal, now());
-      const have = (await listMenuRecipes(tx, meal.slot)).filter(
-        (recipe) => recipe.id !== meal.recipeId,
-      ).length;
+      const have = (await otherRecipes(tx, meal)).length;
       if (have < MEAL_REPLACE_MIN_RECIPES) {
         throw new ConflictError(
           `За друго ястие трябват поне ${MEAL_REPLACE_MIN_RECIPES} други рецепти`,
@@ -114,13 +130,8 @@ export function createMealReplaceStore(
             ? [{ date: other.date, title }]
             : [];
         }),
-        recipes: (await listMenuRecipes(db, meal.slot)).filter(
-          (recipe) => recipe.id !== meal.recipeId,
-        ),
-        recentRecipeIds: await listRecipeIdsOfWeeks(db, [
-          addDays(plan.weekStart, -14),
-          addDays(plan.weekStart, -7),
-        ]),
+        recipes: await otherRecipes(db, meal),
+        useUp: await listUseUp(db),
       };
     },
 

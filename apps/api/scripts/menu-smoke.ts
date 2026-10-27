@@ -1,7 +1,8 @@
 // Asks the real `family-menu` agent for one weekly menu, through the api's OpenClaw client, and prints it.
 // Manual check against the gateway (README → "Smoke тест на menu.propose"); not part of `pnpm test`.
 //   pnpm --filter api menu:smoke -- [--hint "..."] [--save out.json]
-// The input is the registry of the fixture `menu-propose.input.json` (10 dinners, 2 recent ones), so a saved answer
+// The input is the registry of the fixture `menu-propose.input.json` (10 dinners, some rated or served, 2 use-up
+// products in the pantry), so a saved answer
 // can replace `menu-propose.valid.json` as it is.
 import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
@@ -35,6 +36,24 @@ if (!parsed.success) {
 }
 const input = parsed.data;
 
+/** Rating, last serving and the use-up products the "why" names (by stem, Bulgarian inflects), for a smoke line. */
+function marks(
+  recipe: { rating?: number; lastServedOn?: string } | undefined,
+  why: string,
+  useUp: { name: string }[],
+): string {
+  const named = useUp.filter(({ name }) =>
+    why
+      .toLowerCase()
+      .includes(name.toLowerCase().slice(0, Math.max(4, name.length - 2))),
+  );
+  return [
+    recipe?.rating ? ` [★${recipe.rating}]` : ' [без оценка]',
+    recipe?.lastServedOn ? ` [последно ${recipe.lastServedOn}]` : '',
+    named.length ? ` [килер: ${named.map(({ name }) => name).join(', ')}]` : '',
+  ].join('');
+}
+
 const config = loadOpenClawConfig();
 // The client logs only agent, attempt, status, duration and usage; the password stays in the Authorization header.
 const log = (level: string) => (details: object, message: string) =>
@@ -51,7 +70,7 @@ if (!client) {
 }
 
 process.stderr.write(
-  `→ ${config.url} openclaw/${config.menuAgent}, timeout ${config.timeoutMs} ms, week ${input.weekStart}, ${input.recipes.length} recipes, hint ${JSON.stringify(input.hint ?? null)}\n`,
+  `→ ${config.url} openclaw/${config.menuAgent}, timeout ${config.timeoutMs} ms, week ${input.weekStart}, ${input.recipes.length} recipes, hint ${JSON.stringify(input.hint ?? null)}, килер ${JSON.stringify(input.useUp)}\n`,
 );
 const started = performance.now();
 try {
@@ -61,11 +80,10 @@ try {
   const seconds = ((performance.now() - started) / 1000).toFixed(1);
 
   const recipes = new Map(input.recipes.map((recipe) => [recipe.id, recipe]));
-  const recent = new Set(input.recentRecipeIds);
   const lines = output.days.flatMap((day) => {
     const recipe = recipes.get(day.recipeId);
     return [
-      `${day.date} ${day.slot}: ${recipe?.title} (${recipe?.prepMinutes ?? '?'} мин, ${recipe?.tags.join(', ')})${recent.has(day.recipeId) ? ' [от последните 2 седмици]' : ''}`,
+      `${day.date} ${day.slot}: ${recipe?.title} (${recipe?.prepMinutes ?? '?'} мин, ${recipe?.tags.join(', ')})${marks(recipe, day.why, input.useUp)}`,
       `   Защо: ${day.why}`,
     ];
   });

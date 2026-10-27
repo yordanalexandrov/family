@@ -14,11 +14,11 @@ function planWithMoussaka() {
   return planFor(thisWeek, {
     3: {
       recipeId: moussaka.id,
-      recipe: { title: moussaka.title, archivedAt: null },
+      recipe: { title: moussaka.title, archivedAt: null, rating: null },
     },
     4: {
       recipeId: chicken.id,
-      recipe: { title: chicken.title, archivedAt: null },
+      recipe: { title: chicken.title, archivedAt: null, rating: null },
     },
   });
 }
@@ -143,7 +143,7 @@ describe('MealSheet: „Премести на…“', () => {
     const plan = planFor(thisWeek, {
       0: {
         recipeId: chicken.id,
-        recipe: { title: chicken.title, archivedAt: null },
+        recipe: { title: chicken.title, archivedAt: null, rating: null },
       },
     });
     servePlans({ [thisWeek]: plan });

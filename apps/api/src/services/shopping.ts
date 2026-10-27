@@ -9,6 +9,7 @@ import {
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import { findPlanByWeek } from '../db/repositories/menu.js';
+import { listPantryItems, setPantryRanOut } from '../db/repositories/pantry.js';
 import { findRecipe } from '../db/repositories/recipes.js';
 import {
   deleteManualItem,
@@ -27,8 +28,13 @@ export interface ShoppingDeps {
   events: EventBus;
 }
 
-function signal(events: EventBus, weekStart: string): void {
-  events.publish({ type: 'shopping.changed', weekStart });
+/** Without a week: the pantry changed, which applies to every list. */
+function signal(events: EventBus, weekStart?: string): void {
+  events.publish(
+    weekStart
+      ? { type: 'shopping.changed', weekStart }
+      : { type: 'shopping.changed' },
+  );
 }
 
 /**
@@ -48,9 +54,13 @@ async function openList(
 
 const NO_SUCH_ITEM = 'Няма такъв ред в списъка';
 
-/** Every row of the list, visible or hidden. */
+/** Every row of the list, visible, hidden or hidden by the pantry. */
 function itemsOf(list: ShoppingList): ShoppingItem[] {
-  return [...list.aisles.flatMap((aisle) => aisle.items), ...list.hidden];
+  return [
+    ...list.aisles.flatMap((aisle) => aisle.items),
+    ...list.hidden,
+    ...list.pantryHidden,
+  ];
 }
 
 /** The row of `key` in the list; an unknown key (e.g. the menu has changed) is a 404. */
@@ -72,7 +82,10 @@ async function readItem(
   return findItem(await computeList(db, plan, listId), key);
 }
 
-/** The list computed from the current menu with the stored checks, hidden items and manual items laid over it. */
+/**
+ * The list computed from the current menu with the stored checks, hidden items and manual items laid over it, and the
+ * pantry: staples hidden by it, staples that ran out shown, use-up items marked.
+ */
 async function computeList(
   db: DbExecutor,
   plan: MealPlan,
@@ -88,6 +101,7 @@ async function computeList(
     plan,
     recipes: recipes.filter((recipe) => recipe !== undefined),
     items: await listShoppingItems(db, listId),
+    pantry: await listPantryItems(db),
   });
 }
 
@@ -102,7 +116,8 @@ export async function getShoppingList(
 
 /**
  * Checks or unchecks a row (GLOSSARY: Отметка) as the acting user at `now`; the last write wins, whoever checked it
- * before. A computed key must be in the list as it is now computed.
+ * before. A computed key must be in the list as it is now computed. Checking the row of a staple that ran out buys
+ * it: `ran_out_at` is cleared in the same transaction and every list is signalled; unchecking does not bring it back.
  */
 export async function setItemChecked(
   { db, events }: ShoppingDeps,
@@ -129,13 +144,22 @@ export async function setItemChecked(
     } else {
       await setComputedItemOverlay(tx, listId, key, check);
     }
+    const bought = checked && item.pantry?.ranOut === true;
+    if (bought && item.pantry) {
+      await setPantryRanOut(tx, item.pantry.id, null);
+    }
     return {
-      ...item,
-      ...checkState(checked, actingUserId, now.toISOString()),
+      bought,
+      item: {
+        ...item,
+        ...checkState(checked, actingUserId, now.toISOString()),
+        ...(bought &&
+          item.pantry && { pantry: { ...item.pantry, ranOut: false } }),
+      },
     };
   });
-  signal(events, weekStart);
-  return updated;
+  signal(events, updated.bought ? undefined : weekStart);
+  return updated.item;
 }
 
 /** Hides or shows a computed row (GLOSSARY: Скрит ред); a manual row is deleted instead, so hiding it is a 400. */

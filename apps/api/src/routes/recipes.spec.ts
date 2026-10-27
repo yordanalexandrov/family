@@ -4,6 +4,7 @@ import {
   type RecipeInput,
   recipeResponseSchema,
   recipesResponseSchema,
+  type ServerEvent,
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -112,6 +113,7 @@ describe('POST /api/recipes', () => {
           },
         ],
         archivedAt: null,
+        rating: null,
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
       },
@@ -190,7 +192,38 @@ describe('GET /api/recipes', () => {
         prepMinutes: 10,
         tags: ['lunch'],
         archivedAt: null,
+        rating: null,
       },
+    ]);
+  });
+
+  it('sort=rating lists the best rated first and the unrated last, by title within a rating', async () => {
+    const rated = async (title: string, rating: number | null) => {
+      const created = await createdRecipe(recipeInput({ title }));
+      if (rating !== null) {
+        await rate(created.id, rating);
+      }
+    };
+    await rated('Боб чорба', null);
+    await rated('Мусака', 3);
+    await rated('Таратор', 5);
+    await rated('Гювеч', 3);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/recipes?sort=rating',
+      headers,
+    });
+
+    expect(
+      recipesResponseSchema
+        .parse(response.json())
+        .recipes.map((recipe) => [recipe.title, recipe.rating]),
+    ).toEqual([
+      ['Таратор', 5],
+      ['Гювеч', 3],
+      ['Мусака', 3],
+      ['Боб чорба', null],
     ]);
   });
 
@@ -389,6 +422,116 @@ describe('PUT /api/recipes/:id', () => {
 
     expect(response.statusCode).toBe(404);
     expect(response.json()).toMatchObject({ error: 'not_found' });
+  });
+});
+
+function rate(id: string, rating: unknown) {
+  return app.inject({
+    method: 'PUT',
+    url: `/api/recipes/${id}/rating`,
+    headers,
+    payload: { rating },
+  });
+}
+
+function unrate(id: string) {
+  return app.inject({
+    method: 'DELETE',
+    url: `/api/recipes/${id}/rating`,
+    headers,
+  });
+}
+
+/** The signals published while `act` runs. */
+async function signalsOf(act: () => Promise<unknown>): Promise<ServerEvent[]> {
+  const signals: ServerEvent[] = [];
+  const unsubscribe = app.events.subscribe((event) => signals.push(event));
+  try {
+    await act();
+  } finally {
+    unsubscribe();
+  }
+  return signals;
+}
+
+describe('PUT and DELETE /api/recipes/:id/rating', () => {
+  it('rates a recipe, changes the rating and takes it back, answering the updated recipe', async () => {
+    const created = await createdRecipe(recipeInput());
+
+    const first = await rate(created.id, 4);
+    expect(first.statusCode).toBe(200);
+    expect(recipeResponseSchema.parse(first.json()).recipe).toEqual({
+      ...created,
+      rating: 4,
+    });
+
+    const changed = await rate(created.id, 2);
+    expect(changed.json().recipe.rating).toBe(2);
+    expect((await getRecipe(created.id)).json().recipe.rating).toBe(2);
+
+    const removed = await unrate(created.id);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().recipe.rating).toBeNull();
+    expect((await getRecipe(created.id)).json().recipe.rating).toBeNull();
+  });
+
+  it('keeps the rating when the recipe is replaced', async () => {
+    const created = await createdRecipe(recipeInput());
+    await rate(created.id, 5);
+
+    const replaced = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}`,
+      headers,
+      payload: recipeInput({ title: 'Картофи на фурна' }),
+    });
+
+    expect(replaced.json().recipe.rating).toBe(5);
+  });
+
+  it('rates an archived recipe', async () => {
+    const created = await createdRecipe(recipeInput());
+    await archive(created.id);
+
+    const response = await rate(created.id, 3);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().recipe).toMatchObject({
+      rating: 3,
+      archivedAt: expect.any(String),
+    });
+  });
+
+  it.each([0, 6, 3.5, '4', null])(
+    'answers 400 validation_error for rating %j and keeps the rating',
+    async (rating) => {
+      const created = await createdRecipe(recipeInput());
+      await rate(created.id, 4);
+
+      const response = await rate(created.id, rating);
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ error: 'validation_error' });
+      expect((await getRecipe(created.id)).json().recipe.rating).toBe(4);
+    },
+  );
+
+  it('answers 404 not_found for an unknown id', async () => {
+    const id = '99999999-9999-4999-8999-999999999999';
+
+    expect((await rate(id, 3)).statusCode).toBe(404);
+    expect((await unrate(id)).statusCode).toBe(404);
+  });
+
+  it('signals no menu.changed: a rating is not a change to the menu', async () => {
+    const created = await createdRecipe(recipeInput());
+
+    const signals = await signalsOf(async () => {
+      await rate(created.id, 5);
+      await unrate(created.id);
+    });
+
+    expect(signals).toEqual([]);
   });
 });
 

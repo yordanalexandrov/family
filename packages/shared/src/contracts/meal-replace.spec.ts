@@ -40,12 +40,39 @@ describe('mealReplace.inputSchema', () => {
     expect(mealReplace.inputSchema.parse(inputFixture)).toEqual(inputFixture);
   });
 
-  it('accepts an empty meal with an empty thread and no recent recipes', () => {
+  it('accepts rated and served recipes and the use-up products of the pantry', () => {
+    const input = mealReplace.inputSchema.parse(inputFixture);
+
+    expect(input.recipes).toContainEqual(
+      expect.objectContaining({ title: 'Спагети болонезе', rating: 2 }),
+    );
+    expect(input.recipes).toContainEqual(
+      expect.objectContaining({
+        title: 'Омлет със спанак и сирене',
+        lastServedOn: '2026-10-21',
+      }),
+    );
+    expect(input.useUp).toEqual([
+      { name: 'спанак', note: 'фризер, ~400 г' },
+      { name: 'тиквичка' },
+    ]);
+  });
+
+  it('no longer takes recentRecipeIds', () => {
+    expect(
+      mealReplace.inputSchema.safeParse({
+        ...inputFixture,
+        recentRecipeIds: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts an empty meal with an empty thread and an empty pantry', () => {
     const input = {
       ...clone(inputFixture),
       current: {},
       thread: [],
-      recentRecipeIds: [],
+      useUp: [],
     };
 
     expect(mealReplace.inputSchema.parse(input)).toEqual(input);
@@ -144,10 +171,15 @@ describe('validateReplacement', () => {
     ]);
   });
 
-  it('allows a recent recipe: avoiding it is a preference, not a rule', () => {
+  it('allows a recently served recipe: avoiding it is a preference, not a rule', () => {
     const input = validInput();
     const output = validOutput();
-    output.candidates[0].recipeId = input.recentRecipeIds[0];
+    // Served last week, the Monday before the proposed one.
+    const served = input.recipes.find(
+      (recipe) => recipe.lastServedOn === '2026-10-26',
+    );
+    expect(served).toBeDefined();
+    output.candidates[0].recipeId = served?.id;
 
     expect(validateReplacement(input, output)).toEqual([]);
   });

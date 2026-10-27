@@ -83,6 +83,10 @@ export const handlers = [
   http.get('/api/menu/meals/:id/comments', () =>
     HttpResponse.json({ comments: [] }),
   ),
+  // Седмица без `serveWeekProposal` няма предложение (нито ръчно, нито от крона).
+  http.get('/api/menu/proposals', () =>
+    apiError(404, 'not_found', 'Няма такова предложение за меню'),
+  ),
   http.get('/api/calendar/events', ({ request }) => {
     const url = new URL(request.url);
     const from = url.searchParams.get('from') ?? dashboard.today;

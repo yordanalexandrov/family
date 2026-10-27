@@ -2,9 +2,11 @@ import { AISLES, type Aisle } from '../food/aisles.js';
 import { normalizeQuantity, type Unit, unitSchema } from '../food/units.js';
 import { totalServings } from '../menu/meal.js';
 import type { MealPlan } from '../schemas/menu.js';
+import type { PantryItem } from '../schemas/pantry.js';
 import type { Recipe } from '../schemas/recipe.js';
 import type {
   ShoppingItem,
+  ShoppingItemPantry,
   ShoppingItemRecord,
   ShoppingList,
 } from '../schemas/shopping.js';
@@ -16,20 +18,29 @@ export interface BuildShoppingListInput {
   recipes: Recipe[];
   /** The stored `shopping_item` records of the plan's list. */
   items: ShoppingItemRecord[];
+  /** The pantry (GLOSSARY: Килер); without it no row is hidden by the pantry. */
+  pantry?: PantryItem[];
 }
 
 /**
  * The shopping list of a weekly menu (GLOSSARY: Списък за пазаруване): every meal with a recipe and servings adds the
  * recipe's ingredients scaled to its servings, summed per ingredient and unit (kg → g, l → ml) over the week and
  * rounded up; a pinch is one row without a quantity. The stored records add checks, hidden items and manual items.
+ *
+ * The pantry: a row of a staple is hidden by the pantry (`pantryHidden`) unless it ran out or is checked; a staple
+ * that ran out and the menu does not want gets a row without a quantity, kept while it is checked. A staple that ran
+ * out is visible in every list, also where its row is hidden by hand. A check from before the staple ran out does not
+ * count. A row of a use-up item stays as it is, marked with the note.
  */
 export function buildShoppingList({
   plan,
   recipes,
   items: records,
+  pantry = [],
 }: BuildShoppingListInput): ShoppingList {
   const recipesById = new Map(recipes.map((r) => [r.id, r]));
-  const computed = new Map<string, ShoppingItem>();
+  const computed = new Map<string, ShoppingItem & { ingredientId: string }>();
+  const notInMenu = new Set<string>();
   const meals = [...plan.meals].sort((a, b) => a.date.localeCompare(b.date));
   for (const meal of meals) {
     const recipe = meal.recipeId ? recipesById.get(meal.recipeId) : undefined;
@@ -44,6 +55,7 @@ export function buildShoppingList({
       const item = computed.get(key) ?? {
         key,
         kind: 'computed',
+        ingredientId: line.ingredientId,
         title: line.ingredient.name,
         quantity: null,
         unit,
@@ -66,34 +78,87 @@ export function buildShoppingList({
       computed.set(key, item);
     }
   }
+  const pantryByIngredient = new Map(
+    pantry.map((entry) => [entry.ingredient.id, entry]),
+  );
+  const wanted = new Set(
+    [...computed.values()].map((item) => item.ingredientId),
+  );
+  for (const entry of pantry) {
+    if (entry.kind !== 'staple' || wanted.has(entry.ingredient.id)) {
+      continue;
+    }
+    const key = computedItemKey(entry.ingredient.id, null);
+    computed.set(key, {
+      key,
+      kind: 'computed',
+      ingredientId: entry.ingredient.id,
+      title: entry.ingredient.name,
+      quantity: null,
+      unit: null,
+      aisle: entry.ingredient.aisle,
+      checkedBy: null,
+      checkedAt: null,
+      hidden: false,
+      sources: [],
+    });
+    notInMenu.add(key);
+  }
   const overlays = new Map(
     records.filter((r) => r.kind === 'computed').map((r) => [r.itemKey, r]),
   );
+  const computedItems = [...computed.values()].flatMap((item) => {
+    const overlay = overlays.get(item.key);
+    const entry = pantryByIngredient.get(item.ingredientId);
+    const ranOutAt = entry?.kind === 'staple' ? entry.ranOutAt : null;
+    // A check from before the staple ran out was of the last purchase.
+    const counts =
+      overlay?.checkedAt != null &&
+      (ranOutAt === null || overlay.checkedAt >= ranOutAt);
+    const row: ShoppingItem = {
+      ...item,
+      quantity:
+        item.quantity === null || item.unit === null
+          ? item.quantity
+          : roundUp(item.quantity, item.unit),
+      checkedBy: counts ? (overlay?.checkedBy ?? null) : null,
+      checkedAt: counts ? (overlay?.checkedAt ?? null) : null,
+      // Every list shows a staple that ran out, so a hand-hidden row of it is visible until it is bought.
+      hidden: (overlay?.hidden ?? false) && ranOutAt === null,
+      ...(entry && { pantry: pantryOf(entry) }),
+    };
+    // The row of a staple the menu does not want lives only while it ran out or is checked.
+    return notInMenu.has(item.key) && ranOutAt === null && !counts ? [] : [row];
+  });
+  const byPantry = (item: ShoppingItem) =>
+    !item.hidden &&
+    item.pantry?.kind === 'staple' &&
+    !item.pantry.ranOut &&
+    item.checkedBy === null;
   const items: ShoppingItem[] = [
-    ...[...computed.values()].map((item) => {
-      const overlay = overlays.get(item.key);
-      return {
-        ...item,
-        quantity:
-          item.quantity === null || item.unit === null
-            ? item.quantity
-            : roundUp(item.quantity, item.unit),
-        checkedBy: overlay?.checkedBy ?? null,
-        checkedAt: overlay?.checkedAt ?? null,
-        hidden: overlay?.hidden ?? false,
-      };
-    }),
+    ...computedItems,
     ...records.filter((r) => r.kind === 'manual').map(toManualItem),
   ];
-  const visible = items.filter((item) => !item.hidden);
+  const visible = items.filter((item) => !item.hidden && !byPantry(item));
+  const flat = (rows: ShoppingItem[]) =>
+    byAisle(rows).flatMap(({ items }) => items);
   return {
     weekStart: plan.weekStart,
     aisles: byAisle(visible),
-    hidden: byAisle(items.filter((item) => item.hidden)).flatMap(
-      ({ items }) => items,
-    ),
+    hidden: flat(items.filter((item) => item.hidden)),
+    pantryHidden: flat(items.filter(byPantry)),
     total: visible.length,
     remaining: visible.filter((item) => item.checkedBy === null).length,
+  };
+}
+
+/** What a row shows of its ingredient's pantry item; only a staple runs out. */
+function pantryOf(entry: PantryItem): ShoppingItemPantry {
+  return {
+    id: entry.id,
+    kind: entry.kind,
+    ...(entry.note !== null && { note: entry.note }),
+    ranOut: entry.kind === 'staple' && entry.ranOutAt !== null,
   };
 }
 

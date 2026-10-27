@@ -18,7 +18,6 @@ import {
   desc,
   eq,
   inArray,
-  isNotNull,
   ne,
   sql,
 } from 'drizzle-orm';
@@ -55,6 +54,7 @@ function toProposal(row: ProposalRow): MenuProposalRequest {
     hint: row.hint ?? undefined,
     status: row.status,
     error: row.error ?? undefined,
+    trigger: row.trigger,
     requestedBy: row.requestedBy,
     planId: row.planId ?? undefined,
     createdAt: row.createdAt.toISOString(),
@@ -62,7 +62,7 @@ function toProposal(row: ProposalRow): MenuProposalRequest {
   };
 }
 
-/** A meal with the title and archive state of its recipe. */
+/** A meal with the title, archive state and rating of its recipe. */
 const mealColumns = {
   id: meal.id,
   planId: meal.planId,
@@ -75,6 +75,7 @@ const mealColumns = {
   why: meal.why,
   recipeTitle: recipe.title,
   recipeArchivedAt: recipe.archivedAt,
+  recipeRating: recipe.rating,
 };
 
 function selectMeals(db: DbExecutor) {
@@ -99,7 +100,7 @@ interface Thread {
 }
 
 function toMeal(
-  { recipeTitle, recipeArchivedAt, ...row }: MealRow,
+  { recipeTitle, recipeArchivedAt, recipeRating, ...row }: MealRow,
   votes: Vote[],
   thread: Thread,
 ): Meal {
@@ -112,6 +113,7 @@ function toMeal(
         ? {
             title: recipeTitle,
             archivedAt: recipeArchivedAt?.toISOString() ?? null,
+            rating: recipeRating,
           }
         : null,
   };
@@ -253,7 +255,11 @@ export interface NewMeal {
 /** A plan with its meals; run it in a transaction. Refused by `meal_plan_week_start_unique` for a second plan. */
 export async function insertPlan(
   db: DbExecutor,
-  plan: { weekStart: string; summary: string | null; createdBy: string },
+  plan: {
+    weekStart: string;
+    summary: string | null;
+    createdBy: string | null;
+  },
   meals: NewMeal[],
 ): Promise<MealPlan> {
   const [row] = await db.insert(mealPlan).values(plan).returning();
@@ -428,33 +434,21 @@ export async function deleteComment(db: DbExecutor, id: string): Promise<void> {
   await db.delete(mealComment).where(eq(mealComment.id, id));
 }
 
-/** Distinct recipes of the meals in the plans of the given weeks. */
-export async function listRecipeIdsOfWeeks(
-  db: DbExecutor,
-  weekStarts: string[],
-): Promise<string[]> {
-  const rows = await db
-    .selectDistinct({ recipeId: meal.recipeId })
-    .from(meal)
-    .innerJoin(mealPlan, eq(mealPlan.id, meal.planId))
-    .where(
-      and(inArray(mealPlan.weekStart, weekStarts), isNotNull(meal.recipeId)),
-    )
-    .orderBy(asc(meal.recipeId));
-  return rows.flatMap((row) => (row.recipeId ? [row.recipeId] : []));
-}
-
-/** A new `pending` proposal. Refused by `menu_proposal_request_pending_week_key` when the week has one. */
+/**
+ * A new `pending` proposal: by a user, or by the cron (`requestedBy` `null`, trigger `schedule`). Refused by
+ * `menu_proposal_request_pending_week_key` when the week has one.
+ */
 export async function insertProposal(
   db: DbExecutor,
   params: { weekStart: string; hint?: string },
-  requestedBy: string,
+  requestedBy: string | null,
 ): Promise<MenuProposalRequest> {
   const [row] = await db
     .insert(menuProposalRequest)
     .values({
       weekStart: params.weekStart,
       hint: params.hint || null,
+      trigger: requestedBy === null ? 'schedule' : 'user',
       requestedBy,
     })
     .returning();
@@ -474,6 +468,19 @@ export async function findProposal(
     .where(eq(menuProposalRequest.id, id))
     .limit(1);
   return row && toProposal(row);
+}
+
+/** The proposals of the week, newest first. */
+export async function listProposalsOfWeek(
+  db: DbExecutor,
+  weekStart: string,
+): Promise<MenuProposalRequest[]> {
+  const rows = await db
+    .select()
+    .from(menuProposalRequest)
+    .where(eq(menuProposalRequest.weekStart, weekStart))
+    .orderBy(desc(menuProposalRequest.createdAt), desc(menuProposalRequest.id));
+  return rows.map(toProposal);
 }
 
 export async function hasPendingProposal(

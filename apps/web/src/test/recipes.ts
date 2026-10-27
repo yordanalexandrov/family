@@ -1,4 +1,6 @@
 import type { Ingredient, Recipe, RecipeSummary } from '@family/shared';
+import { HttpResponse, http } from 'msw';
+import { server } from './msw';
 
 // Фикстури за регистъра рецепти (#24): продукти от seed-а и две рецепти.
 export const chicken: Ingredient = {
@@ -39,6 +41,7 @@ export const chickenWithRice: Recipe = {
     { ingredientId: salt.id, quantity: null, unit: 'pinch', ingredient: salt },
   ],
   archivedAt: null,
+  rating: null,
   createdAt: '2026-10-20T10:00:00.000Z',
   updatedAt: '2026-10-20T10:00:00.000Z',
 };
@@ -52,11 +55,49 @@ export const omelette: Recipe = {
   steps: ['Разбий яйцата.', 'Изпържи.'],
   ingredients: [],
   archivedAt: null,
+  rating: null,
   createdAt: '2026-10-21T10:00:00.000Z',
   updatedAt: '2026-10-21T10:00:00.000Z',
 };
 
 export function toSummary(recipe: Recipe): RecipeSummary {
-  const { id, title, servings, prepMinutes, tags, archivedAt } = recipe;
-  return { id, title, servings, prepMinutes, tags, archivedAt };
+  const { id, title, servings, prepMinutes, tags, archivedAt, rating } = recipe;
+  return { id, title, servings, prepMinutes, tags, archivedAt, rating };
+}
+
+/** Една заявка за оценка: `rating: null` е `DELETE`. */
+export interface RatingCall {
+  id: string;
+  rating: number | null;
+}
+
+/**
+ * `PUT`/`DELETE /api/recipes/:id/rating`: връща рецептата (по `recipes`, иначе `chickenWithRice` с този id) с новата
+ * оценка и вика `onRate`, за да може фикстурата на менюто да я запомни. Връща заявките по ред.
+ */
+export function serveRating(
+  recipes: Recipe[] = [],
+  onRate: (call: RatingCall) => void = () => {},
+) {
+  const calls: RatingCall[] = [];
+  const answer = (id: string, rating: number | null) => {
+    calls.push({ id, rating });
+    onRate({ id, rating });
+    const base = recipes.find((recipe) => recipe.id === id) ?? {
+      ...chickenWithRice,
+      id,
+    };
+    return HttpResponse.json({ recipe: { ...base, rating } });
+  };
+  server.use(
+    http.put<{ id: string }, { rating: number }>(
+      '/api/recipes/:id/rating',
+      async ({ params, request }) =>
+        answer(params.id, (await request.json()).rating),
+    ),
+    http.delete<{ id: string }>('/api/recipes/:id/rating', ({ params }) =>
+      answer(params.id, null),
+    ),
+  );
+  return calls;
 }

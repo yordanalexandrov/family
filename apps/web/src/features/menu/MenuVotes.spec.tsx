@@ -20,7 +20,7 @@ const [chicken, lentils, moussaka, fish, pasta] = dinnerRecipes;
 function withRecipe(recipe: { id: string; title: string }) {
   return {
     recipeId: recipe.id,
-    recipe: { title: recipe.title, archivedAt: null },
+    recipe: { title: recipe.title, archivedAt: null, rating: null },
   };
 }
 

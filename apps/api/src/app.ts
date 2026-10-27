@@ -27,6 +27,7 @@ import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
 import { mealReplacementsRoutes } from './routes/meal-replacements.js';
 import { menuRoutes } from './routes/menu.js';
+import { pantryRoutes } from './routes/pantry.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { shoppingRoutes } from './routes/shopping.js';
@@ -45,6 +46,10 @@ import {
   createMenuService,
   type MenuService,
 } from './services/menu.js';
+import {
+  createMenuSchedule,
+  type MenuSchedule,
+} from './services/menu-schedule.js';
 import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
@@ -68,6 +73,8 @@ declare module 'fastify' {
     recipeSuggestions: RecipeSuggestionsService;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
+    /** The cron's proposal of next week's menu; `null` without OpenClaw. */
+    menuSchedule: MenuSchedule | null;
     /** „✨ Предложи друго“ for a meal (`meal.replace`). */
     mealReplacements: MealReplacements;
     /** Change signals for `GET /api/events`; services publish after their commit. */
@@ -181,18 +188,21 @@ export function buildApp({
       ),
     }),
   );
+  const menuProposals = contractRequests.register(
+    menuPropose,
+    createMenuProposalStore(events),
+    agents.menuAgent,
+  );
   app.decorate(
     'menu',
-    createMenuService({
-      db,
-      proposals: contractRequests.register(
-        menuPropose,
-        createMenuProposalStore(events),
-        agents.menuAgent,
-      ),
-      now,
-      events,
-    }),
+    createMenuService({ db, proposals: menuProposals, now, events }),
+  );
+  // Without OpenClaw every proposal is refused, so the cron has nothing to run.
+  app.decorate(
+    'menuSchedule',
+    openclaw
+      ? createMenuSchedule({ db, proposals: menuProposals, now, log: app.log })
+      : null,
   );
   app.decorate(
     'mealReplacements',
@@ -228,6 +238,7 @@ export function buildApp({
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);
   app.register(shoppingRoutes);
+  app.register(pantryRoutes);
   app.register(eventsRoutes);
 
   return app;

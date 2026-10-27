@@ -463,7 +463,7 @@ describe('DashboardScreen', () => {
       name: 'Основна навигация',
     });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     for (const link of links) {
       expect(link.querySelector('svg')).not.toBeNull();
     }

@@ -1,27 +1,40 @@
-import { type PrepTimeRange, TAG_LABELS_BG, type Tag } from '@family/shared';
+import {
+  type PrepTimeRange,
+  type RecipesSort,
+  TAG_LABELS_BG,
+  type Tag,
+} from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatMinutes } from './format';
 import { useRecipes } from './queries';
+import { StarsBadge } from './Stars';
 import { TagChips, TimeChips, toggled } from './TagChips';
 import { useDebouncedValue } from './useDebouncedValue';
 import './recipes.css';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+const SORT_LABELS: Record<RecipesSort, string> = {
+  title: 'по име',
+  rating: 'по оценка',
+};
+
 export function RecipeList() {
   const [search, setSearch] = useState('');
   const [tags, setTags] = useState<Tag[]>([]);
   const [times, setTimes] = useState<PrepTimeRange[]>([]);
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [sort, setSort] = useState<RecipesSort>('title');
   const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
   const recipes = useRecipes({
     ...(q ? { q } : {}),
     ...(tags.length > 0 ? { tags } : {}),
     ...(times.length > 0 ? { times } : {}),
     includeArchived,
+    sort,
   });
 
   return (
@@ -66,6 +79,20 @@ export function RecipeList() {
           />
           Покажи архивираните
         </label>
+        <fieldset className="chips" aria-label="Подреди">
+          {(['title', 'rating'] as const).map((value) => (
+            <label key={value} className="chip chip--radio">
+              <input
+                type="radio"
+                name="recipes-sort"
+                className="visually-hidden"
+                checked={sort === value}
+                onChange={() => setSort(value)}
+              />
+              {SORT_LABELS[value]}
+            </label>
+          ))}
+        </fieldset>
       </div>
 
       {recipes.isPending ? (
@@ -91,7 +118,9 @@ export function RecipeList() {
                 params={{ id: recipe.id }}
                 className="recipe-card"
               >
-                <span className="recipe-card__title">{recipe.title}</span>
+                <span className="recipe-card__title">
+                  {recipe.title} <StarsBadge rating={recipe.rating} />
+                </span>
                 <span className="recipe-card__meta">
                   {recipe.prepMinutes !== undefined && (
                     <span>{formatMinutes(recipe.prepMinutes)}</span>
