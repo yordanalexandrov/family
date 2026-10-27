@@ -37,6 +37,12 @@ function notFound(): NotFoundError {
   return new NotFoundError('Няма такъв продукт в килера');
 }
 
+function notStaple(): ConflictError {
+  return new ConflictError('Свършва само постоянен продукт', {
+    code: 'not_staple',
+  });
+}
+
 /** GLOSSARY: Килер. Staples first by name, then use-up items oldest first. */
 export function getPantry(db: Db): Promise<PantryItem[]> {
   return listPantryItems(db);
@@ -70,20 +76,21 @@ export async function addPantryItem(
   return item;
 }
 
-/** Changes the kind or the note; an unknown id is a `NotFoundError`. */
+/** Changes the kind or the note; an unknown id is a `NotFoundError`. An empty change answers the item and signals nothing. */
 export async function changePantryItem(
   { db, events }: PantryDeps,
   id: string,
   changes: UpdatePantryItem,
 ): Promise<PantryItem> {
-  const updated =
-    Object.values(changes).every((value) => value === undefined) ||
-    (await updatePantryItem(db, id, changes));
+  const empty = Object.values(changes).every((value) => value === undefined);
+  const updated = empty || (await updatePantryItem(db, id, changes));
   const item = updated ? await findPantryItem(db, id) : undefined;
   if (!item) {
     throw notFound();
   }
-  signal(events);
+  if (!empty) {
+    signal(events);
+  }
   return item;
 }
 
@@ -111,10 +118,12 @@ export async function markPantryRanOut(
   if (!found) {
     throw notFound();
   }
-  if (found.kind !== 'staple' || !(await setPantryRanOut(db, id, now))) {
-    throw new ConflictError('Свършва само постоянен продукт', {
-      code: 'not_staple',
-    });
+  if (found.kind !== 'staple') {
+    throw notStaple();
+  }
+  if (!(await setPantryRanOut(db, id, now))) {
+    // Taken out of the pantry, or turned into a use-up item, between the read and the write.
+    throw (await findPantryItem(db, id)) ? notStaple() : notFound();
   }
   signal(events);
   return { ...found, ranOutAt: now.toISOString() };

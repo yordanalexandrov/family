@@ -1306,6 +1306,16 @@ describe('menu proposal of the cron (Wednesday 09:00)', () => {
     return cron;
   }
 
+  /** The app's cron job; a test app without one fails here instead of passing silently. */
+  function scheduleOf(instance: FastifyInstance) {
+    const { menuSchedule } = instance;
+    expect(menuSchedule).not.toBeNull();
+    if (!menuSchedule) {
+      throw new Error('the test app has no menu schedule');
+    }
+    return menuSchedule;
+  }
+
   /** The latest proposal of the week, once there is one. */
   async function latestProposal(weekStart: string) {
     let proposal: { id: string } | undefined;
@@ -1356,10 +1366,10 @@ describe('menu proposal of the cron (Wednesday 09:00)', () => {
     });
 
     // The next cycle, or a restart, leaves the week to the users.
-    await app2.menuSchedule?.run();
+    await scheduleOf(app2).run();
     await app2.close();
     const restarted = await startCron();
-    await restarted.menuSchedule?.run();
+    await scheduleOf(restarted).run();
 
     expect(await latestProposal(WEEK)).toMatchObject({ id: failed.id });
     answerInTurn(JSON.stringify(proposeFixture));
@@ -1371,7 +1381,7 @@ describe('menu proposal of the cron (Wednesday 09:00)', () => {
   it('waits until Wednesday 09:00 in Sofia', async () => {
     clock = new Date('2026-10-28T06:59:00Z');
     const early = await startCron();
-    await early.menuSchedule?.run();
+    await scheduleOf(early).run();
 
     const response = await inject(
       'GET',

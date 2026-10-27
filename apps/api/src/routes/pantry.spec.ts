@@ -283,6 +283,20 @@ describe('pantry signals', () => {
 
     expect(signals).toEqual([]);
   });
+
+  it('an empty change answers the item as it is and signals nothing', async () => {
+    const rice = await seedIngredient('ориз');
+    const item = await add(rice.id, 'staple', 'в буркана');
+
+    let response: Awaited<ReturnType<typeof inject>> | undefined;
+    const signals = await signalsOf(async () => {
+      response = await inject('PATCH', `/api/pantry/${item.id}`, {});
+    });
+
+    expect(response?.statusCode).toBe(200);
+    expect(pantryItemResponseSchema.parse(response?.json()).item).toEqual(item);
+    expect(signals).toEqual([]);
+  });
 });
 
 describe('POST /api/pantry/:id/ran-out', () => {
