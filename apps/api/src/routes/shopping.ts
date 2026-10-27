@@ -21,6 +21,7 @@ import {
  * menu answers 404 `no_plan` on every route.
  */
 export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
+  const deps = { db: app.db, events: app.events };
   app.get(
     '/api/shopping-lists/:weekStart',
     {
@@ -44,7 +45,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      item: await setItemChecked(app, {
+      item: await setItemChecked(deps, {
         ...request.params,
         checked: request.body.checked,
         actingUserId: request.actor.id,
@@ -63,7 +64,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      item: await setItemHidden(app, {
+      item: await setItemHidden(deps, {
         ...request.params,
         hidden: request.body.hidden,
       }),
@@ -81,7 +82,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request, reply) => {
       const item = await addManualItem(
-        app,
+        deps,
         request.params.weekStart,
         request.body,
       );
@@ -93,7 +94,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
     '/api/shopping-lists/:weekStart/items/:key',
     { schema: { params: shoppingItemParamsSchema } },
     async (request, reply) => {
-      await deleteItem(app, request.params);
+      await deleteItem(deps, request.params);
       return reply.code(204).send();
     },
   );

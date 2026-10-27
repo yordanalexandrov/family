@@ -1,7 +1,5 @@
 import {
   addDays,
-  dateKeyInSofia,
-  isPastMeal,
   MEAL_REPLACE_MIN_RECIPES,
   type MealReplaceInput,
   type MealReplaceOutput,
@@ -30,39 +28,18 @@ import type {
   ContractRequestStore,
 } from './contract-requests.js';
 import { ConflictError, NotFoundError } from './errors.js';
+import { NO_SUCH_MEAL, refusePastMeal } from './menu.js';
 
-const NO_SUCH_MEAL = 'Няма такова ястие';
-const NO_SUCH_REPLACEMENT = 'Няма такова търсене на друго ястие';
-const PAST_MEAL = 'Денят е минал: ястието вече не се сменя';
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
 
-/** `meal.replace` as AI requests, registered in `buildApp()`; the params are the meal's id. */
+/**
+ * „✨ Предложи друго“: `meal.replace` as AI requests, registered in `buildApp()` as `app.mealReplacements`; the params
+ * are the meal's id. One request per meal at a time; picking a candidate is `PATCH` of the meal.
+ */
 export type MealReplacements = ContractRequestHandle<
   string,
   MealReplaceRequest
 >;
-
-/** „✨ Предложи друго“: one `meal.replace` request per meal at a time; picking a candidate is `PATCH` of the meal. */
-export interface MealReplacementsService {
-  /** Stores a `pending` request for the meal and starts `meal.replace` in the background; returned at once. */
-  request(mealId: string, actingUserId: string): Promise<MealReplaceRequest>;
-  get(id: string): Promise<MealReplaceRequest>;
-}
-
-export function createMealReplacementsService(
-  requests: MealReplacements,
-): MealReplacementsService {
-  return {
-    request: (mealId, actingUserId) => requests.request(mealId, actingUserId),
-    async get(id) {
-      const replacement = await requests.get(id);
-      if (!replacement) {
-        throw new NotFoundError(NO_SUCH_REPLACEMENT);
-      }
-      return replacement;
-    },
-  };
-}
 
 /**
  * How `meal.replace` requests are stored: refused for an unknown or past meal, with fewer than 3 other recipes of its
@@ -86,9 +63,7 @@ export function createMealReplaceStore(
       if (!meal) {
         throw new NotFoundError(NO_SUCH_MEAL);
       }
-      if (isPastMeal(meal, dateKeyInSofia(now()))) {
-        throw new ConflictError(PAST_MEAL, { code: 'past_meal' });
-      }
+      refusePastMeal(meal, now());
       const have = (await listMenuRecipes(tx, meal.slot)).filter(
         (recipe) => recipe.id !== meal.recipeId,
       ).length;

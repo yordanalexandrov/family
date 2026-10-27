@@ -16,7 +16,6 @@ export type ServerEvent = z.infer<typeof serverEventSchema>;
 
 export type ServerEventType = ServerEvent['type'];
 
-export const SERVER_EVENT_TYPES = [
-  'menu.changed',
-  'shopping.changed',
-] as const satisfies readonly ServerEventType[];
+/** Every type of `serverEventSchema`, read from the schema: the client subscribes to each. */
+export const SERVER_EVENT_TYPES: readonly ServerEventType[] =
+  serverEventSchema.options.map((option) => option.shape.type.value);

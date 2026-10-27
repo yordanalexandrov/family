@@ -3,7 +3,7 @@ import inputFixture from './fixtures/meal-replace.input.json' with {
   type: 'json',
 };
 import fixture from './fixtures/meal-replace.valid.json' with { type: 'json' };
-import { mealReplace } from './meal-replace.js';
+import { mealReplace, validateReplacement } from './meal-replace.js';
 
 /** No DOM or Node types in `shared`, so no `structuredClone`. */
 function clone<T>(value: T): T {
@@ -33,14 +33,6 @@ function issuePaths(output: unknown): string[] {
     : result.error.issues
         .map((issue) => issue.path.join('.'))
         .filter((path) => path !== '');
-}
-
-/** The rule problems of an answer that has the right shape, in Bulgarian, as the retry message carries them. */
-function problems(output: unknown, input = validInput()): string[] {
-  const result = outputSchema(input).safeParse(output);
-  return result.success
-    ? []
-    : result.error.issues.map((issue) => issue.message);
 }
 
 describe('mealReplace.inputSchema', () => {
@@ -119,17 +111,17 @@ describe('mealReplace.outputSchema: shape', () => {
   });
 });
 
-describe('mealReplace.outputSchema: rules against the input', () => {
+describe('validateReplacement', () => {
   it('finds nothing wrong with the fixture', () => {
-    expect(problems(validOutput())).toEqual([]);
+    expect(validateReplacement(validInput(), validOutput())).toEqual([]);
   });
 
   it('refuses a recipe that is not in the input', () => {
     const output = validOutput();
     output.candidates[2].recipeId = 'b0000000-0000-4000-8000-000000000099';
 
-    expect(problems(output)).toEqual([
-      expect.stringContaining('b0000000-0000-4000-8000-000000000099'),
+    expect(validateReplacement(validInput(), output)).toEqual([
+      'Кандидат 3: рецепта b0000000-0000-4000-8000-000000000099 не е от списъка recipes; избирай само от него.',
     ]);
   });
 
@@ -138,17 +130,17 @@ describe('mealReplace.outputSchema: rules against the input', () => {
     const output = validOutput();
     output.candidates[0].recipeId = input.current.recipeId;
 
-    expect(problems(output, input)).toEqual([
+    expect(validateReplacement(input, output)).toEqual([
       expect.stringContaining(input.current.recipeId ?? ''),
     ]);
   });
 
-  it('refuses the same recipe twice', () => {
+  it('refuses the same recipe twice, at the repeat', () => {
     const output = validOutput();
     output.candidates[2].recipeId = output.candidates[0].recipeId;
 
-    expect(problems(output)).toEqual([
-      expect.stringContaining(output.candidates[0].recipeId),
+    expect(validateReplacement(validInput(), output)).toEqual([
+      `Кандидат 3: рецепта ${output.candidates[0].recipeId} вече е предложена; без повторения.`,
     ]);
   });
 
@@ -157,7 +149,21 @@ describe('mealReplace.outputSchema: rules against the input', () => {
     const output = validOutput();
     output.candidates[0].recipeId = input.recentRecipeIds[0];
 
-    expect(problems(output, input)).toEqual([]);
+    expect(validateReplacement(input, output)).toEqual([]);
+  });
+});
+
+describe('mealReplace.outputSchema: rules against the input', () => {
+  it('rejects an answer that breaks a rule, with the problem as the message for the retry', () => {
+    const output = validOutput();
+    output.candidates[2].recipeId = output.candidates[0].recipeId;
+
+    const result = outputSchema().safeParse(output);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.message)).toEqual(
+      validateReplacement(validInput(), output),
+    );
   });
 });
 

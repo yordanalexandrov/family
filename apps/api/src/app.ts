@@ -37,9 +37,8 @@ import { createCalendarSync } from './services/calendar-sync.js';
 import { createContractRequests } from './services/contract-requests.js';
 import { createEventBus, type EventBus } from './services/events.js';
 import {
-  createMealReplacementsService,
   createMealReplaceStore,
-  type MealReplacementsService,
+  type MealReplacements,
 } from './services/meal-replacements.js';
 import {
   createMenuProposalStore,
@@ -70,7 +69,7 @@ declare module 'fastify' {
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
     /** „✨ Предложи друго“ for a meal (`meal.replace`). */
-    mealReplacements: MealReplacementsService;
+    mealReplacements: MealReplacements;
     /** Change signals for `GET /api/events`; services publish after their commit. */
     events: EventBus;
   }
@@ -197,12 +196,10 @@ export function buildApp({
   );
   app.decorate(
     'mealReplacements',
-    createMealReplacementsService(
-      contractRequests.register(
-        mealReplace,
-        createMealReplaceStore(now),
-        agents.mealAgent,
-      ),
+    contractRequests.register(
+      mealReplace,
+      createMealReplaceStore(now),
+      agents.mealAgent,
     ),
   );
   app.addHook('onClose', async () => {

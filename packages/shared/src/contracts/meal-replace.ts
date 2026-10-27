@@ -65,7 +65,7 @@ const MEAL_REPLACE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
  * What a schema cannot see, checked against the input after parsing: only recipes from the input, none twice. The
  * problems are in Bulgarian, for the retry message to the agent; an empty list means the answer is valid.
  */
-function validateReplacement(
+export function validateReplacement(
   input: MealReplaceInput,
   output: MealReplaceOutput,
 ): string[] {

@@ -1,13 +1,16 @@
 import { mealReplaceResponseSchema } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { HttpError } from '../plugins/error-handler.js';
 import { idParamsSchema } from './params.js';
+
+const NO_SUCH_REPLACEMENT = 'Няма такова търсене на друго ястие';
 
 /**
  * „✨ Предложи друго“ (`meal.replace`): `POST` answers 202 at once, the client polls `GET /api/menu/replacements/:id`
  * until the status is not `pending`. Picking a candidate is `PATCH /api/menu/meals/:id` with its `recipeId` and `why`.
  */
 export const mealReplacementsRoutes: FastifyPluginAsyncZod = async (app) => {
-  const service = app.mealReplacements;
+  const requests = app.mealReplacements;
 
   app.post(
     '/api/menu/meals/:id/replacements',
@@ -18,7 +21,7 @@ export const mealReplacementsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const replacement = await service.request(
+      const replacement = await requests.request(
         request.params.id,
         request.actor.id,
       );
@@ -34,8 +37,12 @@ export const mealReplacementsRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: mealReplaceResponseSchema },
       },
     },
-    async (request) => ({
-      replacement: await service.get(request.params.id),
-    }),
+    async (request) => {
+      const replacement = await requests.get(request.params.id);
+      if (!replacement) {
+        throw new HttpError(404, 'not_found', NO_SUCH_REPLACEMENT);
+      }
+      return { replacement };
+    },
   );
 };
