@@ -44,7 +44,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      item: await setItemChecked(app.db, {
+      item: await setItemChecked(app, {
         ...request.params,
         checked: request.body.checked,
         actingUserId: request.actor.id,
@@ -63,7 +63,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      item: await setItemHidden(app.db, {
+      item: await setItemHidden(app, {
         ...request.params,
         hidden: request.body.hidden,
       }),
@@ -81,7 +81,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request, reply) => {
       const item = await addManualItem(
-        app.db,
+        app,
         request.params.weekStart,
         request.body,
       );
@@ -93,7 +93,7 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
     '/api/shopping-lists/:weekStart/items/:key',
     { schema: { params: shoppingItemParamsSchema } },
     async (request, reply) => {
-      await deleteItem(app.db, request.params);
+      await deleteItem(app, request.params);
       return reply.code(204).send();
     },
   );

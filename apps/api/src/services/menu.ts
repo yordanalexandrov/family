@@ -52,6 +52,7 @@ import {
   InvalidReferenceError,
   NotFoundError,
 } from './errors.js';
+import { type EventBus, menuAndShoppingChanged } from './events.js';
 
 /** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
 const DINNER: MenuSlot = 'dinner';
@@ -100,78 +101,96 @@ async function refuseTakenWeek(
   }
 }
 
+/** Signals a change to the plan of the week, or to one of its meals, once it has committed. */
+function signalWeek(events: EventBus, weekStart: string): void {
+  for (const event of menuAndShoppingChanged(weekStart)) {
+    events.publish(event);
+  }
+}
+
 /**
  * How `menu.propose` requests are stored: refused without enough dinner recipes or for a taken week; the input is the
- * dinner registry and the recipes of the 2 previous weeks; a valid answer becomes the week's plan.
+ * dinner registry and the recipes of the 2 previous weeks; a valid answer becomes the week's plan, signalled on `events`.
  */
-export const menuProposalStore: ContractRequestStore<
+export function createMenuProposalStore(
+  events: EventBus,
+): ContractRequestStore<
   CreateMenuProposal,
   MenuProposalRequest,
   MenuProposeInput,
   MenuProposeOutput
-> = {
-  table: menuProposalRequest,
+> {
+  return {
+    table: menuProposalRequest,
 
-  async insert(tx, params, requestedBy) {
-    const have = await countMenuRecipes(tx, DINNER);
-    if (have < MENU_PROPOSE_MIN_RECIPES) {
-      throw new ConflictError(
-        `За предложение трябват поне ${MENU_PROPOSE_MIN_RECIPES} вечерни рецепти`,
-        { code: 'not_enough_recipes', have, need: MENU_PROPOSE_MIN_RECIPES },
-      );
-    }
-    await refuseTakenWeek(tx, params.weekStart);
-    return insertProposal(tx, params, requestedBy);
-  },
+    async insert(tx, params, requestedBy) {
+      const have = await countMenuRecipes(tx, DINNER);
+      if (have < MENU_PROPOSE_MIN_RECIPES) {
+        throw new ConflictError(
+          `За предложение трябват поне ${MENU_PROPOSE_MIN_RECIPES} вечерни рецепти`,
+          { code: 'not_enough_recipes', have, need: MENU_PROPOSE_MIN_RECIPES },
+        );
+      }
+      await refuseTakenWeek(tx, params.weekStart);
+      return insertProposal(tx, params, requestedBy);
+    },
 
-  find: findProposal,
+    find: findProposal,
 
-  async buildInput(db, proposal) {
-    return {
-      weekStart: proposal.weekStart,
-      slots: [...MENU_SLOTS],
-      recipes: await listMenuRecipes(db, DINNER),
-      recentRecipeIds: await listRecipeIdsOfWeeks(db, [
-        addDays(proposal.weekStart, -14),
-        addDays(proposal.weekStart, -7),
-      ]),
-      hint: proposal.hint,
-    };
-  },
-
-  async onDone(tx, proposal, output) {
-    const servings = await defaultServings(tx);
-    const plan = await insertPlan(
-      tx,
-      {
+    async buildInput(db, proposal) {
+      return {
         weekStart: proposal.weekStart,
-        summary: output.summary,
-        createdBy: proposal.requestedBy,
-      },
-      output.days.map((day) => ({
-        date: day.date,
-        slot: day.slot,
-        recipeId: day.recipeId,
-        why: day.why,
-        servings,
-      })),
-    );
-    await setProposalPlan(tx, proposal.id, plan.id);
-  },
-};
+        slots: [...MENU_SLOTS],
+        recipes: await listMenuRecipes(db, DINNER),
+        recentRecipeIds: await listRecipeIdsOfWeeks(db, [
+          addDays(proposal.weekStart, -14),
+          addDays(proposal.weekStart, -7),
+        ]),
+        hint: proposal.hint,
+      };
+    },
+
+    async onDone(tx, proposal, output) {
+      const servings = await defaultServings(tx);
+      const plan = await insertPlan(
+        tx,
+        {
+          weekStart: proposal.weekStart,
+          summary: output.summary,
+          createdBy: proposal.requestedBy,
+        },
+        output.days.map((day) => ({
+          date: day.date,
+          slot: day.slot,
+          recipeId: day.recipeId,
+          why: day.why,
+          servings,
+        })),
+      );
+      await setProposalPlan(tx, proposal.id, plan.id);
+    },
+
+    afterDone(proposal) {
+      signalWeek(events, proposal.weekStart);
+    },
+  };
+}
 
 /**
  * The weekly menu (GLOSSARY: Седмично меню, Ястие, Предложение за меню); created once in `buildApp()` as `app.menu`.
- * Proposals go through `proposals`, the `menu.propose` requests registered with {@link menuProposalStore}.
+ * Proposals go through `proposals`, the `menu.propose` requests registered with {@link createMenuProposalStore}. Every
+ * committed change signals `menu.changed` and `shopping.changed` for its week on `events`.
  */
 export function createMenuService({
   db,
   proposals,
   now,
+  events,
 }: {
   db: Db;
   proposals: MenuProposals;
   now: () => Date;
+  events: EventBus;
 }): MenuService {
   return {
     async getPlan(weekStart) {
@@ -197,7 +216,7 @@ export function createMenuService({
           servings,
         })),
       );
-      return db.transaction(async (tx) => {
+      const plan = await db.transaction(async (tx) => {
         await refuseTakenWeek(tx, weekStart);
         return insertPlan(
           tx,
@@ -205,6 +224,8 @@ export function createMenuService({
           meals,
         );
       });
+      signalWeek(events, weekStart);
+      return plan;
     },
 
     async deletePlan(id) {
@@ -218,10 +239,11 @@ export function createMenuService({
         );
       }
       await deletePlan(db, id);
+      signalWeek(events, plan.weekStart);
     },
 
     async updateMeal(id, patch) {
-      return db.transaction(async (tx) => {
+      const { meal, weekStart } = await db.transaction(async (tx) => {
         const current = await findMeal(tx, id);
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
@@ -247,11 +269,14 @@ export function createMenuService({
           now(),
         );
         const updated = await findMeal(tx, id);
-        if (!updated) {
+        const plan = await findPlanSummary(tx, current.planId);
+        if (!updated || !plan) {
           throw new Error('meal vanished in its own transaction');
         }
-        return updated;
+        return { meal: updated, weekStart: plan.weekStart };
       });
+      signalWeek(events, weekStart);
+      return meal;
     },
 
     requestProposal(params, actingUserId) {

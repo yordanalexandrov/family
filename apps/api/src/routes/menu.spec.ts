@@ -1,3 +1,4 @@
+import type { ServerEvent } from '@family/shared';
 import proposeInput from '@family/shared/fixtures/menu-propose.input.json' with {
   type: 'json',
 };
@@ -15,6 +16,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
 import { buildTestApp } from '../test/app.js';
@@ -567,6 +569,23 @@ describe('POST /api/menu/proposals', () => {
         recipe: { title: expect.any(String), archivedAt: null },
       });
     }
+  });
+
+  it('signals menu.changed and shopping.changed for the week once the proposed plan is made', async () => {
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const proposal = await propose({ weekStart: WEEK });
+    expect(signals).toEqual([]);
+    await finished(proposal.id);
+
+    await vi.waitFor(() =>
+      expect(signals).toEqual([
+        { type: 'menu.changed', weekStart: WEEK },
+        { type: 'shopping.changed', weekStart: WEEK },
+      ]),
+    );
+    unsubscribe();
   });
 
   it('sends the agent the dinner registry and the recipes of the 2 previous weeks', async () => {

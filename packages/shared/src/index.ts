@@ -8,6 +8,7 @@ export * from './dashboard/budget.js';
 export * from './dashboard/dedupe.js';
 export * from './dashboard/freshness.js';
 export * from './dashboard/time.js';
+export * from './events.js';
 export * from './food/aisles.js';
 export * from './food/prep-time.js';
 export * from './food/tags.js';
