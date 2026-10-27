@@ -3,7 +3,7 @@ import {
   PushRejectedError,
   type PushSender,
   type PushTarget,
-} from '../services/push.js';
+} from '../integrations/web-push/sender.js';
 
 /** The public key specs hand the app; the push service is the mock below, so no real pair is needed. */
 export const TEST_VAPID_PUBLIC_KEY = 'BTestVapidPublicKey';

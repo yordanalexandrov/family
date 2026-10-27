@@ -17,28 +17,15 @@ import {
   upsertNotificationSettings,
   upsertPushSubscription,
 } from '../db/repositories/notifications.js';
+import {
+  PushRejectedError,
+  type PushSender,
+} from '../integrations/web-push/sender.js';
 
-/** A device to push to: the subscription's endpoint and its keys. */
-export interface PushTarget {
-  endpoint: string;
-  keys: { p256dh: string; auth: string };
-}
-
-/**
- * Hands one encrypted message to the device's push service (`web-push` in production, a mock in specs). Rejects with
- * a `PushRejectedError` when the push service answers an error status, with anything else when it cannot be reached.
- */
-export type PushSender = (target: PushTarget, payload: string) => Promise<void>;
-
-/** The push service refused the message with `statusCode`; 404 and 410 mean the subscription is gone. */
-export class PushRejectedError extends Error {
-  readonly statusCode: number;
-
-  constructor(statusCode: number) {
-    super(`push service answered ${statusCode}`);
-    this.name = 'PushRejectedError';
-    this.statusCode = statusCode;
-  }
+/** How the app reaches the push services: the VAPID public key the devices subscribe with, and the sender. */
+export interface WebPushDelivery {
+  publicKey: string;
+  sender: PushSender;
 }
 
 /** What a notification says; `send` adds its kind and the person it is for. */
@@ -80,7 +67,7 @@ export interface PushService {
 export interface PushServiceDeps {
   db: Db;
   /** Without VAPID keys there is none: every send is a no-op. */
-  web: { publicKey: string; sender: PushSender } | null;
+  delivery: WebPushDelivery | null;
   now: () => Date;
   log: FastifyBaseLogger;
 }
@@ -95,7 +82,7 @@ function isGone(error: unknown): boolean {
 
 export function createPushService({
   db,
-  web,
+  delivery,
   now,
   log,
 }: PushServiceDeps): PushService {
@@ -104,7 +91,7 @@ export function createPushService({
     kind: PushKind,
     message: PushMessage,
   ): Promise<number> {
-    if (!web) {
+    if (!delivery) {
       log.debug({ kind, userId }, 'push: no VAPID keys, nothing sent');
       return 0;
     }
@@ -114,7 +101,7 @@ export function createPushService({
     const results = await Promise.all(
       devices.map(async (device) => {
         try {
-          await web.sender(device, body);
+          await delivery.sender(device, body);
           await markPushSubscriptionSucceeded(db, device.id, now());
           return true;
         } catch (error) {
@@ -139,7 +126,7 @@ export function createPushService({
   }
 
   return {
-    publicKey: web?.publicKey ?? null,
+    publicKey: delivery?.publicKey ?? null,
     subscribe: (userId, subscription) =>
       upsertPushSubscription(db, userId, subscription),
     unsubscribe: (userId, endpoint) =>

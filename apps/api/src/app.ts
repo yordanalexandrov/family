@@ -55,8 +55,8 @@ import {
 } from './services/menu-schedule.js';
 import {
   createPushService,
-  type PushSender,
   type PushService,
+  type WebPushDelivery,
 } from './services/push.js';
 import {
   createRecipeSuggestionsService,
@@ -125,7 +125,7 @@ export interface BuildAppOptions {
    * Web Push: the VAPID public key for the devices and the sender (`server.ts` builds it with `web-push` from
    * VAPID_*; specs pass a mock). Without it no notification is sent and `GET /api/notifications/vapid-key` is 404.
    */
-  push?: { publicKey: string; sender: PushSender };
+  push?: WebPushDelivery;
 }
 
 /**
@@ -170,7 +170,7 @@ export function buildApp({
     'push',
     createPushService({
       db,
-      web: push ?? null,
+      delivery: push ?? null,
       now,
       log: app.log.child({ module: 'push' }),
     }),

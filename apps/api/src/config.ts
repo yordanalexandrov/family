@@ -241,6 +241,9 @@ export type Config = z.infer<typeof envSchema>;
 /** How `/api/*` requests are authenticated; `allowedEmails` are lowercased. */
 export type AuthConfig = Config['auth'];
 
+/** The VAPID key pair and subject from VAPID_*, when all three are set. */
+export type VapidConfig = NonNullable<Config['vapid']>;
+
 /** Parses the process environment; throws a readable error naming every invalid variable. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const result = envSchema.safeParse(env);
