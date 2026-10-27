@@ -15,6 +15,7 @@ import {
   type NotEnoughRecipes,
   notEnoughRecipesSchema,
   putVoteSchema,
+  swapMealsSchema,
   type UpdateMeal,
   updateMealSchema,
   type VoteValue,
@@ -172,6 +173,72 @@ export function useVote(weekStart: DateKey) {
     },
     onSuccess(meal) {
       setMeal(queryClient, weekStart, meal);
+    },
+  });
+}
+
+/** `meal` и `withMeal` разменят дните си (без да се местят гласовете и разговорът им); планът остава подреден по ден. */
+export function swapDates(
+  plan: MealPlan,
+  meal: Meal,
+  withMeal: Meal,
+): MealPlan {
+  return {
+    ...plan,
+    meals: plan.meals
+      .map((m) =>
+        m.id === meal.id
+          ? { ...m, date: withMeal.date }
+          : m.id === withMeal.id
+            ? { ...m, date: meal.date }
+            : m,
+      )
+      .sort(
+        (a, b) => a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot),
+      ),
+  };
+}
+
+export interface MealSwap {
+  meal: Meal;
+  withMeal: Meal;
+}
+
+/**
+ * Размяна на дните на две ястия („Премести на…“ и влачене). Оптимистично: редовете се разменят веднага, а при грешка
+ * планът се връща както е бил. Отговорът е целият план; разговорите получават системен ред, затова се презареждат.
+ */
+export function useSwapMeals(weekStart: DateKey) {
+  const queryClient = useQueryClient();
+  const key = menuKeys.plan(weekStart);
+  return useMutation({
+    mutationFn: ({ meal, withMeal }: MealSwap) =>
+      apiFetch(`/menu/meals/${meal.id}/swap`, mealPlanResponseSchema, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify(
+          swapMealsSchema.parse({ withMealId: withMeal.id }),
+        ),
+      }).then((body) => body.plan),
+    async onMutate({ meal, withMeal }) {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<MealPlan | null>(key);
+      if (previous) {
+        queryClient.setQueryData(key, swapDates(previous, meal, withMeal));
+      }
+      return { previous };
+    },
+    onError(_error, _swap, context) {
+      if (context?.previous) {
+        queryClient.setQueryData(key, context.previous);
+      }
+    },
+    onSuccess(plan) {
+      queryClient.setQueryData(key, plan);
+      void queryClient.invalidateQueries({
+        queryKey: [...key, 'thread'],
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
     },
   });
 }
