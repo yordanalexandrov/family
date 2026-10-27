@@ -49,6 +49,7 @@ import {
   updateMeal,
   upsertVote,
 } from '../db/repositories/menu.js';
+import { addMenuActivity } from '../db/repositories/menu-activity.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import {
   countMenuRecipes,
@@ -69,6 +70,7 @@ import {
   NotFoundError,
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
+import type { MenuNotifications } from './menu-notifications.js';
 
 /** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
 const DINNER: MenuSlot = 'dinner';
@@ -179,6 +181,7 @@ function signalAgreement(events: EventBus, weekStart: string): void {
  */
 export function createMenuProposalStore(
   events: EventBus,
+  notifications: Pick<MenuNotifications, 'proposed'>,
 ): ContractRequestStore<
   CreateMenuProposal,
   MenuProposalRequest,
@@ -235,6 +238,7 @@ export function createMenuProposalStore(
 
     afterDone(proposal) {
       signalWeek(events, proposal.weekStart);
+      void notifications.proposed(proposal);
     },
   };
 }
@@ -343,7 +347,17 @@ export function createMenuService({
         if (contentChanged) {
           await recordContentChange(tx, current, actingUserId, now());
         }
-        return reread(tx, id, current.planId);
+        const changed = await reread(tx, id, current.planId);
+        if (contentChanged) {
+          await addMenuActivity(
+            tx,
+            changed.weekStart,
+            actingUserId,
+            'swaps',
+            now(),
+          );
+        }
+        return changed;
       });
       signalWeek(events, weekStart);
       return meal;
@@ -361,7 +375,17 @@ export function createMenuService({
         } else {
           await upsertVote(tx, id, actingUserId, value, now());
         }
-        return reread(tx, id, current.planId);
+        const voted = await reread(tx, id, current.planId);
+        if (value !== null) {
+          await addMenuActivity(
+            tx,
+            voted.weekStart,
+            actingUserId,
+            'votes',
+            now(),
+          );
+        }
+        return voted;
       });
       signalAgreement(events, weekStart);
       return meal;
@@ -391,7 +415,9 @@ export function createMenuService({
           );
         await moved(a, b);
         await moved(b, a);
-        const plan = await findPlanByWeek(tx, await weekOf(tx, a.planId));
+        const weekStart = await weekOf(tx, a.planId);
+        await addMenuActivity(tx, weekStart, actingUserId, 'swaps', at);
+        const plan = await findPlanByWeek(tx, weekStart);
         if (!plan) {
           throw new Error('plan of a meal vanished');
         }
@@ -420,7 +446,9 @@ export function createMenuService({
           { mealId, kind: 'comment', authorUserId: actingUserId, body },
           now(),
         );
-        return { comment, weekStart: await weekOf(tx, meal.planId) };
+        const weekStart = await weekOf(tx, meal.planId);
+        await addMenuActivity(tx, weekStart, actingUserId, 'comments', now());
+        return { comment, weekStart };
       });
       signalAgreement(events, weekStart);
       return comment;

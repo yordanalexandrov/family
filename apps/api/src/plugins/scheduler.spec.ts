@@ -27,7 +27,12 @@ import {
   tokenHandler,
 } from '../test/google.js';
 import { server } from '../test/msw.js';
-import { DANI } from '../test/users.js';
+import {
+  createTestPushService,
+  deviceSubscription,
+  TEST_VAPID_PUBLIC_KEY,
+} from '../test/push.js';
+import { DANI, POLI } from '../test/users.js';
 import {
   budgetsEndpoint,
   budgetsHandler,
@@ -137,5 +142,62 @@ describe('scheduler', () => {
     } finally {
       await reader.close();
     }
+  });
+
+  it('sends the menu activity that has gone quiet by itself, in the reminders job', async () => {
+    const push = createTestPushService();
+    let clock = new Date('2026-10-28T08:00:00Z');
+    // Before a restart: Poli votes while Dani's phone is subscribed.
+    const before = buildTestApp({
+      now: () => clock,
+      push: { publicKey: TEST_VAPID_PUBLIC_KEY, sender: push.sender },
+    });
+    try {
+      const act = (
+        user: string,
+        method: 'PUT' | 'POST',
+        url: string,
+        payload: object,
+      ) =>
+        before.inject({
+          method,
+          url,
+          headers: { 'x-acting-user': user },
+          payload,
+        });
+      await act(
+        DANI.id,
+        'PUT',
+        '/api/notifications/subscription',
+        deviceSubscription('dani'),
+      );
+      const plan = await act(POLI.id, 'POST', '/api/menu/plans', {
+        weekStart: '2026-11-02',
+      });
+      const [first] = plan.json().plan.meals;
+      await act(POLI.id, 'PUT', `/api/menu/meals/${first.id}/vote`, {
+        value: 'up',
+      });
+    } finally {
+      await before.close();
+    }
+
+    clock = new Date('2026-10-28T08:10:00Z');
+    app = buildTestApp({
+      now: () => clock,
+      push: { publicKey: TEST_VAPID_PUBLIC_KEY, sender: push.sender },
+      // Without OpenClaw, so the cron's menu proposal (due at this time) stays out of the way.
+      openclaw: undefined,
+      scheduler: { firstRunDelayMs: 0 },
+    });
+    await app.ready();
+
+    await vi.waitFor(() =>
+      expect(push.delivered).toEqual([
+        expect.objectContaining({
+          payload: expect.objectContaining({ userId: DANI.id, body: '1 глас' }),
+        }),
+      ]),
+    );
   });
 });
