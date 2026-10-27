@@ -1,10 +1,12 @@
 import {
+  type CreatePantryItem,
   createPantryItemSchema,
   type Ingredient,
   type PantryItem,
   type PantryKind,
   pantryItemResponseSchema,
   pantryResponseSchema,
+  type UpdatePantryItem,
   updatePantryItemSchema,
 } from '@family/shared';
 import {
@@ -26,6 +28,24 @@ export function usePantry() {
     queryKey: pantryKeys.all,
     queryFn: () =>
       apiFetch('/pantry', pantryResponseSchema).then((body) => body.items),
+  });
+}
+
+/** `POST /api/pantry`: нов продукт в килера. */
+function postPantryItem(body: CreatePantryItem) {
+  return apiFetch('/pantry', pantryItemResponseSchema, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(createPantryItemSchema.parse(body)),
+  });
+}
+
+/** `PATCH /api/pantry/:id`: видът, бележката или двете. */
+function patchPantryItem(id: string, changes: UpdatePantryItem) {
+  return apiFetch(`/pantry/${id}`, pantryItemResponseSchema, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(updatePantryItemSchema.parse(changes)),
   });
 }
 
@@ -73,16 +93,10 @@ export function useAddPantryItems() {
     mutationFn: async ({ ingredients, kind, note }: AddPantryItems) => {
       const results = await Promise.allSettled(
         ingredients.map((ingredient) =>
-          apiFetch('/pantry', pantryItemResponseSchema, {
-            method: 'POST',
-            headers: JSON_HEADERS,
-            body: JSON.stringify(
-              createPantryItemSchema.parse({
-                ingredientId: ingredient.id,
-                kind,
-                ...(note.trim() ? { note } : {}),
-              }),
-            ),
+          postPantryItem({
+            ingredientId: ingredient.id,
+            kind,
+            ...(note.trim() ? { note } : {}),
           }),
         ),
       );
@@ -118,11 +132,7 @@ export function useSetPantryKind() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ item, kind }: { item: PantryItem; kind: PantryKind }) =>
-      apiFetch(`/pantry/${item.id}`, pantryItemResponseSchema, {
-        method: 'PATCH',
-        headers: JSON_HEADERS,
-        body: JSON.stringify(updatePantryItemSchema.parse({ kind })),
-      }),
+      patchPantryItem(item.id, { kind }),
     onMutate: ({ item, kind }) =>
       applyOptimistic(queryClient, (items) =>
         items.map((other) =>
@@ -187,22 +197,7 @@ export function useMakeStaple() {
   return useChangeFromShopping(
     (target: { ingredientId: string } | { pantryId: string }) =>
       'pantryId' in target
-        ? apiFetch(`/pantry/${target.pantryId}`, pantryItemResponseSchema, {
-            method: 'PATCH',
-            headers: JSON_HEADERS,
-            body: JSON.stringify(
-              updatePantryItemSchema.parse({ kind: 'staple' }),
-            ),
-          })
-        : apiFetch('/pantry', pantryItemResponseSchema, {
-            method: 'POST',
-            headers: JSON_HEADERS,
-            body: JSON.stringify(
-              createPantryItemSchema.parse({
-                ingredientId: target.ingredientId,
-                kind: 'staple',
-              }),
-            ),
-          }),
+        ? patchPantryItem(target.pantryId, { kind: 'staple' })
+        : postPantryItem({ ingredientId: target.ingredientId, kind: 'staple' }),
   );
 }

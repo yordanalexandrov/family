@@ -225,7 +225,11 @@ function Week({
     if (weekProposal.isPending) {
       return <Spinner />;
     }
-    if (scheduled?.status === 'pending') {
+    // `done`, докато планът му още се чете.
+    if (
+      scheduled?.status === 'pending' ||
+      (scheduled?.status === 'done' && plan.isFetching)
+    ) {
       return <Waiting scheduled />;
     }
     if (readOnly) {

@@ -22,6 +22,7 @@ import {
   type VoteValue,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
 import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
@@ -36,6 +37,12 @@ export const menuKeys = {
   /** Последното предложение на седмицата (напр. на крона в сряда); не е под плана, който то презарежда. */
   weekProposal: (weekStart: DateKey) =>
     ['menu', 'week-proposal', weekStart] as const,
+  /** Филтър за плановете на всички седмици, без разговорите под тях, които делят префикса на ключа. */
+  plans: {
+    queryKey: ['menu', 'plan'] as const,
+    predicate: (query: { queryKey: readonly unknown[] }) =>
+      query.queryKey.length === 3,
+  },
 };
 
 /** Планът на седмицата или `null`, ако няма (api връща 404). */
@@ -350,7 +357,7 @@ export function useMenuProposal(id: string | undefined) {
  */
 export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
   const queryClient = useQueryClient();
-  return useQuery({
+  const query = useQuery({
     queryKey: menuKeys.weekProposal(weekStart),
     queryFn: async (): Promise<MenuProposalRequest | null> => {
       try {
@@ -358,12 +365,6 @@ export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
           `/menu/proposals?${new URLSearchParams({ weekStart })}`,
           menuProposalResponseSchema,
         );
-        if (proposal.status === 'done') {
-          await queryClient.invalidateQueries({
-            queryKey: menuKeys.plan(weekStart),
-            exact: true,
-          });
-        }
         return proposal;
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) {
@@ -376,6 +377,17 @@ export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
     refetchInterval: (query) =>
       query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
   });
+  // Веднъж на предложение: следващите четения на същото `done` не презареждат плана пак.
+  const doneId = query.data?.status === 'done' ? query.data.id : undefined;
+  useEffect(() => {
+    if (doneId !== undefined) {
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.plan(weekStart),
+        exact: true,
+      });
+    }
+  }, [doneId, weekStart, queryClient]);
+  return query;
 }
 
 /** 409 `not_enough_recipes`: колко вечерни рецепти има и колко трябват. */
