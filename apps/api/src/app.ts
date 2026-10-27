@@ -47,6 +47,7 @@ import {
   createMenuService,
   type MenuService,
 } from './services/menu.js';
+import { createMenuNotifications } from './services/menu-notifications.js';
 import {
   createMenuSchedule,
   type MenuSchedule,
@@ -61,6 +62,7 @@ import {
   type RecipeSuggestionsService,
   suggestionRequestStore,
 } from './services/recipe-suggestions.js';
+import { createReminders, type Reminders } from './services/reminders.js';
 import type { Sync } from './services/sync-mutex.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
@@ -87,6 +89,8 @@ declare module 'fastify' {
     events: EventBus;
     /** Web Push to the people's devices; without VAPID keys every send is a no-op. */
     push: PushService;
+    /** The cron's `reminders` job, every 5 minutes. */
+    reminders: Reminders;
   }
 }
 
@@ -170,6 +174,13 @@ export function buildApp({
       log: app.log.child({ module: 'push' }),
     }),
   );
+  const menuNotifications = createMenuNotifications({
+    db,
+    push: app.push,
+    now,
+    log: app.log.child({ module: 'menu-notifications' }),
+  });
+  app.decorate('reminders', createReminders({ menuNotifications }));
   app.decorate(
     'calendarSync',
     googleCalendar
@@ -213,7 +224,7 @@ export function buildApp({
   );
   const menuProposals = contractRequests.register(
     menuPropose,
-    createMenuProposalStore(events),
+    createMenuProposalStore(events, menuNotifications),
     agents.menuAgent,
   );
   app.decorate(
