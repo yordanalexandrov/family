@@ -6,6 +6,7 @@ import {
   mealPlansResponseSchema,
   mealResponseSchema,
   menuProposalResponseSchema,
+  putVoteSchema,
   updateMealSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -76,7 +77,40 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request) => ({
-      meal: await service.updateMeal(request.params.id, request.body),
+      meal: await service.updateMeal(
+        request.params.id,
+        request.body,
+        request.actor.id,
+      ),
+    }),
+  );
+
+  // GLOSSARY: Глас. A second press on the same vote is the client's `DELETE`.
+  app.put(
+    '/api/menu/meals/:id/vote',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: putVoteSchema,
+        response: { 200: mealResponseSchema },
+      },
+    },
+    async (request) => ({
+      meal: await service.vote(
+        request.params.id,
+        request.actor.id,
+        request.body.value,
+      ),
+    }),
+  );
+
+  app.delete(
+    '/api/menu/meals/:id/vote',
+    {
+      schema: { params: idParamsSchema, response: { 200: mealResponseSchema } },
+    },
+    async (request) => ({
+      meal: await service.vote(request.params.id, request.actor.id, null),
     }),
   );
 

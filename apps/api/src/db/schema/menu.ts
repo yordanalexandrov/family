@@ -3,6 +3,8 @@ import {
   type Servings,
   type Slot,
   slotSchema,
+  type VoteValue,
+  voteValueSchema,
 } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import {
@@ -11,6 +13,7 @@ import {
   index,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -62,6 +65,30 @@ export const meal = pgTable(
     uniqueIndex('meal_plan_date_slot_key').on(t.planId, t.date, t.slot),
     index('meal_date_idx').on(t.date),
     check('meal_slot_check', oneOf(t.slot, slotSchema.options)),
+  ],
+);
+
+/**
+ * GLOSSARY: Глас. At most one per meal and user, for the meal's current recipe and note; it goes with the meal (and so
+ * with the plan).
+ */
+export const mealVote = pgTable(
+  'meal_vote',
+  {
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    value: text('value').$type<VoteValue>().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.mealId, t.userId] }),
+    check('meal_vote_value_check', oneOf(t.value, voteValueSchema.options)),
   ],
 );
 

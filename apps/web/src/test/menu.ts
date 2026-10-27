@@ -40,6 +40,7 @@ export function meal(
     servings: { [dani.id]: 1, [poli.id]: 1 },
     why: null,
     recipe: null,
+    votes: [],
     ...overrides,
   };
 }

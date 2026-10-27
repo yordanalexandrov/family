@@ -64,6 +64,13 @@
       "when": 1793029006634,
       "tag": "0008_suggestion_drop_slot",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793126385438,
+      "tag": "0009_meal_vote",
+      "breakpoints": true
     }
   ]
 }

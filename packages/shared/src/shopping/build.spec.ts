@@ -103,6 +103,7 @@ function meal(
     servings,
     why: null,
     recipe: of ? { title: of.title, archivedAt: null } : null,
+    votes: [],
   };
 }
 

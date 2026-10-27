@@ -2,8 +2,10 @@ import {
   addDays,
   type CookingMeal,
   type CreateMenuProposal,
+  dateKeyInSofia,
   daysOfWeek,
   hasWeekStarted,
+  isPastMeal,
   MENU_PROPOSE_MIN_RECIPES,
   MENU_SLOTS,
   type Meal,
@@ -17,10 +19,13 @@ import {
   oneServingEach,
   type Servings,
   type UpdateMeal,
+  type VoteValue,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
+  deleteOtherVotes,
   deletePlan,
+  deleteVote,
   findMeal,
   findMealOn,
   findPlanByWeek,
@@ -35,6 +40,7 @@ import {
   type NewMeal,
   setProposalPlan,
   updateMeal,
+  upsertVote,
 } from '../db/repositories/menu.js';
 import {
   countMenuRecipes,
@@ -62,6 +68,7 @@ const NO_SUCH_MEAL = 'Няма такова ястие';
 const NO_SUCH_PROPOSAL = 'Няма такова предложение за меню';
 const WEEK_HAS_PLAN = 'Седмицата вече има меню';
 const WEEK_HAS_PENDING = 'За седмицата вече се подготвя предложение';
+const PAST_MEAL = 'Денят е минал: ястието вече не се гласува и не се сменя';
 
 export interface MenuService {
   /** The plan of the week with its meals. */
@@ -71,8 +78,21 @@ export interface MenuService {
   createEmptyPlan(weekStart: string, actingUserId: string): Promise<MealPlan>;
   /** Only until the week has begun (Monday 00:00 in Sofia); after that the plan is edited live. */
   deletePlan(id: string): Promise<void>;
-  /** A changed recipe must be in the registry, not archived, tagged `dinner`, and clears the agent's `why`. */
-  updateMeal(id: string, patch: UpdateMeal): Promise<Meal>;
+  /**
+   * A changed recipe must be in the registry, not archived, tagged `dinner`, and clears the agent's `why`. A changed
+   * recipe or note (GLOSSARY: Глас) drops the others' votes and makes `actingUserId` up; refused for a past meal.
+   */
+  updateMeal(
+    id: string,
+    patch: UpdateMeal,
+    actingUserId: string,
+  ): Promise<Meal>;
+  /** Puts (`value`) or takes back (`null`) the vote of `actingUserId`; refused for a past meal. */
+  vote(
+    id: string,
+    actingUserId: string,
+    value: VoteValue | null,
+  ): Promise<Meal>;
   /** Stores a `pending` proposal and starts `menu.propose` in the background; the proposal is returned at once. */
   requestProposal(
     params: CreateMenuProposal,
@@ -242,7 +262,7 @@ export function createMenuService({
       signalWeek(events, plan.weekStart);
     },
 
-    async updateMeal(id, patch) {
+    async updateMeal(id, patch, actingUserId) {
       const { meal, weekStart } = await db.transaction(async (tx) => {
         const current = await findMeal(tx, id);
         if (!current) {
@@ -250,6 +270,12 @@ export function createMenuService({
         }
         const recipeChanged =
           patch.recipeId !== undefined && patch.recipeId !== current.recipeId;
+        const noteChanged =
+          patch.note !== undefined && patch.note !== current.note;
+        const contentChanged = recipeChanged || noteChanged;
+        if (contentChanged) {
+          refusePastMeal(current, now());
+        }
         if (
           recipeChanged &&
           patch.recipeId !== null &&
@@ -268,12 +294,29 @@ export function createMenuService({
           { ...patch, ...(recipeChanged ? { why: null } : {}) },
           now(),
         );
-        const updated = await findMeal(tx, id);
-        const plan = await findPlanSummary(tx, current.planId);
-        if (!updated || !plan) {
-          throw new Error('meal vanished in its own transaction');
+        if (contentChanged) {
+          await deleteOtherVotes(tx, id, actingUserId);
+          await upsertVote(tx, id, actingUserId, 'up', now());
         }
-        return { meal: updated, weekStart: plan.weekStart };
+        return reread(tx, id, current.planId);
+      });
+      signalWeek(events, weekStart);
+      return meal;
+    },
+
+    async vote(id, actingUserId, value) {
+      const { meal, weekStart } = await db.transaction(async (tx) => {
+        const current = await findMeal(tx, id);
+        if (!current) {
+          throw new NotFoundError(NO_SUCH_MEAL);
+        }
+        refusePastMeal(current, now());
+        if (value === null) {
+          await deleteVote(tx, id, actingUserId);
+        } else {
+          await upsertVote(tx, id, actingUserId, value, now());
+        }
+        return reread(tx, id, current.planId);
       });
       signalWeek(events, weekStart);
       return meal;
@@ -315,6 +358,27 @@ export async function readCooking(
           }
         : null,
   };
+}
+
+/** 409 `past_meal` for a meal before today in Sofia: its votes, recipe and note are history. */
+function refusePastMeal(meal: Meal, at: Date): void {
+  if (isPastMeal(meal, dateKeyInSofia(at))) {
+    throw new ConflictError(PAST_MEAL, { code: 'past_meal' });
+  }
+}
+
+/** The meal as its own transaction left it, with the week to signal. */
+async function reread(
+  tx: DbExecutor,
+  id: string,
+  planId: string,
+): Promise<{ meal: Meal; weekStart: string }> {
+  const meal = await findMeal(tx, id);
+  const plan = await findPlanSummary(tx, planId);
+  if (!meal || !plan) {
+    throw new Error('meal vanished in its own transaction');
+  }
+  return { meal, weekStart: plan.weekStart };
 }
 
 /** Default servings of a new meal: 1 for each user. */

@@ -23,6 +23,10 @@ const meal = {
   servings: { [DANI]: 1, [POLI]: 2 },
   why: 'Бързо за понеделник, без месо след уикенда.',
   recipe: { title: 'Леща яхния', archivedAt: null },
+  votes: [
+    { userId: DANI, value: 'up' },
+    { userId: POLI, value: 'down' },
+  ],
 };
 
 describe('mealSchema', () => {
@@ -72,6 +76,15 @@ describe('mealSchema', () => {
   it('rejects servings keyed by something that is not a user id', () => {
     expect(
       mealSchema.safeParse({ ...meal, servings: { Дани: 1 } }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a vote that is neither up nor down', () => {
+    expect(
+      mealSchema.safeParse({
+        ...meal,
+        votes: [{ userId: DANI, value: 'maybe' }],
+      }).success,
     ).toBe(false);
   });
 

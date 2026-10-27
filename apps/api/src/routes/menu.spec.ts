@@ -19,6 +19,7 @@ import {
   vi,
 } from 'vitest';
 import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
+import { mealVote } from '../db/schema/menu.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import {
@@ -93,7 +94,7 @@ async function seedFixtureRecipes() {
 }
 
 function inject(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   url: string,
   payload?: object,
   target = app,
@@ -133,9 +134,27 @@ function getPlan(weekStart: string) {
   return inject('GET', `/api/menu/plans?weekStart=${weekStart}`);
 }
 
-function patchMeal(id: string, payload: object) {
-  return inject('PATCH', `/api/menu/meals/${id}`, payload);
+function patchMeal(id: string, payload: object, as = DANI.id) {
+  return app.inject({
+    method: 'PATCH',
+    url: `/api/menu/meals/${id}`,
+    headers: { 'x-acting-user': as },
+    payload,
+  });
 }
+
+/** `PUT` the vote of `as` for a meal, or `DELETE` it with `value` null. */
+function vote(id: string, value: 'up' | 'down' | null, as = DANI.id) {
+  return app.inject({
+    method: value === null ? 'DELETE' : 'PUT',
+    url: `/api/menu/meals/${id}/vote`,
+    headers: { 'x-acting-user': as },
+    ...(value === null ? {} : { payload: { value } }),
+  });
+}
+
+/** The week of `NOW` (Wednesday 28 October): Monday 26 and Tuesday 27 are past days. */
+const THIS_WEEK = '2026-10-26';
 
 async function propose(payload: object, target = app) {
   const response = await inject('POST', '/api/menu/proposals', payload, target);
@@ -357,6 +376,7 @@ describe('PATCH /api/menu/meals/:id', () => {
       cookUserId: POLI.id,
       servings: { [DANI.id]: 2, [POLI.id]: 0 },
       note: 'с двойна порция',
+      votes: [{ userId: DANI.id, value: 'up' }],
     };
     expect(response.json()).toEqual({ meal: expected });
     expect((await getPlan(WEEK)).json().plan.meals[0]).toEqual(expected);
@@ -499,6 +519,193 @@ describe('PATCH /api/menu/meals/:id', () => {
   });
 });
 
+describe('votes', () => {
+  it('puts, changes and takes back the acting user’s vote, and returns the meal with all votes', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    expect(monday.votes).toEqual([]);
+
+    const up = await vote(monday.id, 'up');
+    const poli = await vote(monday.id, 'down', POLI.id);
+    const changed = await vote(monday.id, 'down');
+    const back = await vote(monday.id, null, POLI.id);
+
+    expect(up.statusCode).toBe(200);
+    expect(up.json().meal).toMatchObject({
+      id: monday.id,
+      votes: [{ userId: DANI.id, value: 'up' }],
+    });
+    expect(poli.json().meal.votes).toEqual([
+      { userId: DANI.id, value: 'up' },
+      { userId: POLI.id, value: 'down' },
+    ]);
+    expect(changed.json().meal.votes).toEqual([
+      { userId: DANI.id, value: 'down' },
+      { userId: POLI.id, value: 'down' },
+    ]);
+    expect(back.statusCode).toBe(200);
+    expect(back.json().meal.votes).toEqual([
+      { userId: DANI.id, value: 'down' },
+    ]);
+    expect((await getPlan(WEEK)).json().plan.meals[0].votes).toEqual([
+      { userId: DANI.id, value: 'down' },
+    ]);
+  });
+
+  it('taking back a vote that is not there leaves the meal as it is', async () => {
+    const plan = await createPlan(WEEK);
+
+    const response = await vote(plan.meals[0].id, null);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().meal.votes).toEqual([]);
+  });
+
+  it('answers 400 for a value that is neither up nor down, and 404 for an unknown meal', async () => {
+    const plan = await createPlan(WEEK);
+
+    const bad = await inject(
+      'PUT',
+      `/api/menu/meals/${plan.meals[0].id}/vote`,
+      { value: 'maybe' },
+    );
+    const unknown = await vote('99999999-9999-4999-8999-999999999999', 'up');
+
+    expect(bad.statusCode).toBe(400);
+    expect(unknown.statusCode).toBe(404);
+  });
+
+  it('refuses a vote without an acting user (kiosk)', async () => {
+    const plan = await createPlan(WEEK);
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/menu/meals/${plan.meals[0].id}/vote`,
+      payload: { value: 'up' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'missing_acting_user' });
+  });
+
+  it('answers 409 past_meal for a vote on a day before today (Sofia), and keeps the votes', async () => {
+    // Tuesday 27 October, 10:00 in Sofia.
+    clock = new Date('2026-10-27T08:00:00Z');
+    const plan = await createPlan(THIS_WEEK);
+    const [monday, tuesday, wednesday] = plan.meals;
+    await vote(tuesday.id, 'up');
+    // Wednesday 28 October, 00:30 in Sofia: Tuesday is now past.
+    clock = new Date('2026-10-27T22:30:00Z');
+
+    const put = await vote(monday.id, 'up');
+    const taken = await vote(tuesday.id, null);
+    const today = await vote(wednesday.id, 'up');
+
+    expect(put.statusCode).toBe(409);
+    expect(put.json()).toMatchObject({ error: 'conflict', code: 'past_meal' });
+    expect(taken.statusCode).toBe(409);
+    expect(today.statusCode).toBe(200);
+    expect((await getPlan(THIS_WEEK)).json().plan.meals[1].votes).toEqual([
+      { userId: DANI.id, value: 'up' },
+    ]);
+  });
+
+  it('signals menu.changed and shopping.changed for the week of the meal', async () => {
+    const plan = await createPlan(WEEK);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await vote(plan.meals[0].id, 'up');
+    await vote(plan.meals[0].id, null);
+    unsubscribe();
+
+    expect(signals).toEqual([
+      { type: 'menu.changed', weekStart: WEEK },
+      { type: 'shopping.changed', weekStart: WEEK },
+      { type: 'menu.changed', weekStart: WEEK },
+      { type: 'shopping.changed', weekStart: WEEK },
+    ]);
+  });
+
+  it('a new recipe or note drops the other’s vote and makes the one who changed it up', async () => {
+    const plan = await proposedPlan();
+    const [monday, tuesday] = plan.meals;
+    for (const meal of [monday, tuesday]) {
+      await vote(meal.id, 'down');
+      await vote(meal.id, 'up', POLI.id);
+    }
+
+    const recipe = await patchMeal(
+      monday.id,
+      { recipeId: recipeId(9) },
+      POLI.id,
+    );
+    const note = await patchMeal(tuesday.id, { note: 'двойна порция' });
+
+    expect(recipe.json().meal.votes).toEqual([
+      { userId: POLI.id, value: 'up' },
+    ]);
+    expect(note.json().meal.votes).toEqual([{ userId: DANI.id, value: 'up' }]);
+  });
+
+  it('the cook, the servings and an unchanged recipe leave the votes as they are', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await vote(monday.id, 'down');
+    await vote(monday.id, 'down', POLI.id);
+
+    const response = await patchMeal(
+      monday.id,
+      {
+        recipeId: monday.recipeId,
+        note: monday.note,
+        cookUserId: POLI.id,
+        servings: { [DANI.id]: 2, [POLI.id]: 1 },
+      },
+      POLI.id,
+    );
+
+    expect(response.json().meal.votes).toEqual([
+      { userId: DANI.id, value: 'down' },
+      { userId: POLI.id, value: 'down' },
+    ]);
+  });
+
+  it('a past meal keeps its recipe and note (409 past_meal), but its cook and servings can still change', async () => {
+    const plan = await createPlan(THIS_WEEK);
+    const [monday] = plan.meals;
+
+    const recipe = await patchMeal(monday.id, { recipeId: recipeId(5) });
+    const note = await patchMeal(monday.id, { note: 'навън' });
+    const cook = await patchMeal(monday.id, {
+      cookUserId: POLI.id,
+      servings: { [DANI.id]: 0, [POLI.id]: 1 },
+    });
+
+    expect(recipe.statusCode).toBe(409);
+    expect(recipe.json()).toMatchObject({ code: 'past_meal' });
+    expect(note.statusCode).toBe(409);
+    expect(cook.statusCode).toBe(200);
+    expect(cook.json().meal).toMatchObject({
+      recipeId: null,
+      note: null,
+      cookUserId: POLI.id,
+      votes: [],
+    });
+  });
+
+  it('go with the plan when it is deleted', async () => {
+    const plan = await createPlan(WEEK);
+    await vote(plan.meals[0].id, 'up');
+    await vote(plan.meals[1].id, 'down', POLI.id);
+
+    const response = await inject('DELETE', `/api/menu/plans/${plan.id}`);
+
+    expect(response.statusCode).toBe(204);
+    expect(await testDb().select().from(mealVote)).toEqual([]);
+  });
+});
+
 describe('DELETE /api/menu/plans/:id', () => {
   it('deletes a plan whose week has not begun', async () => {
     const plan = await createPlan(WEEK);
@@ -603,6 +810,8 @@ describe('POST /api/menu/proposals', () => {
           archivedAt: new Date(),
         },
       ]);
+    // The past weeks were planned before they began: their recipes cannot change once the days are past.
+    clock = new Date('2026-10-01T08:00:00Z');
     const threeWeeksBack = await createPlan('2026-10-12');
     await patchMeal(threeWeeksBack.meals[0].id, { recipeId: recipeId(1) });
     const twoWeeksBack = await createPlan('2026-10-19');
@@ -610,6 +819,7 @@ describe('POST /api/menu/proposals', () => {
     const lastWeek = await createPlan('2026-10-26');
     await patchMeal(lastWeek.meals[0].id, { recipeId: recipeId(4) });
     await patchMeal(lastWeek.meals[1].id, { note: 'ядем навън' });
+    clock = NOW;
 
     const proposal = await propose({
       weekStart: WEEK,

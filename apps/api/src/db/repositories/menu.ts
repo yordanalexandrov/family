@@ -5,11 +5,27 @@ import type {
   MenuProposalRequest,
   Servings,
   Slot,
+  Vote,
+  VoteValue,
 } from '@family/shared';
-import { and, asc, between, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  between,
+  eq,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe } from '../schema/food.js';
-import { meal, mealPlan, menuProposalRequest } from '../schema/menu.js';
+import {
+  meal,
+  mealPlan,
+  mealVote,
+  menuProposalRequest,
+} from '../schema/menu.js';
 
 type PlanRow = typeof mealPlan.$inferSelect;
 type ProposalRow = typeof menuProposalRequest.$inferSelect;
@@ -64,9 +80,13 @@ function selectMeals(db: DbExecutor) {
 
 type MealRow = Awaited<ReturnType<typeof selectMeals>>[number];
 
-function toMeal({ recipeTitle, recipeArchivedAt, ...row }: MealRow): Meal {
+function toMeal(
+  { recipeTitle, recipeArchivedAt, ...row }: MealRow,
+  votes: Vote[],
+): Meal {
   return {
     ...row,
+    votes,
     recipe:
       row.recipeId !== null && recipeTitle !== null
         ? {
@@ -77,11 +97,40 @@ function toMeal({ recipeTitle, recipeArchivedAt, ...row }: MealRow): Meal {
   };
 }
 
+/** The meals of `rows` with their votes, by user id. */
+async function withVotes(db: DbExecutor, rows: MealRow[]): Promise<Meal[]> {
+  if (rows.length === 0) {
+    return [];
+  }
+  const votes = await db
+    .select({
+      mealId: mealVote.mealId,
+      userId: mealVote.userId,
+      value: mealVote.value,
+    })
+    .from(mealVote)
+    .where(
+      inArray(
+        mealVote.mealId,
+        rows.map((row) => row.id),
+      ),
+    )
+    .orderBy(asc(mealVote.userId));
+  return rows.map((row) =>
+    toMeal(
+      row,
+      votes
+        .filter((vote) => vote.mealId === row.id)
+        .map(({ userId, value }) => ({ userId, value })),
+    ),
+  );
+}
+
 async function withMeals(db: DbExecutor, row: PlanRow): Promise<MealPlan> {
   const meals = await selectMeals(db)
     .where(eq(meal.planId, row.id))
     .orderBy(asc(meal.date), asc(meal.slot));
-  return { ...toPlanSummary(row), meals: meals.map(toMeal) };
+  return { ...toPlanSummary(row), meals: await withVotes(db, meals) };
 }
 
 /**
@@ -173,8 +222,8 @@ export async function findMeal(
   db: DbExecutor,
   id: string,
 ): Promise<Meal | undefined> {
-  const [row] = await selectMeals(db).where(eq(meal.id, id)).limit(1);
-  return row && toMeal(row);
+  const rows = await selectMeals(db).where(eq(meal.id, id)).limit(1);
+  return (await withVotes(db, rows))[0];
 }
 
 /** The meal of a day and slot in whichever plan holds that date. */
@@ -183,10 +232,10 @@ export async function findMealOn(
   date: string,
   slot: Slot,
 ): Promise<Meal | undefined> {
-  const [row] = await selectMeals(db)
+  const rows = await selectMeals(db)
     .where(and(eq(meal.date, date), eq(meal.slot, slot)))
     .limit(1);
-  return row && toMeal(row);
+  return (await withVotes(db, rows))[0];
 }
 
 /** Writes the given columns of a meal and sets `updated_at` of its plan to `at`. */
@@ -209,6 +258,44 @@ export async function updateMeal(
     .update(mealPlan)
     .set({ updatedAt: at })
     .where(eq(mealPlan.id, planId));
+}
+
+/** Puts the vote of `userId` for a meal, replacing the one it had. */
+export async function upsertVote(
+  db: DbExecutor,
+  mealId: string,
+  userId: string,
+  value: VoteValue,
+  at: Date,
+): Promise<void> {
+  await db
+    .insert(mealVote)
+    .values({ mealId, userId, value, updatedAt: at })
+    .onConflictDoUpdate({
+      target: [mealVote.mealId, mealVote.userId],
+      set: { value, updatedAt: at },
+    });
+}
+
+export async function deleteVote(
+  db: DbExecutor,
+  mealId: string,
+  userId: string,
+): Promise<void> {
+  await db
+    .delete(mealVote)
+    .where(and(eq(mealVote.mealId, mealId), eq(mealVote.userId, userId)));
+}
+
+/** Drops the votes of everyone but `userId` for a meal. */
+export async function deleteOtherVotes(
+  db: DbExecutor,
+  mealId: string,
+  userId: string,
+): Promise<void> {
+  await db
+    .delete(mealVote)
+    .where(and(eq(mealVote.mealId, mealId), ne(mealVote.userId, userId)));
 }
 
 /** Distinct recipes of the meals in the plans of the given weeks. */

@@ -3,6 +3,7 @@ import { contractFailureSchema } from '../contracts/failure.js';
 import { hintSchema } from '../contracts/hint.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { slotSchema } from '../food/tags.js';
+import { voteSchema, voteValueSchema } from '../menu/votes.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
 
@@ -37,9 +38,19 @@ export const mealSchema = z.object({
   recipe: z
     .object({ title: z.string(), archivedAt: instantSchema.nullable() })
     .nullable(),
+  /**
+   * GLOSSARY: Глас. The users' votes for the current recipe and note, by user id; the outcome is not sent, the client
+   * computes it with `mealOutcome`.
+   */
+  votes: z.array(voteSchema),
 });
 
 export type Meal = z.infer<typeof mealSchema>;
+
+/** `PUT /api/menu/meals/:id/vote`: the acting user's vote; `DELETE` on the same path takes it back. */
+export const putVoteSchema = z.object({ value: voteValueSchema });
+
+export type PutVote = z.infer<typeof putVoteSchema>;
 
 /** The plan for one week, Monday to Sunday (GLOSSARY: Седмично меню); at most one per `weekStart`. */
 export const mealPlanSchema = z.object({
