@@ -1,5 +1,5 @@
 import type { NotificationKind } from '@family/shared';
-import { and, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { notificationLog } from '../schema/notifications.js';
 
@@ -31,6 +31,24 @@ export async function listNotificationLog(
         inArray(notificationLog.onDate, onDates),
       ),
     );
+}
+
+/** Everyone who got a reminder of `kind` about `subjectId`, on whichever day: the meal may have moved since. */
+export async function listNotifiedUsers(
+  db: DbExecutor,
+  kind: NotificationKind,
+  subjectId: string,
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ userId: notificationLog.userId })
+    .from(notificationLog)
+    .where(
+      and(
+        eq(notificationLog.kind, kind),
+        eq(notificationLog.subjectId, subjectId),
+      ),
+    );
+  return rows.map((row) => row.userId);
 }
 
 /**

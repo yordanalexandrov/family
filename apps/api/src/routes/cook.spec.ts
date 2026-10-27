@@ -81,6 +81,23 @@ async function dinnerOn(date: string): Promise<string> {
   return dinner.id;
 }
 
+/** The id of the dinner on `date` in the week's plan, which exists already. */
+async function dinnerIdOn(date: string): Promise<string> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/menu/plans?weekStart=${WEEK}`,
+    headers: as(DANI.id),
+  });
+  const { plan } = mealPlanResponseSchema.parse(response.json());
+  const dinner = plan.meals.find(
+    (meal) => meal.date === date && meal.slot === 'dinner',
+  );
+  if (!dinner) {
+    throw new Error(`no dinner on ${date}`);
+  }
+  return dinner.id;
+}
+
 async function patchMeal(id: string, payload: object) {
   const response = await app.inject({
     method: 'PATCH',
@@ -199,7 +216,9 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
 
     await claim(mealId, DANI.id);
 
-    const delivered = cookSince(before);
+    const delivered = cookSince(before).filter(
+      (d) => d.payload.userId === POLI.id,
+    );
     expect(delivered.map((d) => d.endpoint)).toEqual([
       deviceSubscription('poli-phone').endpoint,
     ]);
@@ -211,6 +230,53 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
       tag: `cook-${mealId}`,
       url: `/menu?week=${WEEK}`,
     });
+  });
+
+  it('tells the one who answered, on every device, that they cook tonight', async () => {
+    await subscribe(DANI.id, 'dani-tablet');
+    await runAt(AFTERNOON);
+    const before = push.delivered.length;
+
+    await claim(mealId, DANI.id);
+
+    const toDani = cookSince(before).filter(
+      (d) => d.payload.userId === DANI.id,
+    );
+    expect(toDani.map((d) => d.endpoint).sort()).toEqual(
+      [
+        deviceSubscription('dani-phone').endpoint,
+        deviceSubscription('dani-tablet').endpoint,
+      ].sort(),
+    );
+    expect(toDani[0]?.payload).toEqual({
+      kind: 'cook',
+      userId: DANI.id,
+      title: 'Довечера готвиш ти',
+      body: 'Мусака',
+      tag: `cook-${mealId}`,
+      url: `/menu?week=${WEEK}`,
+    });
+  });
+
+  it('replaces the question at the other when the meal moved to another day', async () => {
+    await runAt(AFTERNOON);
+    clock = new Date('2026-11-05T14:10:00Z');
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/menu/meals/${mealId}/swap`,
+      headers: as(POLI.id),
+      payload: { withMealId: await dinnerIdOn('2026-11-06') },
+    });
+    expect(response.statusCode).toBe(200);
+    const before = push.delivered.length;
+
+    await claim(mealId, DANI.id);
+
+    expect(
+      cookSince(before)
+        .filter((d) => d.payload.userId === POLI.id)
+        .map((d) => d.payload.title),
+    ).toEqual(['Довечера готви Дани']);
   });
 
   it('answers 409 cook_taken with the cook to the second', async () => {

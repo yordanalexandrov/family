@@ -18,6 +18,7 @@ import {
 import {
   claimNotification,
   listNotificationLog,
+  listNotifiedUsers,
 } from '../db/repositories/notification-log.js';
 import {
   claimMealCook,
@@ -331,15 +332,13 @@ export function createReminders({
         events.publish(event);
       }
       const cook = (await listUsers(db)).find((user) => user.id === userId);
-      const asked = (
-        await listNotificationLog(db, ['cook'], [meal.date])
-      ).filter(
-        (entry) => entry.subjectId === mealId && entry.userId !== userId,
-      );
-      for (const { userId: other } of asked) {
-        // Same tag: it takes the place of the question on the other's phone.
-        await push.send(other, 'cook', {
-          title: `Довечера готви ${cook?.name ?? ''}`.trim(),
+      // Same tag: it takes the place of the question on every device that got it, the answerer's other ones too.
+      for (const asked of await listNotifiedUsers(db, 'cook', mealId)) {
+        await push.send(asked, 'cook', {
+          title:
+            asked === userId
+              ? 'Довечера готвиш ти'
+              : `Довечера готви ${cook?.name ?? ''}`.trim(),
           body: mealTitle(meal) ?? '',
           tag: `cook-${mealId}`,
           url: menuUrl(meal.date),
