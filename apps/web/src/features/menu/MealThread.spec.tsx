@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   dinnerRecipes,
+  lastWeek,
   planFor,
   serveDinnerRecipes,
   serveMealUpdates,
@@ -20,8 +21,8 @@ const [chicken, , moussaka] = dinnerRecipes;
  * Четвъртък (от днес нататък) с мусака и разговор: Поли пита, Дани сменя и отговаря. Понеделник е минал и има
  * един коментар.
  */
-function planWithThread() {
-  const plan = planFor(thisWeek, {
+function planWithThread(weekStart = thisWeek) {
+  const plan = planFor(weekStart, {
     0: {
       recipeId: chicken.id,
       recipe: { title: chicken.title, archivedAt: null },
@@ -200,3 +201,86 @@ describe('MealSheet: разговор', () => {
       .toEqual([{ id: plan.meals[3]?.id, body: { recipeId: chicken.id } }]);
   });
 });
+
+describe('MealSheet: разговор в минала седмица', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('листът се отваря само за четене: разговорът се вижда, без глас, коментар, смяна и размяна', async () => {
+    const { plan, threads } = planWithThread(lastWeek);
+    servePlans({ [thisWeek]: planFor(thisWeek), [lastWeek]: plan });
+    serveDinnerRecipes();
+    serveThreads(plan, threads);
+
+    renderApp('/menu');
+    const user = userEvent.setup();
+    await screen.findByRole('list', { name: 'Вечери' });
+    await user.click(screen.getByRole('button', { name: 'Предишна седмица' }));
+    await user.click(await screen.findByRole('button', { name: /Мусака/ }));
+    const sheet = screen.getByRole('dialog', {
+      name: 'четвъртък, 29 октомври',
+    });
+
+    const thread = within(sheet).getByRole('list', { name: 'Разговор' });
+    expect(
+      await within(thread).findByText('така по-добре'),
+    ).toBeInTheDocument();
+    expect(
+      within(thread).queryByRole('button', { name: 'Изтрий коментара' }),
+    ).toBeNull();
+    for (const name of [
+      'За',
+      'Против',
+      'Изпрати',
+      'Избери сам',
+      '✨ Предложи друго',
+      'Премести на…',
+      'Поли',
+      'никой',
+      'Повече порции за Дани',
+    ]) {
+      expect(within(sheet).queryByRole('button', { name })).toBeNull();
+    }
+    expect(
+      within(sheet).queryByRole('textbox', { name: 'Коментар' }),
+    ).toBeNull();
+    expect(
+      within(sheet).queryByRole('textbox', { name: 'Бележка' }),
+    ).toBeNull();
+  });
+});
+
+describe.each(['kiosk', 'tv'] as const)(
+  'MenuWeek на %s: без разговор',
+  (mode) => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(fixtureNow);
+      setUpDevice(mode);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('редът е както преди разговора: без последния коментар и брояча', async () => {
+      const { plan } = planWithThread();
+      servePlans({ [thisWeek]: plan });
+
+      renderApp('/menu');
+
+      const meals = await screen.findByRole('list', { name: 'Вечери' });
+      expect(meals).toHaveTextContent('Мусака');
+      expect(meals).not.toHaveTextContent('така по-добре');
+      expect(meals).not.toHaveTextContent('в разговора');
+      expect(meals).not.toHaveTextContent('💬');
+    });
+  },
+);

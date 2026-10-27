@@ -428,7 +428,9 @@ function PlanView({
               <MealRow
                 meal={meal}
                 users={users}
-                {...(readOnly ? {} : { onOpen: () => setOpenMealId(meal.id) })}
+                {...(readOnly && !voting
+                  ? {}
+                  : { onOpen: () => setOpenMealId(meal.id) })}
                 {...(voting ? { voting } : {})}
               />
             </li>
@@ -446,6 +448,7 @@ function PlanView({
           plan={plan}
           users={users}
           today={today}
+          readOnly={readOnly}
           {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
           onClose={() => setOpenMealId(null)}
         />
@@ -471,7 +474,10 @@ function DeletePlan({ plan }: { plan: MealPlan }) {
   }
   return (
     <div className="menu__confirm" role="alertdialog" aria-label="Изтриване">
-      <p>Да изтрия ли менюто за тази седмица?</p>
+      <p>
+        Да изтрия ли менюто за тази седмица? Гласовете и разговорите се трият
+        заедно с менюто.
+      </p>
       {deletePlan.isError && <ErrorBox error={deletePlan.error} />}
       <div className="recipes__actions">
         <button

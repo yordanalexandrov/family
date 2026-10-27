@@ -25,17 +25,17 @@ export interface RowVoting {
 interface MealRowProps {
   meal: Meal;
   users: User[];
-  /** Без него редът е само за четене (минала седмица, kiosk). */
+  /** Без него редът не се отваря (kiosk, TV). */
   onOpen?: () => void;
-  /** Без него редът е без гласове (kiosk). */
+  /** Без него редът е без гласове и без разговор (kiosk, TV): изглежда както преди съгласуването. */
   voting?: RowVoting;
   /** Дръжката за влачене (`MealDrag`), в реда с гласовете. */
   handle?: ReactNode;
 }
 
 /**
- * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода. Минал ден
- * е приглушен, без бутони за глас и без изход.
+ * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода и последният
+ * ред от разговора. Минал ден е приглушен, без бутони за глас и без изход.
  */
 export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
@@ -56,14 +56,14 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
         <span
           className={`meal-row__title${title ? '' : ' meal-row__title--empty'}`}
         >
-          {title ?? (onOpen ? 'Избери ястие' : '—')}
+          {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
           {meal.recipe?.archivedAt && <span className="badge">архивирана</span>}
         </span>
         {meal.recipe && meal.note && (
           <span className="meal-row__note">{meal.note}</span>
         )}
         {meal.why && <span className="meal-row__why">{meal.why}</span>}
-        {meal.lastComment && (
+        {voting && meal.lastComment && (
           <LastComment
             line={meal.lastComment}
             count={meal.commentCount}

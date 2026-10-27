@@ -32,6 +32,8 @@ interface MealSheetProps {
   plan: MealPlan;
   users: User[];
   today: DateKey;
+  /** Минала седмица: всичко се чете (и разговорът), нищо не се сменя. */
+  readOnly?: boolean;
   /** Действащият потребител, който гласува; без него листът е без гласове. */
   voterId?: string;
   onVote?: (meal: Meal, value: VoteValue | null) => void;
@@ -41,20 +43,21 @@ interface MealSheetProps {
 /**
  * Листът на едно ястие: отгоре гласовете на двамата и разговорът, после връзка към рецептата, „Избери сам“ (изборът
  * от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
- * готвачът и порциите се сменят; разговорът му се чете, но не се пише.
+ * готвачът и порциите се сменят; разговорът му се чете, но не се пише. В минала седмица (`readOnly`) не се сменят и те.
  */
 export function MealSheet({
   meal,
   plan,
   users,
   today,
+  readOnly = false,
   voterId,
   onVote,
   onClose,
 }: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
   const day = formatDayLong(meal.date);
-  const past = isPastMeal(meal, today);
+  const past = readOnly || isPastMeal(meal, today);
   const [picking, setPicking] = useState(false);
 
   function patch(change: UpdateMeal) {
@@ -112,7 +115,9 @@ export function MealSheet({
       )}
       {past ? (
         <p className="sheet__section meal-votes__past">
-          Денят е минал: ястието и бележката не се сменят.
+          {readOnly
+            ? 'Седмицата е минала: менюто се чете, но не се сменя.'
+            : 'Денят е минал: ястието и бележката не се сменят.'}
         </p>
       ) : (
         <>
@@ -140,8 +145,12 @@ export function MealSheet({
           {voterId && <MoveMeal meal={meal} plan={plan} today={today} />}
         </>
       )}
-      <CookPicker meal={meal} users={users} onPick={patch} />
-      <ServingsEditor meal={meal} users={users} onChange={patch} />
+      {!readOnly && (
+        <>
+          <CookPicker meal={meal} users={users} onPick={patch} />
+          <ServingsEditor meal={meal} users={users} onChange={patch} />
+        </>
+      )}
     </Sheet>
   );
 }

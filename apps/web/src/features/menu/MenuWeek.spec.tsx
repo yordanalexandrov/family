@@ -291,8 +291,9 @@ describe('MenuWeek', () => {
     const thursday = plan.meals[3]?.id;
 
     renderApp('/menu');
+    // Минал ден е „—“, затова празните редове „Избери ястие“ са от сряда нататък.
     const rows = await screen.findAllByRole('button', { name: /Избери ястие/ });
-    await user.click(rows[3] as HTMLElement);
+    await user.click(rows[1] as HTMLElement);
     const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
 
     await user.click(within(sheet).getByRole('button', { name: 'Поли' }));
@@ -342,7 +343,7 @@ describe('MenuWeek', () => {
     ).toHaveTextContent('2 порции');
   });
 
-  it('минала седмица е само за четене: без редакция, предложение и изтриване', async () => {
+  it('минала седмица е само за четене: редът отваря листа за четене, без предложение и изтриване', async () => {
     const user = userEvent.setup();
     const asked = servePlans({ [lastWeek]: planFor(lastWeek) });
 
@@ -352,8 +353,16 @@ describe('MenuWeek', () => {
 
     const meals = await screen.findByRole('list', { name: 'Вечери' });
     expect(within(meals).getAllByRole('listitem')).toHaveLength(7);
-    expect(within(meals).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(meals).queryByRole('button', { name: 'За' })).toBeNull();
     expect(meals).not.toHaveTextContent('Избери ястие');
+    await user.click(within(meals).getAllByRole('button')[0] as HTMLElement);
+    const sheet = screen.getByRole('dialog', {
+      name: 'понеделник, 26 октомври',
+    });
+    expect(sheet).toHaveTextContent(
+      'Седмицата е минала: менюто се чете, но не се сменя.',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
     expect(
       screen.queryByRole('button', { name: 'Изтрий плана' }),
     ).not.toBeInTheDocument();
@@ -419,6 +428,9 @@ describe('MenuWeek', () => {
       await screen.findByRole('button', { name: 'Изтрий плана' }),
     );
     expect(deleted).toEqual([]);
+    expect(
+      screen.getByRole('alertdialog', { name: 'Изтриване' }),
+    ).toHaveTextContent('Гласовете и разговорите се трият заедно с менюто.');
     await user.click(screen.getByRole('button', { name: 'Изтрий' }));
 
     expect(
