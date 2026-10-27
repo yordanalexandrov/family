@@ -134,6 +134,23 @@ async function dinnerOn(date: string): Promise<string> {
   return dinner.id;
 }
 
+/** The id of the dinner on `date` in the week's plan, which exists already. */
+async function dinnerIdOn(date: string): Promise<string> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/menu/plans?weekStart=${WEEK}`,
+    headers: as(DANI.id),
+  });
+  const { plan } = mealPlanResponseSchema.parse(response.json());
+  const dinner = plan.meals.find(
+    (meal) => meal.date === date && meal.slot === 'dinner',
+  );
+  if (!dinner) {
+    throw new Error(`no dinner on ${date}`);
+  }
+  return dinner.id;
+}
+
 async function patchMeal(id: string, payload: object) {
   const response = await app.inject({
     method: 'PATCH',
@@ -236,6 +253,24 @@ describe('POST /api/menu/meals/:id/thawed', () => {
       title: 'Извади месото за довечера',
       body: 'Пълнени чушки: смесена кайма',
     });
+  });
+
+  it('stays with the meal when its day is swapped', async () => {
+    await runAt(EVENING);
+    await thawed(musakaMealId, POLI.id);
+    clock = new Date('2026-11-04T21:00:00Z');
+    const friday = await dinnerIdOn('2026-11-06');
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/menu/meals/${musakaMealId}/swap`,
+      headers: as(DANI.id),
+      payload: { withMealId: friday },
+    });
+    expect(response.statusCode).toBe(200);
+
+    // Thursday evening is the eve of the moved musaka, Friday morning its day: it was taken out already.
+    expect(await runAt(new Date('2026-11-05T18:00:00Z'))).toEqual([]);
+    expect(await runAt(new Date('2026-11-06T06:00:00Z'))).toEqual([]);
   });
 
   it('answers 404 for a meal that does not exist', async () => {
