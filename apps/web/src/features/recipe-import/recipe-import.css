@@ -32,7 +32,7 @@
   background: var(--color-surface);
 }
 
-.import-form__text {
+.import-form .import-form__text {
   min-block-size: 14rem;
   resize: vertical;
 }
