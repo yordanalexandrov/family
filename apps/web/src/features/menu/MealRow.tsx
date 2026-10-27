@@ -9,6 +9,7 @@ import {
   type User,
   type VoteValue,
 } from '@family/shared';
+import type { ReactNode } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { formatDate, formatServings, formatWeekday } from '../../lib/format';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
@@ -28,13 +29,15 @@ interface MealRowProps {
   onOpen?: () => void;
   /** Без него редът е без гласове (kiosk). */
   voting?: RowVoting;
+  /** Дръжката за влачене (`MealDrag`), в реда с гласовете. */
+  handle?: ReactNode;
 }
 
 /**
  * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода. Минал ден
  * е приглушен, без бутони за глас и без изход.
  */
-export function MealRow({ meal, users, onOpen, voting }: MealRowProps) {
+export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
   const title = mealTitle(meal);
   const servings = totalServings(meal.servings);
@@ -99,7 +102,14 @@ export function MealRow({ meal, users, onOpen, voting }: MealRowProps) {
       )}
       {voting && (
         <div className="meal-row__votes">
-          {!past && <OutcomeLabel outcome={outcome} />}
+          {handle ? (
+            <span className="meal-row__lead">
+              {handle}
+              {!past && <OutcomeLabel outcome={outcome} />}
+            </span>
+          ) : (
+            !past && <OutcomeLabel outcome={outcome} />
+          )}
           <span className="meal-row__people">
             {others.map((user) => (
               <PersonVote key={user.id} meal={meal} user={user} />

@@ -19,7 +19,7 @@ import {
   vi,
 } from 'vitest';
 import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
-import { mealComment, mealVote } from '../db/schema/menu.js';
+import { meal, mealComment, mealVote } from '../db/schema/menu.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import {
@@ -899,6 +899,143 @@ describe('thread of a meal', () => {
 
     expect(response.statusCode).toBe(204);
     expect(await testDb().select().from(mealComment)).toEqual([]);
+  });
+});
+
+/** `POST` a swap of the days of a meal and `withMealId`, as `as`. */
+function swap(id: string, withMealId: string, as = DANI.id) {
+  return app.inject({
+    method: 'POST',
+    url: `/api/menu/meals/${id}/swap`,
+    headers: { 'x-acting-user': as },
+    payload: { withMealId },
+  });
+}
+
+describe('POST /api/menu/meals/:id/swap', () => {
+  it('swaps the days of two meals; each keeps its votes and its thread, and gets a moved line', async () => {
+    const plan = await proposedPlan();
+    const [monday, tuesday] = plan.meals;
+    await vote(monday.id, 'down', POLI.id);
+    await vote(tuesday.id, 'up');
+    await comment(monday.id, 'пак пиле?', POLI.id);
+
+    const response = await swap(monday.id, tuesday.id, POLI.id);
+
+    expect(response.statusCode).toBe(200);
+    const meals = response.json().plan.meals;
+    expect(
+      meals.map((meal: { id: string; date: string }) => [meal.id, meal.date]),
+    ).toEqual([
+      [tuesday.id, monday.date],
+      [monday.id, tuesday.date],
+      ...plan.meals
+        .slice(2)
+        .map((meal: { id: string; date: string }) => [meal.id, meal.date]),
+    ]);
+    expect(meals[1]).toMatchObject({
+      recipeId: monday.recipeId,
+      votes: [{ userId: POLI.id, value: 'down' }],
+    });
+    expect(meals[0]).toMatchObject({
+      recipeId: tuesday.recipeId,
+      votes: [{ userId: DANI.id, value: 'up' }],
+    });
+    expect((await getPlan(WEEK)).json().plan).toEqual(response.json().plan);
+    expect((await thread(monday.id)).json().comments).toEqual([
+      expect.objectContaining({ kind: 'comment', body: 'пак пиле?' }),
+      expect.objectContaining({
+        kind: 'system',
+        authorUserId: POLI.id,
+        body: 'премести от понеделник на вторник',
+      }),
+    ]);
+    expect((await thread(tuesday.id)).json().comments).toEqual([
+      expect.objectContaining({
+        kind: 'system',
+        authorUserId: POLI.id,
+        body: 'премести от вторник на понеделник',
+      }),
+    ]);
+  });
+
+  it('answers 400 for meals of different plans or slots, or the meal itself, and moves nothing', async () => {
+    const plan = await createPlan(WEEK);
+    const next = await createPlan('2026-11-09');
+    const [monday, tuesday] = plan.meals;
+    const [lunch] = await testDb()
+      .insert(meal)
+      .values({
+        planId: plan.id,
+        date: tuesday.date,
+        slot: 'lunch',
+        servings: monday.servings,
+      })
+      .returning();
+
+    const otherPlan = await swap(monday.id, next.meals[0].id);
+    const otherSlot = await swap(monday.id, lunch?.id ?? '');
+    const itself = await swap(monday.id, monday.id);
+
+    for (const response of [otherPlan, otherSlot, itself]) {
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ error: 'invalid_action' });
+    }
+    expect((await getPlan(WEEK)).json().plan.meals[0]).toMatchObject({
+      id: monday.id,
+      date: monday.date,
+      commentCount: 0,
+    });
+  });
+
+  it('answers 409 past_meal when either meal is before today (Sofia)', async () => {
+    const plan = await createPlan(THIS_WEEK);
+    const [, tuesday, wednesday, thursday] = plan.meals;
+
+    const from = await swap(tuesday.id, thursday.id);
+    const to = await swap(thursday.id, tuesday.id);
+    const today = await swap(wednesday.id, thursday.id);
+
+    for (const response of [from, to]) {
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toMatchObject({ code: 'past_meal' });
+    }
+    expect(today.statusCode).toBe(200);
+    expect(
+      today.json().plan.meals.map((meal: { id: string }) => meal.id),
+    ).toEqual([
+      plan.meals[0].id,
+      tuesday.id,
+      thursday.id,
+      wednesday.id,
+      ...plan.meals.slice(4).map((meal: { id: string }) => meal.id),
+    ]);
+  });
+
+  it('answers 404 for an unknown meal and 400 without withMealId', async () => {
+    const plan = await createPlan(WEEK);
+    const unknown = '99999999-9999-4999-8999-999999999999';
+
+    expect((await swap(plan.meals[0].id, unknown)).statusCode).toBe(404);
+    expect((await swap(unknown, plan.meals[0].id)).statusCode).toBe(404);
+    expect(
+      (await inject('POST', `/api/menu/meals/${plan.meals[0].id}/swap`, {}))
+        .statusCode,
+    ).toBe(400);
+  });
+
+  it('signals menu.changed and shopping.changed for the week once', async () => {
+    const plan = await createPlan(WEEK);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await swap(plan.meals[0].id, plan.meals[6].id);
+    unsubscribe();
+
+    expect(signals).toEqual([
+      { type: 'menu.changed', weekStart: WEEK },
+      { type: 'shopping.changed', weekStart: WEEK },
+    ]);
   });
 });
 

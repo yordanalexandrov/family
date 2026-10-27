@@ -25,6 +25,7 @@ import { Spinner } from '../../components/Spinner';
 import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
 import { formatDate } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
+import { DraggableMeal, MealDrag } from './MealDrag';
 import { MealRow } from './MealRow';
 import { MealSheet } from './MealSheet';
 import {
@@ -402,18 +403,38 @@ function PlanView({
         </div>
       )}
       {vote.isError && <ErrorBox error={vote.error} />}
-      <ol className="menu__meals" aria-label="Вечери">
-        {meals.map((meal) => (
-          <li key={meal.id}>
-            <MealRow
-              meal={meal}
-              users={users}
-              {...(readOnly ? {} : { onOpen: () => setOpenMealId(meal.id) })}
-              {...(voting ? { voting } : {})}
-            />
-          </li>
-        ))}
-      </ol>
+      {voting && !readOnly ? (
+        <MealDrag plan={plan}>
+          <ol className="menu__meals" aria-label="Вечери">
+            {meals.map((meal) => (
+              <DraggableMeal key={meal.id} meal={meal} today={today}>
+                {(handle) => (
+                  <MealRow
+                    meal={meal}
+                    users={users}
+                    onOpen={() => setOpenMealId(meal.id)}
+                    voting={voting}
+                    handle={handle}
+                  />
+                )}
+              </DraggableMeal>
+            ))}
+          </ol>
+        </MealDrag>
+      ) : (
+        <ol className="menu__meals" aria-label="Вечери">
+          {meals.map((meal) => (
+            <li key={meal.id}>
+              <MealRow
+                meal={meal}
+                users={users}
+                {...(readOnly ? {} : { onOpen: () => setOpenMealId(meal.id) })}
+                {...(voting ? { voting } : {})}
+              />
+            </li>
+          ))}
+        </ol>
+      )}
       {meals.length === 0 && (
         <p className="recipes__empty">Няма такива ястия.</p>
       )}

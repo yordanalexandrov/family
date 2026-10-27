@@ -318,6 +318,29 @@ export async function updateMeal(
 }
 
 /** Puts the vote of `userId` for a meal, replacing the one it had. */
+/**
+ * Swaps the days of two meals of one plan and slot. `(plan_id, date, slot)` is unique and checked row by row (not
+ * deferrable), so a one-statement swap can collide halfway. A temporary value instead of a deferrable constraint (no
+ * migration): `a` first parks 100 years back, a day no meal of its plan has, then `b` takes `a`'s day and `a` `b`'s.
+ */
+export async function swapMealDates(
+  db: DbExecutor,
+  a: Meal,
+  b: Meal,
+  at: Date,
+): Promise<void> {
+  await db
+    .update(meal)
+    .set({ date: sql`(${meal.date} - interval '100 years')::date` })
+    .where(eq(meal.id, a.id));
+  await db.update(meal).set({ date: a.date }).where(eq(meal.id, b.id));
+  await db.update(meal).set({ date: b.date }).where(eq(meal.id, a.id));
+  await db
+    .update(mealPlan)
+    .set({ updatedAt: at })
+    .where(eq(mealPlan.id, a.planId));
+}
+
 export async function upsertVote(
   db: DbExecutor,
   mealId: string,

@@ -20,6 +20,7 @@ import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
 import { MealReplace } from './MealReplace';
+import { MoveMeal } from './MoveMeal';
 import { usePlan, useUpdateMeal } from './queries';
 import { Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
@@ -136,6 +137,7 @@ export function MealSheet({
             />
           </div>
           <NoteField key={meal.note} meal={meal} onSave={patch} />
+          {voterId && <MoveMeal meal={meal} plan={plan} today={today} />}
         </>
       )}
       <CookPicker meal={meal} users={users} onPick={patch} />

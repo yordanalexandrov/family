@@ -166,6 +166,14 @@ export const updateMealSchema = z
 export type UpdateMeal = z.infer<typeof updateMealSchema>;
 
 /**
+ * `POST /api/menu/meals/:id/swap`: the meal and `withMealId` swap days (GLOSSARY: Ястие); both of one plan and slot,
+ * neither past. Each keeps its votes and thread. Answers the plan.
+ */
+export const swapMealsSchema = z.object({ withMealId: z.uuid() });
+
+export type SwapMeals = z.infer<typeof swapMealsSchema>;
+
+/**
  * One run of `menu.propose` for a week (GLOSSARY: Предложение за меню). The plan is created only when it is `done`
  * (`planId`); `error` uses the same failure codes as `recipe.suggest`.
  */
