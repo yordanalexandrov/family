@@ -1,0 +1,64 @@
+{
+  "recipe": {
+    "title": "Пилешко филе с ориз на фурна",
+    "servings": 4,
+    "prepMinutes": 50,
+    "tags": ["lunch", "dinner"],
+    "assumptions": "Порциите са „4–6“ в източника: взех 4. 1 чаша ориз е около 200 г, а 2 скилидки чесън са 2 бр.",
+    "nutritionPer100g": null,
+    "ingredients": [
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000001",
+        "newProduct": null,
+        "quantity": 600,
+        "unit": "g",
+        "note": "пилешки гърди"
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000002",
+        "newProduct": null,
+        "quantity": 200,
+        "unit": "g",
+        "note": "1 чаша"
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000003",
+        "newProduct": null,
+        "quantity": 2,
+        "unit": "pcs",
+        "note": "2 скилидки"
+      },
+      {
+        "ingredientId": null,
+        "newProduct": {
+          "name": "сумак",
+          "unit": "g",
+          "aisle": "spices"
+        },
+        "quantity": 1,
+        "unit": "tsp",
+        "note": "смлян"
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000004",
+        "newProduct": null,
+        "quantity": null,
+        "unit": "pinch",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000005",
+        "newProduct": null,
+        "quantity": 2,
+        "unit": "tbsp",
+        "note": null
+      }
+    ],
+    "steps": [
+      "Нарежете пилето на хапки и го овкусете със сол и сумак.",
+      "Запечете го за 10 минути.",
+      "Добавете ориза и чесъна, залейте с 2 чаши вода и печете още 30 минути на 200 градуса."
+    ]
+  },
+  "noResults": null
+}
