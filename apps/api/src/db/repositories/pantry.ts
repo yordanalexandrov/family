@@ -1,4 +1,4 @@
-import type { PantryItem, PantryKind } from '@family/shared';
+import type { PantryItem, PantryKind, UseUp } from '@family/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { ingredient } from '../schema/food.js';
@@ -121,4 +121,17 @@ export async function setPantryRanOut(
     .where(and(eq(pantryItem.id, id), eq(pantryItem.kind, 'staple')))
     .returning({ id: pantryItem.id });
   return rows.length > 0;
+}
+
+/** The use-up products as the AI contracts see them (`useUp`), the oldest first; staples stay out. */
+export async function listUseUp(db: DbExecutor): Promise<UseUp[]> {
+  const rows = await db
+    .select({ name: ingredient.name, note: pantryItem.note })
+    .from(pantryItem)
+    .innerJoin(ingredient, eq(ingredient.id, pantryItem.ingredientId))
+    .where(eq(pantryItem.kind, 'use_up'))
+    .orderBy(pantryItem.createdAt, ingredient.name);
+  return rows.map(({ name, note }) =>
+    note === null ? { name } : { name, note },
+  );
 }

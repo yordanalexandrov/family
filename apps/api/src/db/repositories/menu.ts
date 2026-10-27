@@ -18,7 +18,6 @@ import {
   desc,
   eq,
   inArray,
-  isNotNull,
   ne,
   sql,
 } from 'drizzle-orm';
@@ -433,22 +432,6 @@ export async function insertComment(
 
 export async function deleteComment(db: DbExecutor, id: string): Promise<void> {
   await db.delete(mealComment).where(eq(mealComment.id, id));
-}
-
-/** Distinct recipes of the meals in the plans of the given weeks. */
-export async function listRecipeIdsOfWeeks(
-  db: DbExecutor,
-  weekStarts: string[],
-): Promise<string[]> {
-  const rows = await db
-    .selectDistinct({ recipeId: meal.recipeId })
-    .from(meal)
-    .innerJoin(mealPlan, eq(mealPlan.id, meal.planId))
-    .where(
-      and(inArray(mealPlan.weekStart, weekStarts), isNotNull(meal.recipeId)),
-    )
-    .orderBy(asc(meal.recipeId));
-  return rows.flatMap((row) => (row.recipeId ? [row.recipeId] : []));
 }
 
 /**

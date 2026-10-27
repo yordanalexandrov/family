@@ -32,6 +32,7 @@ import {
 import type { DbExecutor } from '../client.js';
 import { likePattern } from '../like.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
+import { meal } from '../schema/menu.js';
 import { ingredientColumns } from './ingredients.js';
 
 type RecipeRow = typeof recipe.$inferSelect;
@@ -301,12 +302,14 @@ export async function isMenuRecipe(
 }
 
 /**
- * The recipes `menu.propose` chooses from: not archived, tagged with `slot`, by title, each with the names of its
- * products in line order.
+ * The recipes `menu.propose` and `meal.replace` choose from: not archived, tagged with `slot`, by title, each with the
+ * names of its products in line order, its rating and the date of its latest meal on or before `today` (a planned
+ * meal still to come is not a serving).
  */
 export async function listMenuRecipes(
   db: DbExecutor,
   slot: Slot,
+  today: string,
 ): Promise<MenuProposeRecipe[]> {
   const rows = await db
     .select({
@@ -314,6 +317,11 @@ export async function listMenuRecipes(
       title: recipe.title,
       prepMinutes: recipe.prepMinutes,
       tags: recipe.tags,
+      rating: recipe.rating,
+      lastServedOn: sql<string | null>`(
+        select max(${meal.date})::text from ${meal}
+        where ${meal.recipeId} = ${recipe.id} and ${meal.date} <= ${today}
+      )`,
       ingredientNames: sql<string[]>`coalesce(
         array_agg(${ingredient.name} order by ${recipeIngredient.position})
           filter (where ${ingredient.id} is not null),
@@ -329,6 +337,8 @@ export async function listMenuRecipes(
   return rows.map((row) => ({
     ...row,
     prepMinutes: row.prepMinutes ?? undefined,
+    rating: row.rating ?? undefined,
+    lastServedOn: row.lastServedOn ?? undefined,
   }));
 }
 

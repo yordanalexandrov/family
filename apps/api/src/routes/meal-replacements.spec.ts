@@ -27,6 +27,7 @@ import {
   completion,
   openclaw,
 } from '../test/openclaw.js';
+import { stockPantry } from '../test/pantry.js';
 import { DANI, POLI } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the week of 2 November has not begun. */
@@ -58,7 +59,7 @@ afterAll(async () => {
   openclaw.close();
 });
 
-/** The 10 dinner recipes of the fixtures' registry, with their ids and products. */
+/** The 10 dinner recipes of the fixtures' registry, with their ids, products and ratings. */
 async function seedFixtureRecipes() {
   const db = testDb();
   for (const entry of proposeInput.recipes) {
@@ -69,6 +70,7 @@ async function seedFixtureRecipes() {
       steps: ['Сготви.'],
       prepMinutes: entry.prepMinutes,
       tags: entry.tags as (typeof recipe.$inferInsert)['tags'],
+      rating: entry.rating,
     });
     for (const [position, name] of entry.ingredientNames.entries()) {
       await db
@@ -148,7 +150,7 @@ async function patchMeal(id: string, payload: object, as = DANI.id) {
 
 /**
  * The state the input fixture describes: the week of 2 November as Дани planned it, Wednesday's chicken talked over
- * by Поли and Дани, and recipes 4 and 7 in the 2 previous weeks. Returns Wednesday's meal.
+ * by Поли and Дани, and recipes 4 and 7 served in the 2 previous weeks. Returns Wednesday's meal.
  */
 async function fixtureWeek(): Promise<TestMeal> {
   // The past weeks were planned before they began: their recipes cannot change once the days are past.
@@ -257,7 +259,7 @@ describe('POST /api/menu/meals/:id/replacements', () => {
     ]);
   });
 
-  it('sends family-meal the meal, its thread, the rest of the week and the registry without the meal’s recipe', async () => {
+  it('sends family-meal the meal, its thread, the rest of the week, the registry without the meal’s recipe and the use-up products', async () => {
     const bodies = answerInTurn(JSON.stringify(replaceFixture));
     // Lunch only and archived: not to choose from.
     await testDb()
@@ -272,7 +274,16 @@ describe('POST /api/menu/meals/:id/replacements', () => {
           archivedAt: new Date(),
         },
       ]);
+    // The week's meals are still to come: only recipes 4 and 7 of the past weeks have been served.
     const meal = await fixtureWeek();
+    // Staples stay out of the input; use-up products go in, the oldest first.
+    await stockPantry(app, [
+      { name: 'ориз', kind: 'staple' },
+      ...replaceInput.useUp.map((item) => ({
+        ...item,
+        kind: 'use_up' as const,
+      })),
+    ]);
 
     await finished((await replace(meal.id)).id);
 

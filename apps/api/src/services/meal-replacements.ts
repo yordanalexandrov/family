@@ -1,5 +1,5 @@
 import {
-  addDays,
+  dateKeyInSofia,
   MEAL_REPLACE_MIN_RECIPES,
   type MealReplaceInput,
   type MealReplaceOutput,
@@ -18,8 +18,8 @@ import {
   findPlanByWeek,
   findPlanSummary,
   listComments,
-  listRecipeIdsOfWeeks,
 } from '../db/repositories/menu.js';
+import { listUseUp } from '../db/repositories/pantry.js';
 import { listMenuRecipes } from '../db/repositories/recipes.js';
 import { listUsers } from '../db/repositories/users.js';
 import { mealReplaceRequest } from '../db/schema/menu.js';
@@ -44,7 +44,8 @@ export type MealReplacements = ContractRequestHandle<
 /**
  * How `meal.replace` requests are stored: refused for an unknown or past meal, with fewer than 3 other recipes of its
  * slot, or while one is pending for the meal. The input is the meal, its thread, the other meals of its week, the
- * registry without its recipe and the recipes of the 2 previous weeks; a valid answer is kept as the candidates.
+ * registry without its recipe (with ratings and last servings) and the use-up products; a valid answer is kept as the
+ * candidates.
  */
 export function createMealReplaceStore(
   now: () => Date,
@@ -64,9 +65,9 @@ export function createMealReplaceStore(
         throw new NotFoundError(NO_SUCH_MEAL);
       }
       refusePastMeal(meal, now());
-      const have = (await listMenuRecipes(tx, meal.slot)).filter(
-        (recipe) => recipe.id !== meal.recipeId,
-      ).length;
+      const have = (
+        await listMenuRecipes(tx, meal.slot, dateKeyInSofia(now()))
+      ).filter((recipe) => recipe.id !== meal.recipeId).length;
       if (have < MEAL_REPLACE_MIN_RECIPES) {
         throw new ConflictError(
           `За друго ястие трябват поне ${MEAL_REPLACE_MIN_RECIPES} други рецепти`,
@@ -114,13 +115,10 @@ export function createMealReplaceStore(
             ? [{ date: other.date, title }]
             : [];
         }),
-        recipes: (await listMenuRecipes(db, meal.slot)).filter(
-          (recipe) => recipe.id !== meal.recipeId,
-        ),
-        recentRecipeIds: await listRecipeIdsOfWeeks(db, [
-          addDays(plan.weekStart, -14),
-          addDays(plan.weekStart, -7),
-        ]),
+        recipes: (
+          await listMenuRecipes(db, meal.slot, dateKeyInSofia(now()))
+        ).filter((recipe) => recipe.id !== meal.recipeId),
+        useUp: await listUseUp(db),
       };
     },
 

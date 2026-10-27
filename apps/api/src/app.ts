@@ -190,7 +190,7 @@ export function buildApp({
   );
   const menuProposals = contractRequests.register(
     menuPropose,
-    createMenuProposalStore(events),
+    createMenuProposalStore(events, now),
     agents.menuAgent,
   );
   app.decorate(

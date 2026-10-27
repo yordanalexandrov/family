@@ -27,6 +27,7 @@ import {
   completion,
   openclaw,
 } from '../test/openclaw.js';
+import { stockPantry } from '../test/pantry.js';
 import { DANI, POLI } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the week of 2 November has not begun. */
@@ -72,6 +73,7 @@ async function seedFixtureRecipes() {
       steps: ['Сготви.'],
       prepMinutes: entry.prepMinutes,
       tags: entry.tags as (typeof recipe.$inferInsert)['tags'],
+      rating: entry.rating,
     });
     for (const [position, name] of entry.ingredientNames.entries()) {
       await db
@@ -498,7 +500,7 @@ describe('PATCH /api/menu/meals/:id', () => {
     expect(meal.recipe).toEqual({
       title: monday.recipe.title,
       archivedAt: expect.any(String),
-      rating: null,
+      rating: monday.recipe.rating,
     });
   });
 
@@ -1138,7 +1140,10 @@ describe('POST /api/menu/proposals', () => {
         cookUserId: null,
         note: null,
         servings: { [DANI.id]: 1, [POLI.id]: 1 },
-        recipe: { title: expect.any(String), archivedAt: null, rating: null },
+        recipe: expect.objectContaining({
+          title: expect.any(String),
+          archivedAt: null,
+        }),
       });
     }
   });
@@ -1160,7 +1165,7 @@ describe('POST /api/menu/proposals', () => {
     unsubscribe();
   });
 
-  it('sends the agent the dinner registry and the recipes of the 2 previous weeks', async () => {
+  it('sends the agent the dinner registry with ratings and last served dates, and the use-up products', async () => {
     const bodies = answerInTurn(JSON.stringify(fixture()));
     // Lunch only and archived: not to choose from.
     await testDb()
@@ -1184,7 +1189,17 @@ describe('POST /api/menu/proposals', () => {
     const lastWeek = await createPlan('2026-10-26');
     await patchMeal(lastWeek.meals[0].id, { recipeId: recipeId(4) });
     await patchMeal(lastWeek.meals[1].id, { note: 'ядем навън' });
+    // Friday 30 October is still to come: it is not when recipe 1 was last served.
+    await patchMeal(lastWeek.meals[4].id, { recipeId: recipeId(1) });
     clock = NOW;
+    // Staples stay out of the input; use-up products go in, the oldest first.
+    await stockPantry(app, [
+      { name: 'ориз', kind: 'staple' },
+      ...proposeInput.useUp.map((item) => ({
+        ...item,
+        kind: 'use_up' as const,
+      })),
+    ]);
 
     const proposal = await propose({
       weekStart: WEEK,

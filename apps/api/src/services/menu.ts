@@ -1,5 +1,4 @@
 import {
-  addDays,
   type CookingMeal,
   type CreateMenuProposal,
   dateKeyInSofia,
@@ -43,7 +42,6 @@ import {
   listComments,
   listPlans,
   listProposalsOfWeek,
-  listRecipeIdsOfWeeks,
   lockWeek,
   type NewMeal,
   setProposalPlan,
@@ -51,6 +49,7 @@ import {
   updateMeal,
   upsertVote,
 } from '../db/repositories/menu.js';
+import { listUseUp } from '../db/repositories/pantry.js';
 import {
   countMenuRecipes,
   isMenuRecipe,
@@ -174,11 +173,13 @@ function signalAgreement(events: EventBus, weekStart: string): void {
 
 /**
  * How `menu.propose` requests are stored: refused without enough dinner recipes or for a taken week; the input is the
- * dinner registry and the recipes of the 2 previous weeks; a valid answer becomes the week's plan, signalled on `events`.
+ * dinner registry (with ratings and last servings as of `now`) and the use-up products; a valid answer becomes the
+ * week's plan, signalled on `events`.
  * A request without a user (`null`) is the cron's (`services/menu-schedule.ts`), and so is the plan it makes.
  */
 export function createMenuProposalStore(
   events: EventBus,
+  now: () => Date,
 ): ContractRequestStore<
   CreateMenuProposal,
   MenuProposalRequest,
@@ -207,11 +208,8 @@ export function createMenuProposalStore(
       return {
         weekStart: proposal.weekStart,
         slots: [...MENU_SLOTS],
-        recipes: await listMenuRecipes(db, DINNER),
-        recentRecipeIds: await listRecipeIdsOfWeeks(db, [
-          addDays(proposal.weekStart, -14),
-          addDays(proposal.weekStart, -7),
-        ]),
+        recipes: await listMenuRecipes(db, DINNER, dateKeyInSofia(now())),
+        useUp: await listUseUp(db),
         hint: proposal.hint,
       };
     },
