@@ -150,7 +150,7 @@ async function patchMeal(id: string, payload: object, as = DANI.id) {
 
 /**
  * The state the input fixture describes: the week of 2 November as Дани planned it, Wednesday's chicken talked over
- * by Поли and Дани, and recipes 4 and 7 served in the 2 previous weeks. Returns Wednesday's meal.
+ * by Поли and Дани, and recipes 4 and 7 in the 2 previous weeks. Returns Wednesday's meal.
  */
 async function fixtureWeek(): Promise<TestMeal> {
   // The past weeks were planned before they began: their recipes cannot change once the days are past.
@@ -274,7 +274,8 @@ describe('POST /api/menu/meals/:id/replacements', () => {
           archivedAt: new Date(),
         },
       ]);
-    // The week's meals are still to come: only recipes 4 and 7 of the past weeks have been served.
+    // Served before the meal: recipes 4 and 7 of the past weeks, and 3 and 5 on Monday and Tuesday before it. The
+    // meals after Wednesday are not, though their recipes are in the registry.
     const meal = await fixtureWeek();
     // Staples stay out of the input; use-up products go in, the oldest first.
     await stockPantry(app, [

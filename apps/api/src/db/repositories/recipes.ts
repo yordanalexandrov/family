@@ -303,13 +303,14 @@ export async function isMenuRecipe(
 
 /**
  * The recipes `menu.propose` and `meal.replace` choose from: not archived, tagged with `slot`, by title, each with the
- * names of its products in line order, its rating and the date of its latest meal on or before `today` (a planned
- * meal still to come is not a serving).
+ * names of its products in line order, its rating and the date of its latest meal strictly before `before`: the
+ * proposed week's Monday, or the date of the meal being replaced. A meal planned before that date counts as served,
+ * also when its day is still to come.
  */
 export async function listMenuRecipes(
   db: DbExecutor,
   slot: Slot,
-  today: string,
+  before: string,
 ): Promise<MenuProposeRecipe[]> {
   const rows = await db
     .select({
@@ -320,7 +321,7 @@ export async function listMenuRecipes(
       rating: recipe.rating,
       lastServedOn: sql<string | null>`(
         select max(${meal.date})::text from ${meal}
-        where ${meal.recipeId} = ${recipe.id} and ${meal.date} <= ${today}
+        where ${meal.recipeId} = ${recipe.id} and ${meal.date} < ${before}
       )`,
       ingredientNames: sql<string[]>`coalesce(
         array_agg(${ingredient.name} order by ${recipeIngredient.position})

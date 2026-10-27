@@ -1189,8 +1189,12 @@ describe('POST /api/menu/proposals', () => {
     const lastWeek = await createPlan('2026-10-26');
     await patchMeal(lastWeek.meals[0].id, { recipeId: recipeId(4) });
     await patchMeal(lastWeek.meals[1].id, { note: 'ядем навън' });
-    // Friday 30 October is still to come: it is not when recipe 1 was last served.
-    await patchMeal(lastWeek.meals[4].id, { recipeId: recipeId(1) });
+    // The current week counts as served, also its days still to come: Saturday 31 October is recipe 1's latest.
+    await patchMeal(lastWeek.meals[5].id, { recipeId: recipeId(1) });
+    // A meal after the proposed week is not a serving before it.
+    const later = await createPlan('2026-11-09');
+    await patchMeal(later.meals[0].id, { recipeId: recipeId(2) });
+    await patchMeal(later.meals[1].id, { recipeId: recipeId(1) });
     clock = NOW;
     // Staples stay out of the input; use-up products go in, the oldest first.
     await stockPantry(app, [

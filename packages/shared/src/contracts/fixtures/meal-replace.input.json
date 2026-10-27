@@ -63,6 +63,7 @@
       "prepMinutes": 35,
       "tags": ["dinner", "quick"],
       "ingredientNames": ["сьомга", "картоф", "лимон"],
+      "lastServedOn": "2026-11-02",
       "rating": 4
     },
     {
@@ -79,7 +80,8 @@
       "title": "Мусака",
       "prepMinutes": 90,
       "tags": ["dinner", "batch"],
-      "ingredientNames": ["кайма", "картоф", "яйце", "кисело мляко"]
+      "ingredientNames": ["кайма", "картоф", "яйце", "кисело мляко"],
+      "lastServedOn": "2026-11-03"
     },
     {
       "id": "a0000000-0000-4000-8000-000000000006",

@@ -173,13 +173,12 @@ function signalAgreement(events: EventBus, weekStart: string): void {
 
 /**
  * How `menu.propose` requests are stored: refused without enough dinner recipes or for a taken week; the input is the
- * dinner registry (with ratings and last servings as of `now`) and the use-up products; a valid answer becomes the
- * week's plan, signalled on `events`.
+ * dinner registry (with ratings and the last serving before the week) and the use-up products; a valid answer becomes
+ * the week's plan, signalled on `events`.
  * A request without a user (`null`) is the cron's (`services/menu-schedule.ts`), and so is the plan it makes.
  */
 export function createMenuProposalStore(
   events: EventBus,
-  now: () => Date,
 ): ContractRequestStore<
   CreateMenuProposal,
   MenuProposalRequest,
@@ -208,7 +207,7 @@ export function createMenuProposalStore(
       return {
         weekStart: proposal.weekStart,
         slots: [...MENU_SLOTS],
-        recipes: await listMenuRecipes(db, DINNER, dateKeyInSofia(now())),
+        recipes: await listMenuRecipes(db, DINNER, proposal.weekStart),
         useUp: await listUseUp(db),
         hint: proposal.hint,
       };

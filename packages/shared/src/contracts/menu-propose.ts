@@ -15,7 +15,8 @@ import { hintSchema } from './hint.js';
 
 /**
  * A registry recipe as the agent sees it: only what it needs to choose and vary. `rating` is the family's (GLOSSARY:
- * Оценка), absent while unrated; `lastServedOn` is the latest meal with it that is not in the future, absent if none.
+ * Оценка), absent while unrated; `lastServedOn` is the latest meal with it before the proposed week (for `meal.replace`,
+ * before the meal's date), also one still to come this week; absent if none.
  */
 export const menuProposeRecipeSchema = z.object({
   id: z.string(),
