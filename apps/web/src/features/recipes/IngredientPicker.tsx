@@ -23,6 +23,8 @@ interface IngredientPickerProps {
   newProduct?: NewProduct | undefined;
   onQueryChange: (query: string) => void;
   onSelect: (ingredient: Ingredient) => void;
+  /** След `onSelect` за продукт, създаден тук с „Нов продукт“. */
+  onCreated?: ((ingredient: Ingredient) => void) | undefined;
   inputProps: {
     id: string;
     'aria-invalid': boolean;
@@ -42,6 +44,7 @@ export function IngredientPicker({
   newProduct,
   onQueryChange,
   onSelect,
+  onCreated,
   inputProps,
 }: IngredientPickerProps) {
   const listId = useId();
@@ -109,7 +112,10 @@ export function IngredientPicker({
           initialName={query.trim()}
           initialUnit={newProduct?.unit ?? baseUnitFor(unit)}
           initialAisle={newProduct?.aisle}
-          onCreated={select}
+          onCreated={(created) => {
+            select(created);
+            onCreated?.(created);
+          }}
           onCancel={() => setCreating(false)}
         />
       )}

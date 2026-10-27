@@ -345,4 +345,62 @@ describe('ImportScreen', () => {
     await screen.findByRole('heading', { name: 'Пилешко филе със сумак' });
     expect(api.approved[0]?.sourceUrl).toBe(encoded);
   });
+
+  it('един нов продукт на два реда: създаден от единия, свързва и другия', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const sumacLine = importedSuggestion.payload.ingredients[1];
+    if (!sumacLine) {
+      throw new Error('fixture without the сумак line');
+    }
+    const api = serveImport({
+      ...DONE,
+      suggestion: {
+        ...importedSuggestion,
+        payload: {
+          ...importedSuggestion.payload,
+          ingredients: [
+            ...importedSuggestion.payload.ingredients,
+            {
+              ...sumacLine,
+              newProduct: { name: 'Сумак', unit: 'g', aisle: 'spices' },
+              quantity: 2,
+              note: 'за поръсване',
+            },
+          ],
+        },
+      },
+    });
+
+    renderApp(`/recipes/import/${importId}`);
+    await user.click(await screen.findByRole('button', { name: 'Одобри' }));
+
+    const dialog = within(
+      screen.getByRole('dialog', { name: 'Нови продукти' }),
+    );
+    const [first, second] = dialog.getAllByRole('group', {
+      name: /^сумак$/i,
+    });
+    if (!first || !second) {
+      throw new Error('expected two сумак lines');
+    }
+    await user.click(
+      await within(first).findByRole('button', { name: 'Нов продукт' }),
+    );
+    await user.click(within(first).getByRole('button', { name: 'Създай' }));
+
+    expect(
+      await within(second).findByText('✓ Свързан с „сумак“'),
+    ).toBeInTheDocument();
+    expect(dialog.getByText('Свързани 2 от 2')).toBeInTheDocument();
+    await user.click(dialog.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Пилешко филе със сумак' });
+    expect(api.created).toHaveLength(1);
+    expect(
+      api.approved[0]?.ingredients.filter(
+        (line) => line.ingredientId === sumac.id,
+      ),
+    ).toHaveLength(2);
+  });
 });

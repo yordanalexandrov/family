@@ -32,9 +32,15 @@ function amount(row: IngredientRowValues): string {
     : `${row.quantity} ${unit}`;
 }
 
+/** Името на предложения нов продукт на реда, за сравнение без значение от главни букви. */
+function newProductKey(row: IngredientRowValues): string | undefined {
+  return row.newProduct?.name.trim().toLocaleLowerCase('bg');
+}
+
 /**
  * Диалогът след „Одобри“: само продуктите без съвпадение в регистъра. Всеки се свързва със съществуващ продукт
- * или се създава нов (`IngredientPicker`); изборът се пише направо във формата, затова „Готово“ го пази.
+ * или се създава нов (`IngredientPicker`); изборът се пише направо във формата, затова „Готово“ го пази. Продукт,
+ * създаден от един ред, свързва и другите несвързани редове със същия предложен нов продукт (напр. за блат и крем).
  */
 export function ResolveIngredientsSheet({
   pending,
@@ -55,6 +61,23 @@ export function ResolveIngredientsSheet({
     (item) => item.row.ingredient !== null,
   ).length;
   const allResolved = resolvedCount === items.length;
+
+  function linkSameNewProduct(key: string, ingredient: Ingredient) {
+    const source = items.find((item) => item.key === key);
+    const name = source && newProductKey(source.row);
+    if (name === undefined) {
+      return;
+    }
+    for (const item of items) {
+      if (
+        item.key !== key &&
+        item.row.ingredient === null &&
+        newProductKey(item.row) === name
+      ) {
+        onSelect(item.key, ingredient);
+      }
+    }
+  }
 
   return (
     <Sheet title="Нови продукти" onClose={onClose}>
@@ -85,6 +108,7 @@ export function ResolveIngredientsSheet({
                 newProduct={row.newProduct}
                 onQueryChange={(query) => onQueryChange(key, query)}
                 onSelect={(ingredient) => onSelect(key, ingredient)}
+                onCreated={(ingredient) => linkSameNewProduct(key, ingredient)}
               />
             )}
           </Field>

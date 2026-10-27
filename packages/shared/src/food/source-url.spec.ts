@@ -45,7 +45,9 @@ describe('normalizeSourceUrl', () => {
       'https://Recepti.Gotvach.bg/r-24078-Класическо_телешко_варено/?utm_source=viber#comments';
     expect(normalizeSourceUrl(decoded)).toBe(normalizeSourceUrl(encoded));
     expect(normalizeSourceUrl(`${encoded}?utm_medium=share`)).toBe(
-      normalizeSourceUrl('https://recepti.gotvach.bg/r-24078-Класическо_телешко_варено'),
+      normalizeSourceUrl(
+        'https://recepti.gotvach.bg/r-24078-Класическо_телешко_варено',
+      ),
     );
   });
 
