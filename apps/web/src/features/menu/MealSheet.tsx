@@ -19,6 +19,7 @@ import { Spinner } from '../../components/Spinner';
 import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
+import { MealReplace } from './MealReplace';
 import { usePlan, useUpdateMeal } from './queries';
 import { Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
@@ -38,7 +39,7 @@ interface MealSheetProps {
 
 /**
  * Листът на едно ястие: отгоре гласовете на двамата и разговорът, после връзка към рецептата, „Избери сам“ (изборът
- * от регистъра), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
+ * от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
  * готвачът и порциите се сменят; разговорът му се чете, но не се пише.
  */
 export function MealSheet({
@@ -127,6 +128,13 @@ export function MealSheet({
               </button>
             </div>
           )}
+          <div className="sheet__section">
+            <MealReplace
+              key={meal.id}
+              meal={meal}
+              onPick={({ recipeId, why }) => patch({ recipeId, why })}
+            />
+          </div>
           <NoteField key={meal.note} meal={meal} onSave={patch} />
         </>
       )}
