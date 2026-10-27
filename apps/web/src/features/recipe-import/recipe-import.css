@@ -42,3 +42,24 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* Таб „Снимка“: двата бутона за избор са етикети на скрити file input-и. */
+.import-photo__pick {
+  position: relative;
+  flex: 1 1 10rem;
+  text-align: center;
+}
+
+.import-photo__pick:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.import-photo__preview {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 60vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}

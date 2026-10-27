@@ -29,16 +29,38 @@ export function useRecentImports() {
   });
 }
 
+/** Внасяне от снимка: файлът, вече смален (`resizePhoto`); отива като `multipart/form-data`, не като JSON. */
+export interface PhotoImport {
+  kind: 'photo';
+  photo: Blob;
+}
+
+export type ImportRequestParams = RecipeImportParams | PhotoImport;
+
+/** Текст и линк като JSON; снимка като формуляр с един файл в полето `photo` (браузърът слага boundary-то). */
+function importBody(params: ImportRequestParams): RequestInit {
+  if (params.kind === 'photo') {
+    const form = new FormData();
+    form.append('photo', params.photo, 'photo.jpg');
+    return { method: 'POST', body: form };
+  }
+  return {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(params),
+  };
+}
+
 /** Ново внасяне → `202` с `pending`; работата тече във фона на api. */
 export function useRequestImport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (params: RecipeImportParams) =>
-      apiFetch('/recipe-imports', recipeImportResponseSchema, {
-        method: 'POST',
-        headers: JSON_HEADERS,
-        body: JSON.stringify(params),
-      }).then((body) => body.request),
+    mutationFn: (params: ImportRequestParams) =>
+      apiFetch(
+        '/recipe-imports',
+        recipeImportResponseSchema,
+        importBody(params),
+      ).then((body) => body.request),
     onSuccess(request, params) {
       queryClient.setQueryData<RecipeImportDetail>(
         importKeys.request(request.id),

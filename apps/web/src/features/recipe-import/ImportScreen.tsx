@@ -1,30 +1,35 @@
-import type { RecipeImportParams } from '@family/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { requestErrorFor } from '../../lib/ai-requests';
 import { ImportLinkForm } from './ImportLinkForm';
+import { ImportPhotoForm } from './ImportPhotoForm';
 import { ImportTextForm } from './ImportTextForm';
-import { useRequestImport } from './queries';
+import { type ImportRequestParams, useRequestImport } from './queries';
 import { RecentImports } from './RecentImports';
+import { resizePhoto } from './resize-photo';
 import { importFromShare } from './share-target';
+import { takeSharedPhoto } from './shared-photo';
 import '../recipes/recipes.css';
 import '../suggestions/suggestions.css';
 import './recipe-import.css';
 
-type ImportTab = 'text' | 'url';
+type ImportTab = 'text' | 'url' | 'photo';
 
 const TABS: { id: ImportTab; label: string }[] = [
   { id: 'text', label: 'Текст' },
   { id: 'url', label: 'Линк' },
+  { id: 'photo', label: 'Снимка' },
 ];
 
 /**
- * Search на `/recipes/import`. С `?tab=text|url` (вътрешна навигация, напр. „постави текста“) `url` и `text` само
+ * Search на `/recipes/import`. С `?tab=text|url|photo` (вътрешна навигация, напр. „постави текста“) `url` и `text` само
  * попълват полетата на таба. Без `tab` адресът идва от share target-а на PWA-то (`vite.config.ts`): `title`, `text`
  * и `url` от споделянето пускат внасяне веднага (`importFromShare`).
  */
 export interface ImportSearch {
   tab?: ImportTab;
+  /** `photo`: споделена снимка, оставена от service worker-а в кеша (`shared-photo.ts`). */
+  shared?: 'photo';
   url?: string;
   text?: string;
   title?: string;
@@ -40,7 +45,10 @@ export function parseImportSearch(
   const text = (value: unknown) =>
     typeof value === 'string' && value.trim() !== '' ? value : undefined;
   return {
-    tab: search.tab === 'text' || search.tab === 'url' ? search.tab : undefined,
+    tab: TABS.some(({ id }) => id === search.tab)
+      ? (search.tab as ImportTab)
+      : undefined,
+    shared: search.shared === 'photo' ? 'photo' : undefined,
     url: text(search.url),
     text: text(search.text),
     title: text(search.title),
@@ -48,24 +56,34 @@ export function parseImportSearch(
 }
 
 /**
- * `/recipes/import` („Внеси рецепта“): табовете за източника („Текст“, „Линк“) и последните внасяния под тях.
- * „Снимка“ идва със своя билет като още един таб.
+ * `/recipes/import` („Внеси рецепта“): табовете за източника („Текст“, „Линк“, „Снимка“) и последните внасяния под
+ * тях.
  *
  * Споделяне („Сподели → Family“) пуска внасянето веднага и подменя адреса (`replace`) с таба и полето му, затова
  * презареждане не пуска второ внасяне, а грешка (напр. 409 „Вече е в регистъра“) остава в таба с попълнения линк.
  */
 export function ImportScreen() {
   const search = useSearch({ from: '/recipes/import' });
-  const [shared] = useState(() =>
-    search.tab === undefined ? importFromShare(search) : null,
+  const [sharingPhoto] = useState(
+    () => search.tab === undefined && search.shared === 'photo',
   );
+  const [shared] = useState(() =>
+    search.tab === undefined && !sharingPhoto ? importFromShare(search) : null,
+  );
+  const [sharedPhoto, setSharedPhoto] = useState<Blob>();
   const [tab, setTab] = useState<ImportTab>(
-    shared ? (shared.kind === 'url' ? 'url' : 'text') : (search.tab ?? 'text'),
+    sharingPhoto
+      ? 'photo'
+      : shared
+        ? shared.kind === 'url'
+          ? 'url'
+          : 'text'
+        : (search.tab ?? 'text'),
   );
   const requestImport = useRequestImport();
   const navigate = useNavigate();
 
-  const submit = (params: RecipeImportParams, replace = false) =>
+  const submit = (params: ImportRequestParams, replace = false) =>
     requestImport.mutate(params, {
       onSuccess(request) {
         void navigate({
@@ -80,6 +98,16 @@ export function ImportScreen() {
   const sharedStarted = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: само при отваряне — споделянето е в адреса, с който екранът се е отворил
   useEffect(() => {
+    if (sharingPhoto && !sharedStarted.current) {
+      sharedStarted.current = true;
+      void navigate({
+        to: '/recipes/import',
+        search: { tab: 'photo' },
+        replace: true,
+      });
+      void importSharedPhoto();
+      return;
+    }
     if (!shared || sharedStarted.current) {
       return;
     }
@@ -94,6 +122,16 @@ export function ImportScreen() {
     });
     submit(shared, true);
   }, []);
+  /** Снимката от кеша на service worker-а: смалена, показана в таба (за „Внеси“ пак при грешка) и внесена. */
+  async function importSharedPhoto() {
+    const photo = await takeSharedPhoto();
+    if (!photo) {
+      return;
+    }
+    const resized = await resizePhoto(photo);
+    setSharedPhoto(resized);
+    submit({ kind: 'photo', photo: resized }, true);
+  }
   const formProps = {
     isSubmitting: requestImport.isPending,
     submitError: requestImport.error
@@ -134,7 +172,13 @@ export function ImportScreen() {
         id={`import-panel-${tab}`}
         aria-labelledby={`import-tab-${tab}`}
       >
-        {tab === 'text' ? (
+        {tab === 'photo' ? (
+          <ImportPhotoForm
+            key={sharedPhoto ? 'shared' : 'chosen'}
+            {...formProps}
+            initialPhoto={sharedPhoto}
+          />
+        ) : tab === 'text' ? (
           <ImportTextForm
             {...formProps}
             initialText={shared?.kind === 'text' ? shared.text : search.text}

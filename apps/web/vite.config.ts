@@ -50,16 +50,25 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-        // „Сподели → Семейство“ на Android (само за инсталирано PWA): отваря /recipes/import със споделеното в
-        // query-то и внасянето тръгва веднага (ImportScreen → importFromShare). Без `tab` в адреса, за да се
-        // различава от вътрешната навигация (`?tab=…`), която само попълва полетата.
+        // „Сподели → Семейство“ на Android (само за инсталирано PWA): POST multipart, за да носи и снимка. Поема го
+        // service worker-ът (public/share-target-sw.js): снимката оставя в кеша и отваря /recipes/import?shared=photo,
+        // а текст и линк пренасочва към /recipes/import?title=&text=&url= (ImportScreen → importFromShare). Без `tab`
+        // в адреса, за да се различава от вътрешната навигация (`?tab=…`), която само попълва полетата.
         share_target: {
           action: '/recipes/import',
-          method: 'GET',
-          params: { title: 'title', text: 'text', url: 'url' },
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'photo', accept: ['image/*'] }],
+          },
         },
       },
       workbox: {
+        // POST-ът на share target-а; зарежда се преди маршрутите на Workbox, които и без това са само за GET.
+        importScripts: ['share-target-sw.js'],
         navigateFallback: '/index.html',
         // Навигация към api/healthz не е страница на приложението.
         navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],

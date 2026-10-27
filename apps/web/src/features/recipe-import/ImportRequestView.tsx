@@ -84,7 +84,8 @@ function retryParams({
 
 /**
  * Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст или линк.
- * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам.
+ * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам. Снимката не се
+ * пази никъде, затова при снимка вместо „Опитай пак“ е „Нова снимка“ (табът „Снимка“).
  */
 function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
   const retry = useRequestImport();
@@ -109,6 +110,20 @@ function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
             }
           >
             Постави текста
+          </button>
+        )}
+        {request.source === 'photo' && (
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              void navigate({
+                to: '/recipes/import',
+                search: { tab: 'photo' },
+              })
+            }
+          >
+            Нова снимка
           </button>
         )}
         {again && (
