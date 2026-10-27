@@ -6,6 +6,7 @@
 |---|---|---|---|---|
 | `family-recipe` | `recipe.suggest` | [family-recipe.md](family-recipe.md) | `~/.openclaw/workspace-family-recipe/` | `family-recipe-next` |
 | `family-menu` | `menu.propose` | [family-menu.md](family-menu.md) | `~/.openclaw/workspace-family-menu/` | `family-menu-next` |
+| `family-meal` | `meal.replace` | [family-meal.md](family-meal.md) | `~/.openclaw/workspace-family-meal/` | `family-meal-next` |
 
 ## Обновяване на prompt-а
 
@@ -15,7 +16,7 @@
 - Ако prompt-ът не е променен, файлът на сървъра не се пипа. Ако е променен, старият остава до него като `AGENTS.md.bak`.
 - Revert на PR-а връща и prompt-а със следващия deploy.
 
-После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
+После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`, `meal:smoke` за `family-meal`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
 
 Проверка, че на сървъра е същото като в repo-то (без изход = еднакви), от корена на repo-то на `master`, с ssh достъп до `homesrv`:
 
@@ -38,11 +39,12 @@ Prompt или контракт се проверява срещу реалния
 Self-hosted runner-ът не върви за PR-и (AGENTS.md → Public repo), затова този smoke е ръчен: пуска го човекът или агентът в главната сесия (не агент в worktree, виж [worktrees.md](../agents/worktrees.md)). На клона на PR-а, от корена на repo-то, с `OPENCLAW_GATEWAY_PASSWORD` в `.env` или в средата:
 
 ```bash
-AGENT=family-recipe                                    # или family-menu
+AGENT=family-recipe                                    # или family-menu, family-meal
 awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "umask 077; cat > ~/.openclaw/workspace-$AGENT-next/AGENTS.md"
 ssh -N -o ExitOnForwardFailure=yes -L 18789:127.0.0.1:18789 homesrv &    # тунел; спира се накрая
 OPENCLAW_RECIPE_AGENT=family-recipe-next pnpm --filter api suggest:smoke -- --slots dinner --hint "нещо с пиле"
 OPENCLAW_MENU_AGENT=family-menu-next pnpm --filter api menu:smoke
+OPENCLAW_MEAL_AGENT=family-meal-next pnpm --filter api meal:smoke
 ```
 
 Така се проверяват заедно кодът на контракта от клона (скриптът го ползва локално) и prompt-ът от клона, срещу същия модел и инструменти като в production. Резултатът отива като коментар в PR-а, без нищо от средата. Gateway-ът поема ново `AGENTS.md` без рестарт (проверено на 2026-10-27).

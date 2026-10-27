@@ -201,8 +201,14 @@ describe('updateMealSchema', () => {
     });
   });
 
-  it('does not let the client set why', () => {
-    expect(updateMealSchema.parse({ why: 'защото' })).toEqual({});
+  it('takes why only together with a recipe: the why of a picked candidate', () => {
+    expect(
+      updateMealSchema.parse({ recipeId: RECIPE, why: 'Без месо.' }),
+    ).toEqual({ recipeId: RECIPE, why: 'Без месо.' });
+    expect(updateMealSchema.safeParse({ why: 'защото' }).success).toBe(false);
+    expect(
+      updateMealSchema.safeParse({ recipeId: null, why: 'защото' }).success,
+    ).toBe(false);
   });
 
   it('rejects a note longer than 80 characters', () => {

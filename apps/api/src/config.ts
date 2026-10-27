@@ -47,6 +47,7 @@ function openClawFields() {
       .transform((value) => (value ? value : undefined)),
     OPENCLAW_RECIPE_AGENT: z.string().min(1).default('family-recipe'),
     OPENCLAW_MENU_AGENT: z.string().min(1).default('family-menu'),
+    OPENCLAW_MEAL_AGENT: z.string().min(1).default('family-meal'),
     OPENCLAW_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
   };
 }
@@ -60,6 +61,7 @@ function toOpenClawConfig(env: OpenClawEnv) {
     gatewayPassword: env.OPENCLAW_GATEWAY_PASSWORD,
     recipeAgent: env.OPENCLAW_RECIPE_AGENT,
     menuAgent: env.OPENCLAW_MENU_AGENT,
+    mealAgent: env.OPENCLAW_MEAL_AGENT,
     timeoutMs: env.OPENCLAW_TIMEOUT_MS,
   };
 }

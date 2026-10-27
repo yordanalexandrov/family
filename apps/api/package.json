@@ -20,7 +20,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "suggest:smoke": "tsx --env-file-if-exists=../../.env scripts/suggest-smoke.ts",
-    "menu:smoke": "tsx --env-file-if-exists=../../.env scripts/menu-smoke.ts"
+    "menu:smoke": "tsx --env-file-if-exists=../../.env scripts/menu-smoke.ts",
+    "meal:smoke": "tsx --env-file-if-exists=../../.env scripts/meal-smoke.ts"
   },
   "dependencies": {
     "@family/shared": "workspace:*",

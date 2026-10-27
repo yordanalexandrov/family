@@ -1,6 +1,7 @@
 import {
   contractRequestStatusSchema,
   type MealCommentKind,
+  type MealReplaceCandidate,
   mealCommentKindSchema,
   type Servings,
   type Slot,
@@ -143,6 +144,30 @@ export const menuProposalRequest = pgTable(
       .where(sql`${t.status} = 'pending'`),
     check(
       'menu_proposal_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+  ],
+);
+
+/**
+ * One run of `meal.replace` for a meal („✨ Предложи друго“, GLOSSARY: AI заявка); `candidates` (recipe, why, title,
+ * time) are written when it is `done`. It goes with the meal; at most one `pending` per meal.
+ */
+export const mealReplaceRequest = pgTable(
+  'meal_replace_request',
+  {
+    ...contractRequestColumns(),
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    candidates: jsonb('candidates').$type<MealReplaceCandidate[]>(),
+  },
+  (t) => [
+    uniqueIndex('meal_replace_request_pending_meal_key')
+      .on(t.mealId)
+      .where(sql`${t.status} = 'pending'`),
+    check(
+      'meal_replace_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
     ),
   ],

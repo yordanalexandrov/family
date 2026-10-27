@@ -91,8 +91,8 @@ export interface MenuService {
   /** Only until the week has begun (Monday 00:00 in Sofia); after that the plan is edited live. */
   deletePlan(id: string): Promise<void>;
   /**
-   * A changed recipe must be in the registry, not archived, tagged `dinner`, and clears the agent's `why`. A changed
-   * recipe or note (GLOSSARY: Глас) drops the others' votes and makes `actingUserId` up; refused for a past meal.
+   * A changed recipe must be in the registry, not archived, tagged `dinner`; its `why` is the one of the picked
+   * `meal.replace` candidate, or none when it was picked by hand. A changed recipe or note (GLOSSARY: Глас) drops the others' votes and makes `actingUserId` up; refused for a past meal.
    */
   updateMeal(
     id: string,
@@ -309,11 +309,13 @@ export function createMenuService({
           );
         }
         await refuseUnknownUsers(tx, patch);
+        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none.
+        const { why, ...values } = patch;
         await updateMeal(
           tx,
           id,
           current.planId,
-          { ...patch, ...(recipeChanged ? { why: null } : {}) },
+          { ...values, ...(recipeChanged ? { why: why ?? null } : {}) },
           now(),
         );
         if (contentChanged) {

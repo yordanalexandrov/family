@@ -1,4 +1,4 @@
-import { menuPropose, recipeSuggest } from '@family/shared';
+import { mealReplace, menuPropose, recipeSuggest } from '@family/shared';
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -25,6 +25,7 @@ import { eventsRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
 import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
+import { mealReplacementsRoutes } from './routes/meal-replacements.js';
 import { menuRoutes } from './routes/menu.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
@@ -35,6 +36,11 @@ import { createBudgetSync } from './services/budget-sync.js';
 import { createCalendarSync } from './services/calendar-sync.js';
 import { createContractRequests } from './services/contract-requests.js';
 import { createEventBus, type EventBus } from './services/events.js';
+import {
+  createMealReplacementsService,
+  createMealReplaceStore,
+  type MealReplacementsService,
+} from './services/meal-replacements.js';
 import {
   createMenuProposalStore,
   createMenuService,
@@ -63,6 +69,8 @@ declare module 'fastify' {
     recipeSuggestions: RecipeSuggestionsService;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
+    /** „✨ Предложи друго“ for a meal (`meal.replace`). */
+    mealReplacements: MealReplacementsService;
     /** Change signals for `GET /api/events`; services publish after their commit. */
     events: EventBus;
   }
@@ -162,7 +170,7 @@ export function buildApp({
     log: app.log,
   });
   // Without OpenClaw nothing is sent, so the agent ids do not matter then.
-  const agents = openclaw ?? { recipeAgent: '', menuAgent: '' };
+  const agents = openclaw ?? { recipeAgent: '', menuAgent: '', mealAgent: '' };
   app.decorate(
     'recipeSuggestions',
     createRecipeSuggestionsService({
@@ -186,6 +194,16 @@ export function buildApp({
       now,
       events,
     }),
+  );
+  app.decorate(
+    'mealReplacements',
+    createMealReplacementsService(
+      contractRequests.register(
+        mealReplace,
+        createMealReplaceStore(now),
+        agents.mealAgent,
+      ),
+    ),
   );
   app.addHook('onClose', async () => {
     await contractRequests.close();
@@ -211,6 +229,7 @@ export function buildApp({
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
   app.register(menuRoutes);
+  app.register(mealReplacementsRoutes);
   app.register(shoppingRoutes);
   app.register(eventsRoutes);
 

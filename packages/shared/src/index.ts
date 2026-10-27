@@ -1,6 +1,7 @@
 export * from './contracts/contract.js';
 export * from './contracts/failure.js';
 export * from './contracts/hint.js';
+export * from './contracts/meal-replace.js';
 export * from './contracts/menu-propose.js';
 export * from './contracts/recipe-suggest.js';
 export * from './contracts/request.js';
@@ -24,6 +25,7 @@ export * from './schemas/dates.js';
 export * from './schemas/error.js';
 export * from './schemas/health.js';
 export * from './schemas/ingredient.js';
+export * from './schemas/meal-replacement.js';
 export * from './schemas/menu.js';
 export * from './schemas/recipe.js';
 export * from './schemas/recipe-suggestion.js';

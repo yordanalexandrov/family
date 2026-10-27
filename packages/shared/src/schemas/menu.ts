@@ -137,10 +137,14 @@ export type CreateMealPlan = z.infer<typeof createMealPlanSchema>;
 
 export const mealResponseSchema = z.object({ meal: mealSchema });
 
-/** `PATCH /api/menu/meals/:id`: any of recipe, note, cook and servings; a blank note means no note. */
+/**
+ * `PATCH /api/menu/meals/:id`: any of recipe, note, cook and servings; a blank note means no note. `why` only comes
+ * with a recipe: the sentence of the `meal.replace` candidate that was picked; a recipe without it clears the why.
+ */
 export const updateMealSchema = z
   .object({
     recipeId: z.uuid().nullable(),
+    why: z.string().trim().min(1),
     note: z
       .string()
       .trim()
@@ -150,7 +154,14 @@ export const updateMealSchema = z
     cookUserId: z.uuid().nullable(),
     servings: servingsSchema,
   })
-  .partial();
+  .partial()
+  .refine(
+    (patch) => patch.why === undefined || typeof patch.recipeId === 'string',
+    {
+      message: 'why идва само заедно с рецепта',
+      path: ['why'],
+    },
+  );
 
 export type UpdateMeal = z.infer<typeof updateMealSchema>;
 

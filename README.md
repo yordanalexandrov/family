@@ -43,6 +43,17 @@ pnpm --filter api menu:smoke -- --hint "без месо в петък" --save /t
 
 Скриптът (`apps/api/scripts/menu-smoke.ts`) праща входа от фикстурата `packages/shared/src/contracts/fixtures/menu-propose.input.json` (10 вечери, 2 от последните седмици, подсказката от фикстурата или `--hint`), валидира отговора като api-то (Zod + `validateProposal`, един повторен опит) и печата седемте вечери със заглавие, време, тагове и „защо“, отбелязва повторените от последните 2 седмици, после обобщението и продължителността. Изход 1 = таймаут, HTTP грешка или два невалидни отговора; `--save` записва валидирания JSON, за да замени ръчната фикстура `menu-propose.valid.json` (id-тата съвпадат, защото входът е същият).
 
+## Smoke тест на `meal.replace`
+
+Ръчна проверка на „✨ Предложи друго“ срещу реалния агент `family-meal` (prompt: [docs/openclaw/family-meal.md](docs/openclaw/family-meal.md), без инструменти); тунелът и паролата са като при `recipe.suggest`:
+
+```bash
+pnpm --filter api meal:smoke
+pnpm --filter api meal:smoke -- --comment "И без бобови, моля" --save /tmp/meal-replace.json
+```
+
+Скриптът (`apps/api/scripts/meal-smoke.ts`) праща входа от фикстурата `packages/shared/src/contracts/fixtures/meal-replace.input.json` (пилето в сряда, разговор „без месо, без риба“, 9 други вечери, 2 от последните седмици); `--comment` добавя ред от Поли в разговора. Валидира като api-то и печата кандидатите със заглавие, време, тагове и „защо“, отбелязва повторените от седмицата и от последните 2 седмици. `--save` записва валидирания JSON, за да замени ръчната фикстура `meal-replace.valid.json`.
+
 ## Deploy
 
 Merge в `master` стига до `homesrv` сам: [deploy.yml](.github/workflows/deploy.yml) тръгва на self-hosted runner-а `homesrv-family` и в checkout-а си:

@@ -11,6 +11,7 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   gatewayPassword: 'test-gateway-password',
   recipeAgent: 'family-recipe',
   menuAgent: 'family-menu',
+  mealAgent: 'family-meal',
   timeoutMs: 2_000,
 };
 

@@ -12,7 +12,7 @@ import { hintSchema } from './hint.js';
  */
 
 /** A registry recipe as the agent sees it: only what it needs to choose and vary. */
-const menuProposeRecipeSchema = z.object({
+export const menuProposeRecipeSchema = z.object({
   id: z.string(),
   title: z.string(),
   prepMinutes: z.int().positive().optional(),
