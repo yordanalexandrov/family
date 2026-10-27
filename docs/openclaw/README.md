@@ -1,6 +1,6 @@
 # Prompt-ите на агентите в OpenClaw
 
-Всеки AI контракт има свой агент в OpenClaw на `homesrv` ([ADR-0004](../adr/0004-openclaw-isolated-agent-per-contract.md)). Prompt-ът му живее тук и се копира като `AGENTS.md` в workspace-а на агента:
+Всеки AI контракт има свой агент в OpenClaw на `homesrv` ([ADR-0004](../adr/0004-openclaw-isolated-agent-per-contract.md)). Prompt-ът му живее тук и deploy-ът го копира като `AGENTS.md` в workspace-а на агента:
 
 | Агент | Контракт | Prompt | Workspace на `homesrv` |
 |---|---|---|---|
@@ -9,29 +9,23 @@
 
 ## Обновяване на prompt-а
 
-Промяна в prompt-а = PR тук + ново копиране на сървъра. Копира се само текстът под първата линия `---`; горната част на файла е бележка за хората.
+Промяна в prompt-а = PR тук. Deploy-ът на `master` ([deploy.yml](../../.github/workflows/deploy.yml), стъпка „Sync agent prompts“) копира всеки `docs/openclaw/family-*.md` в `~/.openclaw/workspace-<име на файла>/AGENTS.md`, след като новото api отговаря на smoke теста. Затова prompt-ът и api-то винаги са от един commit, дори когато се сменя входът или изходът на контракта. Копира се само текстът под първата линия `---`, защото горната част на файла е бележка за хората.
 
-**Кога:** ако се сменя и входът или изходът на контракта, копирай веднага след като deploy-ът на `master` с новото api приключи. Иначе старото api праща вход, който новият prompt не очаква (или обратно).
+- Агент се добавя с Provisioning (workspace на `homesrv`) и файл `family-<агент>.md` тук. Deploy-ът не създава workspace: ако липсва, стъпката спира с грешка.
+- Ако prompt-ът не е променен, файлът на сървъра не се пипа. Ако е променен, старият остава до него като `AGENTS.md.bak`.
+- Revert на PR-а връща и prompt-а със следващия deploy.
 
-От корена на repo-то, на `master` след `git pull`, с `AGENT=family-recipe` или `AGENT=family-menu` (нужен е ssh достъп до `homesrv`):
+После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
+
+Проверка, че на сървъра е същото като в repo-то (без изход = еднакви), от корена на repo-то на `master`, с ssh достъп до `homesrv`:
 
 ```bash
 AGENT=family-recipe
 WS="~/.openclaw/workspace-$AGENT"
-
-# 1. резервно копие на сегашния prompt
-ssh homesrv "cp $WS/AGENTS.md $WS/AGENTS.md.bak"
-
-# 2. новият prompt: само текстът под първата линия ---
-awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "cat > $WS/AGENTS.md"
-
-# 3. проверка: на сървъра е същото като в repo-то (без изход = еднакви)
 awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "diff - $WS/AGENTS.md"
 ```
 
-После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
-
-Връщане към предишния prompt:
+Спешно връщане към предишния prompt, без deploy (следващият deploy пак ще копира този от `master`):
 
 ```bash
 ssh homesrv "mv $WS/AGENTS.md.bak $WS/AGENTS.md"
