@@ -4,6 +4,7 @@ import {
   check,
   date,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -76,4 +77,24 @@ export const notificationLog = pgTable(
       oneOf(t.kind, notificationKindSchema.options),
     ),
   ],
+);
+
+/**
+ * Actions of others on the menu of a week (GLOSSARY: Известие от Съгласуването), gathered for one person until they
+ * have been quiet for a while; the cron then sends one notification and deletes the row. In the database, not a timer,
+ * so a restart does not lose them.
+ */
+export const menuActivity = pgTable(
+  'menu_activity',
+  {
+    weekStart: date('week_start', { mode: 'string' }).notNull(),
+    recipientUserId: uuid('recipient_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    votes: integer('votes').notNull().default(0),
+    comments: integer('comments').notNull().default(0),
+    swaps: integer('swaps').notNull().default(0),
+    lastAt: timestamp('last_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.weekStart, t.recipientUserId] })],
 );

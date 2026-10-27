@@ -152,12 +152,14 @@ function thawed(id: string, userId: string) {
   });
 }
 
-/** The reminders cron at `at`; answers what the push service took during it. */
+/** The reminders cron at `at`; answers the „Извади месото“ the push service took during it (not the menu activity). */
 async function runAt(at: Date) {
   clock = at;
   const before = push.delivered.length;
   await app.reminders.run();
-  return push.delivered.slice(before);
+  return push.delivered
+    .slice(before)
+    .filter((delivery) => delivery.payload.kind === 'thaw');
 }
 
 describe('„Извади месото“ through the reminders cron', () => {

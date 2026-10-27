@@ -21,6 +21,7 @@ import {
 import { listUsers } from '../db/repositories/users.js';
 import { NotFoundError } from './errors.js';
 import { NO_SUCH_MEAL } from './menu.js';
+import type { MenuNotifications } from './menu-notifications.js';
 import type { PushMessage, PushService } from './push.js';
 
 /** „Извади месото“ comes at these hours in Sofia: the evening before the dinner and its morning. Changed by PR. */
@@ -158,8 +159,8 @@ function logKey({ kind, subjectId, onDate, userId }: ReminderLogEntry): string {
 /** The reminders (GLOSSARY: Напомняне); created once in `buildApp()` as `app.reminders`. */
 export interface Reminders {
   /**
-   * The cron's `reminders` job (`plugins/scheduler.ts`, every 5 minutes): sends what {@link dueReminders} finds due and
-   * logs it in `notification_log`. Rejects only when the database does.
+   * The cron's `reminders` job (`plugins/scheduler.ts`, every 5 minutes): sends what {@link dueReminders} finds due,
+   * logging it in `notification_log`, and the gathered menu activity. Rejects only when the database does.
    */
   run(): Promise<void>;
   /**
@@ -174,36 +175,43 @@ export function createReminders({
   push,
   now,
   log,
+  menuNotifications,
 }: {
   db: Db;
   push: PushService;
   now: () => Date;
   log: Pick<FastifyBaseLogger, 'info'>;
+  menuNotifications: MenuNotifications;
 }): Reminders {
+  async function sendThaw() {
+    const at = now();
+    const today = dateKeyInSofia(at);
+    const users = await listUsers(db);
+    const due = dueReminders(at, {
+      // Today's dinner for the morning one, tomorrow's for the evening one.
+      meals: await listReminderDinners(db, [today, addDays(today, 1)]),
+      frozen: await listFrozenIngredientIds(db),
+      users: await Promise.all(
+        users.map(async ({ id }) => ({
+          id,
+          settings: await push.settings(id),
+        })),
+      ),
+      log: await listNotificationLog(db, 'thaw', [today]),
+    });
+    for (const { message, ...entry } of due) {
+      // Logged first, so a reminder is never sent twice, even by two runs at once; a failed push is not retried.
+      if (await claimNotification(db, entry, at)) {
+        const devices = await push.send(entry.userId, entry.kind, message);
+        log.info({ ...entry, devices }, 'reminder sent');
+      }
+    }
+  }
+
   return {
     async run() {
-      const at = now();
-      const today = dateKeyInSofia(at);
-      const users = await listUsers(db);
-      const due = dueReminders(at, {
-        // Today's dinner for the morning one, tomorrow's for the evening one.
-        meals: await listReminderDinners(db, [today, addDays(today, 1)]),
-        frozen: await listFrozenIngredientIds(db),
-        users: await Promise.all(
-          users.map(async ({ id }) => ({
-            id,
-            settings: await push.settings(id),
-          })),
-        ),
-        log: await listNotificationLog(db, 'thaw', [today]),
-      });
-      for (const { message, ...entry } of due) {
-        // Logged first, so a reminder is never sent twice, even by two runs at once; a failed push is not retried.
-        if (await claimNotification(db, entry, at)) {
-          const devices = await push.send(entry.userId, entry.kind, message);
-          log.info({ ...entry, devices }, 'reminder sent');
-        }
-      }
+      await sendThaw();
+      await menuNotifications.sendQuietActivity();
     },
 
     async thawed(mealId) {
