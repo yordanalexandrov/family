@@ -309,7 +309,7 @@ export async function updateMeal(
   values: Partial<
     Pick<
       typeof meal.$inferInsert,
-      'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why'
+      'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why' | 'thawedAt'
     >
   >,
   at: Date,

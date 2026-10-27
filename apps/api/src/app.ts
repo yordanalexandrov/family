@@ -31,6 +31,7 @@ import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
+import { remindersRoutes } from './routes/reminders.js';
 import { shoppingRoutes } from './routes/shopping.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
@@ -89,7 +90,7 @@ declare module 'fastify' {
     events: EventBus;
     /** Web Push to the people's devices; without VAPID keys every send is a no-op. */
     push: PushService;
-    /** The cron's `reminders` job, every 5 minutes. */
+    /** The reminders: the cron's `reminders` job (every 5 minutes) and the answers to their buttons. */
     reminders: Reminders;
   }
 }
@@ -180,7 +181,16 @@ export function buildApp({
     now,
     log: app.log.child({ module: 'menu-notifications' }),
   });
-  app.decorate('reminders', createReminders({ menuNotifications }));
+  app.decorate(
+    'reminders',
+    createReminders({
+      db,
+      push: app.push,
+      now,
+      log: app.log.child({ module: 'reminders' }),
+      menuNotifications,
+    }),
+  );
   app.decorate(
     'calendarSync',
     googleCalendar
@@ -275,6 +285,7 @@ export function buildApp({
   app.register(pantryRoutes);
   app.register(eventsRoutes);
   app.register(notificationsRoutes);
+  app.register(remindersRoutes);
 
   return app;
 }
