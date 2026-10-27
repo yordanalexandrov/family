@@ -14,6 +14,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiFetch, JSON_HEADERS } from '../../api/client';
+import { shoppingKeys } from '../shopping/queries';
 
 export const pantryKeys = {
   all: ['pantry'] as const,
@@ -154,4 +155,54 @@ export function useRemovePantryItem() {
       ),
     ...rollbackAndRefresh(queryClient),
   });
+}
+
+/** Промяна на килера от списъка за пазаруване: после се четат наново и килерът, и всеки списък. */
+function useChangeFromShopping<T>(change: (input: T) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: change,
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: pantryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: shoppingKeys.all }),
+      ]),
+  });
+}
+
+/** „Свърши“ (`POST /api/pantry/:id/ran-out`): постоянният продукт е във всеки списък, докато не се купи. */
+export function useMarkRanOut() {
+  return useChangeFromShopping((pantryId: string) =>
+    apiFetch(`/pantry/${pantryId}/ran-out`, pantryItemResponseSchema, {
+      method: 'POST',
+    }),
+  );
+}
+
+/**
+ * „Имаме го винаги“: продуктът става постоянен — нов в килера (`POST /api/pantry`) или временен, който се сменя
+ * (`PATCH /api/pantry/:id`).
+ */
+export function useMakeStaple() {
+  return useChangeFromShopping(
+    (target: { ingredientId: string } | { pantryId: string }) =>
+      'pantryId' in target
+        ? apiFetch(`/pantry/${target.pantryId}`, pantryItemResponseSchema, {
+            method: 'PATCH',
+            headers: JSON_HEADERS,
+            body: JSON.stringify(
+              updatePantryItemSchema.parse({ kind: 'staple' }),
+            ),
+          })
+        : apiFetch('/pantry', pantryItemResponseSchema, {
+            method: 'POST',
+            headers: JSON_HEADERS,
+            body: JSON.stringify(
+              createPantryItemSchema.parse({
+                ingredientId: target.ingredientId,
+                kind: 'staple',
+              }),
+            ),
+          }),
+  );
 }
