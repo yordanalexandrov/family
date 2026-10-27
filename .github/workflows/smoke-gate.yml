@@ -1,0 +1,65 @@
+# Само GitHub-hosted runner. Не прави checkout на кода от PR-а: чете само списъка с файлове и коментарите.
+# docs/openclaw/README.md → Smoke преди merge: PR, който сменя prompt или AI контракт, иска коментар със smoke срещу <агент>-next.
+name: smoke-gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+
+jobs:
+  smoke-gate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Smoke коментар при сменен prompt или контракт
+        run: |
+          changed=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' \
+            | grep -E '^docs/openclaw/family-[^/]+\.md$|^packages/shared/src/contracts/' || true)
+          if [ -z "$changed" ]; then
+            echo "Няма сменен prompt или контракт."
+            exit 0
+          fi
+          smoke=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.author_association == "OWNER" or .author_association == "MEMBER" or .author_association == "COLLABORATOR") | .body' \
+            | grep -c '^## Smoke преди merge' || true)
+          if [ "$smoke" -eq 0 ]; then
+            echo '::error::Сменени prompt или контракт без коментар „## Smoke преди merge“ (docs/openclaw/README.md#smoke-преди-merge)'
+            printf '%s\n' "$changed"
+            exit 1
+          fi
+          echo "Smoke коментар: има."
+
+  # Коментарът не е събитие на PR-а, затова пуска отново последната проверка на клона му.
+  rerun:
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.issue.pull_request
+      && startsWith(github.event.comment.body, '## Smoke преди merge')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.issue.number }}
+    steps:
+      - name: Пусни smoke-gate отново
+        run: |
+          branch=$(gh pr view "$PR" --repo "$REPO" --json headRefName --jq .headRefName)
+          run=$(gh run list --repo "$REPO" --workflow smoke-gate.yml --branch "$branch" --event pull_request --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -z "$run" ] || [ "$run" = "null" ]; then
+            echo "Няма проверка за $branch."
+            exit 0
+          fi
+          gh run rerun "$run" --repo "$REPO"

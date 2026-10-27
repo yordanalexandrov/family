@@ -90,6 +90,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.spec.{ts,tsx}'],
+    // По-дълъг от asyncUtilTimeout в setup.ts, за да падне чакането с ясна грешка, а не целият тест.
+    testTimeout: 15_000,
     // Без това Vitest връща празен низ за CSS, и за `?raw` (tokens.spec.ts чете токените).
     css: { include: [/tokens\.css/] },
   },

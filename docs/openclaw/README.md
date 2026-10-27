@@ -68,7 +68,7 @@ OPENCLAW_MENU_AGENT=family-menu-next pnpm --filter api menu:smoke
 OPENCLAW_MEAL_AGENT=family-meal-next pnpm --filter api meal:smoke
 ```
 
-Така се проверяват заедно кодът на контракта от клона (скриптът го ползва локално) и prompt-ът от клона, срещу същия модел и инструменти като в production. Резултатът отива като коментар в PR-а, без нищо от средата. Gateway-ът поема ново `AGENTS.md` без рестарт (проверено на 2026-10-27).
+Така се проверяват заедно кодът на контракта от клона (скриптът го ползва локално) и prompt-ът от клона, срещу същия модел и инструменти като в production. Резултатът отива като коментар в PR-а, без нищо от средата, и започва с `## Smoke преди merge`: по този ред CI job-ът `smoke-gate` ([smoke-gate.yml](../../.github/workflows/smoke-gate.yml)) пропуска PR-а, щом е сменен `docs/openclaw/family-*.md` или `packages/shared/src/contracts/`. Gateway-ът поема ново `AGENTS.md` без рестарт (проверено на 2026-10-27).
 
 Агентът в главната сесия ssh-ва до `homesrv` само за тунела и за запис в `~/.openclaw/workspace-*-next/`. Production workspace-ите пише само deploy-ът, а `openclaw.json` се пипа само по изрично решение на човека.
 

@@ -17,6 +17,8 @@ This repo is public. Never put secrets, tokens, Cloudflare AUD/team domain, e-ma
 
 Implementing a ticket in its own worktree (e.g. an `/implement-spec` implementer): follow `docs/agents/worktrees.md`.
 
+Orchestrating a spec (the main session of `/implement-spec`): when the branch changes a prompt in `docs/openclaw/` or a contract in `packages/shared/src/contracts/`, run the smoke from `docs/openclaw/README.md#smoke-преди-merge` yourself before marking the PR ready; CI job `smoke-gate` stays red until its comment is posted.
+
 ## Writing tickets
 
 Splitting a spec into tickets (e.g. `/to-tickets`): follow `docs/agents/tickets.md`.
