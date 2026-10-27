@@ -331,13 +331,17 @@ export function createMenuService({
           );
         }
         await refuseUnknownUsers(tx, patch);
-        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none.
+        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none. A new
+        // recipe has other products to take out, so „Извадих“ of the old one no longer holds.
         const { why, ...values } = patch;
         await updateMeal(
           tx,
           id,
           current.planId,
-          { ...values, ...(recipeChanged ? { why: why ?? null } : {}) },
+          {
+            ...values,
+            ...(recipeChanged ? { why: why ?? null, thawedAt: null } : {}),
+          },
           now(),
         );
         if (contentChanged) {

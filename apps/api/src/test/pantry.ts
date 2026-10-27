@@ -11,9 +11,9 @@ import { DANI } from './users.js';
  */
 export async function stockPantry(
   app: FastifyInstance,
-  items: { name: string; kind: PantryKind; note?: string }[],
+  items: { name: string; kind: PantryKind; note?: string; frozen?: boolean }[],
 ): Promise<void> {
-  for (const { name, kind, note } of items) {
+  for (const { name, kind, note, frozen } of items) {
     const [row] = await testDb()
       .select({ id: ingredient.id })
       .from(ingredient)
@@ -25,7 +25,7 @@ export async function stockPantry(
       method: 'POST',
       url: '/api/pantry',
       headers: { 'x-acting-user': DANI.id },
-      payload: { ingredientId: row.id, kind, note },
+      payload: { ingredientId: row.id, kind, note, frozen },
     });
     if (response.statusCode !== 201) {
       throw new Error(

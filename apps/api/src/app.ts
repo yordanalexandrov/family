@@ -31,6 +31,7 @@ import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
+import { remindersRoutes } from './routes/reminders.js';
 import { shoppingRoutes } from './routes/shopping.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
@@ -61,6 +62,7 @@ import {
   type RecipeSuggestionsService,
   suggestionRequestStore,
 } from './services/recipe-suggestions.js';
+import { createReminders, type Reminders } from './services/reminders.js';
 import type { Sync } from './services/sync-mutex.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
@@ -87,6 +89,8 @@ declare module 'fastify' {
     events: EventBus;
     /** Web Push to the people's devices; without VAPID keys every send is a no-op. */
     push: PushService;
+    /** The reminders: the cron's `reminders` job and the answers to their buttons. */
+    reminders: Reminders;
   }
 }
 
@@ -168,6 +172,15 @@ export function buildApp({
       web: push ?? null,
       now,
       log: app.log.child({ module: 'push' }),
+    }),
+  );
+  app.decorate(
+    'reminders',
+    createReminders({
+      db,
+      push: app.push,
+      now,
+      log: app.log.child({ module: 'reminders' }),
     }),
   );
   app.decorate(
@@ -264,6 +277,7 @@ export function buildApp({
   app.register(pantryRoutes);
   app.register(eventsRoutes);
   app.register(notificationsRoutes);
+  app.register(remindersRoutes);
 
   return app;
 }
