@@ -19,6 +19,7 @@ import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 
 export const menuKeys = {
+  all: ['menu'] as const,
   plan: (weekStart: DateKey) => ['menu', 'plan', weekStart] as const,
   proposal: (id: string) => ['menu', 'proposal', id] as const,
 };
