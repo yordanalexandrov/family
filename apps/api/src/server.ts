@@ -3,6 +3,7 @@ import { loadConfig } from './config.js';
 import { runMigrations } from './db/migrate.js';
 import { createCalendarClient } from './integrations/google-calendar/client.js';
 import { createWalletClient } from './integrations/wallet/client.js';
+import { createWebPushSender } from './integrations/web-push/sender.js';
 import { loggerOptions } from './logger.js';
 
 const config = loadConfig();
@@ -22,6 +23,12 @@ const app = buildApp({
     : undefined,
   scheduler: {},
   openclaw: config.openclaw,
+  push: config.vapid
+    ? {
+        publicKey: config.vapid.publicKey,
+        sender: createWebPushSender(config.vapid),
+      }
+    : undefined,
 });
 
 try {
