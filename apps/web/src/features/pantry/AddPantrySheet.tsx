@@ -25,7 +25,7 @@ function submitLabel(count: number): string {
 
 /**
  * „Добави в килера“: търсене в продуктите (`GET /api/ingredients?q=`) с избор на няколко, нов продукт на място
- * (`NewIngredientForm`), един вид за целия избор и бележка по избор. Продуктите, които вече са в килера, не се
+ * (`NewIngredientForm`), един вид и „Във фризера“ за целия избор и бележка по избор. Продуктите, които вече са в килера, не се
  * предлагат. Листът се затваря веднага; записът е оптимистичен.
  */
 export function AddPantrySheet({
@@ -43,6 +43,7 @@ export function AddPantrySheet({
   const [creating, setCreating] = useState(false);
   const [kind, setKind] = useState<PantryKind>('staple');
   const [note, setNote] = useState('');
+  const [frozen, setFrozen] = useState(false);
   const add = useAddPantryItems();
   const search = useIngredientSearch(
     useDebouncedValue(creating ? '' : query, SEARCH_DEBOUNCE_MS),
@@ -78,7 +79,7 @@ export function AddPantrySheet({
       return;
     }
     add.mutate(
-      { ingredients: selected, kind, note },
+      { ingredients: selected, kind, note, frozen },
       {
         onError: (error) =>
           onError(error instanceof Error ? error.message : 'Нещо се обърка'),
@@ -164,6 +165,14 @@ export function AddPantrySheet({
             ))}
           </div>
         </fieldset>
+        <label className="pantry__kind pantry__frozen">
+          <input
+            type="checkbox"
+            checked={frozen}
+            onChange={(event) => setFrozen(event.target.checked)}
+          />
+          ❄️ Във фризера
+        </label>
         <Field label="Бележка">
           {(props) => (
             <input

@@ -53,6 +53,7 @@ export function pantryItem(
     },
     kind: 'staple',
     note: null,
+    frozen: false,
     ranOutAt: null,
     createdAt: '2026-11-04T07:00:00.000Z',
     ...overrides,
@@ -85,6 +86,7 @@ export function servePantry(initial: PantryItem[] = []) {
         ingredientId: string;
         kind: PantryItem['kind'];
         note?: string | null;
+        frozen?: boolean;
       };
       requests.push({ method: 'POST', body });
       if (items.some((item) => item.ingredient.id === body.ingredientId)) {
@@ -109,6 +111,7 @@ export function servePantry(initial: PantryItem[] = []) {
       const item = pantryItem(ingredient, {
         kind: body.kind,
         note: body.note ?? null,
+        frozen: body.frozen ?? false,
         createdAt: new Date().toISOString(),
       });
       items = [...items, item];

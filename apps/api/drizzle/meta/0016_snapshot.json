@@ -1,5 +1,5 @@
 {
-  "id": "3664c7cc-3c9d-489b-aac6-a333c63b145a",
+  "id": "0564e2e8-2c32-413b-a4f9-8ab5de6344f6",
   "prevId": "8e740fe0-23f3-4d06-a830-97706563d264",
   "version": "7",
   "dialect": "postgresql",
@@ -1630,80 +1630,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.menu_activity": {
-      "name": "menu_activity",
-      "schema": "",
-      "columns": {
-        "week_start": {
-          "name": "week_start",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recipient_user_id": {
-          "name": "recipient_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "votes": {
-          "name": "votes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "comments": {
-          "name": "comments",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "swaps": {
-          "name": "swaps",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "last_at": {
-          "name": "last_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "menu_activity_recipient_user_id_user_id_fk": {
-          "name": "menu_activity_recipient_user_id_user_id_fk",
-          "tableFrom": "menu_activity",
-          "tableTo": "user",
-          "columnsFrom": [
-            "recipient_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "menu_activity_week_start_recipient_user_id_pk": {
-          "name": "menu_activity_week_start_recipient_user_id_pk",
-          "columns": [
-            "week_start",
-            "recipient_user_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.notification_log": {
       "name": "notification_log",
       "schema": "",
@@ -1958,6 +1884,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "frozen": {
+          "name": "frozen",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "ran_out_at": {
           "name": "ran_out_at",

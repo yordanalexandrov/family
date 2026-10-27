@@ -11,6 +11,7 @@ const columns = {
   id: pantryItem.id,
   kind: pantryItem.kind,
   note: pantryItem.note,
+  frozen: pantryItem.frozen,
   ranOutAt: pantryItem.ranOutAt,
   createdAt: pantryItem.createdAt,
   ingredient: {
@@ -24,6 +25,7 @@ type Row = {
   id: string;
   kind: PantryKind;
   note: string | null;
+  frozen: boolean;
   ranOutAt: Date | null;
   createdAt: Date;
   ingredient: PantryItem['ingredient'];
@@ -65,7 +67,12 @@ export async function findPantryItem(
 /** Rejects with a unique violation on `PANTRY_INGREDIENT_UNIQUE` when the ingredient is in the pantry already. */
 export async function insertPantryItem(
   db: DbExecutor,
-  values: { ingredientId: string; kind: PantryKind; note: string | null },
+  values: {
+    ingredientId: string;
+    kind: PantryKind;
+    note: string | null;
+    frozen: boolean;
+  },
 ): Promise<string> {
   const [row] = await db
     .insert(pantryItem)
@@ -81,7 +88,7 @@ export async function insertPantryItem(
 export async function updatePantryItem(
   db: DbExecutor,
   id: string,
-  changes: { kind?: PantryKind; note?: string | null },
+  changes: { kind?: PantryKind; note?: string | null; frozen?: boolean },
 ): Promise<boolean> {
   const rows = await db
     .update(pantryItem)

@@ -117,8 +117,15 @@
     {
       "idx": 16,
       "version": "7",
-      "when": 1793138628118,
-      "tag": "0016_menu_activity",
+      "when": 1793138586344,
+      "tag": "0016_pantry_frozen",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793138859372,
+      "tag": "0017_menu_activity",
       "breakpoints": true
     }
   ]
