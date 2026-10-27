@@ -85,6 +85,13 @@
       "when": 1793127911915,
       "tag": "0011_meal_replace_request",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793131218714,
+      "tag": "0012_pantry",
+      "breakpoints": true
     }
   ]
 }

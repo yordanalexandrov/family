@@ -10,6 +10,18 @@ describe('serverEventSchema', () => {
     }
   });
 
+  it('accepts shopping.changed without a week: every list changed (e.g. the pantry)', () => {
+    expect(serverEventSchema.parse({ type: 'shopping.changed' })).toEqual({
+      type: 'shopping.changed',
+    });
+  });
+
+  it('rejects menu.changed without a week', () => {
+    expect(serverEventSchema.safeParse({ type: 'menu.changed' }).success).toBe(
+      false,
+    );
+  });
+
   it('rejects a weekStart that is not a Monday', () => {
     expect(
       serverEventSchema.safeParse({

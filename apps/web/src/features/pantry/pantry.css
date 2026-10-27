@@ -1,0 +1,140 @@
+/* Екранът „Килер“: само телефонът (една колона). Докосване ≥ 44 px (2.75rem). */
+.pantry .recipes__header {
+  justify-content: space-between;
+}
+
+.pantry__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.pantry__group-title {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pantry__hint,
+.pantry__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pantry__items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  list-style: none;
+}
+
+.pantry-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 3.25rem;
+  padding: var(--space-1) var(--space-3);
+}
+
+.pantry-item + .pantry-item {
+  border-block-start: 1px solid var(--color-line);
+}
+
+.pantry-item__main {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+}
+
+.pantry-item__name {
+  color: var(--color-text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pantry-item__note,
+.pantry-item__age {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.pantry-item__age {
+  white-space: nowrap;
+}
+
+.pantry-item__action {
+  flex: none;
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.pantry-item__action.button--quiet {
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.pantry__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pantry__choices {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 14rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  list-style: none;
+}
+
+.pantry__choices li + li {
+  border-block-start: 1px solid var(--color-line);
+}
+
+.pantry__choice,
+.pantry__kind {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  padding-inline: var(--space-3);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.pantry__kinds {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pantry__kind {
+  padding-inline: 0 var(--space-3);
+}
+
+.pantry__kind input {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.pantry__new {
+  align-self: flex-start;
+}

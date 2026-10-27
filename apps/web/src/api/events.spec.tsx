@@ -98,6 +98,18 @@ describe('useServerEvents', () => {
     await vi.waitFor(() => expect(since(gets, before)).toEqual([thisWeek]));
   });
 
+  it('shopping.changed без седмица (килерът) презарежда списъка, която и седмица да е', async () => {
+    const { gets } = serveShopping({ [thisWeek]: shoppingList() });
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    source().open();
+    const before = gets.length;
+
+    act(() => source().send({ type: 'shopping.changed' }));
+
+    await vi.waitFor(() => expect(since(gets, before)).toEqual([thisWeek]));
+  });
+
   it('след прекъсване и повторна връзка презарежда менюто', async () => {
     const asked = servePlans({ [thisWeek]: planFor(thisWeek) });
     renderApp('/menu');

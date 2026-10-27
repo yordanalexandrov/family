@@ -27,6 +27,7 @@ export * from './schemas/health.js';
 export * from './schemas/ingredient.js';
 export * from './schemas/meal-replacement.js';
 export * from './schemas/menu.js';
+export * from './schemas/pantry.js';
 export * from './schemas/recipe.js';
 export * from './schemas/recipe-suggestion.js';
 export * from './schemas/shopping.js';

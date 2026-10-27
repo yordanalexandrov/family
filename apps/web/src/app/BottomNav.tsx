@@ -9,12 +9,13 @@ const ITEMS = [
   { to: '/recipes', label: 'Рецепти', exact: false, icon: <BookIcon /> },
   { to: '/menu', label: 'Меню', exact: true, icon: <CutleryIcon /> },
   { to: '/shopping', label: 'Пазаруване', exact: true, icon: <CartIcon /> },
+  { to: '/pantry', label: 'Килер', exact: true, icon: <JarIcon /> },
   { to: '/settings', label: 'Настройки', exact: true, icon: <GearIcon /> },
 ] as const;
 
 /**
  * Стъклената долна лента между основните екрани на телефона. Всеки екран е икона; само текущият показва и
- * надписа си, затова шестте се събират и на 360 px. Иконите без надпис носят името си в `aria-label`.
+ * надписа си, затова седемте се събират и на 360 px. Иконите без надпис носят името си в `aria-label`.
  */
 export function BottomNav() {
   return (
@@ -95,6 +96,16 @@ function CartIcon() {
       <path d="M2.5 3.5h2.8l2.4 11.5h10.6l2.2-8.5H6.1" />
       <circle cx="9" cy="19.5" r="1.5" />
       <circle cx="17" cy="19.5" r="1.5" />
+    </Icon>
+  );
+}
+
+function JarIcon() {
+  return (
+    <Icon>
+      <path d="M8 3h8v3H8z" />
+      <path d="M8 6c-1.8.8-3 2.2-3 4.5v8A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5v-8c0-2.3-1.2-3.7-3-4.5" />
+      <path d="M8.5 12.5h7" />
     </Icon>
   );
 }

@@ -16,6 +16,7 @@ import { CalendarScreen } from '../features/calendar/CalendarScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
 import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
+import { PantryScreen } from '../features/pantry/PantryScreen';
 import {
   EditRecipeScreen,
   NewRecipeScreen,
@@ -213,6 +214,13 @@ const shoppingRoute = createRoute({
   component: ShoppingWeek,
 });
 
+// Килер: само телефонът; не влиза в kiosk/TV навигацията.
+const pantryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/pantry',
+  component: PantryScreen,
+});
+
 // Предложения за рецепти: заявка, изчакване и резултати, преглед и одобрение.
 const suggestRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -261,6 +269,7 @@ const routeTree = rootRoute.addChildren([
   suggestionReviewRoute,
   menuRoute,
   shoppingRoute,
+  pantryRoute,
   ...devRoutes,
 ]);
 
