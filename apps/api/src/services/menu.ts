@@ -9,6 +9,7 @@ import {
   MENU_PROPOSE_MIN_RECIPES,
   MENU_SLOTS,
   type Meal,
+  type MealComment,
   type MealPlan,
   type MealPlanSummary,
   type MenuProposalRequest,
@@ -18,22 +19,28 @@ import {
   mealTitle,
   oneServingEach,
   type Servings,
+  systemLine,
+  type ThreadEvent,
   type UpdateMeal,
   type VoteValue,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
+  deleteComment,
   deleteOtherVotes,
   deletePlan,
   deleteVote,
+  findComment,
   findMeal,
   findMealOn,
   findPlanByWeek,
   findPlanSummary,
   findProposal,
   hasPendingProposal,
+  insertComment,
   insertPlan,
   insertProposal,
+  listComments,
   listPlans,
   listRecipeIdsOfWeeks,
   lockWeek,
@@ -55,6 +62,7 @@ import type {
 } from './contract-requests.js';
 import {
   ConflictError,
+  ForbiddenError,
   InvalidReferenceError,
   NotFoundError,
 } from './errors.js';
@@ -69,6 +77,10 @@ const NO_SUCH_PROPOSAL = 'Няма такова предложение за ме
 const WEEK_HAS_PLAN = 'Седмицата вече има меню';
 const WEEK_HAS_PENDING = 'За седмицата вече се подготвя предложение';
 const PAST_MEAL = 'Денят е минал: ястието вече не се гласува и не се сменя';
+const NO_SUCH_COMMENT = 'Няма такъв коментар';
+const PAST_MEAL_THREAD = 'Денят е минал: в разговора вече не се пише';
+const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
+const SYSTEM_LINE = 'Редовете за промените не се трият';
 
 export interface MenuService {
   /** The plan of the week with its meals. */
@@ -93,6 +105,16 @@ export interface MenuService {
     actingUserId: string,
     value: VoteValue | null,
   ): Promise<Meal>;
+  /** The meal's thread (GLOSSARY: Разговор), oldest first; readable for a past meal too. */
+  listComments(mealId: string): Promise<MealComment[]>;
+  /** A comment of `actingUserId`; refused for a past meal. */
+  addComment(
+    mealId: string,
+    actingUserId: string,
+    body: string,
+  ): Promise<MealComment>;
+  /** Only the author's own `comment`: 403 for someone else's, 409 for a system line. */
+  deleteComment(id: string, actingUserId: string): Promise<void>;
   /** Stores a `pending` proposal and starts `menu.propose` in the background; the proposal is returned at once. */
   requestProposal(
     params: CreateMenuProposal,
@@ -295,8 +317,7 @@ export function createMenuService({
           now(),
         );
         if (contentChanged) {
-          await deleteOtherVotes(tx, id, actingUserId);
-          await upsertVote(tx, id, actingUserId, 'up', now());
+          await recordContentChange(tx, current, actingUserId, now());
         }
         return reread(tx, id, current.planId);
       });
@@ -320,6 +341,55 @@ export function createMenuService({
       });
       signalWeek(events, weekStart);
       return meal;
+    },
+
+    async listComments(mealId) {
+      if (!(await findMeal(db, mealId))) {
+        throw new NotFoundError(NO_SUCH_MEAL);
+      }
+      return listComments(db, mealId);
+    },
+
+    async addComment(mealId, actingUserId, body) {
+      const { comment, weekStart } = await db.transaction(async (tx) => {
+        const meal = await findMeal(tx, mealId);
+        if (!meal) {
+          throw new NotFoundError(NO_SUCH_MEAL);
+        }
+        if (isPastMeal(meal, dateKeyInSofia(now()))) {
+          throw new ConflictError(PAST_MEAL_THREAD, { code: 'past_meal' });
+        }
+        const comment = await insertComment(
+          tx,
+          { mealId, kind: 'comment', authorUserId: actingUserId, body },
+          now(),
+        );
+        return { comment, weekStart: await weekOf(tx, meal.planId) };
+      });
+      signalWeek(events, weekStart);
+      return comment;
+    },
+
+    async deleteComment(id, actingUserId) {
+      const weekStart = await db.transaction(async (tx) => {
+        const comment = await findComment(tx, id);
+        if (!comment) {
+          throw new NotFoundError(NO_SUCH_COMMENT);
+        }
+        if (comment.kind === 'system') {
+          throw new ConflictError(SYSTEM_LINE, { code: 'system_line' });
+        }
+        if (comment.authorUserId !== actingUserId) {
+          throw new ForbiddenError(NOT_YOUR_COMMENT);
+        }
+        await deleteComment(tx, id);
+        const meal = await findMeal(tx, comment.mealId);
+        if (!meal) {
+          throw new Error('meal of a comment vanished');
+        }
+        return weekOf(tx, meal.planId);
+      });
+      signalWeek(events, weekStart);
     },
 
     requestProposal(params, actingUserId) {
@@ -365,6 +435,63 @@ function refusePastMeal(meal: Meal, at: Date): void {
   if (isPastMeal(meal, dateKeyInSofia(at))) {
     throw new ConflictError(PAST_MEAL, { code: 'past_meal' });
   }
+}
+
+/**
+ * Writes a system line (GLOSSARY: Разговор) for a change `actingUserId` made to a meal, in the transaction of the
+ * change and at its time: `replaced` for its recipe or note, `moved` for a swap of days.
+ */
+export function writeSystemLine(
+  tx: DbExecutor,
+  mealId: string,
+  actingUserId: string,
+  event: ThreadEvent,
+  at: Date,
+): Promise<MealComment> {
+  return insertComment(
+    tx,
+    {
+      mealId,
+      kind: 'system',
+      authorUserId: actingUserId,
+      body: systemLine(event),
+    },
+    at,
+  );
+}
+
+/**
+ * What follows a new recipe or note of a meal, in the transaction that wrote it (GLOSSARY: Глас, Разговор): the
+ * others' votes are dropped, `actingUserId` votes up, and the thread gets a `replaced` line from `before`'s title to
+ * the meal's title now. The caller has refused a past meal and written the new content.
+ */
+export async function recordContentChange(
+  tx: DbExecutor,
+  before: Meal,
+  actingUserId: string,
+  at: Date,
+): Promise<void> {
+  const after = await findMeal(tx, before.id);
+  if (!after) {
+    throw new Error('meal vanished in its own transaction');
+  }
+  await deleteOtherVotes(tx, before.id, actingUserId);
+  await upsertVote(tx, before.id, actingUserId, 'up', at);
+  await writeSystemLine(
+    tx,
+    before.id,
+    actingUserId,
+    { type: 'replaced', from: mealTitle(before), to: mealTitle(after) },
+    at,
+  );
+}
+
+async function weekOf(tx: DbExecutor, planId: string): Promise<string> {
+  const plan = await findPlanSummary(tx, planId);
+  if (!plan) {
+    throw new Error('plan of a meal vanished');
+  }
+  return plan.weekStart;
 }
 
 /** The meal as its own transaction left it, with the week to signal. */

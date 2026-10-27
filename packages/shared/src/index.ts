@@ -14,6 +14,7 @@ export * from './food/prep-time.js';
 export * from './food/tags.js';
 export * from './food/units.js';
 export * from './menu/meal.js';
+export * from './menu/thread.js';
 export * from './menu/votes.js';
 export * from './menu/week.js';
 export * from './schemas/budget.js';

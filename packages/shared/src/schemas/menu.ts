@@ -20,6 +20,45 @@ export const servingsSchema = z.record(z.uuid(), z.int().min(0));
 
 export type Servings = z.infer<typeof servingsSchema>;
 
+/** Longest comment in a meal's thread. */
+export const MEAL_COMMENT_MAX = 500;
+
+/** A line someone wrote, or one the API wrote for a change (`systemLine`); only system lines cannot be deleted. */
+export const mealCommentKindSchema = z.enum(['comment', 'system']);
+
+export type MealCommentKind = z.infer<typeof mealCommentKindSchema>;
+
+/**
+ * One line of a meal's thread (GLOSSARY: Разговор). A system line's `authorUserId` is who made the change and its
+ * `body` is the text after the author's name.
+ */
+export const mealCommentSchema = z.object({
+  id: z.uuid(),
+  mealId: z.uuid(),
+  kind: mealCommentKindSchema,
+  authorUserId: z.uuid(),
+  body: z.string(),
+  createdAt: instantSchema,
+});
+
+export type MealComment = z.infer<typeof mealCommentSchema>;
+
+/** `POST /api/menu/meals/:id/comments`: what the acting user writes. */
+export const createMealCommentSchema = z.object({
+  body: z.string().trim().min(1).max(MEAL_COMMENT_MAX),
+});
+
+export type CreateMealComment = z.infer<typeof createMealCommentSchema>;
+
+/** `GET /api/menu/meals/:id/comments`: the whole thread, oldest first. */
+export const mealCommentsResponseSchema = z.object({
+  comments: z.array(mealCommentSchema),
+});
+
+export const mealCommentResponseSchema = z.object({
+  comment: mealCommentSchema,
+});
+
 /**
  * One line of a weekly menu (GLOSSARY: Ястие): a recipe from the registry, a note instead of (or next to) it, or
  * empty. `why` is the agent's one sentence; the API clears it when the recipe is changed by hand.
@@ -43,6 +82,10 @@ export const mealSchema = z.object({
    * computes it with `mealOutcome`.
    */
   votes: z.array(voteSchema),
+  /** The newest line of the meal's thread (a comment or a system line), for the row; absent without one. */
+  lastComment: mealCommentSchema.optional(),
+  /** All lines of the thread, system lines included. */
+  commentCount: z.int().min(0),
 });
 
 export type Meal = z.infer<typeof mealSchema>;

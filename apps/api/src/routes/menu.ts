@@ -1,6 +1,9 @@
 import {
+  createMealCommentSchema,
   createMealPlanSchema,
   createMenuProposalSchema,
+  mealCommentResponseSchema,
+  mealCommentsResponseSchema,
   mealPlanResponseSchema,
   mealPlansQuerySchema,
   mealPlansResponseSchema,
@@ -112,6 +115,48 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request) => ({
       meal: await service.vote(request.params.id, request.actor.id, null),
     }),
+  );
+
+  // GLOSSARY: Разговор. Read for any day; written only from today on.
+  app.get(
+    '/api/menu/meals/:id/comments',
+    {
+      schema: {
+        params: idParamsSchema,
+        response: { 200: mealCommentsResponseSchema },
+      },
+    },
+    async (request) => ({
+      comments: await service.listComments(request.params.id),
+    }),
+  );
+
+  app.post(
+    '/api/menu/meals/:id/comments',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: createMealCommentSchema,
+        response: { 201: mealCommentResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const comment = await service.addComment(
+        request.params.id,
+        request.actor.id,
+        request.body.body,
+      );
+      return reply.code(201).send({ comment });
+    },
+  );
+
+  app.delete(
+    '/api/menu/comments/:id',
+    { schema: { params: idParamsSchema } },
+    async (request, reply) => {
+      await service.deleteComment(request.params.id, request.actor.id);
+      return reply.code(204).send();
+    },
   );
 
   app.post(

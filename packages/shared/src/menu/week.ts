@@ -12,7 +12,7 @@ export const MENU_SLOTS = ['dinner'] as const satisfies readonly Slot[];
 export type MenuSlot = (typeof MENU_SLOTS)[number];
 
 /** Day of the week of a date key, 0 = Monday … 6 = Sunday. */
-function weekdayOf(key: DateKey): number {
+export function weekdayOf(key: DateKey): number {
   return (new Date(`${key}T00:00:00Z`).getUTCDay() + 6) % 7;
 }
 

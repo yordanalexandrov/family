@@ -71,6 +71,13 @@
       "when": 1793126385438,
       "tag": "0009_meal_vote",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793127162771,
+      "tag": "0010_meal_comment",
+      "breakpoints": true
     }
   ]
 }

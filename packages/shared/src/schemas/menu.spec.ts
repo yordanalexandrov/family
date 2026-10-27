@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createMealCommentSchema,
   createMenuProposalSchema,
+  mealCommentSchema,
   mealPlanSchema,
   mealSchema,
   menuProposalRequestSchema,
@@ -27,6 +29,16 @@ const meal = {
     { userId: DANI, value: 'up' },
     { userId: POLI, value: 'down' },
   ],
+  commentCount: 0,
+};
+
+const comment = {
+  id: '66666666-6666-4666-8666-666666666666',
+  mealId: meal.id,
+  kind: 'comment',
+  authorUserId: POLI,
+  body: 'пак пиле?',
+  createdAt: '2026-10-26T17:00:00.000Z',
 };
 
 describe('mealSchema', () => {
@@ -92,6 +104,51 @@ describe('mealSchema', () => {
     expect(mealSchema.safeParse({ ...meal, slot: 'quick' }).success).toBe(
       false,
     );
+  });
+});
+
+describe('mealCommentSchema', () => {
+  it('accepts a comment and a system line', () => {
+    const system = {
+      ...comment,
+      kind: 'system',
+      body: 'смени „Мусака“ → „Пиле с ориз“',
+    };
+
+    expect(mealCommentSchema.parse(comment)).toEqual(comment);
+    expect(mealCommentSchema.parse(system)).toEqual(system);
+  });
+
+  it('rejects a kind that is neither comment nor system', () => {
+    expect(
+      mealCommentSchema.safeParse({ ...comment, kind: 'vote' }).success,
+    ).toBe(false);
+  });
+
+  it('is the last line of a meal, next to the number of lines', () => {
+    const withThread = { ...meal, lastComment: comment, commentCount: 3 };
+
+    expect(mealSchema.parse(withThread)).toEqual(withThread);
+  });
+});
+
+describe('createMealCommentSchema', () => {
+  it('trims the body', () => {
+    expect(createMealCommentSchema.parse({ body: '  пак пиле?  ' })).toEqual({
+      body: 'пак пиле?',
+    });
+  });
+
+  it('rejects a blank body and one longer than 500 characters', () => {
+    expect(createMealCommentSchema.safeParse({ body: '   ' }).success).toBe(
+      false,
+    );
+    expect(
+      createMealCommentSchema.safeParse({ body: 'б'.repeat(501) }).success,
+    ).toBe(false);
+    expect(
+      createMealCommentSchema.safeParse({ body: 'б'.repeat(500) }).success,
+    ).toBe(true);
   });
 });
 

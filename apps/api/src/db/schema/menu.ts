@@ -1,5 +1,7 @@
 import {
   contractRequestStatusSchema,
+  type MealCommentKind,
+  mealCommentKindSchema,
   type Servings,
   type Slot,
   slotSchema,
@@ -8,6 +10,7 @@ import {
 } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   check,
   date,
   index,
@@ -89,6 +92,35 @@ export const mealVote = pgTable(
   (t) => [
     primaryKey({ columns: [t.mealId, t.userId] }),
     check('meal_vote_value_check', oneOf(t.value, voteValueSchema.options)),
+  ],
+);
+
+/**
+ * GLOSSARY: Разговор. The lines of a meal's thread, read by `(meal_id, created_at, seq)`; they go with the meal and stay
+ * when its recipe or note changes. A `system` line records a change by `author_user_id` and is never deleted.
+ */
+export const mealComment = pgTable(
+  'meal_comment',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<MealCommentKind>().notNull(),
+    authorUserId: uuid('author_user_id')
+      .notNull()
+      .references(() => user.id),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+    /** Write order: breaks the tie of two lines with the same `created_at` (a change and its system line). */
+    seq: bigint('seq', { mode: 'number' }).generatedAlwaysAsIdentity(),
+  },
+  (t) => [
+    index('meal_comment_meal_created_idx').on(t.mealId, t.createdAt),
+    check(
+      'meal_comment_kind_check',
+      oneOf(t.kind, mealCommentKindSchema.options),
+    ),
   ],
 );
 

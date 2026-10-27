@@ -19,7 +19,7 @@ import {
   vi,
 } from 'vitest';
 import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
-import { mealVote } from '../db/schema/menu.js';
+import { mealComment, mealVote } from '../db/schema/menu.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import {
@@ -377,6 +377,11 @@ describe('PATCH /api/menu/meals/:id', () => {
       servings: { [DANI.id]: 2, [POLI.id]: 0 },
       note: 'с двойна порция',
       votes: [{ userId: DANI.id, value: 'up' }],
+      lastComment: expect.objectContaining({
+        kind: 'system',
+        body: 'избра „Мусака“',
+      }),
+      commentCount: 1,
     };
     expect(response.json()).toEqual({ meal: expected });
     expect((await getPlan(WEEK)).json().plan.meals[0]).toEqual(expected);
@@ -703,6 +708,197 @@ describe('votes', () => {
 
     expect(response.statusCode).toBe(204);
     expect(await testDb().select().from(mealVote)).toEqual([]);
+  });
+});
+
+/** `POST` a comment of `as` to a meal's thread. */
+function comment(mealId: string, body: string, as = DANI.id) {
+  return app.inject({
+    method: 'POST',
+    url: `/api/menu/meals/${mealId}/comments`,
+    headers: { 'x-acting-user': as },
+    payload: { body },
+  });
+}
+
+function thread(mealId: string) {
+  return inject('GET', `/api/menu/meals/${mealId}/comments`);
+}
+
+function deleteComment(id: string, as = DANI.id) {
+  return app.inject({
+    method: 'DELETE',
+    url: `/api/menu/comments/${id}`,
+    headers: { 'x-acting-user': as },
+  });
+}
+
+describe('thread of a meal', () => {
+  it('writes comments of the acting user and reads them in the order they were written', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+
+    const first = await comment(monday.id, '  пак пиле?  ', POLI.id);
+    clock = new Date(NOW.getTime() + 60_000);
+    await comment(monday.id, 'последно беше миналия месец');
+
+    expect(first.statusCode).toBe(201);
+    expect(first.json().comment).toMatchObject({
+      mealId: monday.id,
+      kind: 'comment',
+      authorUserId: POLI.id,
+      body: 'пак пиле?',
+      createdAt: NOW.toISOString(),
+    });
+    const response = await thread(monday.id);
+    expect(response.statusCode).toBe(200);
+    expect(
+      response
+        .json()
+        .comments.map((line: { authorUserId: string; body: string }) => [
+          line.authorUserId,
+          line.body,
+        ]),
+    ).toEqual([
+      [POLI.id, 'пак пиле?'],
+      [DANI.id, 'последно беше миналия месец'],
+    ]);
+  });
+
+  it('shows the newest line and the number of lines on the meal in the plan', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday, tuesday] = plan.meals;
+    await comment(monday.id, 'пак пиле?', POLI.id);
+    clock = new Date(NOW.getTime() + 60_000);
+    await comment(monday.id, 'добре, сменям');
+
+    const meals = (await getPlan(WEEK)).json().plan.meals;
+
+    expect(meals[0]).toMatchObject({
+      commentCount: 2,
+      lastComment: { authorUserId: DANI.id, body: 'добре, сменям' },
+    });
+    expect(meals[1]).toMatchObject({ id: tuesday.id, commentCount: 0 });
+    expect(meals[1].lastComment).toBeUndefined();
+  });
+
+  it('a new recipe or note adds a system line by the one who changed it, after the comments', async () => {
+    const plan = await proposedPlan();
+    const [monday, tuesday] = plan.meals;
+    await comment(monday.id, 'пак пиле?', DANI.id);
+
+    await patchMeal(monday.id, { recipeId: recipeId(5) }, POLI.id);
+    await patchMeal(tuesday.id, { recipeId: null, note: 'ядем навън' });
+    await patchMeal(tuesday.id, { cookUserId: POLI.id });
+
+    const lines = (await thread(monday.id)).json().comments;
+    expect(lines).toEqual([
+      expect.objectContaining({ kind: 'comment', body: 'пак пиле?' }),
+      expect.objectContaining({
+        kind: 'system',
+        authorUserId: POLI.id,
+        body: `смени „${monday.recipe.title}“ → „Мусака“`,
+      }),
+    ]);
+    expect((await thread(tuesday.id)).json().comments).toEqual([
+      expect.objectContaining({
+        kind: 'system',
+        authorUserId: DANI.id,
+        body: `смени „${tuesday.recipe.title}“ → „ядем навън“`,
+      }),
+    ]);
+  });
+
+  it('deletes the acting user’s own comment', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    const mine = (await comment(monday.id, 'пак пиле?')).json().comment;
+    await comment(monday.id, 'да', POLI.id);
+
+    const response = await deleteComment(mine.id);
+
+    expect(response.statusCode).toBe(204);
+    expect(
+      (await thread(monday.id))
+        .json()
+        .comments.map((line: { body: string }) => line.body),
+    ).toEqual(['да']);
+  });
+
+  it('answers 403 for someone else’s comment and 409 for a system line, and deletes neither', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    const poli = (await comment(monday.id, 'пак пиле?', POLI.id)).json()
+      .comment;
+    await patchMeal(monday.id, { note: 'навън' }, POLI.id);
+    const system = (await thread(monday.id)).json().comments[1];
+
+    const foreign = await deleteComment(poli.id);
+    const line = await deleteComment(system.id, POLI.id);
+    const unknown = await deleteComment('99999999-9999-4999-8999-999999999999');
+
+    expect(foreign.statusCode).toBe(403);
+    expect(foreign.json()).toMatchObject({ error: 'forbidden' });
+    expect(line.statusCode).toBe(409);
+    expect(line.json()).toMatchObject({ error: 'conflict' });
+    expect(unknown.statusCode).toBe(404);
+    expect((await thread(monday.id)).json().comments).toHaveLength(2);
+  });
+
+  it('answers 409 past_meal for a comment on a day before today, but reads its thread', async () => {
+    // Monday 26 October, 10:00 in Sofia.
+    clock = new Date('2026-10-26T08:00:00Z');
+    const plan = await createPlan(THIS_WEEK);
+    const [monday] = plan.meals;
+    await comment(monday.id, 'пак пиле?');
+    clock = NOW;
+
+    const response = await comment(monday.id, 'вече е късно');
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'conflict',
+      code: 'past_meal',
+    });
+    const read = await thread(monday.id);
+    expect(read.statusCode).toBe(200);
+    expect(read.json().comments).toHaveLength(1);
+  });
+
+  it('answers 400 for a blank comment and 404 for an unknown meal', async () => {
+    const plan = await createPlan(WEEK);
+    const unknown = '99999999-9999-4999-8999-999999999999';
+
+    expect((await comment(plan.meals[0].id, '   ')).statusCode).toBe(400);
+    expect((await comment(unknown, 'пак пиле?')).statusCode).toBe(404);
+    expect((await thread(unknown)).statusCode).toBe(404);
+  });
+
+  it('signals menu.changed and shopping.changed when a comment is written or deleted', async () => {
+    const plan = await createPlan(WEEK);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const written = (await comment(plan.meals[0].id, 'пак пиле?')).json()
+      .comment;
+    await deleteComment(written.id);
+    unsubscribe();
+
+    expect(signals.filter((event) => event.type === 'menu.changed')).toEqual([
+      { type: 'menu.changed', weekStart: WEEK },
+      { type: 'menu.changed', weekStart: WEEK },
+    ]);
+  });
+
+  it('goes with the plan when it is deleted', async () => {
+    const plan = await createPlan(WEEK);
+    await comment(plan.meals[0].id, 'пак пиле?');
+    await patchMeal(plan.meals[1].id, { note: 'навън' });
+
+    const response = await inject('DELETE', `/api/menu/plans/${plan.id}`);
+
+    expect(response.statusCode).toBe(204);
+    expect(await testDb().select().from(mealComment)).toEqual([]);
   });
 });
 

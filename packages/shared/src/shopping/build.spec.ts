@@ -104,6 +104,7 @@ function meal(
     why: null,
     recipe: of ? { title: of.title, archivedAt: null } : null,
     votes: [],
+    commentCount: 0,
   };
 }
 
