@@ -13,6 +13,8 @@ interface ImportLinkFormProps {
   onSubmit: (params: RecipeImportParams) => void;
   isSubmitting?: boolean;
   submitError?: unknown;
+  /** Попълнен отвън: споделен линк или `?tab=url&url=`. */
+  initialUrl?: string | undefined;
 }
 
 /** 409 `already_imported` от api-то: рецептата или предложението, което вече има този линк. */
@@ -36,8 +38,9 @@ export function ImportLinkForm({
   onSubmit,
   isSubmitting = false,
   submitError,
+  initialUrl = '',
 }: ImportLinkFormProps) {
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string>();
   const duplicate = alreadyImported(submitError);
 

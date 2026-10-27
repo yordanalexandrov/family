@@ -50,6 +50,14 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        // „Сподели → Семейство“ на Android (само за инсталирано PWA): отваря /recipes/import със споделеното в
+        // query-то и внасянето тръгва веднага (ImportScreen → importFromShare). Без `tab` в адреса, за да се
+        // различава от вътрешната навигация (`?tab=…`), която само попълва полетата.
+        share_target: {
+          action: '/recipes/import',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
       },
       workbox: {
         navigateFallback: '/index.html',
