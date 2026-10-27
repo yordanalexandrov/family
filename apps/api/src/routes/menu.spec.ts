@@ -1257,6 +1257,110 @@ describe('POST /api/menu/proposals', () => {
   });
 });
 
+describe('menu proposal of the cron (Wednesday 09:00)', () => {
+  let cron: FastifyInstance | undefined;
+
+  afterEach(async () => {
+    await cron?.close();
+    cron = undefined;
+  });
+
+  /** An app whose scheduler runs its jobs at once, as after a start or a deploy. */
+  async function startCron() {
+    cron = buildTestApp({
+      now: () => clock,
+      scheduler: { firstRunDelayMs: 0 },
+    });
+    await cron.ready();
+    return cron;
+  }
+
+  /** The latest proposal of the week, once there is one. */
+  async function latestProposal(weekStart: string) {
+    let proposal: { id: string } | undefined;
+    await vi.waitFor(async () => {
+      const response = await inject(
+        'GET',
+        `/api/menu/proposals?weekStart=${weekStart}`,
+      );
+      expect(response.statusCode).toBe(200);
+      proposal = response.json().proposal;
+    });
+    return proposal as { id: string };
+  }
+
+  it('proposes the next week by itself, without a user, and signals the plan', async () => {
+    const signals: ServerEvent[] = [];
+    const started = await startCron();
+    const unsubscribe = started.events.subscribe((event) =>
+      signals.push(event),
+    );
+
+    const proposal = await latestProposal(WEEK);
+
+    expect(proposal).toMatchObject({
+      weekStart: WEEK,
+      trigger: 'schedule',
+      requestedBy: null,
+    });
+    expect(await finished(proposal.id)).toMatchObject({ status: 'done' });
+    const { plan } = (await getPlan(WEEK)).json();
+    expect(plan).toMatchObject({
+      summary: proposeFixture.summary,
+      createdBy: null,
+    });
+    await vi.waitFor(() =>
+      expect(signals).toContainEqual({ type: 'menu.changed', weekStart: WEEK }),
+    );
+    unsubscribe();
+  });
+
+  it('does not try again after a failure, while a user still can', async () => {
+    answerInTurn('not json');
+    const app2 = await startCron();
+    const failed = await latestProposal(WEEK);
+    expect(await finished(failed.id)).toMatchObject({
+      status: 'failed',
+      trigger: 'schedule',
+    });
+
+    // The next cycle, or a restart, leaves the week to the users.
+    await app2.menuSchedule?.run();
+    await app2.close();
+    const restarted = await startCron();
+    await restarted.menuSchedule?.run();
+
+    expect(await latestProposal(WEEK)).toMatchObject({ id: failed.id });
+    answerInTurn(JSON.stringify(proposeFixture));
+    const manual = await propose({ weekStart: WEEK });
+    expect(manual).toMatchObject({ trigger: 'user', requestedBy: DANI.id });
+    expect(await finished(manual.id)).toMatchObject({ status: 'done' });
+  });
+
+  it('waits until Wednesday 09:00 in Sofia', async () => {
+    clock = new Date('2026-10-28T06:59:00Z');
+    const early = await startCron();
+    await early.menuSchedule?.run();
+
+    const response = await inject(
+      'GET',
+      `/api/menu/proposals?weekStart=${WEEK}`,
+    );
+    expect(response.statusCode).toBe(404);
+  });
+
+  it('still needs a user for a proposal by hand', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/menu/proposals',
+      payload: { weekStart: WEEK },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'missing_acting_user' });
+  });
+});
+
 describe('GET /api/menu/proposals/:id', () => {
   it('answers 404 for an unknown proposal', async () => {
     const response = await inject(

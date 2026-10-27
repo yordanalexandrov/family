@@ -427,6 +427,10 @@ button.meal-row__content:hover {
   border-radius: 50%;
 }
 
+.menu__scheduled {
+  margin: 0;
+}
+
 .menu__summary {
   margin: 0;
   color: var(--color-text-muted);

@@ -9,9 +9,11 @@ import {
   pendingProposal,
   planFor,
   proposalId,
+  scheduledProposal,
   serveDinnerRecipes,
   serveMealUpdates,
   servePlans,
+  serveWeekProposal,
   thisWeek,
 } from '../../test/menu';
 import { dani, dashboardWith, fixtureNow, poli, server } from '../../test/msw';
@@ -562,5 +564,87 @@ describe('MenuWeek: предложение', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Опитай пак' }));
     expect(await screen.findByText('Съставям меню…')).toBeInTheDocument();
+  });
+});
+
+describe('MenuWeek: предложение от крона в сряда', () => {
+  const AUTO = 'Предложено автоматично в сряда';
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('планът, предложен от крона, е „автоматично“; планът на човек — не', async () => {
+    servePlans({
+      [thisWeek]: planFor(thisWeek, {}, { summary: 'Нашето меню.' }),
+      [nextWeek]: planFor(nextWeek, {}, { createdBy: null }),
+    });
+
+    renderApp(`/menu?week=${nextWeek}`);
+
+    expect(await screen.findByText(AUTO)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Тази седмица' }));
+    expect(await screen.findByText('Нашето меню.')).toBeInTheDocument();
+    expect(screen.queryByText(AUTO)).not.toBeInTheDocument();
+  });
+
+  it('докато кронът съставя менюто, седмицата чака; при done показва плана', async () => {
+    const plans: Record<string, ReturnType<typeof planFor>> = {};
+    servePlans(plans);
+    serveWeekProposal(scheduledProposal, {
+      ...scheduledProposal,
+      status: 'done',
+      planId: planFor(nextWeek).id,
+      finishedAt: '2026-11-04T07:01:00.000Z',
+    });
+
+    renderApp(`/menu?week=${nextWeek}`);
+
+    expect(await screen.findByText('Съставям меню…')).toBeInTheDocument();
+    expect(screen.getByText(AUTO)).toBeInTheDocument();
+    plans[nextWeek] = planFor(
+      nextWeek,
+      {},
+      { createdBy: null, summary: 'Седмица с риба.' },
+    );
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+
+    expect(await screen.findByText('Седмица с риба.')).toBeInTheDocument();
+  });
+
+  it('при неуспех на крона показва причината и „Предложи меню“', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    servePlans();
+    serveWeekProposal({
+      ...scheduledProposal,
+      status: 'failed',
+      error: 'timeout',
+      finishedAt: '2026-11-04T07:03:00.000Z',
+    });
+    const bodies: unknown[] = [];
+    server.use(
+      http.post('/api/menu/proposals', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(
+          { proposal: { ...pendingProposal, weekStart: nextWeek } },
+          { status: 202 },
+        );
+      }),
+    );
+
+    renderApp(`/menu?week=${nextWeek}`);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Не успях навреме, опитай пак',
+    );
+    expect(screen.getByText(AUTO)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Предложи меню' }));
+    expect(bodies).toEqual([{ weekStart: nextWeek }]);
   });
 });

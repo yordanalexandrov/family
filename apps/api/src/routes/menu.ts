@@ -9,6 +9,7 @@ import {
   mealPlansResponseSchema,
   mealResponseSchema,
   menuProposalResponseSchema,
+  menuProposalsQuerySchema,
   putVoteSchema,
   swapMealsSchema,
   updateMealSchema,
@@ -193,6 +194,19 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
       );
       return reply.code(202).send({ proposal });
     },
+  );
+
+  app.get(
+    '/api/menu/proposals',
+    {
+      schema: {
+        querystring: menuProposalsQuerySchema,
+        response: { 200: menuProposalResponseSchema },
+      },
+    },
+    async (request) => ({
+      proposal: await service.getLatestProposal(request.query.weekStart),
+    }),
   );
 
   app.get(

@@ -7,6 +7,8 @@ const MINUTE_MS = 60_000;
 const CALENDAR_INTERVAL_MS = 5 * MINUTE_MS;
 const BUDGET_INTERVAL_MS = 60 * MINUTE_MS;
 const PRUNE_INTERVAL_MS = 24 * 60 * MINUTE_MS;
+/** How often the cron looks whether next week's menu is due (`services/menu-schedule.ts`); also once at start. */
+const MENU_PROPOSE_INTERVAL_MS = 15 * MINUTE_MS;
 /** Days of `sync_run` history kept (the last success of each source is always kept). */
 const KEEP_RUNS_DAYS = 7;
 
@@ -97,6 +99,30 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
     });
   } else {
     app.log.info('budget sync: unconfigured');
+  }
+
+  const { menuSchedule } = app;
+  if (menuSchedule) {
+    schedule({
+      name: 'menu-propose',
+      intervalMs: MENU_PROPOSE_INTERVAL_MS,
+      run: async () => {
+        const proposal = await menuSchedule.run();
+        if (proposal) {
+          app.log.info(
+            {
+              job: 'menu-propose',
+              proposalId: proposal.id,
+              weekStart: proposal.weekStart,
+            },
+            'menu proposal started',
+          );
+        }
+        return undefined;
+      },
+    });
+  } else {
+    app.log.info('menu propose: unconfigured');
   }
 
   schedule({

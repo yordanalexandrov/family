@@ -7,6 +7,7 @@ import {
   type Meal,
   type MealComment,
   type MealPlan,
+  type MenuProposalRequest,
   mealCommentResponseSchema,
   mealCommentsResponseSchema,
   mealPlanResponseSchema,
@@ -32,6 +33,9 @@ export const menuKeys = {
   thread: (weekStart: DateKey, mealId: string) =>
     ['menu', 'plan', weekStart, 'thread', mealId] as const,
   proposal: (id: string) => ['menu', 'proposal', id] as const,
+  /** Последното предложение на седмицата (напр. на крона в сряда); не е под плана, който то презарежда. */
+  weekProposal: (weekStart: DateKey) =>
+    ['menu', 'week-proposal', weekStart] as const,
 };
 
 /** Планът на седмицата или `null`, ако няма (api връща 404). */
@@ -335,6 +339,40 @@ export function useMenuProposal(id: string | undefined) {
       return proposal;
     },
     enabled: id !== undefined,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
+  });
+}
+
+/**
+ * Последното предложение на седмицата или `null` (api връща 404); пита отново на 3 s, докато е `pending`, а при
+ * `done` презарежда плана. Така седмица без план вижда и предложението на крона, което никой не е пуснал от екрана.
+ */
+export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: menuKeys.weekProposal(weekStart),
+    queryFn: async (): Promise<MenuProposalRequest | null> => {
+      try {
+        const { proposal } = await apiFetch(
+          `/menu/proposals?${new URLSearchParams({ weekStart })}`,
+          menuProposalResponseSchema,
+        );
+        if (proposal.status === 'done') {
+          await queryClient.invalidateQueries({
+            queryKey: menuKeys.plan(weekStart),
+            exact: true,
+          });
+        }
+        return proposal;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled,
     refetchInterval: (query) =>
       query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
   });

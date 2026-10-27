@@ -55,6 +55,7 @@ function toProposal(row: ProposalRow): MenuProposalRequest {
     hint: row.hint ?? undefined,
     status: row.status,
     error: row.error ?? undefined,
+    trigger: row.trigger,
     requestedBy: row.requestedBy,
     planId: row.planId ?? undefined,
     createdAt: row.createdAt.toISOString(),
@@ -253,7 +254,11 @@ export interface NewMeal {
 /** A plan with its meals; run it in a transaction. Refused by `meal_plan_week_start_unique` for a second plan. */
 export async function insertPlan(
   db: DbExecutor,
-  plan: { weekStart: string; summary: string | null; createdBy: string },
+  plan: {
+    weekStart: string;
+    summary: string | null;
+    createdBy: string | null;
+  },
   meals: NewMeal[],
 ): Promise<MealPlan> {
   const [row] = await db.insert(mealPlan).values(plan).returning();
@@ -444,17 +449,21 @@ export async function listRecipeIdsOfWeeks(
   return rows.flatMap((row) => (row.recipeId ? [row.recipeId] : []));
 }
 
-/** A new `pending` proposal. Refused by `menu_proposal_request_pending_week_key` when the week has one. */
+/**
+ * A new `pending` proposal: by a user, or by the cron (`requestedBy` `null`, trigger `schedule`). Refused by
+ * `menu_proposal_request_pending_week_key` when the week has one.
+ */
 export async function insertProposal(
   db: DbExecutor,
   params: { weekStart: string; hint?: string },
-  requestedBy: string,
+  requestedBy: string | null,
 ): Promise<MenuProposalRequest> {
   const [row] = await db
     .insert(menuProposalRequest)
     .values({
       weekStart: params.weekStart,
       hint: params.hint || null,
+      trigger: requestedBy === null ? 'schedule' : 'user',
       requestedBy,
     })
     .returning();
@@ -474,6 +483,19 @@ export async function findProposal(
     .where(eq(menuProposalRequest.id, id))
     .limit(1);
   return row && toProposal(row);
+}
+
+/** The proposals of the week, newest first. */
+export async function listProposalsOfWeek(
+  db: DbExecutor,
+  weekStart: string,
+): Promise<MenuProposalRequest[]> {
+  const rows = await db
+    .select()
+    .from(menuProposalRequest)
+    .where(eq(menuProposalRequest.weekStart, weekStart))
+    .orderBy(desc(menuProposalRequest.createdAt), desc(menuProposalRequest.id));
+  return rows.map(toProposal);
 }
 
 export async function hasPendingProposal(

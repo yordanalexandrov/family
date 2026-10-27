@@ -36,6 +36,7 @@ import {
   usePlan,
   useProposeMenu,
   useVote,
+  useWeekProposal,
 } from './queries';
 import { OUTCOME_LABELS } from './Votes';
 import '../recipes/recipes.css';
@@ -169,6 +170,13 @@ function Week({
   const plan = usePlan(weekStart);
   const users = useUsers();
   const proposal = useMenuProposal(proposalId);
+  // Седмица без план може да чака или да е изпуснала предложението на крона (сряда 09:00).
+  const weekProposal = useWeekProposal(
+    weekStart,
+    plan.data === null && proposalId === undefined,
+  );
+  const scheduled =
+    weekProposal.data?.trigger === 'schedule' ? weekProposal.data : null;
   const done = proposal.data?.status === 'done';
   useEffect(() => {
     if (done) {
@@ -195,12 +203,7 @@ function Week({
         />
       );
     }
-    return (
-      <div className="menu__waiting">
-        <Spinner label="Изчакване…" />
-        <p>Съставям меню…</p>
-      </div>
-    );
+    return <Waiting />;
   }
   if (plan.isPending || users.isPending) {
     return <Spinner />;
@@ -217,8 +220,22 @@ function Week({
     );
   }
   if (plan.data === null) {
-    return readOnly ? (
-      <p className="recipes__empty">Няма меню за тази седмица.</p>
+    if (weekProposal.isPending) {
+      return <Spinner />;
+    }
+    if (scheduled?.status === 'pending') {
+      return <Waiting scheduled />;
+    }
+    if (readOnly) {
+      return <p className="recipes__empty">Няма меню за тази седмица.</p>;
+    }
+    return scheduled?.status === 'failed' ? (
+      <ProposeForm
+        weekStart={weekStart}
+        onProposal={onProposal}
+        failure={failureMessage(scheduled.error)}
+        scheduled
+      />
     ) : (
       <ProposeForm weekStart={weekStart} onProposal={onProposal} />
     );
@@ -235,12 +252,36 @@ function Week({
   );
 }
 
+/** Предложението на крона: в сряда 09:00 за следващата седмица, без подсказка и без потребител. */
+const SCHEDULED = 'Предложено автоматично в сряда';
+
+function ScheduledNote() {
+  return (
+    <p className="menu__scheduled">
+      <span className="badge">{SCHEDULED}</span>
+    </p>
+  );
+}
+
+/** Заявката за меню още е `pending`. */
+function Waiting({ scheduled = false }: { scheduled?: boolean }) {
+  return (
+    <div className="menu__waiting">
+      {scheduled && <ScheduledNote />}
+      <Spinner label="Изчакване…" />
+      <p>Съставям меню…</p>
+    </div>
+  );
+}
+
 interface ProposeFormProps {
   weekStart: DateKey;
   onProposal: (id: string | undefined) => void;
-  /** Съобщението на неуспешното предложение; тогава бутонът е „Опитай пак“. */
+  /** Съобщението на неуспешното предложение; тогава бутонът е „Опитай пак“, освен ако го е пуснал кронът. */
   failure?: string;
   initialHint?: string;
+  /** Неуспешното предложение е на крона: никой още не е пробвал, затова бутонът остава „Предложи меню“. */
+  scheduled?: boolean;
 }
 
 /** Седмица без план: „Предложи меню“ с подсказка или „Започни празно“. */
@@ -249,6 +290,7 @@ function ProposeForm({
   onProposal,
   failure,
   initialHint = '',
+  scheduled = false,
 }: ProposeFormProps) {
   const [hint, setHint] = useState(initialHint);
   const propose = useProposeMenu();
@@ -266,6 +308,7 @@ function ProposeForm({
 
   return (
     <form className="menu__propose" noValidate onSubmit={submit}>
+      {scheduled && <ScheduledNote />}
       {failure && (
         <p className="error-box__message" role="alert">
           {failure}
@@ -298,7 +341,7 @@ function ProposeForm({
       {createPlan.isError && <ErrorBox error={createPlan.error} />}
       <div className="recipes__actions">
         <button type="submit" className="button" disabled={propose.isPending}>
-          {failure ? 'Опитай пак' : 'Предложи меню'}
+          {failure && !scheduled ? 'Опитай пак' : 'Предложи меню'}
         </button>
         <button
           type="button"
@@ -372,6 +415,7 @@ function PlanView({
 
   return (
     <>
+      {plan.createdBy === null && <ScheduledNote />}
       {agreed && (
         <p className="menu__agreed" role="status">
           <span aria-hidden="true">✓ </span>Менюто е съгласувано
