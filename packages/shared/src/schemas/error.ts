@@ -18,6 +18,8 @@ export const apiErrorCodeSchema = z.enum([
   'not_found',
   // 409: the record clashes with an existing one (e.g. an ingredient name); the body names the existing one.
   'conflict',
+  // 409: the link of an import by link is already a recipe's source or a proposed suggestion's; the body names it.
+  'already_imported',
   // 400: the body points at a record that does not exist (e.g. an unknown ingredientId in a recipe).
   'invalid_reference',
   // 503: the OpenClaw client is disabled (no gateway password, local dev), so no suggestions can be asked for.

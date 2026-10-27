@@ -11,8 +11,8 @@ import { nutritionSchema } from '../schemas/recipe.js';
 import type { AiContract } from './contract.js';
 
 /**
- * AI contract `recipe.normalize` (GLOSSARY: Внасяне на рецепта): a foreign recipe (pasted text; a page and a photo
- * come later) and the whole ingredient registry in → exactly one normalized recipe with its lines linked to the
+ * AI contract `recipe.normalize` (GLOSSARY: Внасяне на рецепта): a foreign recipe (pasted text or a page the api
+ * fetched by its link; a photo comes later) and the whole ingredient registry in → exactly one normalized recipe with its lines linked to the
  * registry, or none and the reason in `noResults`. Everything the agent writes is in Bulgarian.
  */
 
@@ -26,18 +26,51 @@ const textSourceSchema = z.object({
   url: z.url().optional(),
 });
 
+/** A web link the api may fetch: only `http` and `https`. */
+const webUrlSchema = z.url({ protocol: /^https?$/ });
+
 /**
- * What the client asks to import (GLOSSARY: Внасяне на рецепта), by kind of source. Only `text` for now; `page`
- * (a link) and `photo` are added by their own tickets.
+ * A link to a recipe page; the api fetches it. `force` imports it again although it is already a recipe's source or a
+ * proposed suggestion's (otherwise 409 `already_imported`).
+ */
+const urlParamsSchema = z.object({
+  kind: z.literal('url'),
+  url: webUrlSchema,
+  force: z.boolean().optional(),
+});
+
+/**
+ * What the client asks to import (GLOSSARY: Внасяне на рецепта), by kind of source: pasted text or a link. `photo` is
+ * added by its own ticket.
  */
 export const recipeImportParamsSchema = z.discriminatedUnion('kind', [
   textSourceSchema,
+  urlParamsSchema,
 ]);
 
 export type RecipeImportParams = z.infer<typeof recipeImportParamsSchema>;
 
-/** The source as the agent gets it; the same kinds as {@link recipeImportParamsSchema}. */
-const normalizeSourceSchema = z.discriminatedUnion('kind', [textSourceSchema]);
+/**
+ * A page the api fetched by link (never the agent): its final URL (after redirects) and what the api extracted from
+ * it, the schema.org `Recipe` of its JSON-LD (trimmed to the recipe's fields) or, without one, its main text. At least
+ * one of the two.
+ */
+const pageSourceSchema = z
+  .object({
+    kind: z.literal('page'),
+    url: webUrlSchema,
+    jsonLd: z.unknown().optional(),
+    text: z.string().trim().min(1).max(IMPORT_TEXT_MAX).optional(),
+  })
+  .refine((page) => page.jsonLd !== undefined || page.text !== undefined, {
+    message: 'Страницата е без jsonLd и без text.',
+  });
+
+/** The source as the agent gets it: pasted text as it is; a link as the page the api read from it. */
+const normalizeSourceSchema = z.discriminatedUnion('kind', [
+  textSourceSchema,
+  pageSourceSchema,
+]);
 
 export type RecipeNormalizeSource = z.infer<typeof normalizeSourceSchema>;
 

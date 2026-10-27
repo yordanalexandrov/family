@@ -32,6 +32,27 @@ export const recipeImportRequestSchema = z.object({
 
 export type RecipeImportRequest = z.infer<typeof recipeImportRequestSchema>;
 
+/**
+ * `POST /api/recipe-imports` → 409 `already_imported`: the link (by `normalizeSourceUrl`) is already the source of a
+ * recipe that is not archived, or of a proposed suggestion; `requestId` (`recipe.suggest`) or `importRequestId` says
+ * where that suggestion opens. Sent again with `force: true`, the link is imported anyway.
+ */
+export const alreadyImportedSchema = z.object({
+  error: z.literal('already_imported'),
+  message: z.string(),
+  recipe: z.object({ id: z.uuid(), title: z.string() }).optional(),
+  suggestion: z
+    .object({
+      id: z.uuid(),
+      title: z.string(),
+      requestId: z.uuid().optional(),
+      importRequestId: z.uuid().optional(),
+    })
+    .optional(),
+});
+
+export type AlreadyImported = z.infer<typeof alreadyImportedSchema>;
+
 /** `POST /api/recipe-imports` → 202: the import, still `pending`; the run goes on in the background. */
 export const recipeImportResponseSchema = z.object({
   request: recipeImportRequestSchema,

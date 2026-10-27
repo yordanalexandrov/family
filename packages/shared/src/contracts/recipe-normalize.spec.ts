@@ -44,6 +44,37 @@ describe('recipeNormalize.inputSchema', () => {
     });
   });
 
+  it('accepts a page by its final URL with the JSON-LD recipe, the page text, or both', () => {
+    const ingredients = [
+      { id: CHICKEN, name: 'пилешко филе', unit: 'g' as const },
+    ];
+    for (const source of [
+      {
+        kind: 'page' as const,
+        url: 'https://cafedelites.com/chicken-tikka',
+        jsonLd: { '@type': 'Recipe', name: 'Chicken Tikka' },
+      },
+      {
+        kind: 'page' as const,
+        url: 'https://gladni.com/2024/07/tavche.html',
+        text: 'Продукти: боб',
+      },
+    ]) {
+      expect(
+        recipeNormalize.inputSchema.parse({ source, ingredients }).source,
+      ).toEqual(source);
+    }
+  });
+
+  it('refuses a page with neither JSON-LD nor text', () => {
+    expect(
+      recipeNormalize.inputSchema.safeParse({
+        source: { kind: 'page', url: 'https://example.com/r' },
+        ingredients: [],
+      }).success,
+    ).toBe(false);
+  });
+
   it('refuses an unknown kind of source', () => {
     expect(
       recipeNormalize.inputSchema.safeParse({
@@ -212,6 +243,36 @@ describe('recipeNormalize.responseFormat', () => {
 });
 
 describe('recipeImportParamsSchema', () => {
+  it('accepts a link, with force to import it again', () => {
+    expect(
+      recipeImportParamsSchema.parse({
+        kind: 'url',
+        url: 'https://bonapeti.bg/recepti/tikvenik2/',
+      }),
+    ).toEqual({ kind: 'url', url: 'https://bonapeti.bg/recepti/tikvenik2/' });
+    expect(
+      recipeImportParamsSchema.parse({
+        kind: 'url',
+        url: 'https://bonapeti.bg/r',
+        force: true,
+      }),
+    ).toEqual({ kind: 'url', url: 'https://bonapeti.bg/r', force: true });
+  });
+
+  it('refuses a link that is not http(s)', () => {
+    for (const url of [
+      'ftp://example.com/r',
+      'file:///etc/passwd',
+      'javascript:alert(1)',
+      'бла',
+    ]) {
+      expect(
+        recipeImportParamsSchema.safeParse({ kind: 'url', url }).success,
+        url,
+      ).toBe(false);
+    }
+  });
+
   it('accepts pasted text with an optional link, trimmed', () => {
     expect(
       recipeImportParamsSchema.parse({
