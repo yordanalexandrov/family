@@ -30,6 +30,9 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
   step(`Monday: ${title}, cook Дани`);
   await tap(dinners.getByRole('button').first(), 'Monday row');
   const sheet = page.getByRole('dialog');
+  await aria('meal-sheet');
+  // The registry picker opens behind „Избери сам“ (next to „✨ Предложи друго“).
+  await tap(sheet.getByRole('button', { name: 'Избери сам' }), 'Избери сам');
   await sheet.getByRole('searchbox', { name: 'Търси рецепта' }).fill(title);
   await tap(
     sheet
@@ -46,7 +49,8 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
   await tap(sheet.getByRole('button', { name: 'Готово' }), 'Готово');
   await see(
     dinners.getByRole('button', {
-      name: new RegExp(`${title} Готви Дани 2 порции`),
+      // the row also carries „Дани избра „…““ and the thread count between the title and the cook
+      name: new RegExp(`${title} .*Готви Дани 2 порции`),
     }),
     'Monday row updated',
   );
