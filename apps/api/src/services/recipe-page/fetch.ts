@@ -102,31 +102,28 @@ async function resolveHost(hostname: string): Promise<string[]> {
  * the socket exactly the checked addresses, so a second DNS answer cannot swap them.
  */
 const guardedLookup: LookupFunction = (hostname, options, callback) => {
-    resolveHost(hostname).then(
-      (addresses) => {
-        if (
-          addresses.length === 0 ||
-          addresses.some((ip) => !isPublicAddress(ip))
-        ) {
-          callback(new FetchFailure('fetch_failed', 'private_address'), '', 0);
-          return;
-        }
-        const list = addresses.map((address) => ({
-          address,
-          family: isIP(address),
-        }));
-        if (options.all) {
-          (callback as unknown as (e: null, a: typeof list) => void)(
-            null,
-            list,
-          );
-          return;
-        }
-        const [{ address, family }] = list as [(typeof list)[number]];
-        callback(null, address, family);
-      },
-      (error: NodeJS.ErrnoException) => callback(error, '', 0),
-    );
+  resolveHost(hostname).then(
+    (addresses) => {
+      if (
+        addresses.length === 0 ||
+        addresses.some((ip) => !isPublicAddress(ip))
+      ) {
+        callback(new FetchFailure('fetch_failed', 'private_address'), '', 0);
+        return;
+      }
+      const list = addresses.map((address) => ({
+        address,
+        family: isIP(address),
+      }));
+      if (options.all) {
+        (callback as unknown as (e: null, a: typeof list) => void)(null, list);
+        return;
+      }
+      const [{ address, family }] = list as [(typeof list)[number]];
+      callback(null, address, family);
+    },
+    (error: NodeJS.ErrnoException) => callback(error, '', 0),
+  );
 };
 
 /** The response of one GET, without following redirects. */

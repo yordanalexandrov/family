@@ -54,10 +54,9 @@ export type RecipeImportRequests = ContractRequestHandle<
  * stores its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none.
  * A link already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the
  * page of a link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
- * `fetch_blocked` or `fetch_failed` without asking the agent. A photo is kept in this store's memory from the `POST`
- * until its run starts, then goes to the agent as an image next to the input (`{ kind: 'photo' }`); the database
- * never sees it, and a run whose photo is gone ends `stale`. Approval and rejection of the suggestion are the
- * suggestions' own (`app.recipeSuggestions`).
+ * `fetch_blocked` or `fetch_failed` without asking the agent. A photo goes from the `POST` straight to the memory of
+ * its run (`images`) and to the agent as an image next to the input (`{ kind: 'photo' }`); the database never sees
+ * it. Approval and rejection of the suggestion are the suggestions' own (`app.recipeSuggestions`).
  */
 export function createRecipeImportStore(): ContractRequestStore<
   ImportParams,
@@ -65,18 +64,11 @@ export function createRecipeImportStore(): ContractRequestStore<
   RecipeNormalizeInput,
   RecipeNormalizeOutput
 > {
-  const photos = new Map<string, ContractImage>();
   return {
     table: recipeImportRequest,
     async insert(tx, params, requestedBy) {
       if (params.kind === 'photo') {
-        const request = await insertImportRequest(
-          tx,
-          { kind: 'photo' },
-          requestedBy,
-        );
-        photos.set(request.id, params.photo);
-        return request;
+        return insertImportRequest(tx, { kind: 'photo' }, requestedBy);
       }
       if (params.kind === 'url' && !params.force) {
         const matches = await findSourceUrlMatches(tx, params.url);
@@ -93,19 +85,8 @@ export function createRecipeImportStore(): ContractRequestStore<
     },
     find: findImportRequest,
 
-    images(request) {
-      if (request.source !== 'photo') {
-        return [];
-      }
-      const photo = photos.get(request.id);
-      photos.delete(request.id);
-      if (!photo) {
-        throw new ContractRequestFailure(
-          'stale',
-          'the photo of the import is no longer in memory',
-        );
-      }
-      return [photo];
+    images(params) {
+      return params.kind === 'photo' ? [params.photo] : [];
     },
 
     async buildInput(db, request) {

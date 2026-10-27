@@ -61,11 +61,10 @@ export interface ContractRequestStore<
    */
   buildInput(db: DbExecutor, request: R): Promise<I>;
   /**
-   * Pictures that go to the agent next to the input (the photo of an import), taken when the run starts: the store
-   * keeps them only until then, in memory. Throws {@link ContractRequestFailure} when the request needs one it no
-   * longer has. No method = none.
+   * Pictures that go to the agent next to the input (the photos of an import), taken from the params once the request
+   * is stored: they live only in the memory of its run, never in the table. No method = none.
    */
-  images?(request: R): ContractImage[];
+  images?(params: P): ContractImage[];
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
   /** After that transaction has committed, e.g. to signal the change (`app.events`). Must not throw. */
@@ -139,10 +138,10 @@ export function createContractRequests({
       async function execute(
         gateway: OpenClawClient,
         request: R,
+        images: ContractImage[],
       ): Promise<void> {
         const logContext = { requestId: request.id };
         try {
-          const images = store.images?.(request) ?? [];
           const input = await store.buildInput(db, request);
           const output = await gateway.complete(contract, input, {
             agent,
@@ -213,10 +212,11 @@ export function createContractRequests({
           const request = await db.transaction((tx) =>
             store.insert(tx, params, actingUserId),
           );
+          const images = store.images?.(params) ?? [];
           // Not awaited: the client polls. `execute` catches and records its own errors.
           const task = new Promise<void>((resolve) =>
             setImmediate(resolve),
-          ).then(() => execute(gateway, request));
+          ).then(() => execute(gateway, request, images));
           running.add(task);
           void task.finally(() => running.delete(task));
           return request;
