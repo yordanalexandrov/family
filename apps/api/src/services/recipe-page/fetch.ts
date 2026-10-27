@@ -8,7 +8,7 @@ import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { decodeHtml } from './extract.js';
 
 /** How the api introduces itself to recipe sites: honestly, with a link to the project (no browser disguise). */
-export const PAGE_USER_AGENT =
+const PAGE_USER_AGENT =
   'family-app/1.0 (+https://github.com/yordanalexandrov/family)';
 
 const TIMEOUT_MS = 10_000;
@@ -33,14 +33,6 @@ export type FetchedPage =
   | { ok: true; url: string; html: string }
   | { ok: false; url: string; failure: PageFetchFailure; reason: string };
 
-export interface FetchPageOptions {
-  /** Defaults to {@link isPublicAddress}; specs let their local server through. */
-  allowAddress?: (ip: string) => boolean;
-  /** One budget for every redirect and the body: 10 s. */
-  timeoutMs?: number;
-  signal?: AbortSignal;
-}
-
 const PRIVATE = new BlockList();
 for (const [network, prefix] of [
   ['0.0.0.0', 8],
@@ -61,8 +53,8 @@ for (const [network, prefix] of [
   PRIVATE.addSubnet(network, prefix, 'ipv4');
 }
 for (const [network, prefix] of [
-  ['::', 128],
-  ['::1', 128],
+  // Unspecified, loopback and the deprecated IPv4-compatible addresses (`::7f00:1` is 127.0.0.1).
+  ['::', 96],
   ['64:ff9b::', 96],
   ['100::', 64],
   ['2001:db8::', 32],
@@ -75,10 +67,10 @@ for (const [network, prefix] of [
 
 /**
  * Whether the api may connect to `ip`: not loopback, private, link-local (cloud metadata), CGNAT, documentation,
- * multicast or unspecified, IPv4-mapped IPv6 included. The api runs on the home server's host network (ADR-0005), so
- * a link must never reach the LAN or the server itself.
+ * multicast or unspecified, IPv4-mapped and IPv4-compatible IPv6 included. The api runs on the home server's host
+ * network (ADR-0005), so a link must never reach the LAN or the server itself.
  */
-export function isPublicAddress(ip: string): boolean {
+function isPublicAddress(ip: string): boolean {
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip)?.[1];
   if (mapped) {
     return isPublicAddress(mapped);
@@ -106,14 +98,16 @@ async function resolveHost(hostname: string): Promise<string[]> {
 }
 
 /**
- * The lookup of every connection: resolves the name, refuses it when any of its addresses is one `allow` refuses,
- * and hands the socket exactly the checked addresses, so a second DNS answer cannot swap them.
+ * The lookup of every connection: resolves the name, refuses it when any of its addresses is not public, and hands
+ * the socket exactly the checked addresses, so a second DNS answer cannot swap them.
  */
-function guardedLookup(allow: (ip: string) => boolean): LookupFunction {
-  return (hostname, options, callback) => {
+const guardedLookup: LookupFunction = (hostname, options, callback) => {
     resolveHost(hostname).then(
       (addresses) => {
-        if (addresses.length === 0 || addresses.some((ip) => !allow(ip))) {
+        if (
+          addresses.length === 0 ||
+          addresses.some((ip) => !isPublicAddress(ip))
+        ) {
           callback(new FetchFailure('fetch_failed', 'private_address'), '', 0);
           return;
         }
@@ -133,18 +127,13 @@ function guardedLookup(allow: (ip: string) => boolean): LookupFunction {
       },
       (error: NodeJS.ErrnoException) => callback(error, '', 0),
     );
-  };
-}
+};
 
 /** The response of one GET, without following redirects. */
-function get(
-  url: URL,
-  allow: (ip: string) => boolean,
-  signal: AbortSignal,
-): Promise<IncomingMessage> {
+function get(url: URL, signal: AbortSignal): Promise<IncomingMessage> {
   const host = url.hostname.replace(/^\[|\]$/g, '');
   // Node skips the lookup for an IP literal, so it is checked here.
-  if (isIP(host) !== 0 && !allow(host)) {
+  if (isIP(host) !== 0 && !isPublicAddress(host)) {
     return Promise.reject(new FetchFailure('fetch_failed', 'private_address'));
   }
   const request = url.protocol === 'https:' ? https.request : http.request;
@@ -154,7 +143,7 @@ function get(
       {
         method: 'GET',
         signal,
-        lookup: guardedLookup(allow),
+        lookup: guardedLookup,
         headers: {
           'user-agent': PAGE_USER_AGENT,
           accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
@@ -239,19 +228,28 @@ function failureOf(error: unknown, signal: AbortSignal): FetchFailure {
 
 /**
  * Fetches a recipe page for an import by link (GLOSSARY: Внасяне на рецепта): `http`/`https` only, every hop's
- * address checked after DNS ({@link isPublicAddress}), at most 3 redirects (the final URL is kept), 2 MB, 10 s, the
+ * address checked after DNS (public only), at most 3 redirects (the final URL is kept), 2 MB, 10 s, the
  * charset of the header or `<meta charset>`. No robots.txt and no way around a site's bot check: a refusal is
  * `fetch_blocked`, so the person pastes the text instead. Never throws.
  */
-export async function fetchPage(
+export async function fetchPage(url: string): Promise<FetchedPage> {
+  // A timer, not `AbortSignal.timeout`, so a spec can move the clock.
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new DOMException('timeout', 'TimeoutError')),
+    TIMEOUT_MS,
+  );
+  try {
+    return await fetchWithin(url, controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWithin(
   url: string,
-  options: FetchPageOptions = {},
+  signal: AbortSignal,
 ): Promise<FetchedPage> {
-  const allow = options.allowAddress ?? isPublicAddress;
-  const timeout = AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS);
-  const signal = options.signal
-    ? AbortSignal.any([timeout, options.signal])
-    : timeout;
   let current: URL;
   try {
     current = new URL(url);
@@ -263,7 +261,7 @@ export async function fetchPage(
       if (current.protocol !== 'http:' && current.protocol !== 'https:') {
         throw new FetchFailure('fetch_failed', 'bad_url');
       }
-      const response = await get(current, allow, signal);
+      const response = await get(current, signal);
       const status = response.statusCode ?? 0;
       const location = response.headers.location;
       if (status >= 300 && status < 400 && location) {

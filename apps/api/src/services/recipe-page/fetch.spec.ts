@@ -1,148 +1,162 @@
-import { once } from 'node:events';
-import {
-  createServer,
-  type IncomingHttpHeaders,
-  type Server,
-  type ServerResponse,
-} from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { gzipSync } from 'node:zlib';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fetchPage, isPublicAddress, PAGE_USER_AGENT } from './fetch.js';
+import { HttpResponse, http } from 'msw';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import { server } from '../../test/msw.js';
+import { fetchPage } from './fetch.js';
 
 const RECIPE =
   '<html><head><title>Боб чорба</title></head><body>Продукти: боб</body></html>';
 
-/** A local stand-in for recipe sites; each path answers one way. */
-let server: Server;
-let base: string;
-let lastHeaders: IncomingHttpHeaders = {};
+const SITE = 'https://recepti.example';
 
-function html(
-  res: ServerResponse,
-  body: string | Buffer,
-  type = 'text/html; charset=utf-8',
-) {
-  res.writeHead(200, { 'content-type': type });
-  res.end(body);
+function html(body: string | Uint8Array, type = 'text/html; charset=utf-8') {
+  return new HttpResponse(body, { headers: { 'content-type': type } });
 }
 
-function redirect(res: ServerResponse, location: string, status = 302) {
-  res.writeHead(status, { location });
-  res.end();
+function redirect(location: string, status = 302) {
+  return new HttpResponse(null, { status, headers: { location } });
 }
 
-beforeAll(async () => {
-  server = createServer((req, res) => {
-    lastHeaders = req.headers;
-    const path = req.url ?? '/';
-    const hop = /^\/hop\/(\d+)$/.exec(path);
-    if (hop) {
-      const left = Number(hop[1]);
-      return left === 0
-        ? html(res, RECIPE)
-        : redirect(res, `/hop/${left - 1}`, 301);
-    }
-    switch (path) {
-      case '/recipe':
-        return html(res, RECIPE);
-      case '/gzip':
-        res.writeHead(200, {
-          'content-type': 'text/html',
-          'content-encoding': 'gzip',
-        });
-        return res.end(gzipSync(RECIPE));
-      case '/cp1251':
-        return html(
-          res,
-          Buffer.from([0xc1, 0xee, 0xe1, 0x20, 0xf7, 0xee, 0xf0, 0xe1, 0xe0]), // „Боб чорба“
-          'text/html; charset=windows-1251',
-        );
-      case '/big': {
-        res.writeHead(200, { 'content-type': 'text/html' });
-        const chunk = 'а'.repeat(256 * 1024);
-        for (let i = 0; i < 9; i++) res.write(chunk); // 9 × 512 KB (2 bytes a letter) > 2 MB
-        return res.end();
-      }
-      case '/slow':
-        return; // never answers
-      case '/forbidden':
-        res.writeHead(403, { 'content-type': 'text/html' });
-        return res.end('<title>Just a moment...</title>');
-      case '/not-acceptable':
-        res.writeHead(406);
-        return res.end();
-      case '/too-many':
-        res.writeHead(429, { 'content-type': 'text/html' });
-        return res.end('<title>Vercel Security Checkpoint</title>');
-      case '/challenge':
-        res.writeHead(503, {
-          'content-type': 'text/html',
-          'cf-mitigated': 'challenge',
-        });
-        return res.end('<title>Just a moment...</title>');
-      case '/challenge-page':
-        return html(
-          res,
-          '<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>',
-        );
-      case '/missing':
-        res.writeHead(404, { 'content-type': 'text/html' });
-        return res.end('<h1>Not found</h1>');
-      case '/pdf':
-        return html(res, '%PDF-1.7', 'application/pdf');
-      case '/to-private':
-        return redirect(res, 'http://10.0.0.1/recipe');
-      case '/to-metadata':
-        return redirect(res, 'http://169.254.169.254/latest/meta-data');
-      default:
-        res.writeHead(404);
-        return res.end();
-    }
-  });
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-});
-
-afterAll(async () => {
-  server.closeAllConnections();
-  server.close();
-  await once(server, 'close');
-});
-
-/** The test server is on loopback; everything else goes by the real rule. */
-const allowTestServer = (ip: string) =>
-  ip === '127.0.0.1' || isPublicAddress(ip);
-
-function get(path: string, options: Parameters<typeof fetchPage>[1] = {}) {
-  return fetchPage(`${base}${path}`, {
-    allowAddress: allowTestServer,
-    ...options,
-  });
+/** Recipe sites at HTTP level; each path answers one way. Returns the User-Agent of every request. */
+function serveSites() {
+  const userAgents: (string | null)[] = [];
+  server.use(
+    http.all('*', ({ request }) => {
+      userAgents.push(request.headers.get('user-agent'));
+    }),
+    http.get(`${SITE}/recipe`, () => html(RECIPE)),
+    http.get(`${SITE}/hop/:left`, ({ params }) => {
+      const left = Number(params.left);
+      return left === 0 ? html(RECIPE) : redirect(`/hop/${left - 1}`, 301);
+    }),
+    http.get(
+      `${SITE}/gzip`,
+      () =>
+        new HttpResponse(gzipSync(RECIPE), {
+          headers: { 'content-type': 'text/html', 'content-encoding': 'gzip' },
+        }),
+    ),
+    http.get(`${SITE}/cp1251`, () =>
+      html(
+        new Uint8Array([0xc1, 0xee, 0xe1, 0x20, 0xf7, 0xee, 0xf0, 0xe1, 0xe0]), // „Боб чорба“
+        'text/html; charset=windows-1251',
+      ),
+    ),
+    // 11 × 100 000 letters × 2 bytes > 2 MB, without a content-length to refuse it up front.
+    http.get(`${SITE}/big`, () => {
+      const chunk = new TextEncoder().encode('а'.repeat(100_000));
+      let left = 11;
+      return new HttpResponse(
+        new ReadableStream({
+          pull(controller) {
+            if (left-- === 0) {
+              controller.close();
+            } else {
+              controller.enqueue(chunk);
+            }
+          },
+        }),
+        { headers: { 'content-type': 'text/html' } },
+      );
+    }),
+    http.get(`${SITE}/slow`, () => new Promise<Response>(() => {})),
+    http.get(
+      `${SITE}/forbidden`,
+      () =>
+        new HttpResponse('<title>Just a moment...</title>', {
+          status: 403,
+          headers: { 'content-type': 'text/html' },
+        }),
+    ),
+    http.get(
+      `${SITE}/not-acceptable`,
+      () => new HttpResponse(null, { status: 406 }),
+    ),
+    http.get(
+      `${SITE}/too-many`,
+      () =>
+        new HttpResponse('<title>Vercel Security Checkpoint</title>', {
+          status: 429,
+          headers: { 'content-type': 'text/html' },
+        }),
+    ),
+    http.get(
+      `${SITE}/challenge`,
+      () =>
+        new HttpResponse('<title>Just a moment...</title>', {
+          status: 503,
+          headers: { 'content-type': 'text/html', 'cf-mitigated': 'challenge' },
+        }),
+    ),
+    http.get(`${SITE}/challenge-page`, () =>
+      html(
+        '<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>',
+      ),
+    ),
+    http.get(
+      `${SITE}/missing`,
+      () =>
+        new HttpResponse('<h1>Not found</h1>', {
+          status: 404,
+          headers: { 'content-type': 'text/html' },
+        }),
+    ),
+    http.get(`${SITE}/pdf`, () => html('%PDF-1.7', 'application/pdf')),
+    http.get(`${SITE}/to-private`, () => redirect('http://10.0.0.1/recipe')),
+    http.get(`${SITE}/to-metadata`, () =>
+      redirect('http://169.254.169.254/latest/meta-data'),
+    ),
+    http.get(`${SITE}/to-mapped-loopback`, () =>
+      redirect('http://[::ffff:7f00:1]/recipe'),
+    ),
+    http.get('http://93.184.216.34/recipe', () => html(RECIPE)),
+    http.get('http://[2606:4700:4700::1111]/recipe', () => html(RECIPE)),
+    http.get('http://[::ffff:5db8:d822]/recipe', () => html(RECIPE)),
+  );
+  return { userAgents };
 }
 
+// msw answers for the sites, but it opens no socket and so skips the DNS lookup: what a name resolves to is checked
+// in the describe after this one, without msw (docs/testing.md).
 describe('fetchPage', () => {
-  it('fetches an HTML page with an honest User-Agent', async () => {
-    const page = await get('/recipe');
+  beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
+  afterEach(() => {
+    server.resetHandlers();
+    vi.useRealTimers();
+  });
+  afterAll(() => server.close());
 
-    expect(page).toEqual({ ok: true, url: `${base}/recipe`, html: RECIPE });
-    expect(lastHeaders['user-agent']).toBe(PAGE_USER_AGENT);
-    expect(PAGE_USER_AGENT).toBe(
+  it('fetches an HTML page with an honest User-Agent', async () => {
+    const sites = serveSites();
+
+    const page = await fetchPage(`${SITE}/recipe`);
+
+    expect(page).toEqual({ ok: true, url: `${SITE}/recipe`, html: RECIPE });
+    expect(sites.userAgents).toEqual([
       'family-app/1.0 (+https://github.com/yordanalexandrov/family)',
-    );
+    ]);
   });
 
   it('follows up to 3 redirects and keeps the final URL', async () => {
-    expect(await get('/hop/3')).toMatchObject({
+    serveSites();
+    expect(await fetchPage(`${SITE}/hop/3`)).toMatchObject({
       ok: true,
-      url: `${base}/hop/0`,
+      url: `${SITE}/hop/0`,
       html: RECIPE,
     });
   });
 
   it('gives up after a 4th redirect', async () => {
-    expect(await get('/hop/4')).toMatchObject({
+    serveSites();
+    expect(await fetchPage(`${SITE}/hop/4`)).toMatchObject({
       ok: false,
       failure: 'fetch_failed',
       reason: 'too_many_redirects',
@@ -150,20 +164,34 @@ describe('fetchPage', () => {
   });
 
   it('decodes gzip and the charset of the header (windows-1251)', async () => {
-    expect(await get('/gzip')).toMatchObject({ ok: true, html: RECIPE });
-    expect(await get('/cp1251')).toMatchObject({ ok: true, html: 'Боб чорба' });
+    serveSites();
+    expect(await fetchPage(`${SITE}/gzip`)).toMatchObject({
+      ok: true,
+      html: RECIPE,
+    });
+    expect(await fetchPage(`${SITE}/cp1251`)).toMatchObject({
+      ok: true,
+      html: 'Боб чорба',
+    });
   });
 
   it('refuses a page over 2 MB', async () => {
-    expect(await get('/big')).toMatchObject({
+    serveSites();
+    expect(await fetchPage(`${SITE}/big`)).toMatchObject({
       ok: false,
       failure: 'fetch_failed',
       reason: 'too_large',
     });
   });
 
-  it('gives up after the timeout', async () => {
-    expect(await get('/slow', { timeoutMs: 200 })).toMatchObject({
+  it('gives up after 10 seconds', async () => {
+    serveSites();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    const page = fetchPage(`${SITE}/slow`);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(await page).toMatchObject({
       ok: false,
       failure: 'fetch_failed',
       reason: 'timeout',
@@ -171,6 +199,7 @@ describe('fetchPage', () => {
   });
 
   it('tells a site that refuses automated reads (403, 406, 429, a bot check) as blocked', async () => {
+    serveSites();
     for (const path of [
       '/forbidden',
       '/not-acceptable',
@@ -178,7 +207,7 @@ describe('fetchPage', () => {
       '/challenge',
       '/challenge-page',
     ]) {
-      expect(await get(path), path).toMatchObject({
+      expect(await fetchPage(`${SITE}${path}`), path).toMatchObject({
         ok: false,
         failure: 'fetch_blocked',
       });
@@ -186,26 +215,50 @@ describe('fetchPage', () => {
   });
 
   it('fails on another error status and on a page that is not HTML', async () => {
-    expect(await get('/missing')).toMatchObject({
+    serveSites();
+    expect(await fetchPage(`${SITE}/missing`)).toMatchObject({
       ok: false,
       failure: 'fetch_failed',
       reason: 'http_404',
     });
-    expect(await get('/pdf')).toMatchObject({
+    expect(await fetchPage(`${SITE}/pdf`)).toMatchObject({
       ok: false,
       failure: 'fetch_failed',
       reason: 'not_html',
     });
   });
 
-  it('refuses loopback, private and link-local addresses, by IP and by name, before connecting', async () => {
+  it('fetches from a public IPv4, IPv6 and IPv4-mapped IPv6 address', async () => {
+    serveSites();
     for (const url of [
-      `${base}/recipe`,
-      `http://localhost:${new URL(base).port}/recipe`,
-      'http://10.0.0.1/recipe',
+      'http://93.184.216.34/recipe',
+      'http://[2606:4700:4700::1111]/recipe',
+      'http://[::ffff:93.184.216.34]/recipe',
+    ]) {
+      expect(await fetchPage(url), url).toMatchObject({ ok: true });
+    }
+  });
+
+  it('refuses loopback, private, link-local, CGNAT, unspecified, mapped and IPv4-compatible addresses before connecting', async () => {
+    serveSites();
+    for (const url of [
+      'http://127.0.0.1/recipe',
+      'http://127.8.9.10/recipe',
+      'http://10.1.2.3/recipe',
+      'http://172.16.0.1/recipe',
+      'http://172.31.255.255/recipe',
       'http://192.168.1.10/recipe',
       'http://169.254.169.254/latest/meta-data',
+      'http://100.64.0.1/recipe',
+      'http://0.0.0.0/recipe',
       'http://[::1]/recipe',
+      'http://[::]/recipe',
+      'http://[fe80::1]/recipe',
+      'http://[fd00::1]/recipe',
+      'http://[::ffff:127.0.0.1]/recipe',
+      'http://[::ffff:10.0.0.1]/recipe',
+      'http://[::7f00:1]/recipe',
+      'http://[::a00:1]/recipe',
     ]) {
       expect(await fetchPage(url), url).toMatchObject({
         ok: false,
@@ -215,9 +268,10 @@ describe('fetchPage', () => {
     }
   });
 
-  it('refuses a redirect to a private or link-local address', async () => {
-    for (const path of ['/to-private', '/to-metadata']) {
-      expect(await get(path), path).toMatchObject({
+  it('refuses a redirect to a private, link-local or mapped loopback address', async () => {
+    serveSites();
+    for (const path of ['/to-private', '/to-metadata', '/to-mapped-loopback']) {
+      expect(await fetchPage(`${SITE}${path}`), path).toMatchObject({
         ok: false,
         failure: 'fetch_failed',
         reason: 'private_address',
@@ -236,32 +290,14 @@ describe('fetchPage', () => {
   });
 });
 
-describe('isPublicAddress', () => {
-  it('allows public IPv4 and IPv6 addresses', () => {
-    for (const ip of ['93.184.216.34', '1.1.1.1', '2606:4700:4700::1111']) {
-      expect(isPublicAddress(ip), ip).toBe(true);
-    }
-  });
-
-  it('refuses loopback, private, link-local, CGNAT, unspecified and mapped private addresses', () => {
-    for (const ip of [
-      '127.0.0.1',
-      '127.8.9.10',
-      '10.1.2.3',
-      '172.16.0.1',
-      '172.31.255.255',
-      '192.168.0.1',
-      '169.254.169.254',
-      '100.64.0.1',
-      '0.0.0.0',
-      '::1',
-      '::',
-      'fe80::1',
-      'fd00::1',
-      '::ffff:127.0.0.1',
-      '::ffff:10.0.0.1',
-    ]) {
-      expect(isPublicAddress(ip), ip).toBe(false);
-    }
+// No msw here: the name goes through the real DNS lookup (`localhost` from the hosts file, no network), and the guard
+// refuses its address before a socket connects, so nothing needs to listen on the port.
+describe('fetchPage by a name that resolves to a private address', () => {
+  it('refuses it before connecting', async () => {
+    expect(await fetchPage('http://localhost:9/recipe')).toMatchObject({
+      ok: false,
+      failure: 'fetch_failed',
+      reason: 'private_address',
+    });
   });
 });

@@ -1,11 +1,5 @@
 import { extractRecipe } from './extract.js';
-import {
-  type FetchPageOptions,
-  fetchPage,
-  type PageFetchFailure,
-} from './fetch.js';
-
-export { isPublicAddress, PAGE_USER_AGENT } from './fetch.js';
+import { fetchPage, type PageFetchFailure } from './fetch.js';
 
 /**
  * A recipe page as the agent gets it: the final URL and the JSON-LD Recipe or the main text; or why it could not be
@@ -21,11 +15,8 @@ export type RecipePage =
   | { ok: false; url: string; failure: PageFetchFailure; reason: string };
 
 /** Fetches the page of an import by link and extracts its recipe (`fetch.ts`, then `extract.ts`). Never throws. */
-export async function readRecipePage(
-  url: string,
-  options?: FetchPageOptions,
-): Promise<RecipePage> {
-  const page = await fetchPage(url, options);
+export async function readRecipePage(url: string): Promise<RecipePage> {
+  const page = await fetchPage(url);
   if (!page.ok) {
     return page;
   }
