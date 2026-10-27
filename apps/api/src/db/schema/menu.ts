@@ -2,7 +2,9 @@ import {
   contractRequestStatusSchema,
   type MealCommentKind,
   type MealReplaceCandidate,
+  type MenuProposalTrigger,
   mealCommentKindSchema,
+  menuProposalTriggerSchema,
   type Servings,
   type Slot,
   slotSchema,
@@ -33,9 +35,8 @@ export const mealPlan = pgTable('meal_plan', {
   id: uuid('id').primaryKey().defaultRandom(),
   weekStart: date('week_start', { mode: 'string' }).notNull().unique(),
   summary: text('summary'),
-  createdBy: uuid('created_by')
-    .notNull()
-    .references(() => user.id),
+  /** `null` for the plan the cron proposed (`menu_proposal_request.trigger` `schedule`). */
+  createdBy: uuid('created_by').references(() => user.id),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .defaultNow()
@@ -133,6 +134,12 @@ export const menuProposalRequest = pgTable(
   'menu_proposal_request',
   {
     ...contractRequestColumns(),
+    // The cron (`trigger` `schedule`) has no user; a user's proposal always names one.
+    requestedBy: uuid('requested_by').references(() => user.id),
+    trigger: text('trigger')
+      .$type<MenuProposalTrigger>()
+      .notNull()
+      .default('user'),
     weekStart: date('week_start', { mode: 'string' }).notNull(),
     planId: uuid('plan_id').references(() => mealPlan.id, {
       onDelete: 'set null',
@@ -145,6 +152,14 @@ export const menuProposalRequest = pgTable(
     check(
       'menu_proposal_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+    check(
+      'menu_proposal_request_trigger_check',
+      oneOf(t.trigger, menuProposalTriggerSchema.options),
+    ),
+    check(
+      'menu_proposal_request_requested_by_check',
+      sql`${t.trigger} <> 'user' or ${t.requestedBy} is not null`,
     ),
   ],
 );

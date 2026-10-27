@@ -26,6 +26,8 @@ export interface ContractRequestStore<
   R extends StoredContractRequest,
   I,
   O,
+  /** Who asks: a user's id, or `null` too for a contract the api also runs by itself (the cron's `menu.propose`). */
+  A extends string | null = string,
 > {
   /** Spreads `contractRequestColumns()`; finished and failed as stale by the module. */
   table: ContractRequestTable;
@@ -33,7 +35,7 @@ export interface ContractRequestStore<
    * Inserts the `pending` request, in the module's transaction; refuses here (a `ServiceRefusal`) what this contract
    * cannot take, e.g. a week that already has a menu.
    */
-  insert(tx: DbExecutor, params: P, requestedBy: string): Promise<R>;
+  insert(tx: DbExecutor, params: P, requestedBy: A): Promise<R>;
   find(db: DbExecutor, id: string): Promise<R | undefined>;
   /** The contract input for the request, read when the run starts. */
   buildInput(db: DbExecutor, request: R): Promise<I>;
@@ -49,22 +51,26 @@ export interface ContractRequestStore<
 }
 
 /** The requests of one registered contract, as its service uses them. */
-export interface ContractRequestHandle<P, R extends StoredContractRequest> {
+export interface ContractRequestHandle<
+  P,
+  R extends StoredContractRequest,
+  A extends string | null = string,
+> {
   /**
    * Stores a `pending` request and starts the run after the current HTTP request has answered; the request is
    * returned at once and the client polls. 503 `openclaw_unavailable` when OpenClaw is not configured.
    */
-  request(params: P, actingUserId: string): Promise<R>;
+  request(params: P, actingUserId: A): Promise<R>;
   get(id: string): Promise<R | undefined>;
 }
 
 export interface ContractRequests {
   /** `agent` answers `contract` (`OPENCLAW_RECIPE_AGENT`, `OPENCLAW_MENU_AGENT`: configuration, ADR-0004). */
-  register<P, R extends StoredContractRequest, I, O>(
+  register<P, R extends StoredContractRequest, I, O, A extends string | null>(
     contract: AiContract<I, O>,
-    store: ContractRequestStore<P, R, I, O>,
+    store: ContractRequestStore<P, R, I, O, A>,
     agent: string,
-  ): ContractRequestHandle<P, R>;
+  ): ContractRequestHandle<P, R, A>;
   /**
    * At start: `pending` requests of every registered contract older than 10 minutes were cut off by a restart and
    * become `failed`/`stale`. Logs and never rejects: the api serves without it.
@@ -93,11 +99,11 @@ export function createContractRequests({
   const registered: { id: string; table: ContractRequestTable }[] = [];
 
   return {
-    register<P, R extends StoredContractRequest, I, O>(
+    register<P, R extends StoredContractRequest, I, O, A extends string | null>(
       contract: AiContract<I, O>,
-      store: ContractRequestStore<P, R, I, O>,
+      store: ContractRequestStore<P, R, I, O, A>,
       agent: string,
-    ): ContractRequestHandle<P, R> {
+    ): ContractRequestHandle<P, R, A> {
       registered.push({ id: contract.id, table: store.table });
 
       /** Runs one request to its end; records its own failure, never rejects. */

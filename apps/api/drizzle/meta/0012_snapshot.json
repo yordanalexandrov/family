@@ -1,5 +1,5 @@
 {
-  "id": "db37bc85-3275-42e7-b3fb-4e8cb5da2c43",
+  "id": "5893dfd1-906c-4823-8231-3d30ae44e160",
   "prevId": "c5bd2826-00e5-4a05-935e-5082901055e4",
   "version": "7",
   "dialect": "postgresql",
@@ -1242,7 +1242,7 @@
           "name": "created_by",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1520,7 +1520,7 @@
           "name": "requested_by",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1534,6 +1534,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
         },
         "week_start": {
           "name": "week_start",
@@ -1601,88 +1608,14 @@
         "menu_proposal_request_status_check": {
           "name": "menu_proposal_request_status_check",
           "value": "\"menu_proposal_request\".\"status\" in ('pending', 'done', 'failed')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.pantry_item": {
-      "name": "pantry_item",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
         },
-        "ingredient_id": {
-          "name": "ingredient_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
+        "menu_proposal_request_trigger_check": {
+          "name": "menu_proposal_request_trigger_check",
+          "value": "\"menu_proposal_request\".\"trigger\" in ('user', 'schedule')"
         },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ran_out_at": {
-          "name": "ran_out_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "pantry_item_ingredient_id_ingredient_id_fk": {
-          "name": "pantry_item_ingredient_id_ingredient_id_fk",
-          "tableFrom": "pantry_item",
-          "tableTo": "ingredient",
-          "columnsFrom": [
-            "ingredient_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "pantry_item_ingredient_id_unique": {
-          "name": "pantry_item_ingredient_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "ingredient_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "pantry_item_kind_check": {
-          "name": "pantry_item_kind_check",
-          "value": "\"pantry_item\".\"kind\" in ('staple', 'use_up')"
-        },
-        "pantry_item_ran_out_check": {
-          "name": "pantry_item_ran_out_check",
-          "value": "\"pantry_item\".\"ran_out_at\" is null or \"pantry_item\".\"kind\" = 'staple'"
+        "menu_proposal_request_requested_by_check": {
+          "name": "menu_proposal_request_requested_by_check",
+          "value": "\"menu_proposal_request\".\"trigger\" <> 'user' or \"menu_proposal_request\".\"requested_by\" is not null"
         }
       },
       "isRLSEnabled": false

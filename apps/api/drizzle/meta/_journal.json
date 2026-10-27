@@ -89,8 +89,15 @@
     {
       "idx": 12,
       "version": "7",
-      "when": 1793131218714,
-      "tag": "0012_pantry",
+      "when": 1793131276013,
+      "tag": "0012_menu_proposal_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793131787329,
+      "tag": "0013_pantry",
       "breakpoints": true
     }
   ]

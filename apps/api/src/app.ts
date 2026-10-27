@@ -47,6 +47,10 @@ import {
   type MenuService,
 } from './services/menu.js';
 import {
+  createMenuSchedule,
+  type MenuSchedule,
+} from './services/menu-schedule.js';
+import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
   suggestionRequestStore,
@@ -69,6 +73,8 @@ declare module 'fastify' {
     recipeSuggestions: RecipeSuggestionsService;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
+    /** The cron's proposal of next week's menu; `null` without OpenClaw. */
+    menuSchedule: MenuSchedule | null;
     /** „✨ Предложи друго“ for a meal (`meal.replace`). */
     mealReplacements: MealReplacements;
     /** Change signals for `GET /api/events`; services publish after their commit. */
@@ -182,18 +188,21 @@ export function buildApp({
       ),
     }),
   );
+  const menuProposals = contractRequests.register(
+    menuPropose,
+    createMenuProposalStore(events),
+    agents.menuAgent,
+  );
   app.decorate(
     'menu',
-    createMenuService({
-      db,
-      proposals: contractRequests.register(
-        menuPropose,
-        createMenuProposalStore(events),
-        agents.menuAgent,
-      ),
-      now,
-      events,
-    }),
+    createMenuService({ db, proposals: menuProposals, now, events }),
+  );
+  // Without OpenClaw every proposal is refused, so the cron has nothing to run.
+  app.decorate(
+    'menuSchedule',
+    openclaw
+      ? createMenuSchedule({ db, proposals: menuProposals, now, log: app.log })
+      : null,
   );
   app.decorate(
     'mealReplacements',
