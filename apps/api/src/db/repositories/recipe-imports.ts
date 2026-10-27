@@ -64,7 +64,10 @@ function selectRequests(db: DbExecutor) {
     );
 }
 
-/** A new `pending` import; the pasted text and the link are kept with it, a photo never is. */
+/**
+ * A new `pending` import; the pasted text and the link are kept with it, a photo never is. The link of pasted text is
+ * the source as it stays (`normalizeSourceUrl`); a link to fetch is kept as pasted until its page gives the final URL.
+ */
 export async function insertImportRequest(
   db: DbExecutor,
   params: RecipeImportParams | { kind: 'photo' },
@@ -74,7 +77,12 @@ export async function insertImportRequest(
     .insert(recipeImportRequest)
     .values({
       source: params.kind,
-      url: params.kind === 'photo' ? null : (params.url ?? null),
+      url:
+        params.kind === 'url'
+          ? params.url
+          : params.kind === 'text' && params.url
+            ? normalizeSourceUrl(params.url)
+            : null,
       text: params.kind === 'text' ? params.text : null,
       requestedBy,
     })
@@ -153,7 +161,10 @@ export async function findImportSource(
   };
 }
 
-/** The page's final URL after redirects: the link the import (and its suggestion's review) shows from now on. */
+/**
+ * The page's final URL after redirects, as `normalizeSourceUrl` gives it: the link the import (and its suggestion's
+ * review, then the recipe) keeps from now on.
+ */
 export async function setImportUrl(
   db: DbExecutor,
   id: string,

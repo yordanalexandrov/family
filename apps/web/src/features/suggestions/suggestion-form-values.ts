@@ -1,4 +1,9 @@
-import type { Ingredient, NormalizedRecipe, Suggestion } from '@family/shared';
+import {
+  displaySourceUrl,
+  type Ingredient,
+  type NormalizedRecipe,
+  type Suggestion,
+} from '@family/shared';
 import {
   emptyIngredientRow,
   emptyRecipeFormValues,
@@ -19,7 +24,7 @@ export function suggestionToFormValues(
     title: suggestion.title,
     servings: String(suggestion.servings),
     prepMinutes: String(suggestion.prepMinutes),
-    sourceUrl: suggestion.sourceUrl,
+    sourceUrl: displaySourceUrl(suggestion.sourceUrl),
     tags: [...suggestion.tags],
     steps: [...suggestion.steps],
     ingredients: suggestion.ingredients.map((line) => {
@@ -52,7 +57,7 @@ export function importToFormValues(
     title: recipe.title,
     servings: String(recipe.servings),
     prepMinutes: recipe.prepMinutes === null ? '' : String(recipe.prepMinutes),
-    sourceUrl: sourceUrl ?? '',
+    sourceUrl: displaySourceUrl(sourceUrl ?? ''),
     tags: [...recipe.tags],
     steps: [...recipe.steps],
     ingredients: recipe.ingredients.map((line) => {

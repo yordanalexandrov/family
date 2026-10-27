@@ -1,10 +1,11 @@
-import type {
-  RecipeImportDetail,
-  RecipeImportParams,
-  RecipeImportRequest,
-  RecipeNormalizeInput,
-  RecipeNormalizeOutput,
-  RecipeNormalizeSource,
+import {
+  normalizeSourceUrl,
+  type RecipeImportDetail,
+  type RecipeImportParams,
+  type RecipeImportRequest,
+  type RecipeNormalizeInput,
+  type RecipeNormalizeOutput,
+  type RecipeNormalizeSource,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
@@ -130,7 +131,10 @@ export function createRecipeImportStore(): ContractRequestStore<
   };
 }
 
-/** Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps. */
+/**
+ * Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps
+ * normalised (no utm, `#` or trailing `/`; one spelling of its escapes).
+ */
 async function agentSource(
   db: DbExecutor,
   id: string,
@@ -146,12 +150,13 @@ async function agentSource(
       `${page.reason}: ${page.url}`,
     );
   }
-  if (page.url !== source.url) {
-    await setImportUrl(db, id, page.url);
+  const url = normalizeSourceUrl(page.url);
+  if (url !== source.url) {
+    await setImportUrl(db, id, url);
   }
   return page.jsonLd
-    ? { kind: 'page', url: page.url, jsonLd: page.jsonLd }
-    : { kind: 'page', url: page.url, text: page.text };
+    ? { kind: 'page', url, jsonLd: page.jsonLd }
+    : { kind: 'page', url, text: page.text };
 }
 
 export interface RecipeImportsService {

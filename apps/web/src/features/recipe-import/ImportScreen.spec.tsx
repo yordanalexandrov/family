@@ -312,4 +312,37 @@ describe('ImportScreen', () => {
       '/recipes/import/eeeeeeee-0000-4000-8000-000000000002',
     );
   });
+
+  it('показва линка на източника четимо (кирилица), а одобрението го праща както е запазен', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const encoded =
+      'https://recepti.example/r-1-%D0%91%D0%B0%D0%BD%D0%B8%D1%86%D0%B0';
+    const api = serveImport({
+      request: { ...doneImport, source: 'url', url: encoded },
+      suggestion: {
+        ...importedSuggestion,
+        payload: {
+          ...importedSuggestion.payload,
+          ingredients: importedSuggestion.payload.ingredients.filter(
+            (line) => line.ingredientId !== null,
+          ),
+        },
+      },
+      ingredients: [chicken, salt],
+    });
+
+    renderApp(`/recipes/import/${importId}`);
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Източник (линк)' }),
+    ).toHaveValue('https://recepti.example/r-1-Баница');
+    expect(
+      screen.getByRole('link', { name: 'Отвори източника' }),
+    ).toHaveAttribute('href', encoded);
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Пилешко филе със сумак' });
+    expect(api.approved[0]?.sourceUrl).toBe(encoded);
+  });
 });

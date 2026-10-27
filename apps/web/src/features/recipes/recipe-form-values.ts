@@ -1,7 +1,9 @@
 import {
   type BaseUnit,
+  displaySourceUrl,
   type Ingredient,
   type NewProduct,
+  normalizeSourceUrl,
   type Nutrition,
   type Recipe,
   type RecipeInput,
@@ -119,7 +121,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     title: recipe.title,
     servings: String(recipe.servings),
     prepMinutes: numberText(recipe.prepMinutes),
-    sourceUrl: recipe.sourceUrl ?? '',
+    sourceUrl: displaySourceUrl(recipe.sourceUrl ?? ''),
     tags: [...recipe.tags],
     steps: [...recipe.steps],
     ingredients: recipe.ingredients.map((line) =>
@@ -178,7 +180,8 @@ export function toRecipeInput(
 ): { ok: true; input: RecipeInput } | { ok: false; errors: RecipeFormErrors } {
   const nutritionPer100g = valuesToNutrition(values.nutrition);
   const prepMinutes = parseNumber(values.prepMinutes);
-  const sourceUrl = values.sourceUrl.trim();
+  // Полето показва линка четимо (`displaySourceUrl`); запазва се във вида, по който се сравнява (`normalizeSourceUrl`).
+  const sourceUrl = normalizeSourceUrl(values.sourceUrl);
 
   const candidate = {
     title: values.title,

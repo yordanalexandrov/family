@@ -249,6 +249,9 @@ function savedPage(name: string): string {
 const SHORT_LINK = 'https://short.example/kebap';
 const KEBAP_URL = 'https://kuhnia.example/recipes/knizhen-kebap/';
 const BLOG_URL = 'https://gladni.example/2024/07/tavche-gravche.html';
+/** {@link KEBAP_URL} as the import keeps it: without the trailing `/`. */
+const KEBAP_SOURCE = 'https://kuhnia.example/recipes/knizhen-kebap';
+const CYRILLIC_URL = 'https://recepti.example/r-1-Баница';
 
 /** The recipe sites, at HTTP level: a short link redirecting to a JSON-LD page, a blog without one, a blocking site. */
 function serveSites() {
@@ -266,6 +269,10 @@ function serveSites() {
     http.get(SHORT_LINK, () => HttpResponse.redirect(KEBAP_URL, 301)),
     http.get(KEBAP_URL, page(savedPage('jsonld-graph.html'))),
     http.get(BLOG_URL, page(savedPage('bg-blog.html'))),
+    http.get(
+      'https://recepti.example/r-1-%D0%91%D0%B0%D0%BD%D0%B8%D1%86%D0%B0',
+      page(savedPage('jsonld-graph.html')),
+    ),
     http.get(
       'https://blocked.example/recipe',
       () =>
@@ -295,7 +302,7 @@ describe('an import by link', () => {
       url: SHORT_LINK,
     });
     const body = await finished(request);
-    expect(body.request).toMatchObject({ status: 'done', url: KEBAP_URL });
+    expect(body.request).toMatchObject({ status: 'done', url: KEBAP_SOURCE });
     expect(body.text).toBeUndefined();
     expect(body.suggestion).toMatchObject({ status: 'proposed' });
 
@@ -303,7 +310,7 @@ describe('an import by link', () => {
     const input = JSON.parse(textOf(calls.bodies[0]?.messages[0]));
     expect(input.source).toEqual({
       kind: 'page',
-      url: KEBAP_URL,
+      url: KEBAP_SOURCE,
       jsonLd: expect.objectContaining({
         '@type': 'Recipe',
         name: 'Книжен кебап с гъби',
@@ -311,6 +318,36 @@ describe('an import by link', () => {
       }),
     });
     expect(input.ingredients.length).toBeGreaterThan(100);
+  });
+
+  it('keeps the final URL without utm, # and trailing /, its Cyrillic escaped once', async () => {
+    serveSites();
+    answerInTurn(normalizeAnswer);
+
+    const body = await finished(
+      await imported({
+        kind: 'url',
+        url: `${CYRILLIC_URL}/?utm_source=viber#comments`,
+      }),
+    );
+
+    expect(body.request).toMatchObject({
+      status: 'done',
+      url: 'https://recepti.example/r-1-%D0%91%D0%B0%D0%BD%D0%B8%D1%86%D0%B0',
+    });
+  });
+
+  it('keeps the link that came with pasted text without utm and #', async () => {
+    answerInTurn(normalizeAnswer);
+
+    const request = await imported({
+      kind: 'text',
+      text: BLOG_TEXT,
+      url: `${KEBAP_URL}?utm_source=facebook#comments`,
+    });
+
+    expect(request.url).toBe(KEBAP_SOURCE);
+    await finished(request);
   });
 
   it('sends the main text of a page without a JSON-LD recipe', async () => {
@@ -520,6 +557,20 @@ describe('a link already in the registry', () => {
       },
     });
     expect(sites.fetched).toEqual([]);
+  });
+
+  it('answers 409 for the Cyrillic form of a link imported percent-encoded', async () => {
+    serveSites();
+    await proposedFrom(
+      'https://recepti.example/r-1-%D0%91%D0%B0%D0%BD%D0%B8%D1%86%D0%B0',
+    );
+
+    const response = await postImport({
+      kind: 'url',
+      url: `${CYRILLIC_URL}?utm_source=viber`,
+    });
+
+    expect(response.statusCode).toBe(409);
   });
 
   it('answers 409 with the recipe once the suggestion is approved, and imports again with force', async () => {
