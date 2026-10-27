@@ -32,6 +32,27 @@ awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "diff - $WS
 ssh homesrv "mv $WS/AGENTS.md.bak $WS/AGENTS.md"
 ```
 
+## Търсене в интернет (`web_search`)
+
+`family-recipe` търси рецепти с `web_search` и отваря страниците с `web_fetch`. `web_fetch` работи без настройка, а `web_search` иска доставчик на търсене в OpenClaw. **Без доставчик OpenClaw маха `web_search` от инструментите на агента**, без грешка (`docs/tools/web.md` на OpenClaw). Тогава агентът налучква адреси със `web_fetch` и обикновено връща `noResults` („търсенето е недостъпно“). Така беше до 2026-10-27 ([#69](https://github.com/yordanalexandrov/family/issues/69)).
+
+Доставчикът е **Brave Search** (от 2026-10-27), общ за всички агенти на gateway-а:
+
+- plugin `@openclaw/brave-plugin` (`openclaw plugins install @openclaw/brave-plugin`; не е вграден);
+- в `~/.openclaw/openclaw.json`: ключът в `plugins.entries.brave.config.webSearch.apiKey`, `tools.web.search.provider: "brave"`, `maxResults: 5`, `timeoutSeconds: 30`;
+- ключът е от таблото на Brave Search API (план Search) и стои само в `openclaw.json` на `homesrv`, не в repo-то и не в GitHub secrets. Gateway-ът поема промяна в `openclaw.json` сам (reload `hybrid`).
+
+Проверка дали агентът има търсене, през тунела от „Smoke преди merge“ отдолу, с `OPENCLAW_GATEWAY_PASSWORD` в средата:
+
+```bash
+curl -s http://127.0.0.1:18789/v1/chat/completions \
+  -H "authorization: Bearer $OPENCLAW_GATEWAY_PASSWORD" -H 'content-type: application/json' \
+  -d '{"model":"openclaw/family-recipe-next","messages":[{"role":"user","content":"ДИАГНОСТИКА, не търси рецепти. Извикай web_search веднъж със заявка \"пиле с ориз рецепта\" и отговори с текст: наличен ли е web_search, колко резултата или каква грешка върна, наличен ли е web_fetch."}]}' \
+  | jq -r '.choices[0].message.content'
+```
+
+Очаква се „web_search е наличен … 5 резултата“. „Не е наличен“ значи, че няма доставчик или plugin-ът не е зареден. Грешка 401/403 значи невалиден ключ или неактивен план. 429 значи, че квотата е свършила.
+
 ## Smoke преди merge
 
 Prompt или контракт се проверява срещу реалния агент **преди** merge, без да се пипа production. За всеки агент на `homesrv` има копие `<агент>-next` със същия модел, `thinkingDefault`, `skills`, `subagents` и `tools`, но със собствен workspace `~/.openclaw/workspace-<агент>-next/`. Deploy-ът не го пипа: там стои prompt-ът, пробван последно.
