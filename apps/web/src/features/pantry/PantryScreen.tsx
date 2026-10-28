@@ -110,7 +110,7 @@ function FrozenToggle({
       disabled={isPending(item)}
       onClick={onToggle}
     >
-      ❄️
+      <span aria-hidden="true">❄️</span>
     </button>
   );
 }
@@ -173,7 +173,7 @@ function Groups({
                   </button>
                   <button
                     type="button"
-                    className="button button--quiet pantry-item__action"
+                    className="button button--quiet pantry-item__action pantry-item__remove"
                     aria-label={`Махни: ${item.ingredient.name}`}
                     disabled={isPending(item)}
                     onClick={() => remove.mutate(item, options)}

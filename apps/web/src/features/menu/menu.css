@@ -1,4 +1,4 @@
-/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem). */
+/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`). */
 .screen.menu {
   align-items: stretch;
   justify-content: flex-start;
@@ -18,8 +18,8 @@
 .menu__back,
 .servings__step {
   flex: none;
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
   border: 1px solid var(--color-line);
   border-radius: 50%;
   background: var(--color-surface);
@@ -46,7 +46,7 @@
 
 .menu__tab {
   flex: 1;
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-target);
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -104,6 +104,29 @@
   font-size: var(--font-size-xs);
 }
 
+/* Сгънатите минали дни на текущата седмица, над днешния ред. */
+.menu__past-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu__past-fold:hover {
+  background: var(--glass-bg-strong);
+}
+
 .menu__meals {
   display: flex;
   flex-direction: column;
@@ -119,13 +142,14 @@
   border: 1px solid var(--glass-border);
   border-inline-start: 5px solid var(--outcome-color, var(--glass-border));
   border-radius: var(--radius-md);
-  background: var(--glass-bg);
+  background:
+    linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
   color: var(--color-text);
 }
 
 .meal-row__content {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  grid-template-columns: 4.5em minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   inline-size: 100%;
@@ -149,8 +173,26 @@ button.meal-row__content:hover {
 
 /* Минал ден: приглушен, без бутони за глас и без изход. */
 /* Приглушено е съдържанието, не „Как беше?“, което кани да се оцени. */
-.meal-row--past > :not(.meal-row__rate) {
-  opacity: 0.6;
+/* Приглушено с цвят (≥ 4.5:1), не с opacity: върху стъклото opacity сваля контраста под AA (#138). */
+.meal-row--past > :not(.meal-row__rate),
+.meal-row--past
+  > :not(.meal-row__rate)
+  :is(
+    .meal-row__date,
+    .meal-row__servings,
+    .meal-row__note,
+    .meal-row__why,
+    .meal-row__title--empty
+  ) {
+  color: var(--color-text-faded);
+}
+
+/* Аватарите на минал ден и на човек без глас: контур в цвета на човека, инициалът в приглушения цвят. */
+.meal-row--past > :not(.meal-row__rate) .avatar,
+.person-vote--none .person-vote__avatar .avatar {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--avatar-color, var(--color-accent));
+  color: var(--color-text-faded);
 }
 
 .meal-row__rate {
@@ -193,8 +235,8 @@ button.meal-row__content:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: 2.75rem;
-  min-block-size: 2.75rem;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
   margin-inline-start: calc(-1 * var(--space-2));
   color: var(--color-text-muted);
   font-size: var(--font-size-lg);
@@ -289,10 +331,6 @@ button.meal-row__content:hover {
   color: var(--color-accent-ink);
 }
 
-.person-vote--none .person-vote__avatar {
-  opacity: 0.55;
-}
-
 .person-vote__name {
   font-size: var(--font-size-sm);
 }
@@ -303,21 +341,19 @@ button.meal-row__content:hover {
 }
 
 .my-vote__button {
-  min-inline-size: 2.75rem;
-  min-block-size: 2.75rem;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
   cursor: pointer;
-  filter: grayscale(1);
-  opacity: 0.6;
 }
 
-.my-vote__button[aria-pressed="true"] {
-  filter: none;
-  opacity: 1;
+/* Неактивният глас: сиво емоджи с ≥ 3:1 (филтърът е върху иконата, не върху фона на бутона). */
+.my-vote__button[aria-pressed="false"] > span {
+  filter: var(--icon-faded-filter);
 }
 
 .my-vote__button--up[aria-pressed="true"] {
@@ -400,6 +436,12 @@ button.meal-row__content:hover {
   min-inline-size: 0;
 }
 
+/* Ден и дата на един ред („Пн 2.11“), за да остане място за заглавието. */
+.meal-row__day {
+  display: block;
+  white-space: nowrap;
+}
+
 .meal-row__weekday {
   font-weight: 600;
   text-transform: capitalize;
@@ -419,7 +461,13 @@ button.meal-row__content:hover {
   align-items: center;
   gap: var(--space-2);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Флекс елемент с min-width 0: иначе дълга дума („манастирски“) не се пренася и излиза в колоната на готвача. */
+.meal-row__title-text {
+  min-inline-size: 0;
 }
 
 .meal-row__title--empty {
@@ -473,7 +521,7 @@ button.meal-row__content:hover {
   align-items: center;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-target);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
@@ -601,14 +649,15 @@ button.meal-row__content:hover {
 
 .thread__body {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
   white-space: pre-wrap;
 }
 
 .thread__delete {
   flex: none;
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;

@@ -9,6 +9,7 @@ import {
   serveMealUpdates,
   servePlans,
   serveThreads,
+  showPastDays,
   thisWeek,
   threadLine,
 } from '../../test/menu';
@@ -56,6 +57,8 @@ function planWithThread(weekStart = thisWeek) {
 
 async function openSheet(title: RegExp, name: string) {
   const user = userEvent.setup();
+  await screen.findByRole('list', { name: 'Вечери' });
+  await showPastDays(user);
   await user.click(await screen.findByRole('button', { name: title }));
   return { user, sheet: screen.getByRole('dialog', { name }) };
 }

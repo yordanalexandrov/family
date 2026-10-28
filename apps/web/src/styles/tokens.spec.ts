@@ -76,6 +76,8 @@ const TEXT_TOKENS = [
   '--color-person-2',
   '--color-person-family',
   '--color-stale',
+  // Приглушен текст: минали дни и събития, неактивни гласове (вместо opacity).
+  '--color-text-faded',
 ];
 
 describe('tokens.css', () => {
@@ -94,6 +96,32 @@ describe('tokens.css', () => {
 
       expect(contrast(text, card)).toBeGreaterThanOrEqual(4.5);
     });
+  });
+
+  describe('тъмна тема: плочата под малкия текст върху стъклото', () => {
+    // Най-светлото място под стъклото: петно на аурората с пълната си плътност върху фона.
+    const peaks = ['--aurora-1', '--aurora-2', '--aurora-3', '--aurora-4'].map(
+      (name) =>
+        over(
+          [
+            ...parseColor(token(dark, name)).slice(0, 3),
+            Number.parseFloat(token(dark, '--aurora-opacity')),
+          ] as Rgba,
+          parseColor(token(dark, '--color-bg')),
+        ),
+    );
+
+    it.each(['--color-text-muted', '--color-text-faded'])(
+      '%s има контраст ≥ 4.5:1 върху плочата над всяко петно на аурората',
+      (name) => {
+        for (const peak of peaks) {
+          const plate = over(parseColor(token(dark, '--glass-plate')), peak);
+          const text = over(parseColor(token(dark, name)), plate);
+
+          expect(contrast(text, plate)).toBeGreaterThanOrEqual(4.5);
+        }
+      },
+    );
   });
 
   it('тъмната тема по системата е същата като изричната тъмна', () => {

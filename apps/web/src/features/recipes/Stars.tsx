@@ -19,7 +19,7 @@ interface RatingStarsProps {
   disabled?: boolean;
 }
 
-/** Пет звезди, които поставят оценката на рецептата; натискане на избраната я маха. Докосване ≥ 44 px. */
+/** Пет звезди, които поставят оценката на рецептата; натискане на избраната я маха. Докосване ≥ 48 px (`--touch-target`). */
 export function RatingStars({
   rating,
   onRate,

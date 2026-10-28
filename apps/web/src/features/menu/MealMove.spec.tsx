@@ -3,7 +3,13 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dinnerRecipes, planFor, servePlans, thisWeek } from '../../test/menu';
+import {
+  dinnerRecipes,
+  planFor,
+  servePlans,
+  showPastDays,
+  thisWeek,
+} from '../../test/menu';
 import { dani, fixtureNow, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 
@@ -78,8 +84,10 @@ describe('MealSheet: „Премести на…“', () => {
     const swaps = serveSwaps(plan);
     const user = userEvent.setup();
     renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
 
-    await user.click(await screen.findByRole('button', { name: /Мусака/ }));
+    await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
     await user.click(
       within(sheet).getByRole('button', { name: 'Премести на…' }),
@@ -124,8 +132,10 @@ describe('MealSheet: „Премести на…“', () => {
     );
     const user = userEvent.setup();
     renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
 
-    await user.click(await screen.findByRole('button', { name: /Мусака/ }));
+    await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
     await user.click(
       within(sheet).getByRole('button', { name: 'Премести на…' }),
@@ -149,8 +159,10 @@ describe('MealSheet: „Премести на…“', () => {
     servePlans({ [thisWeek]: plan });
     const user = userEvent.setup();
     renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
 
-    await user.click(await screen.findByRole('button', { name: /Пиле/ }));
+    await user.click(screen.getByRole('button', { name: /Пиле/ }));
     const sheet = screen.getByRole('dialog', { name: /понеделник/ });
 
     expect(

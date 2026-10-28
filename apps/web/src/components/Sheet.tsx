@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import './Sheet.css';
+import { useSheetHistory } from './sheet-history';
 
 interface SheetProps {
   title: string;
@@ -9,10 +10,11 @@ interface SheetProps {
 
 /**
  * Лист отдолу на телефона, прозорец на таблета: заглавие, „Готово“, Escape и фонът го затварят. Съдържанието е в
- * `.sheet__section` (и `.sheet__row` за ред от полета).
+ * `.sheet__section` (и `.sheet__row` за ред от полета). Отвореният лист е запис в историята: „назад“ го затваря.
  */
 export function Sheet({ title, onClose, children }: SheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  useSheetHistory(onClose);
   useEffect(() => {
     closeRef.current?.focus();
     function onKey(event: KeyboardEvent) {

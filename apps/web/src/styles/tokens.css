@@ -6,7 +6,9 @@
  * Светла тема по подразбиране; тъмната идва от `data-theme="dark"` на <html>
  * (localStorage `family.theme`) или от системата, когато няма изрична тема.
  * Блокът за системата повтаря тъмния; tokens.spec.ts пази двата еднакви и
- * проверява контраста на текста и цветовете на хората (≥ 4.5:1) в двете теми.
+ * проверява контраста на текста и цветовете на хората (≥ 4.5:1) в двете теми,
+ * а в тъмната и малкия текст върху плочата над най-светлото петно на аурората.
+ * Приглушеното (минало, неактивно) е с цвят или филтър, не с opacity (#138).
  *
  * person-1 = Дани, person-2 = Поли, person-family = семейният календар.
  */
@@ -19,6 +21,8 @@
   --color-surface-2: #e4e8f2;
   --color-text: #141826;
   --color-text-muted: #4c5570;
+  /* Приглушен текст (минали дни и събития, неактивни гласове): вместо opacity, ≥ 4.5:1. */
+  --color-text-faded: #5d6580;
   --color-line: rgba(20, 24, 38, 0.12);
   --color-accent: #0b6e78;
   --color-accent-ink: #ffffff;
@@ -39,10 +43,16 @@
   /* Стъкло */
   --glass-bg: rgba(255, 255, 255, 0.5);
   --glass-bg-strong: rgba(255, 255, 255, 0.7);
+  /* Плоча под малкия текст върху стъклото (чипове): аурората под нея не сваля контраста под 4.5:1. */
+  --glass-plate: rgba(255, 255, 255, 0.7);
+  /* Основа под стъклото на картата: в тъмна тема затъмнява аурората под заглавията и малкия текст. */
+  --glass-tint: rgba(255, 255, 255, 0);
   --glass-border: rgba(255, 255, 255, 0.85);
   --glass-highlight: rgba(255, 255, 255, 0.9);
   --glass-sheen: rgba(255, 255, 255, 0.55);
   --glass-blur: 26px;
+  /* Изключен превключвател с емоджи (глас, „Във фризера“): сиво с ≥ 3:1 вместо opacity. */
+  --icon-faded-filter: grayscale(1) brightness(0.65);
   --glass-shadow:
     0 1px 0 rgba(255, 255, 255, 0.6) inset,
     0 24px 60px -24px rgba(40, 50, 100, 0.28);
@@ -83,6 +93,9 @@
   --space-gap: clamp(10px, 0.75vw, 14px);
   --space-pad: clamp(14px, 1vw, 20px);
 
+  /* Най-малката цел за докосване: 48 dp (Material, Android). Бутоните и редовете не стават по-малки. */
+  --touch-target: 3rem;
+
   /*
    * Типография по изглед: на TV (≥ 1600 px) основният текст (md) е 22 px,
    * вторичният (sm) 20 px, както в прототипа; под 1600 px и на телефона мащабът
@@ -107,6 +120,7 @@
   --color-surface-2: #1f2230;
   --color-text: #f3f5ff;
   --color-text-muted: #a2a6b8;
+  --color-text-faded: #9499ad;
   --color-line: rgba(255, 255, 255, 0.14);
   --color-accent: #5fe0e8;
   --color-accent-ink: #07080f;
@@ -125,8 +139,11 @@
 
   --glass-bg: rgba(255, 255, 255, 0.06);
   --glass-bg-strong: rgba(255, 255, 255, 0.1);
+  --glass-plate: rgba(7, 8, 15, 0.75);
+  --glass-tint: rgba(7, 8, 15, 0.5);
+  --icon-faded-filter: grayscale(1);
   --glass-border: rgba(255, 255, 255, 0.14);
-  --glass-highlight: rgba(255, 255, 255, 0.22);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
   --glass-sheen: rgba(255, 255, 255, 0.14);
   --glass-shadow:
     0 1px 0 rgba(255, 255, 255, 0.22) inset,
@@ -152,6 +169,7 @@
     --color-surface-2: #1f2230;
     --color-text: #f3f5ff;
     --color-text-muted: #a2a6b8;
+    --color-text-faded: #9499ad;
     --color-line: rgba(255, 255, 255, 0.14);
     --color-accent: #5fe0e8;
     --color-accent-ink: #07080f;
@@ -171,8 +189,11 @@
 
     --glass-bg: rgba(255, 255, 255, 0.06);
     --glass-bg-strong: rgba(255, 255, 255, 0.1);
+    --glass-plate: rgba(7, 8, 15, 0.75);
+    --glass-tint: rgba(7, 8, 15, 0.5);
+    --icon-faded-filter: grayscale(1);
     --glass-border: rgba(255, 255, 255, 0.14);
-    --glass-highlight: rgba(255, 255, 255, 0.22);
+    --glass-highlight: rgba(255, 255, 255, 0.12);
     --glass-sheen: rgba(255, 255, 255, 0.14);
     --glass-shadow:
       0 1px 0 rgba(255, 255, 255, 0.22) inset,

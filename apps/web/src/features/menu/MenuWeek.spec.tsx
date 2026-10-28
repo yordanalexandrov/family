@@ -14,6 +14,7 @@ import {
   serveMealUpdates,
   servePlans,
   serveWeekProposal,
+  showPastDays,
   thisWeek,
 } from '../../test/menu';
 import { dani, dashboardWith, fixtureNow, poli, server } from '../../test/msw';
@@ -153,10 +154,11 @@ describe('MenuWeek', () => {
     renderApp('/menu');
 
     const meals = await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays();
     const rows = within(meals).getAllByRole('listitem');
     expect(rows).toHaveLength(7);
     expect(rows[0]).toHaveTextContent('пн');
-    expect(rows[0]).toHaveTextContent('2 ноември');
+    expect(rows[0]).toHaveTextContent('пн 2.11');
     expect(rows[0]).toHaveTextContent('Пиле с ориз');
     expect(rows[0]).toHaveTextContent('Бързо за понеделник.');
     expect(rows[0]).toHaveTextContent('Готви Поли');
@@ -202,9 +204,9 @@ describe('MenuWeek', () => {
     const patches = serveMealUpdates(plan);
 
     renderApp('/menu');
-    await user.click(
-      await screen.findByRole('button', { name: /Пиле с ориз/ }),
-    );
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
+    await user.click(screen.getByRole('button', { name: /Пиле с ориз/ }));
     const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
     await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
     expect(
@@ -247,9 +249,9 @@ describe('MenuWeek', () => {
     serveDinnerRecipes();
 
     renderApp('/menu');
-    await user.click(
-      await screen.findByRole('button', { name: /Пиле с ориз/ }),
-    );
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
+    await user.click(screen.getByRole('button', { name: /Пиле с ориз/ }));
     expect(
       within(
         screen.getByRole('dialog', { name: 'понеделник, 2 ноември' }),

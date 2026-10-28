@@ -1,4 +1,4 @@
-/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem); редът на списъка ≥ 56 px (3.5rem). */
+/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`); редът на списъка ≥ 56 px (3.5rem). */
 .shopping__count {
   margin: 0;
   color: var(--color-text-muted);
@@ -51,7 +51,9 @@
   padding: 0;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: var(--glass-bg);
+  /* Тъмна тема: основата под стъклото пази приглушения текст (количества, ⓘ, „покажи“) над 4.5:1 и над светла аурора (#138). */
+  background:
+    linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
   list-style: none;
 }
 
@@ -89,10 +91,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ⓘ не отмята: ≥ 48 px и на 8 px от целите за отметка от двете страни (#137). */
 .shopping-item__more {
   flex: none;
-  inline-size: 3rem;
-  min-block-size: 3rem;
+  inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
+  margin-inline: var(--space-2);
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
@@ -133,7 +137,8 @@
 .shopping-item__title {
   color: var(--color-text);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .shopping-item__quantity,
@@ -151,7 +156,7 @@
 /* „покажи“/„Свърши“ на скритите редове са второстепенни: текст без фон, но с цялата площ за докосване. */
 .shopping-item__action {
   flex: none;
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-target);
   padding-inline: var(--space-2);
   font-size: var(--font-size-sm);
 }
@@ -172,7 +177,7 @@
 
 .shopping__hidden-toggle {
   align-self: flex-start;
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-target);
   padding: 0;
   border: 0;
   background: none;
@@ -234,6 +239,16 @@
   font-size: var(--font-size-sm);
 }
 
+/* „Към менюто“: на един ред, с поле за докосване ≥ 48 px, без да раздува реда. */
+.shopping__not-agreed a {
+  --target-pad: max(0px, calc((var(--touch-target) - 1lh) / 2));
+
+  display: inline-block;
+  margin: calc(var(--target-pad) * -1) calc(var(--space-1) * -1);
+  padding: var(--target-pad) var(--space-1);
+  white-space: nowrap;
+}
+
 /* Значките на килера до количеството: „свърши“ е акцент, „в килера — провери“ е подсказка. */
 .shopping-item__badge {
   padding: 0.1em 0.55em;
@@ -251,7 +266,7 @@
 
 /* Лентата „🏠 Скрити от килера: N“ в края на списъка. */
 .shopping__pantry-toggle {
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-target);
   padding: 0.5em 0.85em;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -265,7 +280,7 @@
 
 .shopping__pantry-link {
   align-self: flex-start;
-  min-block-size: 2.75rem;
+  min-block-size: var(--touch-target);
   display: inline-flex;
   align-items: center;
   color: var(--color-accent);

@@ -2,7 +2,13 @@ import type { MealPlan } from '@family/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dinnerRecipes, planFor, servePlans, thisWeek } from '../../test/menu';
+import {
+  dinnerRecipes,
+  planFor,
+  servePlans,
+  showPastDays,
+  thisWeek,
+} from '../../test/menu';
 import { dani, fixtureNow } from '../../test/msw';
 import { serveRating } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -42,6 +48,10 @@ function row(text: string) {
   return found;
 }
 
+function pastFold() {
+  return screen.getByRole('button', { name: 'Пн–Вт (минали)' });
+}
+
 describe('MenuWeek: „Как беше?“', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -52,12 +62,44 @@ describe('MenuWeek: „Как беше?“', () => {
     vi.useRealTimers();
   });
 
+  it('в сряда понеделник и вторник са сгънати в един ред, който се разгръща с „Как беше?“', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    servePlans({
+      [thisWeek]: planFor(thisWeek, {
+        0: withRecipe(chicken),
+        1: withRecipe(moussaka),
+        2: withRecipe(lentils),
+      }),
+    });
+
+    renderApp('/menu');
+    const meals = await screen.findByRole('list', { name: 'Вечери' });
+
+    expect(pastFold()).toHaveAttribute('aria-expanded', 'false');
+    expect(within(meals).getAllByRole('listitem')).toHaveLength(5);
+    expect(within(meals).queryByText(chicken.title)).toBeNull();
+    expect(within(meals).queryByText(moussaka.title)).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Как беше?' })).toBeNull();
+
+    await user.click(pastFold());
+
+    expect(pastFold()).toHaveAttribute('aria-expanded', 'true');
+    expect(within(meals).getAllByRole('listitem')).toHaveLength(7);
+    for (const past of [chicken.title, moussaka.title]) {
+      expect(
+        within(row(past)).getByRole('group', { name: 'Как беше?' }),
+      ).toBeInTheDocument();
+    }
+  });
+
   it('се вижда само под отминало ястие с неоценена рецепта', async () => {
     setUpDevice('phone', dani.id);
     servePlans({ [thisWeek]: ratingPlan() });
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays();
 
     expect(
       within(row(chicken.title)).getByRole('group', { name: 'Как беше?' }),
@@ -91,6 +133,7 @@ describe('MenuWeek: „Как беше?“', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
     await user.click(
       within(
         within(row(chicken.title)).getByRole('group', { name: 'Как беше?' }),
