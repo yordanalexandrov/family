@@ -23,6 +23,7 @@ import {
 } from '../test/openclaw.js';
 import { DANI } from '../test/users.js';
 import {
+  ContractRequestFailure,
   type ContractRequestStore,
   type ContractRequests,
   createContractRequests,
@@ -67,7 +68,7 @@ function toRequest(row: typeof table.$inferSelect): EchoRequest {
 
 /** Refuses the word `taken` inside the insert, as menu refuses a taken week. */
 const store: ContractRequestStore<
-  { word: string },
+  { word: string; picture?: string },
   EchoRequest,
   EchoInput,
   EchoOutput
@@ -91,6 +92,9 @@ const store: ContractRequestStore<
     return row && toRequest(row);
   },
   async buildInput(_db, request) {
+    if (request.word === 'unreachable') {
+      throw new ContractRequestFailure('fetch_failed', 'the page did not open');
+    }
     return { word: request.word };
   },
   async onDone(tx, request, output) {
@@ -102,8 +106,25 @@ const store: ContractRequestStore<
       .set({ tags: ['quick'] })
       .where(eq(table.id, request.id));
   },
+  images(params) {
+    return params.picture
+      ? [{ mediaType: 'image/png', data: Buffer.from(params.picture) }]
+      : [];
+  },
   noResults(output) {
-    return output.word === 'нищо' ? 'Агентът не намери нищо.' : null;
+    return output.word === 'нищо' || output.word === 'нищо-гърми'
+      ? 'Агентът не намери нищо.'
+      : null;
+  },
+  /** Marks the request `batch` when it gets the reason of `noResults`; for `нищо-гърми` it writes, then fails. */
+  async onNoResults(tx, request, reason) {
+    await tx
+      .update(table)
+      .set({ tags: reason === 'Агентът не намери нищо.' ? ['batch'] : [] })
+      .where(eq(table.id, request.id));
+    if (request.word === 'нищо-гърми') {
+      throw new Error('onNoResults failed');
+    }
   },
 };
 
@@ -119,17 +140,31 @@ function create(
   return requests.register(echo, store, 'family-test');
 }
 
-/** Answers every chat completion with `{ word }` of the request's input. */
+type Content =
+  | string
+  | (
+      | { type: 'text'; text: string }
+      | { type: 'image_url'; image_url: { url: string } }
+    )[];
+
+/** Answers every chat completion with `{ word }` of the request's input; returns the contents it got. */
 function echoing() {
+  const contents: Content[] = [];
   openclaw.use(
     http.post(CHAT_COMPLETIONS_URL, async ({ request }) => {
       const body = (await request.json()) as {
-        messages: { content: string }[];
+        messages: { content: Content }[];
       };
-      const input = JSON.parse(body.messages[0]?.content ?? '{}');
-      return HttpResponse.json(completion(JSON.stringify(input)));
+      const content = body.messages[0]?.content ?? '{}';
+      contents.push(content);
+      const text =
+        typeof content === 'string'
+          ? content
+          : (content.find((part) => part.type === 'text')?.text ?? '{}');
+      return HttpResponse.json(completion(text));
     }),
   );
+  return { contents };
 }
 
 /** Polls the handle until the background run has finished. */
@@ -194,7 +229,26 @@ describe('AI requests (contract-requests)', () => {
     });
   });
 
-  it('fails as no_results without writing the answer when the store finds nothing in it, and logs why', async () => {
+  it('ends failed with the code the store gives when it cannot build the input, without asking the agent', async () => {
+    let calls = 0;
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () => {
+        calls++;
+        return HttpResponse.json({}, { status: 502 });
+      }),
+    );
+    const handle = create();
+
+    const request = await handle.request({ word: 'unreachable' }, DANI.id);
+
+    expect(await finished(handle, request.id)).toMatchObject({
+      status: 'failed',
+      error: 'fetch_failed',
+    });
+    expect(calls).toBe(0);
+  });
+
+  it('fails as no_results without writing the answer when the store finds nothing in it, keeps the reason (onNoResults) and logs why', async () => {
     const warnings: [object, string][] = [];
     const handle = create(undefined, {
       ...silent,
@@ -208,13 +262,51 @@ describe('AI requests (contract-requests)', () => {
     expect(await finished(handle, request.id)).toMatchObject({
       status: 'failed',
       error: 'no_results',
-      tags: [],
+      tags: ['batch'],
     });
     expect(warnings).toEqual([
       [
         { requestId: request.id, noResults: 'Агентът не намери нищо.' },
         'test.echo found no results',
       ],
+    ]);
+  });
+
+  it('leaves no trace of onNoResults when it fails: its transaction is the one that marks the request', async () => {
+    const handle = create();
+
+    const request = await handle.request({ word: 'нищо-гърми' }, DANI.id);
+
+    expect(await finished(handle, request.id)).toMatchObject({
+      status: 'failed',
+      error: 'error',
+      tags: [],
+    });
+  });
+
+  it('sends the pictures the store takes from the params next to the input, and none without them', async () => {
+    const agent = echoing();
+    const handle = create();
+
+    const pictured = await handle.request(
+      { word: 'супа', picture: 'png-bytes' },
+      DANI.id,
+    );
+    expect((await finished(handle, pictured.id)).status).toBe('done');
+    const plain = await handle.request({ word: 'боб' }, DANI.id);
+    expect((await finished(handle, plain.id)).status).toBe('done');
+
+    expect(agent.contents).toEqual([
+      [
+        { type: 'text', text: '{"word":"супа"}' },
+        {
+          type: 'image_url',
+          image_url: {
+            url: `data:image/png;base64,${Buffer.from('png-bytes').toString('base64')}`,
+          },
+        },
+      ],
+      '{"word":"боб"}',
     ]);
   });
 

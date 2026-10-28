@@ -20,6 +20,8 @@ const FAILURE_MESSAGES: Record<(typeof CONTRACT_FAILURES)[number], string> = {
   stale: 'Сървърът се рестартира, докато търсех. Опитай пак',
   aborted: 'Търсенето беше прекъснато. Опитай пак',
   error: TRY_AGAIN,
+  fetch_blocked: 'Сайтът не позволява автоматично четене — постави текста',
+  fetch_failed: 'Страницата не се отвори — постави текста',
 };
 
 function isHttpFailure(

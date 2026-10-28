@@ -18,6 +18,7 @@ import {
   desc,
   eq,
   inArray,
+  isNull,
   ne,
   sql,
 } from 'drizzle-orm';
@@ -309,7 +310,7 @@ export async function updateMeal(
   values: Partial<
     Pick<
       typeof meal.$inferInsert,
-      'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why'
+      'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why' | 'thawedAt'
     >
   >,
   at: Date,
@@ -510,4 +511,37 @@ export async function setProposalPlan(
     .update(menuProposalRequest)
     .set({ planId })
     .where(eq(menuProposalRequest.id, id));
+}
+
+/** „Извадих“ for the meal at `at`, unless it is already; answers `false` when there is no such meal. */
+export async function markMealThawed(
+  db: DbExecutor,
+  id: string,
+  at: Date,
+): Promise<boolean> {
+  const rows = await db
+    .update(meal)
+    .set({
+      thawedAt: sql`coalesce(${meal.thawedAt}, ${at.toISOString()}::timestamptz)`,
+    })
+    .where(eq(meal.id, id))
+    .returning({ thawedAt: meal.thawedAt });
+  return rows.length > 0;
+}
+
+/**
+ * „Аз“ on „Кой готви довечера“: `userId` becomes the cook of the meal unless it has one. Answers the plan of the meal
+ * when it did, else `null` (the meal has a cook, or there is no such meal).
+ */
+export async function claimMealCook(
+  db: DbExecutor,
+  id: string,
+  userId: string,
+): Promise<{ planId: string } | null> {
+  const [row] = await db
+    .update(meal)
+    .set({ cookUserId: userId })
+    .where(and(eq(meal.id, id), isNull(meal.cookUserId)))
+    .returning({ planId: meal.planId });
+  return row ?? null;
 }

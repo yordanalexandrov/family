@@ -123,8 +123,24 @@ describe('POST /api/pantry', () => {
       ingredient: { id: cheese.id, name: 'сирене', aisle: cheese.aisle },
       kind: 'use_up',
       note: 'хладилник, ~300 г',
+      frozen: false,
       ranOutAt: null,
     });
+    expect(await pantry()).toEqual([item]);
+  });
+
+  it('adds an item that is in the freezer („Във фризера“)', async () => {
+    const mince = await seedIngredient('смесена кайма');
+
+    const response = await inject('POST', '/api/pantry', {
+      ingredientId: mince.id,
+      kind: 'use_up',
+      frozen: true,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const item = pantryItemResponseSchema.parse(response.json()).item;
+    expect(item).toMatchObject({ kind: 'use_up', note: null, frozen: true });
     expect(await pantry()).toEqual([item]);
   });
 
@@ -202,6 +218,27 @@ describe('PATCH /api/pantry/:id', () => {
     });
   });
 
+  it('puts an item in the freezer and takes it out, keeping the kind and the note', async () => {
+    const mince = await seedIngredient('смесена кайма');
+    const item = await add(mince.id, 'use_up', '~500 г');
+
+    const frozen = await inject('PATCH', `/api/pantry/${item.id}`, {
+      frozen: true,
+    });
+
+    expect(frozen.statusCode).toBe(200);
+    expect(pantryItemResponseSchema.parse(frozen.json()).item).toEqual({
+      ...item,
+      frozen: true,
+    });
+    expect(await pantry()).toEqual([{ ...item, frozen: true }]);
+
+    const thawed = await inject('PATCH', `/api/pantry/${item.id}`, {
+      frozen: false,
+    });
+    expect(pantryItemResponseSchema.parse(thawed.json()).item).toEqual(item);
+  });
+
   it('answers 404 for an item that is not in the pantry', async () => {
     const response = await inject('PATCH', `/api/pantry/${UNKNOWN_ID}`, {
       kind: 'staple',
@@ -258,10 +295,12 @@ describe('pantry signals', () => {
     const signals = await signalsOf(async () => {
       const item = await add(rice.id, 'staple');
       await inject('PATCH', `/api/pantry/${item.id}`, { kind: 'use_up' });
+      await inject('PATCH', `/api/pantry/${item.id}`, { frozen: true });
       await inject('DELETE', `/api/pantry/${item.id}`);
     });
 
     expect(signals).toEqual([
+      { type: 'shopping.changed' },
       { type: 'shopping.changed' },
       { type: 'shopping.changed' },
       { type: 'shopping.changed' },

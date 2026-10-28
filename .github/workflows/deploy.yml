@@ -44,6 +44,10 @@ jobs:
           GOOGLE_CALENDARS: ${{ secrets.GOOGLE_CALENDARS }}
           WALLET_API_TOKEN: ${{ secrets.WALLET_API_TOKEN }}
           WALLET_BUDGET_ID: ${{ secrets.WALLET_BUDGET_ID }}
+          # Известия (по избор, трите заедно): без тях api тръгва и не праща нищо.
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: |
           # Без някой от тях api не тръгва: спираме, преди стекът да е пипнат, и казваме само името.
           for name in POSTGRES_PASSWORD CF_ACCESS_TEAM_DOMAIN CF_ACCESS_AUD ALLOWED_EMAILS OPENCLAW_GATEWAY_PASSWORD; do
@@ -54,7 +58,7 @@ jobs:
           done
           # Стойностите по избор отиват в .env в единични кавички: dotenv на compose и на Node ги взема буквално,
           # без интерполация на $ и без escape-и (JSON ключът носи \n). Затова не бива да съдържат ' или нов ред.
-          for name in GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_CALENDARS WALLET_API_TOKEN WALLET_BUDGET_ID; do
+          for name in GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_CALENDARS WALLET_API_TOKEN WALLET_BUDGET_ID VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
             case "${!name}" in
               *"'"* | *$'\n'*)
                 echo "::error::secret $name must be one line without single quotes"
@@ -73,6 +77,9 @@ jobs:
           GOOGLE_CALENDARS='${GOOGLE_CALENDARS}'
           WALLET_API_TOKEN='${WALLET_API_TOKEN}'
           WALLET_BUDGET_ID='${WALLET_BUDGET_ID}'
+          VAPID_PUBLIC_KEY='${VAPID_PUBLIC_KEY}'
+          VAPID_PRIVATE_KEY='${VAPID_PRIVATE_KEY}'
+          VAPID_SUBJECT='${VAPID_SUBJECT}'
           TZ=Europe/Sofia
           EOF
 

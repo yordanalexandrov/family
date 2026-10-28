@@ -1,3 +1,10 @@
+import type { RecipeNormalizeInput } from '@family/shared';
+import normalizeInput from '@family/shared/fixtures/recipe-normalize.input.json' with {
+  type: 'json',
+};
+import normalizeFixture from '@family/shared/fixtures/recipe-normalize.valid.json' with {
+  type: 'json',
+};
 import fixture from '@family/shared/fixtures/recipe-suggest.valid.json' with {
   type: 'json',
 };
@@ -12,6 +19,7 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   recipeAgent: 'family-recipe',
   menuAgent: 'family-menu',
   mealAgent: 'family-meal',
+  importAgent: 'family-import',
   timeoutMs: 2_000,
 };
 
@@ -20,6 +28,32 @@ export const CHAT_COMPLETIONS_URL = `${TEST_OPENCLAW.url}/v1/chat/completions`;
 /** The recorded `recipe.suggest` answer from `packages/shared`, cloned so a spec can break it. */
 export function suggestFixture(): typeof fixture {
   return structuredClone(fixture);
+}
+
+/**
+ * The recorded `recipe.normalize` answer from `packages/shared` for `input`: its lines are linked to the fixture's
+ * registry, so each `ingredientId` is swapped for the id of the same name in `input.ingredients` (the seed products of
+ * the test database, whose ids differ per run). Cloned, so a spec can break it.
+ */
+export function normalizeAnswer(input: RecipeNormalizeInput) {
+  const answer = structuredClone(normalizeFixture) as {
+    recipe: {
+      ingredients: { ingredientId: string | null }[];
+    } | null;
+    noResults: string | null;
+  };
+  const names = new Map(normalizeInput.ingredients.map((i) => [i.id, i.name]));
+  const ids = new Map(input.ingredients.map((i) => [i.name, i.id]));
+  for (const line of answer.recipe?.ingredients ?? []) {
+    if (line.ingredientId !== null) {
+      const id = ids.get(names.get(line.ingredientId) ?? '');
+      if (!id) {
+        throw new Error(`no registry ingredient for ${line.ingredientId}`);
+      }
+      line.ingredientId = id;
+    }
+  }
+  return answer;
 }
 
 /** A non-streaming Chat Completions body whose message is `content`, as the gateway sends it. */

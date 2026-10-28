@@ -10,6 +10,8 @@ describe('contractFailureSchema', () => {
       'aborted',
       'stale',
       'error',
+      'fetch_blocked',
+      'fetch_failed',
       'http_502',
     ]) {
       expect(contractFailureSchema.parse(code)).toBe(code);

@@ -10,7 +10,12 @@ import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
 import { useNow } from '../../lib/use-now';
 import { AddPantrySheet } from './AddPantrySheet';
-import { usePantry, useRemovePantryItem, useSetPantryKind } from './queries';
+import {
+  usePantry,
+  useRemovePantryItem,
+  useSetPantryFrozen,
+  useSetPantryKind,
+} from './queries';
 import '../recipes/recipes.css';
 import '../menu/menu.css';
 import './pantry.css';
@@ -31,7 +36,7 @@ function isPending(item: PantryItem): boolean {
 
 /**
  * `/pantry` (GLOSSARY: Килер), само на телефона: постоянните продукти по име и временните от най-старите, с бележката
- * и възрастта им. Промените са оптимистични и се връщат при грешка.
+ * и възрастта им; ❄️ до името на тези „Във фризера“. Промените са оптимистични и се връщат при грешка.
  */
 export function PantryScreen() {
   const pantry = usePantry();
@@ -70,6 +75,46 @@ export function PantryScreen() {
   );
 }
 
+/** Името на продукта и ❄️, ако е „Във фризера“ (GLOSSARY: Във фризера). */
+function ItemName({ item }: { item: PantryItem }) {
+  return (
+    <span className="pantry-item__title">
+      <span className="pantry-item__name">{item.ingredient.name}</span>
+      {item.frozen && (
+        <span
+          className="pantry-item__frozen"
+          role="img"
+          aria-label="Във фризера"
+        >
+          ❄️
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Превключвателят „Във фризера“ на един продукт. */
+function FrozenToggle({
+  item,
+  onToggle,
+}: {
+  item: PantryItem;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="button button--quiet pantry-item__action pantry-item__freeze"
+      aria-label={`Във фризера: ${item.ingredient.name}`}
+      aria-pressed={item.frozen}
+      disabled={isPending(item)}
+      onClick={onToggle}
+    >
+      ❄️
+    </button>
+  );
+}
+
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'Нещо се обърка';
 }
@@ -83,8 +128,11 @@ function Groups({
 }) {
   const today = dateKeyInSofia(useNow(60_000));
   const setKind = useSetPantryKind();
+  const setFrozen = useSetPantryFrozen();
   const remove = useRemovePantryItem();
   const options = { onError: (error: unknown) => onError(messageOf(error)) };
+  const toggleFrozen = (item: PantryItem) => () =>
+    setFrozen.mutate({ item, frozen: !item.frozen }, options);
   const staples = items
     .filter((item) => item.kind === 'staple')
     .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name, 'bg'));
@@ -108,11 +156,10 @@ function Groups({
             {staples.map((item) => (
               <li key={item.id} className="pantry-item">
                 <span className="pantry-item__main">
-                  <span className="pantry-item__name">
-                    {item.ingredient.name}
-                  </span>
+                  <ItemName item={item} />
                 </span>
                 <span className="pantry-item__actions">
+                  <FrozenToggle item={item} onToggle={toggleFrozen(item)} />
                   <button
                     type="button"
                     className="button button--quiet pantry-item__action"
@@ -151,9 +198,7 @@ function Groups({
             {useUp.map((item) => (
               <li key={item.id} className="pantry-item">
                 <span className="pantry-item__main">
-                  <span className="pantry-item__name">
-                    {item.ingredient.name}
-                  </span>
+                  <ItemName item={item} />
                   {item.note && (
                     <span className="pantry-item__note">{item.note}</span>
                   )}
@@ -162,6 +207,7 @@ function Groups({
                   </span>
                 </span>
                 <span className="pantry-item__actions">
+                  <FrozenToggle item={item} onToggle={toggleFrozen(item)} />
                   <button
                     type="button"
                     className="button button--quiet pantry-item__action"

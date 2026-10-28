@@ -5,7 +5,7 @@ import proposeInput from '@family/shared/fixtures/menu-propose.input.json' with 
 import proposeFixture from '@family/shared/fixtures/menu-propose.valid.json' with {
   type: 'json',
 };
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import {
@@ -18,10 +18,11 @@ import {
   it,
   vi,
 } from 'vitest';
-import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
+import { recipe } from '../db/schema/food.js';
 import { meal, mealComment, mealVote } from '../db/schema/menu.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
+import { seedFixtureRecipes } from '../test/menu.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -58,42 +59,6 @@ afterAll(async () => {
 });
 
 const headers = { 'x-acting-user': DANI.id };
-
-/**
- * The registry the recorded fixture was made for: the 10 dinner recipes of `menu-propose.input.json`, with their ids,
- * so the recorded answer passes `validateProposal` as it is. Products the seed lacks are added.
- */
-async function seedFixtureRecipes() {
-  const db = testDb();
-  for (const entry of proposeInput.recipes) {
-    await db.insert(recipe).values({
-      id: entry.id,
-      title: entry.title,
-      servings: 4,
-      steps: ['Сготви.'],
-      prepMinutes: entry.prepMinutes,
-      tags: entry.tags as (typeof recipe.$inferInsert)['tags'],
-      rating: entry.rating,
-    });
-    for (const [position, name] of entry.ingredientNames.entries()) {
-      await db
-        .insert(ingredient)
-        .values({ name, unit: 'g', aisle: 'other' })
-        .onConflictDoNothing();
-      const [row] = await db
-        .select({ id: ingredient.id })
-        .from(ingredient)
-        .where(sql`lower(${ingredient.name}) = ${name}`);
-      await db.insert(recipeIngredient).values({
-        recipeId: entry.id,
-        ingredientId: row?.id ?? '',
-        position,
-        quantity: '100',
-        unit: 'g',
-      });
-    }
-  }
-}
 
 function inject(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',

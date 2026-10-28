@@ -2,6 +2,7 @@ import type { ApiErrorCode, ApiErrorResponse } from '@family/shared';
 import type { FastifyError, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import {
+  AlreadyImportedError,
   ConflictError,
   ForbiddenError,
   InvalidActionError,
@@ -68,6 +69,7 @@ const REFUSALS: [
   ApiErrorCode,
 ][] = [
   [NotFoundError, 404, 'not_found'],
+  [AlreadyImportedError, 409, 'already_imported'],
   [ConflictError, 409, 'conflict'],
   [ForbiddenError, 403, 'forbidden'],
   [InvalidReferenceError, 400, 'invalid_reference'],

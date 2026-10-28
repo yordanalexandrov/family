@@ -7,6 +7,7 @@
 | `family-recipe` | `recipe.suggest` | [family-recipe.md](family-recipe.md) | `~/.openclaw/workspace-family-recipe/` | `family-recipe-next` |
 | `family-menu` | `menu.propose` | [family-menu.md](family-menu.md) | `~/.openclaw/workspace-family-menu/` | `family-menu-next` |
 | `family-meal` | `meal.replace` | [family-meal.md](family-meal.md) | `~/.openclaw/workspace-family-meal/` | `family-meal-next` |
+| `family-import` | `recipe.normalize` | [family-import.md](family-import.md) | `~/.openclaw/workspace-family-import/` | `family-import-next` |
 
 ## Обновяване на prompt-а
 
@@ -16,7 +17,7 @@
 - Ако prompt-ът не е променен, файлът на сървъра не се пипа. Ако е променен, старият остава до него като `AGENTS.md.bak`.
 - Revert на PR-а връща и prompt-а със следващия deploy.
 
-После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`, `meal:smoke` за `family-meal`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
+После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`, `meal:smoke` за `family-meal`, `import:smoke` за `family-import`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
 
 Проверка, че на сървъра е същото като в repo-то (без изход = еднакви), от корена на repo-то на `master`, с ssh достъп до `homesrv`:
 
@@ -72,12 +73,13 @@ Prompt или контракт се проверява срещу реалния
 Self-hosted runner-ът не върви за PR-и (AGENTS.md → Public repo), затова този smoke е ръчен: пуска го човекът или агентът в главната сесия (не агент в worktree, виж [worktrees.md](../agents/worktrees.md)). На клона на PR-а, от корена на repo-то, с `OPENCLAW_GATEWAY_PASSWORD` в `.env` или в средата:
 
 ```bash
-AGENT=family-recipe                                    # или family-menu, family-meal
+AGENT=family-recipe                                    # или family-menu, family-meal, family-import
 awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "umask 077; cat > ~/.openclaw/workspace-$AGENT-next/AGENTS.md"
 ssh -N -o ExitOnForwardFailure=yes -L 18789:127.0.0.1:18789 homesrv &    # тунел; спира се накрая
 OPENCLAW_RECIPE_AGENT=family-recipe-next pnpm --filter api suggest:smoke -- --slots dinner --hint "нещо с пиле"
 OPENCLAW_MENU_AGENT=family-menu-next pnpm --filter api menu:smoke
 OPENCLAW_MEAL_AGENT=family-meal-next pnpm --filter api meal:smoke
+OPENCLAW_IMPORT_AGENT=family-import-next pnpm --filter api import:smoke
 ```
 
 Така се проверяват заедно кодът на контракта от клона (скриптът го ползва локално) и prompt-ът от клона, срещу същия модел и инструменти като в production. Резултатът отива като коментар в PR-а, без нищо от средата, и започва с `## Smoke преди merge`: по този ред CI job-ът `smoke-gate` ([smoke-gate.yml](../../.github/workflows/smoke-gate.yml)) пропуска PR-а, щом е сменен `docs/openclaw/family-*.md` или `packages/shared/src/contracts/`. Gateway-ът поема ново `AGENTS.md` без рестарт (проверено на 2026-10-27).
@@ -101,3 +103,21 @@ cp -p ~/.openclaw/workspace-<агент>/{SOUL,USER,IDENTITY}.md $W/
 ```
 
 `AGENTS.md` идва от командата за smoke отгоре. Проверка, че настройките са същите: `jq '(.agents.entries["<агент>"] | del(.name,.workspace,.agentDir,.identity)) == (.agents.entries["<агент>-next"] | del(.name,.workspace,.agentDir,.identity))' ~/.openclaw/openclaw.json` → `true`. При смяна на модела или инструментите на production агента се сменят и в копието.
+
+### Нов агент без инструменти: `family-import`
+
+Еднократно, преди първия deploy с `docs/openclaw/family-import.md` (иначе стъпката „Sync agent prompts“ спира, защото workspace-ът липсва). Агентът е без инструменти, с модел `openai/gpt-6-sol` (вижда изображения, за снимките от билет #105). На `homesrv`, след резервно копие на `~/.openclaw/openclaw.json`:
+
+```bash
+C=~/.openclaw/openclaw.json
+cp -p $C $C.bak-family-import
+openclaw agents add family-import --workspace ~/.openclaw/workspace-family-import --model openai/gpt-6-sol --non-interactive
+# без инструменти, като family-meal: същият model (с fallback към Opus 5.5), tools, skills, subagents и thinkingDefault
+jq '.agents.entries["family-import"] += (.agents.entries["family-meal"] | {model, thinkingDefault, skills, subagents, tools})
+  | .agents.entries["family-import"].identity = {name: "family-import"}' $C > $C.tmp && chmod --reference=$C $C.tmp && mv $C.tmp $C
+W=~/.openclaw/workspace-family-import
+rm $W/BOOTSTRAP.md
+cp -p ~/.openclaw/workspace-family-meal/{SOUL,USER,IDENTITY}.md $W/
+```
+
+Проверка, че няма инструменти като `family-meal`: `jq '.agents.entries["family-import"].tools == .agents.entries["family-meal"].tools' ~/.openclaw/openclaw.json` → `true`. После копието `family-import-next` по „Как са създадени копията“ отгоре (`<агент>` = `family-import`, моделът `openai/gpt-6-sol`). `AGENTS.md` на production агента го пише първият deploy; дотогава smoke-ът върви срещу `family-import-next`.

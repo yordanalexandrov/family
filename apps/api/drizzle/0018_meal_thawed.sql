@@ -1,0 +1,1 @@
+ALTER TABLE "meal" ADD COLUMN "thawed_at" timestamp with time zone;

@@ -25,6 +25,7 @@ import {
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
+  claimMealCook,
   deleteComment,
   deleteOtherVotes,
   deletePlan,
@@ -43,12 +44,14 @@ import {
   listPlans,
   listProposalsOfWeek,
   lockWeek,
+  markMealThawed,
   type NewMeal,
   setProposalPlan,
   swapMealDates,
   updateMeal,
   upsertVote,
 } from '../db/repositories/menu.js';
+import { addMenuActivity } from '../db/repositories/menu-activity.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import {
   countMenuRecipes,
@@ -69,6 +72,7 @@ import {
   NotFoundError,
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
+import type { MenuNotifications } from './menu-notifications.js';
 
 /** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
 const DINNER: MenuSlot = 'dinner';
@@ -85,6 +89,8 @@ const PAST_MEAL_THREAD = 'Денят е минал: в разговора веч
 const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
 const SYSTEM_LINE = 'Редовете за промените не се трият';
 const NOT_SWAPPABLE = 'Разменят се само ястия от едно меню и едно хранене';
+/** The 409 of „Аз“ when someone else answered first or the cook was picked in the menu. */
+const COOK_TAKEN = 'Някой вече готви';
 
 export interface MenuService {
   /** The plan of the week with its meals. */
@@ -118,6 +124,17 @@ export interface MenuService {
     withMealId: string,
     actingUserId: string,
   ): Promise<MealPlan>;
+  /**
+   * „Извадих“ for a meal (GLOSSARY), from either person: the morning „Извади месото“ is not sent to anyone. Pressed
+   * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it.
+   */
+  markThawed(id: string): Promise<void>;
+  /**
+   * „Аз“ on „Кой готви довечера“: `actingUserId` becomes the cook unless the meal has one, so the first to answer
+   * wins; signalled as a cook picked in the menu. 409 `cook_taken` with `cookUserId` once the meal has a cook (the one
+   * answering included); 404 for an unknown meal. Returns the meal.
+   */
+  claimCook(id: string, actingUserId: string): Promise<Meal>;
   /** The meal's thread (GLOSSARY: Разговор), oldest first; readable for a past meal too. */
   listComments(mealId: string): Promise<MealComment[]>;
   /** A comment of `actingUserId`; refused for a past meal. Signals only `menu.changed`. */
@@ -179,6 +196,7 @@ function signalAgreement(events: EventBus, weekStart: string): void {
  */
 export function createMenuProposalStore(
   events: EventBus,
+  notifications: Pick<MenuNotifications, 'proposed'>,
 ): ContractRequestStore<
   CreateMenuProposal,
   MenuProposalRequest,
@@ -235,6 +253,7 @@ export function createMenuProposalStore(
 
     afterDone(proposal) {
       signalWeek(events, proposal.weekStart);
+      void notifications.proposed(proposal);
     },
   };
 }
@@ -331,19 +350,33 @@ export function createMenuService({
           );
         }
         await refuseUnknownUsers(tx, patch);
-        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none.
+        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none. A new
+        // recipe has other products to take out, so „Извадих“ of the old one no longer holds.
         const { why, ...values } = patch;
         await updateMeal(
           tx,
           id,
           current.planId,
-          { ...values, ...(recipeChanged ? { why: why ?? null } : {}) },
+          {
+            ...values,
+            ...(recipeChanged ? { why: why ?? null, thawedAt: null } : {}),
+          },
           now(),
         );
         if (contentChanged) {
           await recordContentChange(tx, current, actingUserId, now());
         }
-        return reread(tx, id, current.planId);
+        const changed = await reread(tx, id, current.planId);
+        if (contentChanged) {
+          await addMenuActivity(
+            tx,
+            changed.weekStart,
+            actingUserId,
+            'swaps',
+            now(),
+          );
+        }
+        return changed;
       });
       signalWeek(events, weekStart);
       return meal;
@@ -361,7 +394,17 @@ export function createMenuService({
         } else {
           await upsertVote(tx, id, actingUserId, value, now());
         }
-        return reread(tx, id, current.planId);
+        const voted = await reread(tx, id, current.planId);
+        if (value !== null) {
+          await addMenuActivity(
+            tx,
+            voted.weekStart,
+            actingUserId,
+            'votes',
+            now(),
+          );
+        }
+        return voted;
       });
       signalAgreement(events, weekStart);
       return meal;
@@ -391,7 +434,9 @@ export function createMenuService({
           );
         await moved(a, b);
         await moved(b, a);
-        const plan = await findPlanByWeek(tx, await weekOf(tx, a.planId));
+        const weekStart = await weekOf(tx, a.planId);
+        await addMenuActivity(tx, weekStart, actingUserId, 'swaps', at);
+        const plan = await findPlanByWeek(tx, weekStart);
         if (!plan) {
           throw new Error('plan of a meal vanished');
         }
@@ -399,6 +444,33 @@ export function createMenuService({
       });
       signalWeek(events, plan.weekStart);
       return plan;
+    },
+
+    async markThawed(id) {
+      if (!(await markMealThawed(db, id, now()))) {
+        throw new NotFoundError(NO_SUCH_MEAL);
+      }
+    },
+
+    async claimCook(id, actingUserId) {
+      const { meal, weekStart } = await db.transaction(async (tx) => {
+        const claimed = await claimMealCook(tx, id, actingUserId);
+        if (!claimed) {
+          const current = await findMeal(tx, id);
+          if (!current) {
+            throw new NotFoundError(NO_SUCH_MEAL);
+          }
+          throw new ConflictError(COOK_TAKEN, {
+            code: 'cook_taken',
+            cookUserId: current.cookUserId,
+          });
+        }
+        // As a cook picked in the menu: the plan changed now.
+        await updateMeal(tx, id, claimed.planId, {}, now());
+        return reread(tx, id, claimed.planId);
+      });
+      signalWeek(events, weekStart);
+      return meal;
     },
 
     async listComments(mealId) {
@@ -420,7 +492,9 @@ export function createMenuService({
           { mealId, kind: 'comment', authorUserId: actingUserId, body },
           now(),
         );
-        return { comment, weekStart: await weekOf(tx, meal.planId) };
+        const weekStart = await weekOf(tx, meal.planId);
+        await addMenuActivity(tx, weekStart, actingUserId, 'comments', now());
+        return { comment, weekStart };
       });
       signalAgreement(events, weekStart);
       return comment;

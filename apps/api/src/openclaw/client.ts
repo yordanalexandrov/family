@@ -75,6 +75,18 @@ export interface CompleteOptions {
   timeoutMs?: number;
   /** Aborting it (e.g. the app shutting down) cancels the request like a timeout does. */
   signal?: AbortSignal;
+  /**
+   * Pictures that go with the input, outside its JSON (e.g. the photo of an import). They are parts of the last user
+   * message, the only one whose images the gateway reads, so a retry sends them again there and drops them from the
+   * first message (one copy per body: the gateway takes 20 MB).
+   */
+  images?: ContractImage[];
+}
+
+/** A picture for the agent: its bytes and their media type, sent as a `data:` URL. */
+export interface ContractImage {
+  mediaType: string;
+  data: Buffer;
 }
 
 /** Where the client reports each attempt; Fastify's logger fits, and so does a script's own. */
@@ -95,7 +107,32 @@ export interface OpenClawClient {
   ): Promise<O>;
 }
 
-type Message = { role: 'user' | 'assistant'; content: string };
+type ContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+type Message = { role: 'user' | 'assistant'; content: string | ContentPart[] };
+
+/** A user message of `text`, with `images` as its `image_url` parts when there are any. */
+function userMessage(text: string, images: ContractImage[]): Message {
+  if (images.length === 0) {
+    return { role: 'user', content: text };
+  }
+  return {
+    role: 'user',
+    content: [
+      { type: 'text', text },
+      ...images.map(
+        (image): ContentPart => ({
+          type: 'image_url',
+          image_url: {
+            url: `data:${image.mediaType};base64,${image.data.toString('base64')}`,
+          },
+        }),
+      ),
+    ],
+  };
+}
 
 const MAX_COMPLETION_TOKENS = 6000;
 
@@ -207,9 +244,9 @@ export function createOpenClawClient(
       const outputSchema = contract.outputSchema(checked.data);
       const timeoutMs = options.timeoutMs ?? config.timeoutMs;
       const budget = { timeout: AbortSignal.timeout(timeoutMs), timeoutMs };
-      const messages: Message[] = [
-        { role: 'user', content: JSON.stringify(checked.data) },
-      ];
+      const images = options.images ?? [];
+      const inputText = JSON.stringify(checked.data);
+      const messages: Message[] = [userMessage(inputText, images)];
 
       const first = await send(
         contract.responseFormat,
@@ -227,17 +264,18 @@ export function createOpenClawClient(
         { agent: options.agent, issues: firstResult.issues },
         'openclaw output invalid, retrying once',
       );
-      messages.push(
+      const retry: Message[] = [
+        { role: 'user', content: inputText },
         { role: 'assistant', content: first },
-        {
-          role: 'user',
-          content: `Отговорът не мина валидация: ${firstResult.issues}. Върни само валиден JSON.`,
-        },
-      );
+        userMessage(
+          `Отговорът не мина валидация: ${firstResult.issues}. Върни само валиден JSON.`,
+          images,
+        ),
+      ];
       const second = await send(
         contract.responseFormat,
         options,
-        messages,
+        retry,
         2,
         budget,
       );
