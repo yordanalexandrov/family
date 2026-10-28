@@ -69,8 +69,8 @@
   inset-inline-end: max(var(--space-3), env(safe-area-inset-right));
   display: grid;
   place-items: center;
-  inline-size: 3rem;
-  block-size: 3rem;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
   border-radius: 50%;
   color: var(--color-text-muted);
   opacity: 0.55;

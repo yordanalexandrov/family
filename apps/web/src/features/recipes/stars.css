@@ -12,8 +12,8 @@ fieldset.stars {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: 3rem;
-  min-block-size: 3rem;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
   padding: 0;
   border: 0;
   background: none;

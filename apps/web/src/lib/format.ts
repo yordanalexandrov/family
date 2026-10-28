@@ -37,6 +37,11 @@ const dateFormat = new Intl.DateTimeFormat('bg-BG', {
   timeZone: FAMILY_TIME_ZONE,
 });
 
+/** Първата буква главна: „пн“ → „Пн“, „вечеря“ → „Вечеря“. */
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** „18:30“: 24-часово, в София. */
 export function formatTime(instant: Date | string): string {
   return timeFormat.format(new Date(instant));

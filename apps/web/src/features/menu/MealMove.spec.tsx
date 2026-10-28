@@ -61,7 +61,6 @@ function serveSwaps(plan: MealPlan) {
 }
 
 function rowNames() {
-  showPastDays();
   return within(screen.getByRole('list', { name: 'Вечери' }))
     .getAllByRole('listitem')
     .map((item) => item.textContent ?? '');
@@ -85,8 +84,10 @@ describe('MealSheet: „Премести на…“', () => {
     const swaps = serveSwaps(plan);
     const user = userEvent.setup();
     renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
 
-    await user.click(await screen.findByRole('button', { name: /Мусака/ }));
+    await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
     await user.click(
       within(sheet).getByRole('button', { name: 'Премести на…' }),
@@ -131,8 +132,10 @@ describe('MealSheet: „Премести на…“', () => {
     );
     const user = userEvent.setup();
     renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
 
-    await user.click(await screen.findByRole('button', { name: /Мусака/ }));
+    await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
     await user.click(
       within(sheet).getByRole('button', { name: 'Премести на…' }),
@@ -157,7 +160,7 @@ describe('MealSheet: „Премести на…“', () => {
     const user = userEvent.setup();
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
-    showPastDays();
+    await showPastDays(user);
 
     await user.click(screen.getByRole('button', { name: /Пиле/ }));
     const sheet = screen.getByRole('dialog', { name: /понеделник/ });

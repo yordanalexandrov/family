@@ -54,7 +54,6 @@ function agreedPlan() {
 }
 
 function rows() {
-  showPastDays();
   return within(screen.getByRole('list', { name: 'Вечери' })).getAllByRole(
     'listitem',
   );
@@ -84,6 +83,7 @@ describe('MenuWeek: гласове', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays();
 
     const keep = row(lentils.title);
     expect(keep).toHaveTextContent('Остава');
@@ -110,6 +110,7 @@ describe('MenuWeek: гласове', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays();
 
     for (const past of [row(chicken.title), row('остатъци')]) {
       expect(within(past).queryByRole('button', { name: 'За' })).toBeNull();
@@ -128,6 +129,7 @@ describe('MenuWeek: гласове', () => {
     expect(
       within(filters).getByRole('tab', { name: 'Всички' }),
     ).toHaveAttribute('aria-selected', 'true');
+    await showPastDays(user);
     expect(rows()).toHaveLength(7);
 
     await user.click(within(filters).getByRole('tab', { name: 'За смяна 1' }));
@@ -238,7 +240,7 @@ describe('MenuWeek: гласове', () => {
     );
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
-    showPastDays();
+    await showPastDays(user);
     await user.click(
       screen.getByRole('button', { name: new RegExp(chicken.title) }),
     );

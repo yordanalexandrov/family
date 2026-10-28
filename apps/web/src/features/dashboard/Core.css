@@ -213,9 +213,9 @@
   pointer-events: none;
 }
 
-/* Докосване ≥ 48 px (3rem) и при един ред с ястие. */
+/* Докосване ≥ 48 px (`--touch-target`) и при един ред с ястие. */
 .core__cooking--link {
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   color: inherit;
   text-decoration: none;
   border-radius: var(--radius-sm);

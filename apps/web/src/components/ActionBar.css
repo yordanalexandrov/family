@@ -1,7 +1,7 @@
 /*
  * Лентата е в потока на екрана, затова не скрива последния ред. На телефона е
  * лепкава над долната лента (--bottom-nav-space от app/MainNav.css); на таблета и
- * в браузъра остава в края на съдържанието. Бутоните са ≥ 48 px (3rem).
+ * в браузъра остава в края на съдържанието. Бутоните са ≥ 48 px (`--touch-target`).
  */
 .action-bar {
   display: flex;
@@ -38,7 +38,7 @@
 }
 
 .action-bar__button {
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
 }
 
 :root[data-effects="full"] .action-bar {

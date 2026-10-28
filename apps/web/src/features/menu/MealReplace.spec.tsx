@@ -89,7 +89,7 @@ function serveReplacement(...states: MealReplaceRequest[]) {
 async function openSheet(title: RegExp, name: string) {
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   await screen.findByRole('list', { name: 'Вечери' });
-  showPastDays();
+  await showPastDays(user);
   await user.click(await screen.findByRole('button', { name: title }));
   return { user, sheet: screen.getByRole('dialog', { name }) };
 }
