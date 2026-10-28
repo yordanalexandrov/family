@@ -406,13 +406,15 @@ function ItemRow({
   const manual = item.kind === 'manual';
   return (
     <li className="shopping-item" data-checked={checked}>
-      <input
-        type="checkbox"
-        className="shopping-item__check"
-        aria-label={item.title}
-        checked={checked}
-        onChange={() => onToggle(item)}
-      />
+      <label className="shopping-item__check-area">
+        <input
+          type="checkbox"
+          className="shopping-item__check"
+          aria-label={item.title}
+          checked={checked}
+          onChange={() => onToggle(item)}
+        />
+      </label>
       <span className="shopping-item__main">
         {manual ? (
           <span className="shopping-item__title">{item.title}</span>

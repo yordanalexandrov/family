@@ -1,4 +1,4 @@
-/* Екранът „Килер“: само телефонът (една колона). Докосване ≥ 44 px (2.75rem). */
+/* Екранът „Килер“: само телефонът (една колона). Докосване ≥ 48 px (3rem). */
 .pantry .recipes__header {
   justify-content: space-between;
 }
@@ -51,7 +51,7 @@
 
 .pantry-item__main {
   display: flex;
-  flex: 1 1 6rem;
+  flex: 1 1 5rem;
   flex-direction: column;
   gap: 0.125rem;
   min-inline-size: 0;
@@ -91,15 +91,21 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin-inline-start: auto;
 }
 
+/* Тесен отстъп (целите пак са ≥ 48 px): редът с постоянен продукт се побира на един ред и на 360 px. */
 .pantry-item .pantry-item__action {
   flex: none;
-  min-block-size: 2.75rem;
-  padding-inline: var(--space-2);
+  min-block-size: 3rem;
+  padding-inline: var(--space-1);
   font-size: var(--font-size-sm);
+}
+
+/* „махни“ е встрани от другите действия: 16 px вместо 8 px. */
+.pantry-item .pantry-item__remove {
+  margin-inline-start: var(--space-2);
 }
 
 .pantry-item .pantry-item__used {
@@ -114,7 +120,7 @@
 }
 
 .pantry-item .pantry-item__freeze {
-  min-inline-size: 2.75rem;
+  min-inline-size: 3rem;
   padding-inline: 0;
 }
 
@@ -155,7 +161,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-block-size: 2.75rem;
+  min-block-size: 3rem;
   padding-inline: var(--space-3);
   color: var(--color-text);
   cursor: pointer;

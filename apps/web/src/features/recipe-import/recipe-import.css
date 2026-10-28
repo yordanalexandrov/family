@@ -1,4 +1,4 @@
-/* „Внеси рецепта“: табове за източника и формата под тях; телефон първо. Докосване ≥ 44 px (2.75rem). */
+/* „Внеси рецепта“: табове за източника и формата под тях; телефон първо. Докосване ≥ 48 px (3rem). */
 .import-tabs {
   display: flex;
   gap: var(--space-2);
@@ -6,7 +6,7 @@
 }
 
 .import-tabs__tab {
-  min-block-size: 2.75rem;
+  min-block-size: 3rem;
   padding: var(--space-2) var(--space-4);
   border: 2px solid var(--color-line);
   border-radius: var(--radius-md);
