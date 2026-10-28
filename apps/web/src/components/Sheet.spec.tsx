@@ -111,6 +111,14 @@ function enterMenu() {
   window.history.pushState(null, '', '/menu');
 }
 
+async function forward() {
+  const popped = new Promise((resolve) =>
+    window.addEventListener('popstate', resolve, { once: true }),
+  );
+  window.history.forward();
+  await popped;
+}
+
 async function back() {
   const popped = new Promise((resolve) =>
     window.addEventListener('popstate', resolve, { once: true }),
@@ -218,6 +226,23 @@ describe('Sheet и „назад“', () => {
       expect(
         await screen.findByRole('heading', { name: 'Дашборд' }),
       ).toBeInTheDocument();
+    });
+
+    it('линк от листа: „напред“ след „назад“ отива на рецептата и остава там', async () => {
+      const user = userEvent.setup();
+      destroy = renderRouted().destroy;
+      await user.click(await screen.findByRole('button', { name: 'Отвори' }));
+      await user.click(screen.getByRole('link', { name: 'Към рецептата' }));
+      await screen.findByRole('heading', { name: 'Рецепта' });
+      await back();
+      await screen.findByRole('heading', { name: 'Меню' });
+
+      await forward();
+
+      expect(
+        await screen.findByRole('heading', { name: 'Рецепта' }),
+      ).toBeInTheDocument();
+      expect(window.location.pathname).toBe('/recipes/7');
     });
   });
 });

@@ -4,8 +4,9 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
  * Запис в историята за отворен лист: жестът „назад“ на Android го затваря, вместо да напусне екрана.
  *
  * Листът добавя запис със свой маркер и същия URL, а `popstate`, който го маха, вика `onClose`. Затваряне по
- * друг път маха записа с `history.back()`. Запис на лист, който вече е затворен (навигация от линк в листа над
- * него), се прескача при връщане до него, за да не струва едно „назад“ напразно.
+ * друг път маха записа с `history.back()`. Навигация от линк в листа заменя записа на листа, вместо да добави
+ * нов над него: „назад“ от новия екран води направо на екрана под листа, а „напред“ — обратно на новия.
+ * Листът над друг лист заменя само своя запис; днес в такъв лист няма линкове.
  */
 
 const MARKER = 'familySheet';
@@ -13,7 +14,8 @@ const MARKER = 'familySheet';
 /** Отворените листове с запис в историята, отдолу нагоре. */
 const openSheets: string[] = [];
 let seq = 0;
-let skipInstalled = false;
+/** Връща `history.pushState` отпреди първия отворен лист; `null`, докато няма отворен лист. */
+let restorePush: (() => void) | null = null;
 
 function markerOf(state: unknown): string | undefined {
   if (state && typeof state === 'object' && MARKER in state) {
@@ -36,17 +38,29 @@ function pushEntry(id: string) {
   );
 }
 
-function installStaleSkip() {
-  if (skipInstalled) {
-    return;
-  }
-  skipInstalled = true;
-  window.addEventListener('popstate', () => {
-    const marker = markerOf(window.history.state);
-    if (marker !== undefined && !openSheets.includes(marker)) {
-      window.history.back();
+/**
+ * Докато има отворен лист, навигация над неговия запис (линк в листа) заменя записа, вместо да добави нов. Индексът
+ * на router-а в новия запис е с едно над екрана под листа, точно колкото е и мястото му в историята.
+ */
+function replacePushOverSheet() {
+  const push = window.history.pushState;
+  function pushOverSheet(
+    this: History,
+    ...args: Parameters<History['pushState']>
+  ) {
+    if (openSheets.includes(markerOf(window.history.state) ?? '')) {
+      window.history.replaceState(...args);
+      return;
     }
-  });
+    push.apply(window.history, args);
+  }
+  window.history.pushState = pushOverSheet;
+  return () => {
+    // Router, унищожен преди листа, вече е върнал своя оригинал: не го пипаме.
+    if (window.history.pushState === pushOverSheet) {
+      window.history.pushState = push;
+    }
+  };
 }
 
 export function useSheetHistory(onClose: () => void) {
@@ -58,7 +72,6 @@ export function useSheetHistory(onClose: () => void) {
   const releasing = useRef(false);
 
   useEffect(() => {
-    installStaleSkip();
     if (releasing.current) {
       // StrictMode пуска ефекта втори път веднага след cleanup-а: записът е същият.
       releasing.current = false;
@@ -73,6 +86,7 @@ export function useSheetHistory(onClose: () => void) {
     if (!openSheets.includes(id)) {
       openSheets.push(id);
     }
+    restorePush ??= replacePushOverSheet();
 
     function onPopState() {
       const current = openSheets.indexOf(markerOf(window.history.state) ?? '');
@@ -91,6 +105,10 @@ export function useSheetHistory(onClose: () => void) {
         }
         releasing.current = false;
         openSheets.splice(openSheets.indexOf(id), 1);
+        if (openSheets.length === 0) {
+          restorePush?.();
+          restorePush = null;
+        }
         if (markerOf(window.history.state) === id) {
           window.history.back();
         }
