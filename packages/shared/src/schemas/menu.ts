@@ -6,6 +6,7 @@ import { slotSchema } from '../food/tags.js';
 import { voteSchema, voteValueSchema } from '../menu/votes.js';
 import { isWeekStart } from '../menu/week.js';
 import { dateKeySchema, instantSchema } from './dates.js';
+import { refusalBody } from './error.js';
 import { ratingSchema } from './recipe.js';
 
 /** The Monday that identifies a weekly menu, as `YYYY-MM-DD`. */
@@ -236,40 +237,29 @@ export const MENU_PROPOSE_MIN_RECIPES = 7;
  * 409 of `POST /api/menu/proposals` when the registry is too small: `have` dinner recipes, `need` at least; the UI
  * asks for `need - have` more.
  */
-export const notEnoughRecipesSchema = z.object({
-  error: z.literal('conflict'),
-  code: z.literal('not_enough_recipes'),
-  message: z.string(),
-  have: z.int().min(0),
-  need: z.int().positive(),
-});
+export const notEnoughRecipesSchema = refusalBody(
+  'conflict',
+  'not_enough_recipes',
+  {
+    have: z.int().min(0),
+    need: z.int().positive(),
+  },
+);
 
 export type NotEnoughRecipes = z.infer<typeof notEnoughRecipesSchema>;
 
 /** 404 of `GET /api/menu/plans?weekStart=` (and the week's shopping list) when the week has no menu: „Няма меню“. */
-export const noPlanSchema = z.object({
-  error: z.literal('not_found'),
-  code: z.literal('no_plan'),
-  message: z.string(),
-});
+export const noPlanSchema = refusalBody('not_found', 'no_plan');
 
 export type NoPlan = z.infer<typeof noPlanSchema>;
 
 /** 404 of `GET /api/menu/proposals?weekStart=` when nobody, the cron included, has asked for a proposal for the week. */
-export const noProposalSchema = z.object({
-  error: z.literal('not_found'),
-  code: z.literal('no_proposal'),
-  message: z.string(),
-});
+export const noProposalSchema = refusalBody('not_found', 'no_proposal');
 
 export type NoProposal = z.infer<typeof noProposalSchema>;
 
 /** 409 of `DELETE /api/menu/comments/:id` for a system line of the conversation: only a person's own comment goes. */
-export const systemLineSchema = z.object({
-  error: z.literal('conflict'),
-  code: z.literal('system_line'),
-  message: z.string(),
-});
+export const systemLineSchema = refusalBody('conflict', 'system_line');
 
 export type SystemLine = z.infer<typeof systemLineSchema>;
 
@@ -277,10 +267,6 @@ export type SystemLine = z.infer<typeof systemLineSchema>;
  * 409 of the meal's writes (votes, recipe, note, `meal.replace`, its conversation) for a meal before today in Sofia:
  * it is history, read but not written.
  */
-export const pastMealSchema = z.object({
-  error: z.literal('conflict'),
-  code: z.literal('past_meal'),
-  message: z.string(),
-});
+export const pastMealSchema = refusalBody('conflict', 'past_meal');
 
 export type PastMeal = z.infer<typeof pastMealSchema>;

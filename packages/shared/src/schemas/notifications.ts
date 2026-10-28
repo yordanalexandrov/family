@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { refusalBody } from './error.js';
 
 /**
  * The kinds of notification (GLOSSARY: Известие) a person turns off for themselves: `thaw` = Извади месото,
@@ -52,11 +53,7 @@ export const vapidKeyResponseSchema = z.object({ publicKey: z.string() });
 export type VapidKeyResponse = z.infer<typeof vapidKeyResponseSchema>;
 
 /** 404 of the notification routes: the api has no VAPID keys, so nothing can be sent. */
-export const pushDisabledSchema = z.object({
-  error: z.literal('not_found'),
-  code: z.literal('push_disabled'),
-  message: z.string(),
-});
+export const pushDisabledSchema = refusalBody('not_found', 'push_disabled');
 
 export type PushDisabled = z.infer<typeof pushDisabledSchema>;
 
@@ -64,10 +61,7 @@ export type PushDisabled = z.infer<typeof pushDisabledSchema>;
  * 409 of `POST /api/menu/meals/:id/cook-claim` („Аз“ on „Кой готви довечера“): the meal has a cook, `cookUserId`, who
  * answered first or was picked in the menu.
  */
-export const cookTakenSchema = z.object({
-  error: z.literal('conflict'),
-  code: z.literal('cook_taken'),
-  message: z.string(),
+export const cookTakenSchema = refusalBody('conflict', 'cook_taken', {
   cookUserId: z.uuid(),
 });
 

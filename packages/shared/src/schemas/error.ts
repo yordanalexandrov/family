@@ -55,3 +55,20 @@ export const apiErrorSchema = z.object({
 });
 
 export type ApiErrorResponse = z.infer<typeof apiErrorSchema>;
+
+/**
+ * The body of a refusal with a sub-code (`refusalSchemas` in `refusal.ts`): `error`, `code`, `message` and, when the
+ * code carries any, its details.
+ */
+export function refusalBody<
+  E extends ApiErrorCode,
+  C extends string,
+  D extends z.ZodRawShape = Record<never, never>,
+>(error: E, code: C, details?: D) {
+  return z.object({
+    error: z.literal(error),
+    code: z.literal(code),
+    message: z.string(),
+    ...(details ?? ({} as D)),
+  });
+}
