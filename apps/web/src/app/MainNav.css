@@ -4,10 +4,11 @@
  */
 :root {
   --bottom-nav-row: 52px;
+  /* Ред + горен отстъп (4px) и рамка (1px) + долен отстъп (поне 4px или safe area). */
   --bottom-nav-space: calc(
     var(--bottom-nav-row) +
     5px +
-    max(4px, env(safe-area-inset-bottom))
+    max(var(--space-1), env(safe-area-inset-bottom))
   );
 }
 
@@ -77,7 +78,7 @@
   inset-inline: 0;
   inset-block-end: 0;
   z-index: 10;
-  padding: 4px 2px max(4px, env(safe-area-inset-bottom));
+  padding: var(--space-1) 2px max(var(--space-1), env(safe-area-inset-bottom));
   border-block-start: 1px solid var(--glass-border);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   box-shadow: var(--glass-shadow);
@@ -115,8 +116,8 @@
   box-sizing: content-box;
   inline-size: 24px;
   block-size: 24px;
-  padding: 4px 12px;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
 }
 
 .main-nav--bottom .main-nav__link[aria-current="page"] .main-nav__icon {
