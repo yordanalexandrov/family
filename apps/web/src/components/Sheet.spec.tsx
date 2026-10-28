@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -111,25 +111,39 @@ function enterMenu() {
   window.history.pushState(null, '', '/menu');
 }
 
-async function forward() {
+/** Една стъпка в историята; връща се при нейния `popstate`, а целта (екран, лист) се чака отделно. */
+async function traverse(delta: -1 | 1) {
   const popped = new Promise((resolve) =>
     window.addEventListener('popstate', resolve, { once: true }),
   );
-  window.history.forward();
+  window.history.go(delta);
   await popped;
 }
 
-async function back() {
-  const popped = new Promise((resolve) =>
-    window.addEventListener('popstate', resolve, { once: true }),
-  );
-  window.history.back();
-  await popped;
+const back = () => traverse(-1);
+const forward = () => traverse(1);
+
+async function expectPath(pathname: string) {
+  await waitFor(() => expect(window.location.pathname).toBe(pathname));
 }
+
+/** Унищожава router-а на теста, ако има такъв: връща `history.pushState` и маха слушателите му. */
+let destroy = () => {};
 
 describe('Sheet и „назад“', () => {
   beforeEach(() => {
     enterMenu();
+  });
+
+  afterEach(async () => {
+    destroy();
+    destroy = () => {};
+    cleanup();
+    // Всеки тест свършва без отворен лист: тогава никой лист не е оставил своя `pushState` (нито router-ът своя),
+    // и следващият тест започва от същата история.
+    await waitFor(() =>
+      expect(window.history.pushState).toBe(History.prototype.pushState),
+    );
   });
 
   it('„назад“ при отворен лист го затваря, а екранът остава', async () => {
@@ -145,7 +159,7 @@ describe('Sheet и „назад“', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(window.location.pathname).toBe('/menu');
+    await expectPath('/menu');
   });
 
   it('„Готово“ маха записа: следващото „назад“ напуска екрана', async () => {
@@ -158,7 +172,7 @@ describe('Sheet и „назад“', () => {
 
     await back();
 
-    expect(window.location.pathname).toBe('/');
+    await expectPath('/');
   });
 
   it('лист над лист: всяко „назад“ затваря по един, после напуска екрана', async () => {
@@ -174,22 +188,19 @@ describe('Sheet и „назад“', () => {
       ).not.toBeInTheDocument(),
     );
     expect(screen.getByRole('dialog', { name: 'Долен' })).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/menu');
+    await expectPath('/menu');
 
     await back();
     await waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
-    expect(window.location.pathname).toBe('/menu');
+    await expectPath('/menu');
 
     await back();
-    expect(window.location.pathname).toBe('/');
+    await expectPath('/');
   });
 
   describe('с router-а', () => {
-    let destroy = () => {};
-    afterEach(() => destroy());
-
     it('затварянето с „назад“ оставя Меню, а следващото „назад“ води на Дашборда', async () => {
       const user = userEvent.setup();
       destroy = renderRouted().destroy;
@@ -242,7 +253,7 @@ describe('Sheet и „назад“', () => {
       expect(
         await screen.findByRole('heading', { name: 'Рецепта' }),
       ).toBeInTheDocument();
-      expect(window.location.pathname).toBe('/recipes/7');
+      await expectPath('/recipes/7');
     });
   });
 });
