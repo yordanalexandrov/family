@@ -474,4 +474,50 @@ describe('DashboardScreen', () => {
     expect(calendar).toHaveTextContent('');
     expect(calendar).not.toHaveAttribute('aria-current');
   });
+
+  describe('в браузъра', () => {
+    beforeEach(() => {
+      setUpDevice('browser', dani.id);
+    });
+
+    it('навигацията е горе, преди дашборда, и всеки екран е с надписа си', async () => {
+      renderApp('/');
+
+      const nav = await screen.findByRole('navigation', {
+        name: 'Основна навигация',
+      });
+      const links = within(nav).getAllByRole('link');
+      expect(links).toHaveLength(7);
+      expect(links.map((link) => link.textContent)).toEqual([
+        'Дашборд',
+        'Календар',
+        'Рецепти',
+        'Меню',
+        'Пазаруване',
+        'Килер',
+        'Настройки',
+      ]);
+      expect(
+        nav.compareDocumentPosition(screen.getByRole('main')) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(document.documentElement.dataset.device).toBe('browser');
+    });
+
+    it('показва телефонния дашборд на две колони: ядро и днес, бюджет и следващите дни', async () => {
+      renderApp('/');
+
+      await core();
+      const [left, right] = document.querySelectorAll('.dashboard__column');
+      expect(left).toContainElement(
+        screen.getByRole('region', { name: 'Днес накратко' }),
+      );
+      expect(left).toContainElement(
+        screen.getByRole('region', { name: 'Днес' }),
+      );
+      expect(right).toContainElement(
+        screen.getByRole('region', { name: 'Бюджет' }),
+      );
+    });
+  });
 });

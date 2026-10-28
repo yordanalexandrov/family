@@ -1,9 +1,13 @@
-/* Лентата стои над съдържанието; екраните оставят място с --bottom-nav-space. */
+/* Долната лента стои над съдържанието; екраните оставят място с --bottom-nav-space. */
 :root {
   --bottom-nav-space: calc(4.25rem + env(safe-area-inset-bottom));
 }
 
-.bottom-nav {
+:root[data-device="browser"] {
+  --bottom-nav-space: 0px;
+}
+
+.main-nav--bottom {
   position: fixed;
   inset-inline: 0;
   inset-block-end: 0;
@@ -15,7 +19,7 @@
   pointer-events: none;
 }
 
-.bottom-nav__list {
+.main-nav__list {
   display: flex;
   gap: var(--space-1);
   max-inline-size: 100%;
@@ -30,7 +34,7 @@
 }
 
 /* Икона за всеки екран; текущият е хапче с иконата и надписа си (BottomNav.tsx). */
-.bottom-nav__link {
+.main-nav__link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -47,16 +51,16 @@
   transition: background var(--motion-base);
 }
 
-.bottom-nav__link:not([aria-current="page"]) {
+.main-nav__link:not([aria-current="page"]) {
   padding-inline: var(--space-2);
 }
 
-.bottom-nav__link[aria-current="page"] {
+.main-nav__link[aria-current="page"] {
   background: var(--color-accent);
   color: var(--color-accent-ink);
 }
 
-.bottom-nav__icon {
+.main-nav__icon {
   flex: none;
   inline-size: 1.375rem;
   block-size: 1.375rem;
@@ -69,22 +73,60 @@
 
 /* Тесен телефон (≤ 480 px): по-малко въздух; седемте се събират и на 360 px. */
 @media (max-width: 30rem) {
-  .bottom-nav {
+  .main-nav--bottom {
     padding-inline: var(--space-2);
   }
 
-  .bottom-nav__list {
+  .main-nav__list {
     gap: 0;
   }
 
-  .bottom-nav__link {
+  .main-nav__link {
     gap: var(--space-1);
     min-inline-size: 2.625rem;
     font-size: var(--font-size-xs);
   }
 }
 
-:root[data-effects="full"] .bottom-nav__list {
+/*
+ * Браузър: лентата е горе, в потока на страницата, и всеки екран е с надписа си. В тесен прозорец
+ * (< 60rem) другите екрани са само икони като на телефона; надписът остава за екранните четци.
+ */
+.main-nav--top {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4) 0;
+  pointer-events: none;
+}
+
+.main-nav--top .main-nav__link:not([aria-current="page"]) {
+  padding-inline: var(--space-3);
+}
+
+.main-nav--top .main-nav__link:not([aria-current="page"]):hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+@media (max-width: 60rem) {
+  .main-nav--top .main-nav__link:not([aria-current="page"]) {
+    padding-inline: var(--space-2);
+  }
+
+  .main-nav--top .main-nav__link:not([aria-current="page"]) .main-nav__label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+:root[data-effects="full"] .main-nav__list {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
 }

@@ -11,8 +11,33 @@
     max(var(--space-4), env(safe-area-inset-right));
 }
 
-.dashboard > .core {
+.dashboard__column {
+  display: contents;
+}
+
+.dashboard .core {
   align-self: center;
+}
+
+/* Браузър: от 56rem нагоре ядрото и днешните събития вляво, бюджетът и следващите дни вдясно. */
+@media (min-width: 56rem) {
+  :root[data-device="browser"] .dashboard {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    max-inline-size: 72rem;
+  }
+
+  :root[data-device="browser"] .dashboard > :not(.dashboard__column) {
+    grid-column: 1 / -1;
+  }
+
+  :root[data-device="browser"] .dashboard__column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-gap);
+    min-inline-size: 0;
+  }
 }
 
 .dashboard__offline {

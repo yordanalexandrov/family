@@ -11,6 +11,7 @@ describe('DeviceScreen', () => {
       await screen.findByRole('heading', { name: 'Какво е това устройство?' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Телефон/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: /Браузър/ })).toBeVisible();
     expect(
       screen.getByRole('button', { name: /Таблет в кухнята/ }),
     ).toBeVisible();
@@ -29,12 +30,26 @@ describe('DeviceScreen', () => {
     ).toBeInTheDocument();
   });
 
-  it('стрелките местят фокуса между трите избора', async () => {
+  it('избор „Браузър“ записва режима и също води към „Кой си?“', async () => {
+    const user = userEvent.setup();
+    renderApp('/');
+
+    await user.click(await screen.findByRole('button', { name: /Браузър/ }));
+
+    expect(localStorage.getItem('family.deviceMode')).toBe('browser');
+    expect(
+      await screen.findByRole('heading', { name: 'Кой си?' }),
+    ).toBeInTheDocument();
+  });
+
+  it('стрелките местят фокуса между изборите', async () => {
     const user = userEvent.setup();
     renderApp('/');
     const phone = await screen.findByRole('button', { name: /Телефон/ });
 
     phone.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('button', { name: /Браузър/ })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
     expect(
       screen.getByRole('button', { name: /Таблет в кухнята/ }),

@@ -6,13 +6,16 @@ import { setUpDevice } from '../test/render';
 import { ApiError, apiFetch } from './client';
 
 describe('apiFetch', () => {
-  it('на телефон слага X-Acting-User от localStorage', async () => {
-    setUpDevice('phone', dani.id);
+  it.each(['phone', 'browser'] as const)(
+    'в режим %s слага X-Acting-User от localStorage',
+    async (mode) => {
+      setUpDevice(mode, dani.id);
 
-    const result = await apiFetch('/me', meResponseSchema);
+      const result = await apiFetch('/me', meResponseSchema);
 
-    expect(result.user.name).toBe('Дани');
-  });
+      expect(result.user.name).toBe('Дани');
+    },
+  );
 
   it.each(['kiosk', 'tv'] as const)(
     'в режим %s не праща X-Acting-User, дори да е останал записан',

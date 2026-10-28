@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import type { CSSProperties, ReactNode } from 'react';
 import { useMe } from '../../api/queries';
-import { useDeviceMode } from '../../app/device-mode';
+import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
 import {
   type EffectsSetting,
   supportsBlur,
@@ -27,7 +27,7 @@ const EFFECTS: { value: EffectsSetting; label: string }[] = [
   { value: 'auto', label: 'Автоматично' },
 ];
 
-/** Настройките на устройството: тема, ефекти, режим, „Кой си“ и „Известия“ (само телефон), версия. */
+/** Настройките на устройството: тема, ефекти, режим, „Кой си“ и „Известия“ (телефон и браузър), версия. */
 export function SettingsScreen() {
   const { setting: theme, setTheme } = useTheme();
   const { setting: effects, level, setEffects } = useEffectsLevel();
@@ -83,13 +83,13 @@ export function SettingsScreen() {
         />
       </Section>
 
-      {mode === 'phone' && (
+      {isPersonalDevice(mode) && (
         <Section title="Кой си" index={3}>
           <ActingUser />
         </Section>
       )}
 
-      {mode === 'phone' && (
+      {isPersonalDevice(mode) && (
         <Section title="Известия" index={4}>
           <NotificationsSection />
         </Section>

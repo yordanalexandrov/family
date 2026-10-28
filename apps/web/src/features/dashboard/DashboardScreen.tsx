@@ -24,7 +24,7 @@ import './DashboardScreen.css';
  */
 const NOW_INTERVAL_MS = 30_000;
 
-/** Дашбордът избира layout по режима на устройството: телефонен или kiosk/TV. */
+/** Дашбордът избира layout по режима на устройството: телефонен (и браузър) или kiosk/TV. */
 export function DashboardScreen() {
   const { mode } = useDeviceMode();
   const state = useDashboardData();
@@ -81,7 +81,10 @@ function selectTodayEvent(eventId: string) {
   item?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/** Телефонът: лента → ядро → днешните събития → бюджет → следващите дни. */
+/**
+ * Телефонът: лента → ядро → днешните събития → бюджет → следващите дни. В браузъра
+ * колоните стоят една до друга (DashboardScreen.css), на телефона се сливат в една.
+ */
 function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
   const { data } = state;
   const { today, nextDays } = splitDays(data.days, dateKeyInSofia(now));
@@ -93,18 +96,22 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
           Няма връзка със сървъра · данни от {formatAge(state.fetchedAt, now)}
         </p>
       )}
-      <Core
-        today={today}
-        now={now}
-        cooking={data.cooking}
-        sync={data.sync.calendar}
-        onSelectEvent={selectTodayEvent}
-        opensMenu
-        opensRecipe
-      />
-      <TodayList today={today} now={now} sync={data.sync.calendar} />
-      <BudgetPanel budget={data.budget} now={now} sync={data.sync.budget} />
-      <NextDaysPanel days={nextDays} now={now} sync={data.sync.calendar} />
+      <div className="dashboard__column">
+        <Core
+          today={today}
+          now={now}
+          cooking={data.cooking}
+          sync={data.sync.calendar}
+          onSelectEvent={selectTodayEvent}
+          opensMenu
+          opensRecipe
+        />
+        <TodayList today={today} now={now} sync={data.sync.calendar} />
+      </div>
+      <div className="dashboard__column">
+        <BudgetPanel budget={data.budget} now={now} sync={data.sync.budget} />
+        <NextDaysPanel days={nextDays} now={now} sync={data.sync.calendar} />
+      </div>
     </main>
   );
 }
