@@ -72,6 +72,10 @@ export function IngredientPicker({
         autoComplete="off"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
+        // Полето отива горе, така че съвпаденията под него остават над клавиатурата.
+        onFocus={(event) =>
+          event.currentTarget.scrollIntoView({ block: 'start' })
+        }
       />
       {unresolved && (
         <p className="ingredient-picker__unresolved">

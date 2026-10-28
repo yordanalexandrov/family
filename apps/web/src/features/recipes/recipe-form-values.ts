@@ -9,8 +9,10 @@ import {
   type RecipeInput,
   recipeInputSchema,
   type Tag,
+  UNIT_LABELS_BG,
   type Unit,
 } from '@family/shared';
+import { formatQuantity } from '../../lib/format';
 
 /**
  * Един ред продукт във формата. `ingredient: null` е неразрешен ред: има само текст в `query`
@@ -27,6 +29,22 @@ export interface IngredientRowValues {
   isNew?: boolean;
   /** Новият продукт, както го предлага внасянето: попълва формата „Нов продукт“ (име, основна единица, щанд). */
   newProduct?: NewProduct;
+}
+
+/** Името на реда: продуктът от регистъра, иначе текстът, с който е дошъл. */
+export function ingredientLineName(row: IngredientRowValues): string {
+  return row.ingredient?.name ?? (row.query.trim() || 'Продукт без име');
+}
+
+/** Редът като един ред текст: „пилешко бутче · 4 бр.“, „сол · по вкус“; без количество — само името. */
+export function ingredientLineText(row: IngredientRowValues): string {
+  const quantity = parseNumber(row.quantity);
+  const amount =
+    quantity !== undefined && Number.isNaN(quantity)
+      ? `${row.quantity.trim()} ${UNIT_LABELS_BG[row.unit]}`
+      : formatQuantity({ quantity: quantity ?? null, unit: row.unit });
+  const name = ingredientLineName(row);
+  return amount === '' ? name : `${name} · ${amount}`;
 }
 
 /** Основната единица за нов продукт по единицата в рецептата: kg → g, l → ml; лъжиците и „по вкус“ → g. */

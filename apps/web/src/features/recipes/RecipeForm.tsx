@@ -1,22 +1,14 @@
-import {
-  type Ingredient,
-  type RecipeInput,
-  type Tag,
-  UNIT_LABELS_BG,
-  unitSchema,
-} from '@family/shared';
-import { type FormEvent, useCallback, useState } from 'react';
+import type { Ingredient, RecipeInput, Tag } from '@family/shared';
+import { type FormEvent, useCallback, useId, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
-import { IngredientPicker } from './IngredientPicker';
-import {
-  type PendingRow,
-  ResolveIngredientsSheet,
-} from './ResolveIngredientsSheet';
+import { IngredientLineSheet } from './IngredientLineSheet';
 import {
   emptyIngredientRow,
   emptyRecipeFormValues,
   type IngredientRowValues,
+  ingredientLineName,
+  ingredientLineText,
   type RecipeFormErrors,
   type RecipeFormValues,
   toRecipeInput,
@@ -35,10 +27,17 @@ export interface RecipeFormProps {
   submitError?: unknown;
   onCancel?: () => void;
   /**
-   * Одобрение на предложение: ако има редове без продукт, бутонът отваря диалог само с тях; записът тръгва от
-   * диалога, когато всички са свързани или създадени.
+   * Одобрение на предложение: редовете без продукт чакат свързване в листа на реда; бутонът не праща, докато ги
+   * има, и казва кои са.
    */
   requireResolvedIngredients?: boolean;
+}
+
+const INGREDIENT_ID_PATH = /^ingredients\.\d+\.ingredientId$/;
+
+/** Името на предложения нов продукт на реда, за сравнение без значение от главни букви. */
+function newProductKey(row: IngredientRowValues): string | undefined {
+  return row.newProduct?.name.trim().toLocaleLowerCase('bg');
 }
 
 const NUTRITION_FIELDS = [
@@ -71,24 +70,32 @@ export function RecipeForm({
     () => initialValues ?? emptyRecipeFormValues(),
   );
   const [errors, setErrors] = useState<RecipeFormErrors>({});
-  /** Редовете в диалога за нови продукти; `null` = диалогът е затворен. */
-  const [pending, setPending] = useState<PendingRow[] | null>(null);
-  const closePending = useCallback(() => setPending(null), []);
+  /** Редът в отворения лист; `added` = нов ред от „Добави продукт“, който се маха, ако се затвори празен. */
+  const [editing, setEditing] = useState<{
+    key: string;
+    added: boolean;
+  } | null>(null);
+  const errorIdPrefix = useId();
+  const closeEditing = useCallback(() => {
+    if (editing?.added) {
+      setValues((current) => ({
+        ...current,
+        ingredients: current.ingredients.filter(
+          (row) =>
+            row.key !== editing.key ||
+            row.ingredient !== null ||
+            row.query.trim() !== '',
+        ),
+      }));
+    }
+    setEditing(null);
+  }, [editing]);
 
   function set<K extends keyof RecipeFormValues>(
     key: K,
     value: RecipeFormValues[K],
   ) {
     setValues((current) => ({ ...current, [key]: value }));
-  }
-
-  function updateRow(index: number, patch: Partial<IngredientRowValues>) {
-    setValues((current) => ({
-      ...current,
-      ingredients: current.ingredients.map((row, i) =>
-        i === index ? { ...row, ...patch } : row,
-      ),
-    }));
   }
 
   function updateRowByKey(key: string, patch: Partial<IngredientRowValues>) {
@@ -114,6 +121,41 @@ export function RecipeForm({
     };
   }
 
+  /**
+   * Продукт, създаден от един ред, свързва и другите несвързани редове със същия предложен нов продукт (напр. за блат
+   * и крем).
+   */
+  function linkSameNewProduct(key: string, ingredient: Ingredient) {
+    const source = values.ingredients.find((row) => row.key === key);
+    const name = source && newProductKey(source);
+    if (name === undefined) {
+      return;
+    }
+    for (const row of values.ingredients) {
+      if (
+        row.key !== key &&
+        row.ingredient === null &&
+        newProductKey(row) === name
+      ) {
+        updateRowByKey(row.key, selected(row, ingredient));
+      }
+    }
+  }
+
+  function addIngredient() {
+    const row = emptyIngredientRow();
+    set('ingredients', [...values.ingredients, row]);
+    setEditing({ key: row.key, added: true });
+  }
+
+  function removeIngredient(key: string) {
+    set(
+      'ingredients',
+      values.ingredients.filter((row) => row.key !== key),
+    );
+    setEditing(null);
+  }
+
   function toggleTag(tag: Tag) {
     set(
       'tags',
@@ -125,33 +167,7 @@ export function RecipeForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const unresolved = values.ingredients.flatMap((row, index) =>
-      row.ingredient === null ? [{ row, index }] : [],
-    );
     const result = toRecipeInput(values);
-    if (requireResolvedIngredients && unresolved.length > 0) {
-      // Липсващият продукт се решава в диалога; останалите грешки се поправят първо във формата.
-      const missing = new Set(
-        unresolved.map(({ index }) => `ingredients.${index}.ingredientId`),
-      );
-      const rest = result.ok
-        ? {}
-        : Object.fromEntries(
-            Object.entries(result.errors).filter(
-              ([path]) => !missing.has(path),
-            ),
-          );
-      setErrors(rest);
-      if (Object.keys(rest).length === 0) {
-        setPending(
-          unresolved.map(({ row }) => ({
-            key: row.key,
-            name: row.query.trim() || 'Продукт без име',
-          })),
-        );
-      }
-      return;
-    }
     if (!result.ok) {
       setErrors(result.errors);
       return;
@@ -160,15 +176,25 @@ export function RecipeForm({
     onSubmit(result.input);
   }
 
-  function confirmPending() {
-    const result = toRecipeInput(values);
-    if (!result.ok) {
-      setErrors(result.errors);
-      setPending(null);
-      return;
-    }
-    onSubmit(result.input);
-  }
+  const lines = values.ingredients.map((row, index) => ({ row, index }));
+  // Редовете, които искат действие, са отгоре; записът пази реда на рецептата.
+  const orderedLines = [
+    ...lines.filter(({ row }) => row.ingredient === null),
+    ...lines.filter(({ row }) => row.ingredient !== null),
+  ];
+  const waiting = values.ingredients.filter((row) => row.ingredient === null);
+  const errorPaths = Object.keys(errors);
+  const waitingAlert =
+    requireResolvedIngredients &&
+    waiting.length > 0 &&
+    errorPaths.some((path) => INGREDIENT_ID_PATH.test(path));
+  const fieldAlert = errorPaths.some(
+    (path) => !requireResolvedIngredients || !INGREDIENT_ID_PATH.test(path),
+  );
+  const editingIndex = editing
+    ? values.ingredients.findIndex((row) => row.key === editing.key)
+    : -1;
+  const editingRow = values.ingredients[editingIndex];
 
   return (
     <>
@@ -258,95 +284,65 @@ export function RecipeForm({
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Продукти</legend>
-          {values.ingredients.map((row, index) => (
-            <fieldset
-              key={row.key}
-              className="recipe-form__item"
-              aria-label={`Продукт ${index + 1}`}
-            >
-              <Field
-                label="Продукт"
-                error={errors[`ingredients.${index}.ingredientId`]}
-              >
-                {(props) => (
-                  <IngredientPicker
-                    inputProps={props}
-                    ingredient={row.ingredient}
-                    query={row.query}
-                    unit={row.unit}
-                    isNew={row.isNew}
-                    newProduct={row.newProduct}
-                    onQueryChange={(query) =>
-                      updateRow(index, { query, ingredient: null })
-                    }
-                    onSelect={(ingredient) =>
-                      updateRow(index, selected(row, ingredient))
-                    }
-                  />
-                )}
-              </Field>
-              <div className="recipe-form__row">
-                <Field
-                  label="Количество"
-                  error={errors[`ingredients.${index}.quantity`]}
-                >
-                  {(props) => (
-                    <input
-                      {...props}
-                      className="field__input"
-                      inputMode="decimal"
-                      disabled={row.unit === 'pinch'}
-                      value={row.unit === 'pinch' ? '' : row.quantity}
-                      onChange={(event) =>
-                        updateRow(index, { quantity: event.target.value })
-                      }
-                    />
-                  )}
-                </Field>
-                <Field label="Единица">
-                  {(props) => (
-                    <select
-                      {...props}
-                      className="field__input"
-                      value={row.unit}
-                      onChange={(event) =>
-                        updateRow(index, {
-                          unit: unitSchema.parse(event.target.value),
-                        })
-                      }
-                    >
-                      {unitSchema.options.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {UNIT_LABELS_BG[unit]}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </Field>
-              </div>
-              <div className="recipe-form__item-tools">
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label={`Премахни продукт ${index + 1}`}
-                  onClick={() =>
-                    set(
-                      'ingredients',
-                      values.ingredients.filter((_, i) => i !== index),
-                    )
+          <ul className="ingredient-lines" aria-label="Продукти">
+            {orderedLines.map(({ row, index }) => {
+              const error =
+                (row.ingredient === null
+                  ? errors[`ingredients.${index}.ingredientId`]
+                  : undefined) ?? errors[`ingredients.${index}.quantity`];
+              const errorId = `${errorIdPrefix}-${row.key}-error`;
+              const open = () => setEditing({ key: row.key, added: false });
+              return (
+                <li
+                  key={row.key}
+                  className={
+                    row.ingredient === null
+                      ? 'ingredient-line ingredient-line--unresolved'
+                      : 'ingredient-line'
                   }
                 >
-                  ✕ Премахни
-                </button>
-              </div>
-            </fieldset>
-          ))}
+                  <button
+                    type="button"
+                    className="ingredient-line__open"
+                    aria-describedby={error === undefined ? undefined : errorId}
+                    onClick={open}
+                  >
+                    {ingredientLineText(row)}
+                  </button>
+                  {row.ingredient ? (
+                    <span
+                      className="ingredient-line__linked"
+                      role="img"
+                      aria-label="Свързан"
+                    >
+                      ✓
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button ingredient-line__link"
+                      aria-label={`Свържи „${ingredientLineName(row)}“`}
+                      onClick={open}
+                    >
+                      Свържи
+                    </button>
+                  )}
+                  {error !== undefined && (
+                    <p
+                      className="field__error ingredient-line__error"
+                      id={errorId}
+                    >
+                      {error}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
           <button
             type="button"
             className="button button--quiet"
-            onClick={() =>
-              set('ingredients', [...values.ingredients, emptyIngredientRow()])
-            }
+            onClick={addIngredient}
           >
             Добави продукт
           </button>
@@ -430,9 +426,12 @@ export function RecipeForm({
         </fieldset>
 
         <div className="recipe-form__footer recipe-form__wide">
-          {Object.keys(errors).length > 0 && (
+          {(waitingAlert || fieldAlert) && (
             <p className="field__error" role="alert">
-              Поправи отбелязаните полета.
+              {waitingAlert &&
+                `Чака свързване: ${waiting.map(ingredientLineName).join(', ')}.`}
+              {waitingAlert && fieldAlert && ' '}
+              {fieldAlert && 'Поправи отбелязаните полета.'}
             </p>
           )}
           {submitError !== undefined && submitError !== null && (
@@ -452,24 +451,22 @@ export function RecipeForm({
           )}
         </div>
       </form>
-      {pending && (
-        <ResolveIngredientsSheet
-          pending={pending}
-          rows={values.ingredients}
-          onQueryChange={(key, query) =>
-            updateRowByKey(key, { query, ingredient: null })
-          }
-          onSelect={(key, ingredient) => {
-            const row = values.ingredients.find((r) => r.key === key);
-            if (row) {
-              updateRowByKey(key, selected(row, ingredient));
-            }
+      {editing && editingRow && (
+        <IngredientLineSheet
+          row={editingRow}
+          errors={{
+            ingredientId: errors[`ingredients.${editingIndex}.ingredientId`],
+            quantity: errors[`ingredients.${editingIndex}.quantity`],
           }}
-          onConfirm={confirmPending}
-          onClose={closePending}
-          confirmLabel={submitLabel}
-          isSubmitting={isSubmitting}
-          submitError={submitError}
+          onChange={(patch) => updateRowByKey(editingRow.key, patch)}
+          onSelect={(ingredient) =>
+            updateRowByKey(editingRow.key, selected(editingRow, ingredient))
+          }
+          onCreated={(ingredient) =>
+            linkSameNewProduct(editingRow.key, ingredient)
+          }
+          onRemove={() => removeIngredient(editingRow.key)}
+          onClose={closeEditing}
         />
       )}
     </>
