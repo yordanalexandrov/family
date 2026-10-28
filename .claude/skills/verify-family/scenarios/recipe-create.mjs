@@ -18,16 +18,22 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
     page.getByRole('button', { name: 'Добави продукт' }),
     'Добави продукт',
   );
-  const row = page.getByRole('group', { name: 'Продукт 1' });
-  await row.getByRole('textbox', { name: 'Продукт' }).fill('лук');
+  // Редът продукт се попълва в лист „Продукт“ и във формата остава един ред текст.
+  const sheet = page.getByRole('dialog', { name: 'Продукт' });
+  await sheet.getByRole('textbox', { name: 'Продукт' }).fill('лук');
   await tap(
-    row
+    sheet
       .getByRole('list', { name: 'Съвпадения' })
       .getByRole('button', { name: 'лук', exact: true }),
     'match лук',
   );
-  await row.getByRole('textbox', { name: 'Количество' }).fill('2');
-  await row.getByRole('combobox', { name: 'Единица' }).selectOption('бр.');
+  await sheet.getByRole('textbox', { name: 'Количество' }).fill('2');
+  await sheet.getByRole('combobox', { name: 'Единица' }).selectOption('бр.');
+  await tap(sheet.getByRole('button', { name: 'Готово' }), 'Готово');
+  await see(
+    page.getByRole('button', { name: 'лук · 2 бр.' }),
+    'ingredient line лук · 2 бр.',
+  );
   await page
     .getByRole('textbox', { name: 'Стъпка 1' })
     .fill('Свари лещата с лука.');
