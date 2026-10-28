@@ -1,4 +1,4 @@
-/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem). */
+/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (3rem). */
 .screen.menu {
   align-items: stretch;
   justify-content: flex-start;
@@ -18,8 +18,8 @@
 .menu__back,
 .servings__step {
   flex: none;
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
+  inline-size: 3rem;
+  block-size: 3rem;
   border: 1px solid var(--color-line);
   border-radius: 50%;
   background: var(--color-surface);
@@ -46,7 +46,7 @@
 
 .menu__tab {
   flex: 1;
-  min-block-size: 2.75rem;
+  min-block-size: 3rem;
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -216,8 +216,8 @@ button.meal-row__content:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: 2.75rem;
-  min-block-size: 2.75rem;
+  min-inline-size: 3rem;
+  min-block-size: 3rem;
   margin-inline-start: calc(-1 * var(--space-2));
   color: var(--color-text-muted);
   font-size: var(--font-size-lg);
@@ -326,8 +326,8 @@ button.meal-row__content:hover {
 }
 
 .my-vote__button {
-  min-inline-size: 2.75rem;
-  min-block-size: 2.75rem;
+  min-inline-size: 3rem;
+  min-block-size: 3rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
@@ -508,7 +508,7 @@ button.meal-row__content:hover {
   align-items: center;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: 2.75rem;
+  min-block-size: 3rem;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
@@ -643,8 +643,8 @@ button.meal-row__content:hover {
 
 .thread__delete {
   flex: none;
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
+  inline-size: 3rem;
+  block-size: 3rem;
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
