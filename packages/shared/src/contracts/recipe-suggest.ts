@@ -32,7 +32,7 @@ const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
   existingRecipeTitles: z.array(z.string()),
   ingredientNames: z.array(z.string()),
   /** The special appliances (GLOSSARY: Уред), a soft preference: `APPLIANCES` from `food/appliances.ts`. */
-  equipment: z.array(z.string()),
+  appliances: z.array(z.string()),
 });
 
 export type RecipeSuggestInput = z.infer<typeof recipeSuggestInputSchema>;
