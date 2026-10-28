@@ -35,7 +35,8 @@
 
 .day-events__title {
   min-inline-size: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .source-avatars {

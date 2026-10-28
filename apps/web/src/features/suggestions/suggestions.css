@@ -77,7 +77,9 @@
 
 .suggestions__recent-link > :first-child {
   flex: 1 1 10rem;
-  overflow-wrap: anywhere;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .suggestions__date {
@@ -130,7 +132,8 @@
 
 .suggestion-card__title {
   font-size: var(--font-size-lg);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .suggestion-card__meta {
@@ -187,7 +190,8 @@
 }
 
 .suggestion-preview__line {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .suggestion-preview__quantity {

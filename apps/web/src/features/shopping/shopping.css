@@ -88,7 +88,8 @@
 .shopping-item__title {
   color: var(--color-text);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .shopping-item__title--button {

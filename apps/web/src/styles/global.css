@@ -79,7 +79,8 @@ a {
 
 .screen__title {
   font-size: var(--font-size-display);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .button {

@@ -8,6 +8,7 @@ import {
   serveDinnerRecipes,
   servePlans,
   serveVotes,
+  showPastDays,
   thisWeek,
   votesOf,
 } from '../../test/menu';
@@ -53,6 +54,7 @@ function agreedPlan() {
 }
 
 function rows() {
+  showPastDays();
   return within(screen.getByRole('list', { name: 'Вечери' })).getAllByRole(
     'listitem',
   );
@@ -236,6 +238,7 @@ describe('MenuWeek: гласове', () => {
     );
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
+    showPastDays();
     await user.click(
       screen.getByRole('button', { name: new RegExp(chicken.title) }),
     );

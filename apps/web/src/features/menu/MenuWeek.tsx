@@ -16,7 +16,14 @@ import {
   weekStartSchema,
 } from '@family/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+} from 'react';
 import { refusalOf } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
@@ -25,7 +32,7 @@ import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
-import { formatDate } from '../../lib/format';
+import { formatDate, formatWeekday } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { useRateRecipe } from '../recipes/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
@@ -395,6 +402,8 @@ function PlanView({
 }: PlanViewProps) {
   const [openMealId, setOpenMealId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [pastOpen, setPastOpen] = useState(false);
+  const mealsId = useId();
   const vote = useVote(plan.weekStart);
   const rate = useRateRecipe();
   const openMeal = plan.meals.find((meal) => meal.id === openMealId);
@@ -405,10 +414,25 @@ function PlanView({
   // Съгласуване има, докато в седмицата има ден от днес нататък.
   const agreement = voterId !== null && coming.length > 0;
   const agreed = agreement && isAgreed(plan.meals, userIds, today);
+  // Минали дни на текущата седмица: сгънати в един ред, за да не избутват днешния надолу.
+  const past = plan.meals.filter((meal) => isPastMeal(meal, today));
+  // Само на телефона с действащ потребител; kiosk и TV показват цялата седмица.
+  const folds =
+    voterId !== null &&
+    filter === 'all' &&
+    past.length > 0 &&
+    coming.length > 0;
   const meals =
     filter === 'all'
-      ? plan.meals
+      ? folds && !pastOpen
+        ? coming
+        : plan.meals
       : coming.filter((meal) => outcomeOf(meal) === filter);
+  const list = (rows: ReactNode) => (
+    <ol id={mealsId} className="menu__meals" aria-label="Вечери">
+      {rows}
+    </ol>
+  );
   const voting = voterId
     ? {
         userId: voterId,
@@ -457,10 +481,18 @@ function PlanView({
       )}
       {vote.isError && <ErrorBox error={vote.error} />}
       {rate.isError && <ErrorBox error={rate.error} />}
+      {folds && (
+        <PastFold
+          past={past}
+          open={pastOpen}
+          controls={mealsId}
+          onToggle={() => setPastOpen((open) => !open)}
+        />
+      )}
       {voting && !readOnly ? (
         <MealDrag plan={plan}>
-          <ol className="menu__meals" aria-label="Вечери">
-            {meals.map((meal) => (
+          {list(
+            meals.map((meal) => (
               <DraggableMeal key={meal.id} meal={meal} today={today}>
                 {(handle) => (
                   <MealRow
@@ -472,12 +504,12 @@ function PlanView({
                   />
                 )}
               </DraggableMeal>
-            ))}
-          </ol>
+            )),
+          )}
         </MealDrag>
       ) : (
-        <ol className="menu__meals" aria-label="Вечери">
-          {meals.map((meal) => (
+        list(
+          meals.map((meal) => (
             <li key={meal.id}>
               <MealRow
                 meal={meal}
@@ -488,8 +520,8 @@ function PlanView({
                 {...(voting ? { voting } : {})}
               />
             </li>
-          ))}
-        </ol>
+          )),
+        )
       )}
       {meals.length === 0 && (
         <p className="recipes__empty">Няма такива ястия.</p>
@@ -508,6 +540,49 @@ function PlanView({
         />
       )}
     </>
+  );
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Сгънатите минали дни на текущата седмица: „Пн–Вт (минали)“. Докосването ги показва над днешния ред, с „Как беше?“.
+ */
+function PastFold({
+  past,
+  open,
+  controls,
+  onToggle,
+}: {
+  past: MealPlan['meals'];
+  open: boolean;
+  controls: string;
+  onToggle: () => void;
+}) {
+  const first = past[0];
+  const last = past[past.length - 1];
+  if (!first || !last) {
+    return null;
+  }
+  const days =
+    first === last
+      ? `${capitalize(formatWeekday(first.date))} (минал)`
+      : `${capitalize(formatWeekday(first.date))}–${capitalize(formatWeekday(last.date))} (минали)`;
+  return (
+    <button
+      type="button"
+      className="menu__past-fold"
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onToggle}
+    >
+      <span>{days}</span>
+      <span className="menu__past-fold-icon" aria-hidden="true">
+        {open ? '▴' : '▾'}
+      </span>
+    </button>
   );
 }
 
