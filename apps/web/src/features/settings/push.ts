@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { useActingUser } from '../../app/acting-user';
-import { readDeviceMode } from '../../app/device-mode';
+import { isPersonalDevice, readDeviceMode } from '../../app/device-mode';
 import { logger } from '../../logger';
 
 /**
@@ -207,7 +207,11 @@ export function usePushFollowsActingUser() {
       return;
     }
     previous.current = actingUserId;
-    if (!actingUserId || readDeviceMode() !== 'phone' || !pushSupported()) {
+    if (
+      !actingUserId ||
+      !isPersonalDevice(readDeviceMode()) ||
+      !pushSupported()
+    ) {
       return;
     }
     currentSubscription()

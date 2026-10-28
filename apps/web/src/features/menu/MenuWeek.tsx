@@ -20,7 +20,7 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { refusalOf } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
-import { useDeviceMode } from '../../app/device-mode';
+import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
 import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
@@ -78,7 +78,7 @@ export function MenuWeek() {
   const weekStart = search.week ?? thisWeek;
   // Менюто се променя само с действащ потребител (телефон); kiosk го отваря от дашборда за четене.
   const { mode } = useDeviceMode();
-  const canEdit = mode === 'phone';
+  const canEdit = isPersonalDevice(mode);
   const isPast = weekStart < thisWeek;
   // Гласове има само в телефонния изглед, с действащ потребител.
   const { actingUserId } = useActingUser();

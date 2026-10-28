@@ -7,7 +7,7 @@ import {
   type RefusalOf,
 } from '@family/shared';
 import { readActingUserId } from '../app/acting-user';
-import { readDeviceMode } from '../app/device-mode';
+import { isPersonalDevice, readDeviceMode } from '../app/device-mode';
 
 const BASE_PATH = '/api';
 
@@ -92,9 +92,11 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
-  // Само телефонът има действащ потребител; на kiosk/TV останал запис не се праща.
+  // Само телефонът и браузърът имат действащ потребител; на kiosk/TV останал запис не се праща.
   // Изрично подаден (напр. отметка от опашката, направена от друг) има предимство.
-  const actingUserId = readDeviceMode() === 'phone' ? readActingUserId() : null;
+  const actingUserId = isPersonalDevice(readDeviceMode())
+    ? readActingUserId()
+    : null;
   if (actingUserId && !headers.has('X-Acting-User')) {
     headers.set('X-Acting-User', actingUserId);
   }

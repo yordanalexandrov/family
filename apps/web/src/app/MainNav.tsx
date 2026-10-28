@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import './BottomNav.css';
+import './MainNav.css';
 
 // Рецептите остават активни и в подекраните си (рецепта, редакция, предложения).
 const ITEMS = [
@@ -14,27 +14,32 @@ const ITEMS = [
 ] as const;
 
 /**
- * Стъклената долна лента между основните екрани на телефона. Всеки екран е икона; само текущият показва и
- * надписа си, затова седемте се събират и на 360 px. Иконите без надпис носят името си в `aria-label`.
+ * Стъклената лента между основните екрани. На телефона е долу и всеки екран е икона; само текущият
+ * показва и надписа си, затова седемте се събират и на 360 px. Иконите без надпис носят името си в
+ * `aria-label`. В браузъра е горе и всеки екран е с надписа си.
  */
-export function BottomNav() {
+export function MainNav({ placement }: { placement: 'bottom' | 'top' }) {
+  const labelled = placement === 'top';
   return (
-    <nav className="bottom-nav" aria-label="Основна навигация">
-      <ul className="bottom-nav__list">
+    <nav
+      className={`main-nav main-nav--${placement}`}
+      aria-label="Основна навигация"
+    >
+      <ul className="main-nav__list">
         {ITEMS.map(({ to, label, exact, icon }) => (
           <li key={to}>
             <Link
               to={to}
-              className="bottom-nav__link"
+              className="main-nav__link"
               activeOptions={{ exact, includeSearch: false }}
               activeProps={{ 'aria-current': 'page' }}
-              inactiveProps={{ 'aria-label': label }}
+              inactiveProps={labelled ? undefined : { 'aria-label': label }}
             >
               {({ isActive }) => (
                 <>
                   {icon}
-                  {isActive && (
-                    <span className="bottom-nav__label">{label}</span>
+                  {(labelled || isActive) && (
+                    <span className="main-nav__label">{label}</span>
                   )}
                 </>
               )}
@@ -48,7 +53,7 @@ export function BottomNav() {
 
 function Icon({ children }: { children: ReactNode }) {
   return (
-    <svg className="bottom-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className="main-nav__icon" viewBox="0 0 24 24" aria-hidden="true">
       {children}
     </svg>
   );

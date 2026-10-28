@@ -11,7 +11,7 @@ import {
   useDashboard,
   useSyncCalendar,
 } from '../../api/queries';
-import { useDeviceMode } from '../../app/device-mode';
+import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -67,7 +67,7 @@ export function CalendarScreen() {
       <header className="calendar__header">
         {mode === 'kiosk' && <BackLink />}
         <h1 className="calendar__title">Календар</h1>
-        {mode === 'phone' && (
+        {isPersonalDevice(mode) && (
           <button
             type="button"
             className="button"

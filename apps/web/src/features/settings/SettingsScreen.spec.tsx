@@ -97,6 +97,19 @@ describe('SettingsScreen', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('в браузъра има „Кой си“ и „Известия“ като на телефона', async () => {
+    setUpDevice('browser', dani.id);
+    renderApp('/settings');
+
+    expect(
+      await screen.findByRole('region', { name: 'Кой си' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Известия' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Браузър/ })).toBeChecked();
+  });
+
   it('„Кой си“ показва действащия потребител, „Смени“ води към „Кой си?“', async () => {
     const user = userEvent.setup();
     renderApp('/settings');

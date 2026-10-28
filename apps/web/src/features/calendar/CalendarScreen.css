@@ -28,6 +28,11 @@
   font-weight: 600;
 }
 
+/* Браузър: по-широк лист, навигацията е горе. */
+:root[data-device="browser"] .calendar {
+  max-inline-size: 60rem;
+}
+
 /* kiosk: без долна навигация, по-широко и с по-едри редове, „Назад“ вляво от заглавието. */
 .calendar--kiosk {
   max-inline-size: 60rem;
