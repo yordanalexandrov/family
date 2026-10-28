@@ -39,7 +39,6 @@ function ratingPlan(): MealPlan {
 }
 
 function row(text: string) {
-  showPastDays();
   const found = within(screen.getByRole('list', { name: 'Вечери' }))
     .getAllByRole('listitem')
     .find((item) => item.textContent?.includes(text));
@@ -100,6 +99,7 @@ describe('MenuWeek: „Как беше?“', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays();
 
     expect(
       within(row(chicken.title)).getByRole('group', { name: 'Как беше?' }),
@@ -133,6 +133,7 @@ describe('MenuWeek: „Как беше?“', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays(user);
     await user.click(
       within(
         within(row(chicken.title)).getByRole('group', { name: 'Как беше?' }),

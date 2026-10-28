@@ -154,7 +154,7 @@ describe('MenuWeek', () => {
     renderApp('/menu');
 
     const meals = await screen.findByRole('list', { name: 'Вечери' });
-    showPastDays();
+    await showPastDays();
     const rows = within(meals).getAllByRole('listitem');
     expect(rows).toHaveLength(7);
     expect(rows[0]).toHaveTextContent('пн');
@@ -205,7 +205,7 @@ describe('MenuWeek', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
-    showPastDays();
+    await showPastDays(user);
     await user.click(screen.getByRole('button', { name: /Пиле с ориз/ }));
     const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
     await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
@@ -250,7 +250,7 @@ describe('MenuWeek', () => {
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
-    showPastDays();
+    await showPastDays(user);
     await user.click(screen.getByRole('button', { name: /Пиле с ориз/ }));
     expect(
       within(

@@ -5,8 +5,10 @@ import {
   type MealPlan,
   type MenuProposalRequest,
 } from '@family/shared';
-import { fireEvent, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import userEvent, { type UserEvent } from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
+import { expect } from 'vitest';
 import { apiError, dani, poli, server } from './msw';
 
 // Фикстури за менюто (#37). Сряда, 4 ноември 2026 (`fixtureNow`) е в седмицата от 2 ноември.
@@ -357,10 +359,13 @@ export function serveThreads(
   return requests;
 }
 
-/** Разгръща сгънатите минали дни на текущата седмица („Пн–Вт (минали)“), ако ги има и са сгънати. */
-export function showPastDays() {
-  const fold = screen.queryByRole('button', { name: /\(минали?\)$/ });
-  if (fold?.getAttribute('aria-expanded') === 'false') {
-    fireEvent.click(fold);
-  }
+/**
+ * Разгръща сгънатите минали дни на текущата седмица („Пн–Вт (минали)“). Бутонът трябва да е там и сгънат: иначе
+ * spec-ът не проверява това, което мисли.
+ */
+export async function showPastDays(user: UserEvent = userEvent.setup()) {
+  const fold = screen.getByRole('button', { name: /\(минали?\)$/ });
+  expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await user.click(fold);
+  expect(fold).toHaveAttribute('aria-expanded', 'true');
 }
