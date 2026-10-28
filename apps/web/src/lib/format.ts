@@ -25,6 +25,12 @@ const weekdayFormat = new Intl.DateTimeFormat('bg-BG', {
   timeZone: FAMILY_TIME_ZONE,
 });
 
+const shortDateFormat = new Intl.DateTimeFormat('bg-BG', {
+  day: 'numeric',
+  month: 'numeric',
+  timeZone: FAMILY_TIME_ZONE,
+});
+
 const dateFormat = new Intl.DateTimeFormat('bg-BG', {
   day: 'numeric',
   month: 'long',
@@ -49,6 +55,11 @@ export function formatWeekday(day: DateKey): string {
 /** „4 ноември“. */
 export function formatDate(day: DateKey): string {
   return dateFormat.format(toInstant(day));
+}
+
+/** „2.11“: ден и месец с числа, за тясна колона. */
+export function formatShortDate(day: DateKey): string {
+  return shortDateFormat.format(toInstant(day));
 }
 
 function toInstant(day: DateKey | Date): Date {
