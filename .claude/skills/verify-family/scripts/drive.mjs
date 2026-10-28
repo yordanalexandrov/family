@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Drives the family web app of a verify run in headless Chrome (playwright-core + the system Chrome).
 //
-//   drive.mjs <scenario.mjs> [--run <id>] [--device phone|kiosk|tv] [--headed]
+//   drive.mjs <scenario.mjs> [--run <id>] [--device phone|browser|kiosk|tv] [--headed]
 //
 // A scenario is an ES module whose default export is `async (ctx) => {}`. ctx:
 //   page, context          Playwright page and persistent context (localStorage survives between drives of a run)
@@ -47,7 +47,7 @@ const headed = flag('headed');
 const scenarioPath = args[0];
 if (!scenarioPath) {
   console.error(
-    'usage: drive.mjs <scenario.mjs> [--run <id>] [--device phone|kiosk|tv] [--headed]',
+    'usage: drive.mjs <scenario.mjs> [--run <id>] [--device phone|browser|kiosk|tv] [--headed]',
   );
   process.exit(2);
 }
@@ -72,6 +72,7 @@ if (existsSync(join(env.RUN_DIR, 'down'))) {
 
 const VIEWPORTS = {
   phone: { width: 390, height: 844 },
+  browser: { width: 1440, height: 900 },
   kiosk: { width: 1280, height: 800 },
   tv: { width: 1920, height: 1080 },
 };

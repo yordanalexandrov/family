@@ -67,7 +67,7 @@ wait_for() { # <seconds> <description> <command...>
 }
 
 worktree_fingerprint() {
-  (cd "$REPO" && { git rev-parse HEAD; git diff HEAD -- apps/api packages/shared; git ls-files -o --exclude-standard -- apps/api packages/shared; } | sha1sum | cut -c1-12)
+  (cd "$REPO" && { git rev-parse HEAD:apps/api HEAD:packages/shared; git diff HEAD -- apps/api packages/shared; git ls-files -o --exclude-standard -- apps/api packages/shared; } | sha1sum | cut -c1-12)
 }
 
 cmd_up() {
