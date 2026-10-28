@@ -112,8 +112,8 @@ cp -p ~/.openclaw/workspace-<агент>/{SOUL,USER,IDENTITY}.md $W/
 C=~/.openclaw/openclaw.json
 cp -p $C $C.bak-family-import
 openclaw agents add family-import --workspace ~/.openclaw/workspace-family-import --model openai/gpt-6-sol --non-interactive
-# без инструменти, като family-meal: същите tools, skills и subagents (и thinkingDefault)
-jq '.agents.entries["family-import"] += (.agents.entries["family-meal"] | {thinkingDefault, skills, subagents, tools})
+# без инструменти, като family-meal: същият model (с fallback към Opus 5.5), tools, skills, subagents и thinkingDefault
+jq '.agents.entries["family-import"] += (.agents.entries["family-meal"] | {model, thinkingDefault, skills, subagents, tools})
   | .agents.entries["family-import"].identity = {name: "family-import"}' $C > $C.tmp && chmod --reference=$C $C.tmp && mv $C.tmp $C
 W=~/.openclaw/workspace-family-import
 rm $W/BOOTSTRAP.md
