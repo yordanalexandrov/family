@@ -33,6 +33,18 @@ awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "diff - $WS
 ssh homesrv "mv $WS/AGENTS.md.bak $WS/AGENTS.md"
 ```
 
+## Модел и fallback
+
+Всеки агент `family-*` и копието му `-next` имат в `~/.openclaw/openclaw.json` модел с резервен модел (от 2026-10-28):
+
+```json5
+model: { primary: "<моделът на агента>", fallbacks: ["anthropic/claude-opus-5-5"] }
+```
+
+Без `fallbacks` агентът ползва само своя модел (`docs/concepts/model-failover.md` на OpenClaw) и заявката пада, щом лимитът на доставчика свърши. С fallback OpenClaw минава на Opus 5.5 (runtime `claude-cli`) за тази заявка, а следващата пак започва от основния модел. В лога на gateway-а това личи по `model-fallback/decision`, последвано от `cli exec: provider=claude-cli model=claude-opus-5-5`. Проверено със smoke на `family-meal-next` и `family-recipe-next` при изчерпан лимит на основния модел.
+
+Когато отговаря Opus, `usage.completion_tokens` в лога `openclaw completion` на api-то е едноцифрен и не отразява реалния брой токени.
+
 ## Търсене в интернет (`web_search`)
 
 `family-recipe` търси рецепти с `web_search` и отваря страниците с `web_fetch`. `web_fetch` работи без настройка, а `web_search` иска доставчик на търсене в OpenClaw. **Без доставчик OpenClaw маха `web_search` от инструментите на агента**, без грешка (`docs/tools/web.md` на OpenClaw). Тогава агентът налучква адреси със `web_fetch` и обикновено връща `noResults` („търсенето е недостъпно“). Така беше до 2026-10-27 ([#69](https://github.com/yordanalexandrov/family/issues/69)).
@@ -56,7 +68,7 @@ curl -s http://127.0.0.1:18789/v1/chat/completions \
 
 ## Smoke преди merge
 
-Prompt или контракт се проверява срещу реалния агент **преди** merge, без да се пипа production. За всеки агент на `homesrv` има копие `<агент>-next` със същия модел, `thinkingDefault`, `skills`, `subagents` и `tools`, но със собствен workspace `~/.openclaw/workspace-<агент>-next/`. Deploy-ът не го пипа: там стои prompt-ът, пробван последно.
+Prompt или контракт се проверява срещу реалния агент **преди** merge, без да се пипа production. За всеки агент на `homesrv` има копие `<агент>-next` със същия модел и fallback, `thinkingDefault`, `skills`, `subagents` и `tools`, но със собствен workspace `~/.openclaw/workspace-<агент>-next/`. Deploy-ът не го пипа: там стои prompt-ът, пробван последно.
 
 Self-hosted runner-ът не върви за PR-и (AGENTS.md → Public repo), затова този smoke е ръчен: пуска го човекът или агентът в главната сесия (не агент в worktree, виж [worktrees.md](../agents/worktrees.md)). На клона на PR-а, от корена на repo-то, с `OPENCLAW_GATEWAY_PASSWORD` в `.env` или в средата:
 
@@ -80,9 +92,9 @@ OPENCLAW_IMPORT_AGENT=family-import-next pnpm --filter api import:smoke
 
 ```bash
 openclaw agents add <агент>-next --workspace ~/.openclaw/workspace-<агент>-next --model <моделът на агента> --non-interactive
-# настройките на production агента, без name/workspace/agentDir
+# настройките на production агента (вкл. model с fallbacks), без name/workspace/agentDir
 C=~/.openclaw/openclaw.json
-jq --arg a <агент> '.agents.entries[$a+"-next"] += (.agents.entries[$a] | {thinkingDefault, skills, subagents, tools})
+jq --arg a <агент> '.agents.entries[$a+"-next"] += (.agents.entries[$a] | {model, thinkingDefault, skills, subagents, tools})
   | .agents.entries[$a+"-next"].identity = {name: ($a+"-next")}' $C > $C.tmp && chmod --reference=$C $C.tmp && mv $C.tmp $C
 # workspace-ът като на production агента
 W=~/.openclaw/workspace-<агент>-next
