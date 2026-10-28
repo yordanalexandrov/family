@@ -276,11 +276,14 @@ describe('POST /api/menu/plans refusals', () => {
 });
 
 describe('GET /api/menu/plans', () => {
-  it('answers 404 for a week without a plan', async () => {
+  it('answers 404 no_plan for a week without a plan', async () => {
     const response = await getPlan(WEEK);
 
     expect(response.statusCode).toBe(404);
-    expect(response.json()).toMatchObject({ error: 'not_found' });
+    expect(response.json()).toMatchObject({
+      error: 'not_found',
+      code: 'no_plan',
+    });
   });
 
   it('lists the plans whose week starts between from and to, without meals, oldest first', async () => {
@@ -1357,6 +1360,7 @@ describe('menu proposal of the cron (Wednesday 09:00)', () => {
       `/api/menu/proposals?weekStart=${WEEK}`,
     );
     expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'no_proposal' });
   });
 
   it('still needs a user for a proposal by hand', async () => {

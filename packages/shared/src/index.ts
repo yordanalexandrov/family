@@ -36,6 +36,7 @@ export * from './schemas/pantry.js';
 export * from './schemas/recipe.js';
 export * from './schemas/recipe-import.js';
 export * from './schemas/recipe-suggestion.js';
+export * from './schemas/refusal.js';
 export * from './schemas/shopping.js';
 export * from './schemas/sync.js';
 export * from './schemas/user.js';

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { aisleSchema } from '../food/aisles.js';
+import { refusalBody } from './error.js';
 
 /** GLOSSARY: Постоянен продукт (`staple`) and Временен продукт (`use_up`). */
 export const pantryKindSchema = z.enum(['staple', 'use_up']);
@@ -87,19 +88,14 @@ export const pantryItemResponseSchema = z.object({
 export type PantryItemResponse = z.infer<typeof pantryItemResponseSchema>;
 
 /** 409 of `POST /api/pantry`: the ingredient is in the pantry already, once per ingredient. */
-export const alreadyInPantrySchema = z.object({
-  error: z.literal('conflict'),
-  code: z.literal('already_in_pantry'),
-  message: z.string(),
-});
+export const alreadyInPantrySchema = refusalBody(
+  'conflict',
+  'already_in_pantry',
+);
 
 export type AlreadyInPantry = z.infer<typeof alreadyInPantrySchema>;
 
 /** 409 of `POST /api/pantry/:id/ran-out`: only a staple runs out („Свърши“). */
-export const notStapleSchema = z.object({
-  error: z.literal('conflict'),
-  code: z.literal('not_staple'),
-  message: z.string(),
-});
+export const notStapleSchema = refusalBody('conflict', 'not_staple');
 
 export type NotStaple = z.infer<typeof notStapleSchema>;

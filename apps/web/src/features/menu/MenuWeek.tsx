@@ -17,6 +17,7 @@ import {
 } from '@family/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { refusalOf } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
 import { useDeviceMode } from '../../app/device-mode';
@@ -31,7 +32,6 @@ import { DraggableMeal, MealDrag } from './MealDrag';
 import { MealRow } from './MealRow';
 import { MealSheet } from './MealSheet';
 import {
-  notEnoughRecipes,
   useCreatePlan,
   useDeletePlan,
   useMenuProposal,
@@ -301,7 +301,7 @@ function ProposeForm({
   const [hint, setHint] = useState(initialHint);
   const propose = useProposeMenu();
   const createPlan = useCreatePlan();
-  const missing = notEnoughRecipes(propose.error);
+  const missing = refusalOf(propose.error, 'not_enough_recipes');
 
   function submit(event: FormEvent) {
     event.preventDefault();

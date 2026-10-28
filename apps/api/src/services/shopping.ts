@@ -19,7 +19,7 @@ import {
   setComputedItemOverlay,
   setManualItemCheck,
 } from '../db/repositories/shopping.js';
-import { InvalidActionError, NotFoundError } from './errors.js';
+import { InvalidActionError, NotFoundError, refuse } from './errors.js';
 import type { EventBus } from './events.js';
 
 /** What a change to the list needs: the database, and the bus that signals `shopping.changed` after the commit. */
@@ -47,7 +47,7 @@ async function openList(
 ): Promise<{ plan: MealPlan; listId: string }> {
   const plan = await findPlanByWeek(db, weekStart);
   if (!plan) {
-    throw new NotFoundError('Няма меню за тази седмица', { code: 'no_plan' });
+    throw refuse('no_plan', 'Няма меню за тази седмица');
   }
   return { plan, listId: await ensureShoppingList(db, plan.id) };
 }

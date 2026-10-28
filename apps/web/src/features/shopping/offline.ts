@@ -6,7 +6,7 @@ import {
   withCheck,
 } from '@family/shared';
 import { get, set, update } from 'idb-keyval';
-import { ApiError, isConnectionError } from '../../api/client';
+import { ApiError, isConnectionError, refusalOf } from '../../api/client';
 import { logger } from '../../logger';
 
 /*
@@ -179,6 +179,13 @@ async function sendOne(
       (error instanceof ApiError && error.isSessionExpired())
     ) {
       return 'stop';
+    }
+    if (refusalOf(error, 'no_plan')) {
+      logger.warn(
+        'Менюто на седмицата го няма; отметката се маха от опашката',
+        error,
+      );
+      return 'done';
     }
     if (error instanceof ApiError && error.status === 404) {
       logger.warn('Редът вече го няма; отметката се маха от опашката', error);

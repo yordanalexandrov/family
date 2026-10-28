@@ -6,7 +6,7 @@ import {
   type MenuProposalRequest,
 } from '@family/shared';
 import { HttpResponse, http } from 'msw';
-import { dani, poli, server } from './msw';
+import { apiError, dani, poli, server } from './msw';
 
 // Фикстури за менюто (#37). Сряда, 4 ноември 2026 (`fixtureNow`) е в седмицата от 2 ноември.
 export const thisWeek = '2026-11-02';
@@ -98,7 +98,7 @@ export function serveWeekProposal(...states: MenuProposalRequest[]) {
       const weekStart = new URL(request.url).searchParams.get('weekStart');
       const proposal = states[Math.min(calls, states.length - 1)];
       if (!proposal || proposal.weekStart !== weekStart) {
-        return notFound();
+        return noProposal();
       }
       calls += 1;
       return HttpResponse.json({ proposal });
@@ -107,15 +107,23 @@ export function serveWeekProposal(...states: MenuProposalRequest[]) {
   return () => calls;
 }
 
-function notFound() {
-  return HttpResponse.json(
-    { error: 'not_found', message: 'Няма меню за тази седмица' },
-    { status: 404 },
+/** 404 `no_proposal`, както api-то за седмица без предложение. */
+export function noProposal() {
+  return apiError(
+    404,
+    'not_found',
+    'Няма предложение за меню за тази седмица',
+    'no_proposal',
   );
 }
 
+/** 404 `no_plan`, както api-то за седмица без план. */
+function noPlan() {
+  return apiError(404, 'not_found', 'Няма меню за тази седмица', 'no_plan');
+}
+
 /**
- * `GET /api/menu/plans?weekStart=` по седмици: седмица без план е 404, както в api. Връща реда на поисканите
+ * `GET /api/menu/plans?weekStart=` по седмици: седмица без план е 404 `no_plan`, както в api. Връща реда на поисканите
  * седмици.
  */
 export function servePlans(plans: Record<string, MealPlan> = {}) {
@@ -128,7 +136,7 @@ export function servePlans(plans: Record<string, MealPlan> = {}) {
       }
       asked.push(weekStart);
       const plan = plans[weekStart];
-      return plan ? HttpResponse.json({ plan }) : notFound();
+      return plan ? HttpResponse.json({ plan }) : noPlan();
     }),
   );
   return asked;

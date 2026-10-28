@@ -28,7 +28,7 @@ import type {
   ContractRequestHandle,
   ContractRequestStore,
 } from './contract-requests.js';
-import { ConflictError, NotFoundError } from './errors.js';
+import { ConflictError, NotFoundError, refuse } from './errors.js';
 import { NO_SUCH_MEAL, refusePastMeal } from './menu.js';
 
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
@@ -84,13 +84,10 @@ export function createMealReplaceStore(
       refusePastMeal(meal, now());
       const have = (await otherRecipes(tx, meal)).length;
       if (have < MEAL_REPLACE_MIN_RECIPES) {
-        throw new ConflictError(
+        throw refuse(
+          'not_enough_recipes',
           `За друго ястие трябват поне ${MEAL_REPLACE_MIN_RECIPES} други рецепти`,
-          {
-            code: 'not_enough_recipes',
-            have,
-            need: MEAL_REPLACE_MIN_RECIPES,
-          },
+          { have, need: MEAL_REPLACE_MIN_RECIPES },
         );
       }
       if (await hasPendingReplacement(tx, mealId)) {

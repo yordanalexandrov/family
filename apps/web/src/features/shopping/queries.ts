@@ -2,7 +2,6 @@ import {
   type CreateManualItem,
   createManualItemSchema,
   type DateKey,
-  noPlanSchema,
   type ShoppingItem,
   type ShoppingList,
   setCheckedSchema,
@@ -13,10 +12,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import {
-  ApiError,
   apiFetch,
   isConnectionError,
   JSON_HEADERS,
+  refusalOf,
 } from '../../api/client';
 import { readActingUserId } from '../../app/acting-user';
 import {
@@ -52,14 +51,6 @@ const listPath = (weekStart: DateKey) => `/shopping-lists/${weekStart}`;
 const itemPath = (weekStart: DateKey, key: string) =>
   `${listPath(weekStart)}/items/${encodeURIComponent(key)}`;
 
-function isNoPlan(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status === 404 &&
-    noPlanSchema.safeParse(error.body).success
-  );
-}
-
 function sendCheck(entry: QueuedCheck) {
   return apiFetch(
     `${itemPath(entry.weekStart, entry.key)}/checked`,
@@ -89,7 +80,7 @@ async function fetchShoppingWeek(
       .list;
     await writeCachedList(list, new Date());
   } catch (error) {
-    if (isNoPlan(error)) {
+    if (refusalOf(error, 'no_plan')) {
       return { kind: 'no_plan' };
     }
     const cached = isConnectionError(error)

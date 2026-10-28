@@ -1,3 +1,10 @@
+import {
+  type Refusal,
+  type RefusalCode,
+  type RefusalDetails,
+  refusalErrorOf,
+} from '@family/shared';
+
 /**
  * Typed refusals of services, free of HTTP: the error handler (`plugins/error-handler.ts`) maps each class to a status
  * and code. `message` reaches the screen, so it is written in Bulgarian; `details` go into the body next to it.
@@ -32,3 +39,33 @@ export class OpenClawUnavailableError extends ServiceRefusal {}
 
 /** 400 `invalid_action`: the action does not apply to this kind of record (e.g. hiding a manual shopping item). */
 export class InvalidActionError extends ServiceRefusal {}
+
+/** The class of each `error` a refusal with a sub-code is answered with. */
+const REFUSAL_CLASSES: Record<
+  Refusal['error'],
+  new (
+    message: string,
+    details: Record<string, unknown>,
+  ) => ServiceRefusal
+> = {
+  not_found: NotFoundError,
+  conflict: ConflictError,
+};
+
+/**
+ * A refusal with a sub-code from `refusalSchemas` in shared, e.g. `throw refuse('no_plan', 'Няма меню…')`: its class
+ * (and so the status) follows the code, and a wrong code or details do not compile. The details are required exactly
+ * when the code has any.
+ */
+export function refuse<C extends RefusalCode>(
+  code: C,
+  message: string,
+  ...[details]: keyof RefusalDetails<C> extends never
+    ? []
+    : [details: RefusalDetails<C>]
+): ServiceRefusal {
+  return new REFUSAL_CLASSES[refusalErrorOf(code)](message, {
+    code,
+    ...details,
+  });
+}

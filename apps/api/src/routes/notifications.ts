@@ -7,15 +7,13 @@ import {
   vapidKeyResponseSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { NotFoundError } from '../services/errors.js';
+import { refuse } from '../services/errors.js';
 import type { PushService } from '../services/push.js';
 
 /** The VAPID public key; 404 `push_disabled` when the server has no VAPID keys and sends nothing. */
 function requirePublicKey(push: PushService): string {
   if (!push.publicKey) {
-    throw new NotFoundError('Известията не са включени на сървъра', {
-      code: 'push_disabled',
-    });
+    throw refuse('push_disabled', 'Известията не са включени на сървъра');
   }
   return push.publicKey;
 }

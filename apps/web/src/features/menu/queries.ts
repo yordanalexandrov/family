@@ -13,8 +13,6 @@ import {
   mealPlanResponseSchema,
   mealResponseSchema,
   menuProposalResponseSchema,
-  type NotEnoughRecipes,
-  notEnoughRecipesSchema,
   putVoteSchema,
   swapMealsSchema,
   type UpdateMeal,
@@ -23,7 +21,7 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
+import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 
@@ -45,7 +43,7 @@ export const menuKeys = {
   },
 };
 
-/** Планът на седмицата или `null`, ако няма (api връща 404). */
+/** Планът на седмицата или `null`, ако няма (api връща 404 `no_plan`). */
 export function usePlan(weekStart: DateKey, enabled = true) {
   return useQuery({
     queryKey: menuKeys.plan(weekStart),
@@ -57,7 +55,7 @@ export function usePlan(weekStart: DateKey, enabled = true) {
         );
         return body.plan;
       } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
+        if (refusalOf(error, 'no_plan')) {
           return null;
         }
         throw error;
@@ -352,7 +350,7 @@ export function useMenuProposal(id: string | undefined) {
 }
 
 /**
- * Последното предложение на седмицата или `null` (api връща 404); пита отново на 3 s, докато е `pending`, а при
+ * Последното предложение на седмицата или `null` (api връща 404 `no_proposal`); пита отново на 3 s, докато е `pending`, а при
  * `done` презарежда плана. Така седмица без план вижда и предложението на крона, което никой не е пуснал от екрана.
  */
 export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
@@ -367,7 +365,7 @@ export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
         );
         return proposal;
       } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
+        if (refusalOf(error, 'no_proposal')) {
           return null;
         }
         throw error;
@@ -388,13 +386,4 @@ export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
     }
   }, [doneId, weekStart, queryClient]);
   return query;
-}
-
-/** 409 `not_enough_recipes`: колко вечерни рецепти има и колко трябват. */
-export function notEnoughRecipes(error: unknown): NotEnoughRecipes | null {
-  if (!(error instanceof ApiError) || error.status !== 409) {
-    return null;
-  }
-  const body = notEnoughRecipesSchema.safeParse(error.body);
-  return body.success ? body.data : null;
 }
