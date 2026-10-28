@@ -24,7 +24,7 @@ Preconditions:
 
 - `setup-phone.mjs` ran.
 
-- **Create.** Proven by `scenarios/recipe-create.mjs`: „Нова рецепта“; fill textbox „Заглавие“; `tap` tag `вечеря` in group „Тагове“; `tap` „Добави продукт“; in group „Продукт 1“ fill textbox „Продукт“ with `лук`, `tap` button `лук` (exact) in list „Съвпадения“, fill „Количество“ `2`, `selectOption('бр.')` on combobox „Единица“; fill „Стъпка 1“; `tap` „Запази“ → heading level 1 = title, list „Плод и зеленчук“ has a listitem with `лук` and `2 бр.`.
+- **Create.** Proven by `scenarios/recipe-create.mjs`: „Нова рецепта“; fill textbox „Заглавие“; `tap` tag `вечеря` in group „Тагове“; `tap` „Добави продукт“ → dialog „Продукт“: fill textbox „Продукт“ with `лук`, `tap` button `лук` (exact) in list „Съвпадения“, fill „Количество“ `2`, `selectOption('бр.')` on combobox „Единица“, `tap` „Готово“ → the form shows the line as button „лук · 2 бр.“; fill „Стъпка 1“; `tap` „Запази“ → heading level 1 = title, list „Плод и зеленчук“ has a listitem with `лук` and `2 бр.`.
 - **Search.** `tap` link „← Рецепти“; fill searchbox „Търси“ with the title → a link whose name contains the title.
 - **Second view.** `psql` on `recipe` join `recipe_ingredient` join `ingredient` by title → 1 row, `лук`, unit `pcs`.
 - **Edit.** On the recipe view `tap(getByRole('link', { name: 'Редактирай' }))`; change a field; `tap` „Запази“ → back on the view with the change.
@@ -34,7 +34,7 @@ Preconditions:
 
 ## Gotchas
 
-- „Добави продукт“ does not move focus into the new row; target `getByRole('group', { name: 'Продукт N' })`.
+- „Добави продукт“ opens the line in sheet „Продукт“; target `getByRole('dialog', { name: 'Продукт' })`. A saved line is one button „<продукт> · <количество>“ with img „Свързан“ when linked; tapping it reopens the sheet.
 - The ingredient textbox keeps the typed text even when no match is chosen; only a tapped match links the seed ingredient. `лук` also matches `луканка`, so use `exact: true`.
 - Ingredient lines render as one text node (`лук 2 бр.`) in the ARIA tree but separate elements in the DOM; filter the listitem by `hasText` twice instead of `getByText('лук 2 бр.')`.
 - Only recipes tagged `вечеря` appear in the menu's meal sheet.

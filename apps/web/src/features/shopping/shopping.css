@@ -1,4 +1,4 @@
-/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`). */
+/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`); редът на списъка ≥ 56 px (3.5rem). */
 .shopping__count {
   margin: 0;
   color: var(--color-text-muted);
@@ -51,43 +51,75 @@
   padding: 0;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  /* Тъмна тема: основата под стъклото пази „скрий“ и количествата над 4.5:1 и над светла аурора (#138). */
+  /* Тъмна тема: основата под стъклото пази приглушения текст (количества, ⓘ, „покажи“) над 4.5:1 и над светла аурора (#138). */
   background:
     linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
   list-style: none;
 }
 
+/* Без собствена кутия: щандовете остават деца на екрана с неговия отстъп. */
+.shopping__list {
+  display: contents;
+}
+
+/* Редът е една цел за отметка: етикетът и отметката вдясно покриват цялата му височина. */
 .shopping-item {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: 3.25rem;
-  padding: var(--space-1) var(--space-3);
+  align-items: stretch;
+  min-block-size: 3.5rem;
 }
 
 .shopping-item + .shopping-item {
   border-block-start: 1px solid var(--color-line);
 }
 
-/*
- * Отметката остава 24 px, а полето около нея (етикетът) е 48 × 48 px: излиза в отстъпа на реда и оставя 8 px до
- * заглавието.
- */
+/* Скритите редове (без отметка) пазят стария вид: текст и бутон в един ред. */
+.shopping-item--hidden {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+}
+
+.shopping-item__label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ⓘ не отмята: ≥ 48 px и на 8 px от целите за отметка от двете страни (#137). */
+.shopping-item__more {
+  flex: none;
+  inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
+  margin-inline: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
 .shopping-item__check-area {
   display: flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: var(--touch-target);
-  block-size: var(--touch-target);
-  margin-inline: calc(var(--space-3) * -1) calc(var(--space-1) * -1);
+  inline-size: 3.5rem;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .shopping-item__check {
-  flex: none;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 2rem;
+  block-size: 2rem;
   margin: 0;
   accent-color: var(--color-accent);
   cursor: pointer;
@@ -109,21 +141,6 @@
   hyphens: auto;
 }
 
-/* „от кои ястия“: текстът не расте, а полето за докосване е ≥ 48 px (отстъп и равен отрицателен margin). */
-.shopping-item__title--button {
-  --target-pad: max(0px, calc((var(--touch-target) - 1lh) / 2));
-
-  min-inline-size: var(--touch-target);
-  margin-block: calc(var(--target-pad) * -1);
-  padding: var(--target-pad) 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-weight: 600;
-  text-align: start;
-  cursor: pointer;
-}
-
 .shopping-item__quantity,
 .shopping-item__manual {
   color: var(--color-text-muted);
@@ -136,7 +153,7 @@
   text-decoration: line-through;
 }
 
-/* „скрий“/„изтрий“/„покажи“ са второстепенни: текст без фон, но с цялата площ за докосване. */
+/* „покажи“/„Свърши“ на скритите редове са второстепенни: текст без фон, но с цялата площ за докосване. */
 .shopping-item__action {
   flex: none;
   min-block-size: var(--touch-target);
@@ -150,12 +167,7 @@
   font-weight: 500;
 }
 
-.shopping-item__confirm {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.shopping-item__confirm .menu__danger {
+.shopping__sheet-actions .menu__danger {
   background: var(--color-danger);
 }
 

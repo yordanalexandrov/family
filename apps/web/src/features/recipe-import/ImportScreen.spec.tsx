@@ -103,10 +103,16 @@ function serveImport(...states: RecipeImportDetail[]) {
   return { posted, created, approved, detailCalls: () => detailCalls };
 }
 
-function ingredientRow(index: number) {
-  return screen.getAllByRole('group', { name: /^Продукт \d+$/ })[
-    index
-  ] as HTMLElement;
+/** Редовете в списъка „Продукти“, в реда, в който се виждат. */
+function ingredientLines() {
+  return within(screen.getByRole('list', { name: 'Продукти' })).getAllByRole(
+    'listitem',
+  );
+}
+
+/** Листът за един ред продукт. */
+function lineSheet() {
+  return within(screen.getByRole('dialog', { name: 'Продукт' }));
 }
 
 describe('ImportScreen', () => {
@@ -165,31 +171,17 @@ describe('ImportScreen', () => {
     expect(
       screen.getByRole('textbox', { name: 'Източник (линк)' }),
     ).toHaveValue(importUrl);
-    expect(
-      within(ingredientRow(0)).getByRole('textbox', { name: 'Продукт' }),
-    ).toHaveValue('пилешко филе');
-    expect(
-      within(ingredientRow(0)).queryByText(/продукт:/),
-    ).not.toBeInTheDocument();
-    expect(
-      within(ingredientRow(1)).getByText(
-        'Нов продукт: избери съществуващ или създай нов',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      within(ingredientRow(2)).getByRole('textbox', { name: 'Продукт' }),
-    ).toHaveValue('сол');
+    expect(ingredientLines().map((line) => line.textContent)).toEqual([
+      'сумак · 1 ч.л.Свържи',
+      'пилешко филе · 600 г✓',
+      'сол · по вкус✓',
+    ]);
 
-    await user.click(screen.getByRole('button', { name: 'Одобри' }));
-
-    const dialog = within(
-      screen.getByRole('dialog', { name: 'Нови продукти' }),
-    );
-    expect(dialog.getAllByRole('group')).toHaveLength(1);
-    const row = within(dialog.getByRole('group', { name: 'сумак' }));
-    await user.click(await row.findByRole('button', { name: 'Нов продукт' }));
+    await user.click(screen.getByRole('button', { name: 'Свържи „сумак“' }));
+    const sheet = lineSheet();
+    await user.click(await sheet.findByRole('button', { name: 'Нов продукт' }));
     // Формата идва попълнена с предложението на агента: име, основна единица и щанд.
-    const form = within(row.getByRole('group', { name: 'Нов продукт' }));
+    const form = within(sheet.getByRole('group', { name: 'Нов продукт' }));
     expect(form.getByRole('textbox', { name: 'Име' })).toHaveValue('сумак');
     expect(
       form.getByRole('combobox', { name: 'Основна единица' }),
@@ -198,8 +190,11 @@ describe('ImportScreen', () => {
       'Подправки, сосове и бакалия',
     );
     await user.click(form.getByRole('button', { name: 'Създай' }));
-    expect(await dialog.findByText('✓ Свързан с „сумак“')).toBeInTheDocument();
-    await user.click(dialog.getByRole('button', { name: 'Одобри' }));
+    expect(await sheet.findByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'сумак',
+    );
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
     // Одобрената рецепта се отваря.
     expect(
@@ -373,27 +368,26 @@ describe('ImportScreen', () => {
     });
 
     renderApp(`/recipes/import/${importId}`);
-    await user.click(await screen.findByRole('button', { name: 'Одобри' }));
-
-    const dialog = within(
-      screen.getByRole('dialog', { name: 'Нови продукти' }),
-    );
-    const [first, second] = dialog.getAllByRole('group', {
-      name: /^сумак$/i,
+    const [first, second] = await screen.findAllByRole('button', {
+      name: /^Свържи „сумак“$/i,
     });
     if (!first || !second) {
       throw new Error('expected two сумак lines');
     }
-    await user.click(
-      await within(first).findByRole('button', { name: 'Нов продукт' }),
+    await user.click(first);
+    const sheet = lineSheet();
+    await user.click(await sheet.findByRole('button', { name: 'Нов продукт' }));
+    await user.click(sheet.getByRole('button', { name: 'Създай' }));
+    expect(await sheet.findByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'сумак',
     );
-    await user.click(within(first).getByRole('button', { name: 'Създай' }));
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
 
+    // И двата реда са свързани, без да се отваря вторият.
     expect(
-      await within(second).findByText('✓ Свързан с „сумак“'),
-    ).toBeInTheDocument();
-    expect(dialog.getByText('Свързани 2 от 2')).toBeInTheDocument();
-    await user.click(dialog.getByRole('button', { name: 'Одобри' }));
+      screen.queryByRole('button', { name: /^Свържи/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
     await screen.findByRole('heading', { name: 'Пилешко филе със сумак' });
     expect(api.created).toHaveLength(1);
