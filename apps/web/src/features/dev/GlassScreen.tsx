@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { type EffectsSetting, useEffectsLevel } from '../../app/effects';
+import { ActionBar } from '../../components/ActionBar';
 import { Avatar, FAMILY_AVATAR } from '../../components/Avatar';
 import { Card } from '../../components/Card';
+import { Toast } from '../../components/Toast';
 import { TopBar, type TopBarSync } from '../../components/TopBar';
 import './GlassScreen.css';
 
 /*
  * Временна витрина на дизайн системата „Стъкло“ (#46): карти, аурора и лента в
- * двете теми и двете нива, за сравнение с прототипа. Само в dev (router.tsx).
+ * двете теми и двете нива, за сравнение с прототипа; отдолу лентата за действие и
+ * toast с „Върни“ (#141). Само в dev (router.tsx).
  * `?theme=dark&effects=lite` задава началното състояние (за снимки без кликове).
  */
 type ThemeChoice = 'light' | 'dark' | 'auto';
@@ -25,6 +28,9 @@ const SYNC_SAMPLES: Record<string, TopBarSync> = {
     budget: { status: 'unconfigured' },
   },
 };
+
+/** Колко продукта „свързва“ лентата за действие във витрината. */
+const TO_LINK = 3;
 
 const money = new Intl.NumberFormat('bg-BG', {
   style: 'currency',
@@ -48,6 +54,10 @@ export function GlassScreen() {
       'auto',
   );
   const [sample, setSample] = useState('всичко ок');
+  const [toast, setToast] = useState<string | null>(null);
+  const hideToast = useCallback(() => setToast(null), []);
+  const [linked, setLinked] = useState(0);
+  const [undone, setUndone] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -166,7 +176,40 @@ export function GlassScreen() {
             Семейство
           </p>
         </Card>
+
+        <Card
+          title="Toast с „Върни“"
+          style={{ '--card-index': 5 } as React.CSSProperties}
+        >
+          <p>
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={() => setToast('Рецептата е изтрита')}
+            >
+              Изтрий рецепта
+            </button>
+          </p>
+          <p className="glass-demo__muted">
+            Върнати: {undone} · свързани: {linked}
+          </p>
+        </Card>
       </main>
+
+      <ActionBar
+        text={`${TO_LINK - Math.min(linked, TO_LINK)} продукта за свързване`}
+        secondary={{ label: 'Пропусни', onClick: () => setLinked(TO_LINK) }}
+        primary={{
+          label: 'Свържи',
+          onClick: () => setLinked((count) => count + 1),
+          disabled: linked >= TO_LINK,
+        }}
+      />
+      <Toast
+        message={toast}
+        onDone={hideToast}
+        action={{ label: 'Върни', onAction: () => setUndone((n) => n + 1) }}
+      />
     </div>
   );
 }
