@@ -245,3 +245,42 @@ export const notEnoughRecipesSchema = z.object({
 });
 
 export type NotEnoughRecipes = z.infer<typeof notEnoughRecipesSchema>;
+
+/** 404 of `GET /api/menu/plans?weekStart=` (and the week's shopping list) when the week has no menu: „Няма меню“. */
+export const noPlanSchema = z.object({
+  error: z.literal('not_found'),
+  code: z.literal('no_plan'),
+  message: z.string(),
+});
+
+export type NoPlan = z.infer<typeof noPlanSchema>;
+
+/** 404 of `GET /api/menu/proposals?weekStart=` when nobody, the cron included, has asked for a proposal for the week. */
+export const noProposalSchema = z.object({
+  error: z.literal('not_found'),
+  code: z.literal('no_proposal'),
+  message: z.string(),
+});
+
+export type NoProposal = z.infer<typeof noProposalSchema>;
+
+/** 409 of `DELETE /api/menu/comments/:id` for a system line of the conversation: only a person's own comment goes. */
+export const systemLineSchema = z.object({
+  error: z.literal('conflict'),
+  code: z.literal('system_line'),
+  message: z.string(),
+});
+
+export type SystemLine = z.infer<typeof systemLineSchema>;
+
+/**
+ * 409 of the meal's writes (votes, recipe, note, `meal.replace`, its conversation) for a meal before today in Sofia:
+ * it is history, read but not written.
+ */
+export const pastMealSchema = z.object({
+  error: z.literal('conflict'),
+  code: z.literal('past_meal'),
+  message: z.string(),
+});
+
+export type PastMeal = z.infer<typeof pastMealSchema>;

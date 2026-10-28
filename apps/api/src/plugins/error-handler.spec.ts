@@ -1,3 +1,4 @@
+import { refusalSchema } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -6,6 +7,7 @@ import {
   ConflictError,
   InvalidReferenceError,
   NotFoundError,
+  refuse,
 } from '../services/errors.js';
 import { buildTestApp } from '../test/app.js';
 import { HttpError } from './error-handler.js';
@@ -46,6 +48,14 @@ beforeAll(async () => {
   });
   test.get('/test/dangling', async () => {
     throw new InvalidReferenceError('Сочи към нищо');
+  });
+  test.get('/test/no-plan', async () => {
+    throw refuse('no_plan', 'Няма меню за тази седмица');
+  });
+  test.get('/test/cook-taken', async () => {
+    throw refuse('cook_taken', 'Някой вече готви', {
+      cookUserId: '00000000-0000-4000-8000-000000000001',
+    });
   });
   test.get(
     '/test/validated',
@@ -136,6 +146,37 @@ describe('error handler', () => {
     },
   );
 
+  it.each([
+    [
+      '/test/no-plan',
+      404,
+      {
+        error: 'not_found',
+        code: 'no_plan',
+        message: 'Няма меню за тази седмица',
+      },
+    ],
+    [
+      '/test/cook-taken',
+      409,
+      {
+        error: 'conflict',
+        code: 'cook_taken',
+        message: 'Някой вече готви',
+        cookUserId: '00000000-0000-4000-8000-000000000001',
+      },
+    ],
+  ])(
+    'answers a refusal with a sub-code from %s with %i, its error, code, message and details',
+    async (url, status, body) => {
+      const response = await app.inject({ method: 'GET', url });
+
+      expect(response.statusCode).toBe(status);
+      expect(response.json()).toEqual(body);
+      expect(refusalSchema.parse(response.json())).toEqual(body);
+    },
+  );
+
   it('answers 400 validation_error with the offending paths when the query does not match its schema', async () => {
     const response = await app.inject({
       method: 'GET',
@@ -170,3 +211,16 @@ describe('error handler', () => {
     });
   });
 });
+
+// Checked by `tsc`, never run: a sub-code outside `refusalSchemas` or details that do not match it do not compile.
+function refusalsThatDoNotCompile(): void {
+  // @ts-expect-error: no such sub-code
+  refuse('no_plann', 'Няма меню');
+  // @ts-expect-error: `not_enough_recipes` carries `have` and `need`
+  refuse('not_enough_recipes', 'Малко рецепти');
+  // @ts-expect-error: `need` is missing
+  refuse('not_enough_recipes', 'Малко рецепти', { have: 3 });
+  // @ts-expect-error: `no_plan` carries no details
+  refuse('no_plan', 'Няма меню', { have: 3 });
+}
+void refusalsThatDoNotCompile;

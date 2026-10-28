@@ -133,12 +133,3 @@ export const shoppingListParamsSchema = z.object({
 export const shoppingItemParamsSchema = shoppingListParamsSchema.extend({
   key: z.string().min(1),
 });
-
-/** 404 of `GET /api/shopping-lists/:weekStart` (and its item routes) when the week has no menu: the „Няма меню“ screen. */
-export const noPlanSchema = z.object({
-  error: z.literal('not_found'),
-  code: z.literal('no_plan'),
-  message: z.string(),
-});
-
-export type NoPlan = z.infer<typeof noPlanSchema>;

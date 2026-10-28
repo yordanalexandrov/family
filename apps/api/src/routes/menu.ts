@@ -10,6 +10,8 @@ import {
   mealResponseSchema,
   menuProposalResponseSchema,
   menuProposalsQuerySchema,
+  noPlanSchema,
+  noProposalSchema,
   putVoteSchema,
   swapMealsSchema,
   updateMealSchema,
@@ -34,6 +36,7 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
         querystring: mealPlansQuerySchema,
         response: {
           200: z.union([mealPlanResponseSchema, mealPlansResponseSchema]),
+          404: noPlanSchema,
         },
       },
     },
@@ -222,7 +225,7 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         querystring: menuProposalsQuerySchema,
-        response: { 200: menuProposalResponseSchema },
+        response: { 200: menuProposalResponseSchema, 404: noProposalSchema },
       },
     },
     async (request) => ({

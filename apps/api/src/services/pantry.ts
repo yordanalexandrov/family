@@ -16,9 +16,10 @@ import {
   updatePantryItem,
 } from '../db/repositories/pantry.js';
 import {
-  ConflictError,
   InvalidReferenceError,
   NotFoundError,
+  refuse,
+  type ServiceRefusal,
 } from './errors.js';
 import type { EventBus } from './events.js';
 
@@ -37,10 +38,8 @@ function notFound(): NotFoundError {
   return new NotFoundError('Няма такъв продукт в килера');
 }
 
-function notStaple(): ConflictError {
-  return new ConflictError('Свършва само постоянен продукт', {
-    code: 'not_staple',
-  });
+function notStaple(): ServiceRefusal {
+  return refuse('not_staple', 'Свършва само постоянен продукт');
 }
 
 /** GLOSSARY: Килер. Staples first by name, then use-up items oldest first. */
@@ -67,9 +66,7 @@ export async function addPantryItem(
     });
   } catch (error) {
     if (isUniqueViolation(error, PANTRY_INGREDIENT_UNIQUE)) {
-      throw new ConflictError('Продуктът вече е в килера', {
-        code: 'already_in_pantry',
-      });
+      throw refuse('already_in_pantry', 'Продуктът вече е в килера');
     }
     throw error;
   }

@@ -70,6 +70,7 @@ import {
   InvalidActionError,
   InvalidReferenceError,
   NotFoundError,
+  refuse,
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
 import type { MenuNotifications } from './menu-notifications.js';
@@ -81,6 +82,7 @@ const NO_SUCH_PLAN = 'Няма меню за тази седмица';
 /** Shared with `meal.replace` (`services/meal-replacements.ts`). */
 export const NO_SUCH_MEAL = 'Няма такова ястие';
 const NO_SUCH_PROPOSAL = 'Няма такова предложение за меню';
+const NO_PROPOSAL_OF_WEEK = 'Няма предложение за меню за тази седмица';
 const WEEK_HAS_PLAN = 'Седмицата вече има меню';
 const WEEK_HAS_PENDING = 'За седмицата вече се подготвя предложение';
 const PAST_MEAL = 'Денят е минал: ястието вече не се гласува и не се сменя';
@@ -210,9 +212,10 @@ export function createMenuProposalStore(
     async insert(tx, params, requestedBy) {
       const have = await countMenuRecipes(tx, DINNER);
       if (have < MENU_PROPOSE_MIN_RECIPES) {
-        throw new ConflictError(
+        throw refuse(
+          'not_enough_recipes',
           `За предложение трябват поне ${MENU_PROPOSE_MIN_RECIPES} вечерни рецепти`,
-          { code: 'not_enough_recipes', have, need: MENU_PROPOSE_MIN_RECIPES },
+          { have, need: MENU_PROPOSE_MIN_RECIPES },
         );
       }
       await refuseTakenWeek(tx, params.weekStart);
@@ -279,7 +282,7 @@ export function createMenuService({
     async getPlan(weekStart) {
       const plan = await findPlanByWeek(db, weekStart);
       if (!plan) {
-        throw new NotFoundError(NO_SUCH_PLAN);
+        throw refuse('no_plan', NO_SUCH_PLAN);
       }
       return plan;
     },
@@ -460,8 +463,11 @@ export function createMenuService({
           if (!current) {
             throw new NotFoundError(NO_SUCH_MEAL);
           }
-          throw new ConflictError(COOK_TAKEN, {
-            code: 'cook_taken',
+          if (current.cookUserId === null) {
+            // Unclaimed a moment ago, cleared since: the claim did not clash with anyone.
+            throw new Error('cook of a taken meal vanished');
+          }
+          throw refuse('cook_taken', COOK_TAKEN, {
             cookUserId: current.cookUserId,
           });
         }
@@ -507,7 +513,7 @@ export function createMenuService({
           throw new NotFoundError(NO_SUCH_COMMENT);
         }
         if (comment.kind === 'system') {
-          throw new ConflictError(SYSTEM_LINE, { code: 'system_line' });
+          throw refuse('system_line', SYSTEM_LINE);
         }
         if (comment.authorUserId !== actingUserId) {
           throw new ForbiddenError(NOT_YOUR_COMMENT);
@@ -538,7 +544,7 @@ export function createMenuService({
     async getLatestProposal(weekStart) {
       const [latest] = await listProposalsOfWeek(db, weekStart);
       if (!latest) {
-        throw new NotFoundError(NO_SUCH_PROPOSAL);
+        throw refuse('no_proposal', NO_PROPOSAL_OF_WEEK);
       }
       return latest;
     },
@@ -575,14 +581,14 @@ export async function readCooking(
  */
 export function refusePastMeal(meal: Meal, at: Date): void {
   if (isPastMeal(meal, dateKeyInSofia(at))) {
-    throw new ConflictError(PAST_MEAL, { code: 'past_meal' });
+    throw refuse('past_meal', PAST_MEAL);
   }
 }
 
 /** 409 `past_meal` for writing to or deleting from the thread of a past meal: it is read, but not written. */
 function refusePastThread(meal: Meal, at: Date): void {
   if (isPastMeal(meal, dateKeyInSofia(at))) {
-    throw new ConflictError(PAST_MEAL_THREAD, { code: 'past_meal' });
+    throw refuse('past_meal', PAST_MEAL_THREAD);
   }
 }
 
