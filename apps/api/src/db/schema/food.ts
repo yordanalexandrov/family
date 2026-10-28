@@ -4,10 +4,13 @@ import {
   type BaseUnit,
   baseUnitSchema,
   contractRequestStatusSchema,
+  type NormalizedRecipe,
   type Nutrition,
   type PrepTimeRange,
   prepTimeRangeSchema,
+  type RecipeImportSource,
   type RecipeSuggestionStatus,
+  recipeImportSourceSchema,
   recipeSuggestionStatusSchema,
   type Slot,
   type Suggestion,
@@ -143,16 +146,49 @@ export const recipeSuggestionRequest = pgTable(
   ],
 );
 
-/** One suggested recipe (GLOSSARY: Предложение за рецепта); `payload` is a `Suggestion` of the contract. */
+/**
+ * One run of `recipe.normalize` (GLOSSARY: Внасяне на рецепта). The source is kept with the request (the pasted text,
+ * the link) for a retry and for debugging; `hint` of the common columns is unused.
+ */
+export const recipeImportRequest = pgTable(
+  'recipe_import_request',
+  {
+    ...contractRequestColumns(),
+    source: text('source').$type<RecipeImportSource>().notNull(),
+    url: text('url'),
+    text: text('text'),
+    /** The agent's reason when it found no recipe (`failed`/`no_results`). */
+    noResults: text('no_results'),
+  },
+  (t) => [
+    check(
+      'recipe_import_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+    check(
+      'recipe_import_request_source_check',
+      oneOf(t.source, recipeImportSourceSchema.options),
+    ),
+  ],
+);
+
+/**
+ * One suggested recipe (GLOSSARY: Предложение за рецепта), of exactly one AI request: a suggestion request
+ * (`request_id`, `payload` a `Suggestion`) or an import (`import_request_id`, `payload` a `NormalizedRecipe`).
+ */
 export const recipeSuggestion = pgTable(
   'recipe_suggestion',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    requestId: uuid('request_id')
-      .notNull()
-      .references(() => recipeSuggestionRequest.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id').references(() => recipeSuggestionRequest.id, {
+      onDelete: 'cascade',
+    }),
+    importRequestId: uuid('import_request_id').references(
+      () => recipeImportRequest.id,
+      { onDelete: 'cascade' },
+    ),
     position: integer('position').notNull(),
-    payload: jsonb('payload').$type<Suggestion>().notNull(),
+    payload: jsonb('payload').$type<Suggestion | NormalizedRecipe>().notNull(),
     status: text('status')
       .$type<RecipeSuggestionStatus>()
       .notNull()
@@ -163,9 +199,15 @@ export const recipeSuggestion = pgTable(
   },
   (t) => [
     uniqueIndex('recipe_suggestion_position_key').on(t.requestId, t.position),
+    // An import has exactly one suggestion.
+    uniqueIndex('recipe_suggestion_import_request_key').on(t.importRequestId),
     check(
       'recipe_suggestion_status_check',
       oneOf(t.status, recipeSuggestionStatusSchema.options),
+    ),
+    check(
+      'recipe_suggestion_request_check',
+      sql`num_nonnulls(${t.requestId}, ${t.importRequestId}) = 1`,
     ),
   ],
 );

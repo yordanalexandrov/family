@@ -1,5 +1,6 @@
 import {
   type Ingredient,
+  type NewProduct,
   normalizeIngredientName,
   type Unit,
 } from '@family/shared';
@@ -18,8 +19,12 @@ interface IngredientPickerProps {
   unit: Unit;
   /** Ред от предложение, който го няма в регистъра. */
   isNew?: boolean | undefined;
+  /** Предложеният нов продукт (от внасяне): основната единица и щандът на „Нов продукт“ идват от него. */
+  newProduct?: NewProduct | undefined;
   onQueryChange: (query: string) => void;
   onSelect: (ingredient: Ingredient) => void;
+  /** След `onSelect` за продукт, създаден тук с „Нов продукт“. */
+  onCreated?: ((ingredient: Ingredient) => void) | undefined;
   inputProps: {
     id: string;
     'aria-invalid': boolean;
@@ -36,8 +41,10 @@ export function IngredientPicker({
   query,
   unit,
   isNew = false,
+  newProduct,
   onQueryChange,
   onSelect,
+  onCreated,
   inputProps,
 }: IngredientPickerProps) {
   const listId = useId();
@@ -103,8 +110,12 @@ export function IngredientPicker({
       {creating && (
         <NewIngredientForm
           initialName={query.trim()}
-          initialUnit={baseUnitFor(unit)}
-          onCreated={select}
+          initialUnit={newProduct?.unit ?? baseUnitFor(unit)}
+          initialAisle={newProduct?.aisle}
+          onCreated={(created) => {
+            select(created);
+            onCreated?.(created);
+          }}
           onCancel={() => setCreating(false)}
         />
       )}

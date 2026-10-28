@@ -1,4 +1,9 @@
-import { mealReplace, menuPropose, recipeSuggest } from '@family/shared';
+import {
+  mealReplace,
+  menuPropose,
+  recipeNormalize,
+  recipeSuggest,
+} from '@family/shared';
 import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
@@ -29,6 +34,7 @@ import { mealReplacementsRoutes } from './routes/meal-replacements.js';
 import { menuRoutes } from './routes/menu.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
+import { recipeImportsRoutes } from './routes/recipe-imports.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { shoppingRoutes } from './routes/shopping.js';
@@ -58,6 +64,11 @@ import {
   type WebPushDelivery,
 } from './services/push.js';
 import {
+  createRecipeImportStore,
+  createRecipeImportsService,
+  type RecipeImportsService,
+} from './services/recipe-imports.js';
+import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
   suggestionRequestStore,
@@ -79,6 +90,8 @@ declare module 'fastify' {
     now: () => Date;
     /** Suggestion requests (`recipe.suggest`) and decisions on their suggestions. */
     recipeSuggestions: RecipeSuggestionsService;
+    /** Imports of recipes (`recipe.normalize`); their suggestions are decided through `recipeSuggestions`. */
+    recipeImports: RecipeImportsService;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
     /** The cron's proposal of next week's menu; `null` without OpenClaw. */
@@ -219,7 +232,12 @@ export function buildApp({
     log: app.log,
   });
   // Without OpenClaw nothing is sent, so the agent ids do not matter then.
-  const agents = openclaw ?? { recipeAgent: '', menuAgent: '', mealAgent: '' };
+  const agents = openclaw ?? {
+    recipeAgent: '',
+    menuAgent: '',
+    mealAgent: '',
+    importAgent: '',
+  };
   app.decorate(
     'recipeSuggestions',
     createRecipeSuggestionsService({
@@ -228,6 +246,17 @@ export function buildApp({
         recipeSuggest,
         suggestionRequestStore,
         agents.recipeAgent,
+      ),
+    }),
+  );
+  app.decorate(
+    'recipeImports',
+    createRecipeImportsService({
+      db,
+      requests: contractRequests.register(
+        recipeNormalize,
+        createRecipeImportStore(),
+        agents.importAgent,
       ),
     }),
   );
@@ -278,6 +307,7 @@ export function buildApp({
   app.register(ingredientsRoutes);
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
+  app.register(recipeImportsRoutes);
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);
   app.register(shoppingRoutes);

@@ -97,8 +97,9 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
               className="recipe-view__lines"
               aria-labelledby={`aisle-${group.key}`}
             >
-              {group.lines.map((line) => (
-                <li key={line.ingredientId} className="recipe-view__line">
+              {group.lines.map((line, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: един продукт може да е на два реда (за блата и за крема), а редовете нямат id.
+                <li key={index} className="recipe-view__line">
                   <span>{line.ingredient.name}</span>
                   <span>{formatQuantity(line)}</span>
                 </li>

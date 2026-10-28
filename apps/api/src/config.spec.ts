@@ -30,6 +30,7 @@ const defaults = {
     recipeAgent: 'family-recipe',
     menuAgent: 'family-menu',
     mealAgent: 'family-meal',
+    importAgent: 'family-import',
     timeoutMs: 180_000,
   },
 };
@@ -85,6 +86,7 @@ describe('loadConfig', () => {
           OPENCLAW_RECIPE_AGENT: 'family-recipe-test',
           OPENCLAW_MENU_AGENT: 'family-menu-test',
           OPENCLAW_MEAL_AGENT: 'family-meal-test',
+          OPENCLAW_IMPORT_AGENT: 'family-import-test',
           OPENCLAW_TIMEOUT_MS: '60000',
         }),
       ).toMatchObject({
@@ -94,6 +96,7 @@ describe('loadConfig', () => {
           recipeAgent: 'family-recipe-test',
           menuAgent: 'family-menu-test',
           mealAgent: 'family-meal-test',
+          importAgent: 'family-import-test',
           timeoutMs: 60_000,
         },
       });

@@ -51,6 +51,22 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        // „Сподели → Семейство“ на Android (само за инсталирано PWA): POST multipart, за да носи и снимка. Поема го
+        // service worker-ът (src/sw.ts → receiveShare в features/recipe-import/shared-photo.ts): снимката оставя в
+        // кеша и отваря /recipes/import?shared=photo, а текст и линк пренасочва към /recipes/import?title=&text=&url=
+        // (ImportScreen → importFromShare). Без `tab` в адреса, за да се различава от вътрешната навигация (`?tab=…`),
+        // която само попълва полетата.
+        share_target: {
+          action: '/recipes/import',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'photo', accept: ['image/*'] }],
+          },
+        },
       },
       // Собственият service worker (src/sw.ts) показва известията (епик Напомняния); кешът е описан в него.
       strategies: 'injectManifest',

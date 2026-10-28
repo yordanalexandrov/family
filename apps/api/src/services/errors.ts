@@ -18,6 +18,9 @@ export class NotFoundError extends ServiceRefusal {}
 /** 409 `conflict`: the record clashes with an existing one; `details` carry it (e.g. `{ ingredient }`). */
 export class ConflictError extends ServiceRefusal {}
 
+/** 409 `already_imported`: an import by link of a link already in the registry; `details` name the recipe or suggestion. */
+export class AlreadyImportedError extends ServiceRefusal {}
+
 /** 403 `forbidden`: the record belongs to someone else (e.g. another user's comment). */
 export class ForbiddenError extends ServiceRefusal {}
 

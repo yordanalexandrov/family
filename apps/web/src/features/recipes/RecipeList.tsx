@@ -47,6 +47,9 @@ export function RecipeList() {
         <Link to="/recipes/suggest" className="button button--quiet">
           Поискай предложение
         </Link>
+        <Link to="/recipes/import" className="button button--quiet">
+          Внеси
+        </Link>
         <Link to="/recipes/new" className="button">
           Нова рецепта
         </Link>

@@ -1,4 +1,4 @@
-import type { AiContract } from '@family/shared';
+import type { AiContract, ContractFailure } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
@@ -6,11 +6,29 @@ import {
   failPendingContractRequestsBefore,
   finishContractRequest,
 } from '../db/repositories/contract-requests.js';
-import { failureCode, type OpenClawClient } from '../openclaw/client.js';
+import {
+  type ContractImage,
+  failureCode,
+  type OpenClawClient,
+} from '../openclaw/client.js';
 import { OpenClawUnavailableError } from './errors.js';
 
 /** A `pending` request older than this cannot still be running (one api instance, 180 s timeout) after a restart. */
 const STALE_AFTER_MS = 10 * 60 * 1000;
+
+/**
+ * A run that cannot go on, with the code it ends with; thrown by a store's `buildInput` before the agent is asked
+ * (e.g. `fetch_blocked` when the page of an import by link will not open).
+ */
+export class ContractRequestFailure extends Error {
+  readonly code: ContractFailure;
+
+  constructor(code: ContractFailure, message: string) {
+    super(message);
+    this.name = 'ContractRequestFailure';
+    this.code = code;
+  }
+}
 
 /** The stored request of one contract: at least its id; the rest is the contract's own (API model). */
 export interface StoredContractRequest {
@@ -37,8 +55,16 @@ export interface ContractRequestStore<
    */
   insert(tx: DbExecutor, params: P, requestedBy: A): Promise<R>;
   find(db: DbExecutor, id: string): Promise<R | undefined>;
-  /** The contract input for the request, read when the run starts. */
+  /**
+   * The contract input for the request, read when the run starts. Throws {@link ContractRequestFailure} to end the run
+   * with its code before the agent is asked.
+   */
   buildInput(db: DbExecutor, request: R): Promise<I>;
+  /**
+   * Pictures that go to the agent next to the input (the photos of an import), taken from the params once the request
+   * is stored: they live only in the memory of its run, never in the table. No method = none.
+   */
+  images?(params: P): ContractImage[];
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
   /** After that transaction has committed, e.g. to signal the change (`app.events`). Must not throw. */
@@ -48,6 +74,8 @@ export interface ContractRequestStore<
    * request then ends `failed`/`no_results` without `onDone` or a retry. `null` (or no method) = write the answer.
    */
   noResults?(output: O): string | null;
+  /** Keeps the reason of {@link ContractRequestStore.noResults}, in the transaction that marks the request failed. */
+  onNoResults?(tx: DbExecutor, request: R, reason: string): Promise<void>;
 }
 
 /** The requests of one registered contract, as its service uses them. */
@@ -110,6 +138,7 @@ export function createContractRequests({
       async function execute(
         gateway: OpenClawClient,
         request: R,
+        images: ContractImage[],
       ): Promise<void> {
         const logContext = { requestId: request.id };
         try {
@@ -117,6 +146,7 @@ export function createContractRequests({
           const output = await gateway.complete(contract, input, {
             agent,
             signal: shutdown.signal,
+            ...(images.length > 0 ? { images } : {}),
           });
           const noResults = store.noResults?.(output) ?? null;
           if (noResults !== null) {
@@ -124,9 +154,12 @@ export function createContractRequests({
               { ...logContext, noResults },
               `${contract.id} found no results`,
             );
-            await finishContractRequest(db, store.table, request.id, {
-              status: 'failed',
-              error: 'no_results',
+            await db.transaction(async (tx) => {
+              await store.onNoResults?.(tx, request, noResults);
+              await finishContractRequest(tx, store.table, request.id, {
+                status: 'failed',
+                error: 'no_results',
+              });
             });
             return;
           }
@@ -138,11 +171,23 @@ export function createContractRequests({
           });
           store.afterDone?.(request);
         } catch (error) {
-          const code = failureCode(error);
+          const code =
+            error instanceof ContractRequestFailure
+              ? error.code
+              : failureCode(error);
           if (code === 'error') {
             log.error({ err: error, ...logContext }, `${contract.id} failed`);
           } else {
-            log.warn({ ...logContext, error: code }, `${contract.id} failed`);
+            log.warn(
+              {
+                ...logContext,
+                error: code,
+                ...(error instanceof ContractRequestFailure
+                  ? { reason: error.message }
+                  : {}),
+              },
+              `${contract.id} failed`,
+            );
           }
           await finishContractRequest(db, store.table, request.id, {
             status: 'failed',
@@ -167,10 +212,11 @@ export function createContractRequests({
           const request = await db.transaction((tx) =>
             store.insert(tx, params, actingUserId),
           );
+          const images = store.images?.(params) ?? [];
           // Not awaited: the client polls. `execute` catches and records its own errors.
           const task = new Promise<void>((resolve) =>
             setImmediate(resolve),
-          ).then(() => execute(gateway, request));
+          ).then(() => execute(gateway, request, images));
           running.add(task);
           void task.finally(() => running.delete(task));
           return request;

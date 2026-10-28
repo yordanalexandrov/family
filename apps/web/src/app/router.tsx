@@ -17,6 +17,11 @@ import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
 import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
 import { PantryScreen } from '../features/pantry/PantryScreen';
+import { ImportRequestView } from '../features/recipe-import/ImportRequestView';
+import {
+  ImportScreen,
+  parseImportSearch,
+} from '../features/recipe-import/ImportScreen';
 import {
   EditRecipeScreen,
   NewRecipeScreen,
@@ -240,6 +245,19 @@ const suggestionReviewRoute = createRoute({
   component: SuggestionReview,
 });
 
+const importRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/import',
+  component: ImportScreen,
+  validateSearch: parseImportSearch,
+});
+
+const importRequestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/import/$requestId',
+  component: ImportRequestView,
+});
+
 // Временна витрина на дизайн системата (#46), само в dev; production build-ът я изрязва.
 const devRoutes = import.meta.env.DEV
   ? [
@@ -267,6 +285,8 @@ const routeTree = rootRoute.addChildren([
   suggestRoute,
   suggestionRequestRoute,
   suggestionReviewRoute,
+  importRoute,
+  importRequestRoute,
   menuRoute,
   shoppingRoute,
   pantryRoute,

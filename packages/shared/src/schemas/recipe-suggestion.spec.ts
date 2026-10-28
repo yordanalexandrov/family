@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import normalizeFixture from '../contracts/fixtures/recipe-normalize.valid.json' with {
+  type: 'json',
+};
 import fixture from '../contracts/fixtures/recipe-suggest.valid.json' with {
   type: 'json',
 };
 import {
+  anyRecipeSuggestionSchema,
   recipeSuggestionSchema,
   suggestionRequestSchema,
 } from './recipe-suggestion.js';
@@ -51,6 +55,7 @@ describe('suggestionRequestSchema', () => {
 describe('recipeSuggestionSchema', () => {
   const proposed = {
     id: '88888888-8888-4888-8888-888888888888',
+    origin: 'suggest',
     requestId: REQUEST,
     payload: suggestion,
     status: 'proposed',
@@ -76,6 +81,45 @@ describe('recipeSuggestionSchema', () => {
     expect(
       recipeSuggestionSchema.safeParse({ ...proposed, status: 'verified' })
         .success,
+    ).toBe(false);
+  });
+});
+
+describe('anyRecipeSuggestionSchema', () => {
+  const IMPORT = '55555555-5555-4555-8555-555555555555';
+  const { nutritionPer100g: _none, ...recipe } = normalizeFixture.recipe;
+  const imported = {
+    id: '88888888-8888-4888-8888-888888888889',
+    origin: 'import',
+    importRequestId: IMPORT,
+    payload: recipe,
+    status: 'proposed',
+  };
+
+  it('accepts a suggestion of a suggestion request and one of an import, told apart by origin', () => {
+    const suggested = {
+      id: '88888888-8888-4888-8888-888888888888',
+      origin: 'suggest',
+      requestId: REQUEST,
+      payload: suggestion,
+      status: 'proposed',
+    };
+
+    expect(anyRecipeSuggestionSchema.parse(suggested)).toEqual(suggested);
+    expect(anyRecipeSuggestionSchema.parse(imported)).toEqual(imported);
+  });
+
+  it('refuses an import whose payload is a recipe.suggest one, and the other way round', () => {
+    expect(
+      anyRecipeSuggestionSchema.safeParse({ ...imported, payload: suggestion })
+        .success,
+    ).toBe(false);
+    expect(
+      anyRecipeSuggestionSchema.safeParse({
+        ...imported,
+        origin: 'suggest',
+        requestId: REQUEST,
+      }).success,
     ).toBe(false);
   });
 });

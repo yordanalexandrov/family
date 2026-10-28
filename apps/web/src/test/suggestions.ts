@@ -80,6 +80,7 @@ export const omeletteSuggestion: Suggestion = {
 
 export const skewersSuggestion: RecipeSuggestion = {
   id: 'dddddddd-0000-4000-8000-000000000001',
+  origin: 'suggest',
   requestId,
   payload: chickenSkewers,
   status: 'proposed',
@@ -87,6 +88,7 @@ export const skewersSuggestion: RecipeSuggestion = {
 
 export const soupSuggestion: RecipeSuggestion = {
   id: 'dddddddd-0000-4000-8000-000000000002',
+  origin: 'suggest',
   requestId,
   payload: lentilSoup,
   status: 'rejected',
@@ -96,6 +98,7 @@ export const soupSuggestion: RecipeSuggestion = {
 
 export const omeletteSuggestionApproved: RecipeSuggestion = {
   id: 'dddddddd-0000-4000-8000-000000000003',
+  origin: 'suggest',
   requestId,
   payload: omeletteSuggestion,
   status: 'approved',

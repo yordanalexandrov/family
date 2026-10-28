@@ -119,3 +119,28 @@ export async function listIngredientNames(db: DbExecutor): Promise<string[]> {
     .orderBy(ingredient.name);
   return rows.map((row) => row.name);
 }
+
+/** The whole registry as `recipe.normalize` links lines to it: id, canonical name and base unit, by name. */
+export async function listRegistryIngredients(
+  db: DbExecutor,
+): Promise<Pick<Ingredient, 'id' | 'name' | 'unit'>[]> {
+  return db
+    .select({ id: ingredient.id, name: ingredient.name, unit: ingredient.unit })
+    .from(ingredient)
+    .orderBy(ingredient.name);
+}
+
+/** The ingredients among `ids` that exist, by name; a missing id is left out. */
+export async function findIngredientsByIds(
+  db: DbExecutor,
+  ids: string[],
+): Promise<Ingredient[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  return db
+    .select(ingredientColumns)
+    .from(ingredient)
+    .where(inArray(ingredient.id, ids))
+    .orderBy(ingredient.name);
+}

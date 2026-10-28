@@ -16,6 +16,8 @@ interface NewIngredientFormProps {
   initialName: string;
   /** Основна единица по подразбиране, напр. по единицата в рецептата. */
   initialUnit?: BaseUnit;
+  /** Щандът по подразбиране, напр. предложеният от внасянето; без него се избира. */
+  initialAisle?: Aisle;
   onCreated: (ingredient: Ingredient) => void;
   onCancel: () => void;
 }
@@ -27,12 +29,13 @@ interface NewIngredientFormProps {
 export function NewIngredientForm({
   initialName,
   initialUnit = 'g',
+  initialAisle,
   onCreated,
   onCancel,
 }: NewIngredientFormProps) {
   const [name, setName] = useState(initialName);
   const [unit, setUnit] = useState<BaseUnit>(initialUnit);
-  const [aisle, setAisle] = useState<Aisle | ''>('');
+  const [aisle, setAisle] = useState<Aisle | ''>(initialAisle ?? '');
   const [errors, setErrors] = useState<{ name?: string; aisle?: string }>({});
   const create = useCreateIngredient();
   const existing =

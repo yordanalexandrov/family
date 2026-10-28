@@ -1,7 +1,10 @@
 import {
   type BaseUnit,
+  displaySourceUrl,
   type Ingredient,
+  type NewProduct,
   type Nutrition,
+  normalizeSourceUrl,
   type Recipe,
   type RecipeInput,
   recipeInputSchema,
@@ -22,6 +25,8 @@ export interface IngredientRowValues {
   note?: string;
   /** Продукт, който го няма в регистъра (от предложение): откроен като „нов продукт“, докато не се свърже. */
   isNew?: boolean;
+  /** Новият продукт, както го предлага внасянето: попълва формата „Нов продукт“ (име, основна единица, щанд). */
+  newProduct?: NewProduct;
 }
 
 /** Основната единица за нов продукт по единицата в рецептата: kg → g, l → ml; лъжиците и „по вкус“ → g. */
@@ -116,7 +121,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     title: recipe.title,
     servings: String(recipe.servings),
     prepMinutes: numberText(recipe.prepMinutes),
-    sourceUrl: recipe.sourceUrl ?? '',
+    sourceUrl: displaySourceUrl(recipe.sourceUrl ?? ''),
     tags: [...recipe.tags],
     steps: [...recipe.steps],
     ingredients: recipe.ingredients.map((line) =>
@@ -175,7 +180,8 @@ export function toRecipeInput(
 ): { ok: true; input: RecipeInput } | { ok: false; errors: RecipeFormErrors } {
   const nutritionPer100g = valuesToNutrition(values.nutrition);
   const prepMinutes = parseNumber(values.prepMinutes);
-  const sourceUrl = values.sourceUrl.trim();
+  // Полето показва линка четимо (`displaySourceUrl`); запазва се във вида, по който се сравнява (`normalizeSourceUrl`).
+  const sourceUrl = normalizeSourceUrl(values.sourceUrl);
 
   const candidate = {
     title: values.title,

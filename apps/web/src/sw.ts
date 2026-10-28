@@ -16,8 +16,20 @@ import {
   onPush,
   type PushWorker,
 } from './app/push-handlers';
+import {
+  isShareTarget,
+  receiveShare,
+} from './features/recipe-import/shared-photo';
 
 declare const self: ServiceWorkerGlobalScope;
+
+// „Сподели → Семейство“: share target-ът е POST, който сървърът няма; поема се тук, преди маршрутите на Workbox (те и
+// без това са само за GET).
+self.addEventListener('fetch', (event) => {
+  if (isShareTarget(event.request, self.location.origin)) {
+    event.respondWith(receiveShare(event.request, self.location.origin));
+  }
+});
 
 // Сглобените файлове, включително Inter (woff2), за да работи приложението офлайн.
 precacheAndRoute(self.__WB_MANIFEST);
