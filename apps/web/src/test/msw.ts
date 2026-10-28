@@ -5,6 +5,7 @@ import {
   type DayEvents,
   dashboardResponseSchema,
   groupEventsByDay,
+  type RefusalCode,
   type User,
 } from '@family/shared';
 import { HttpResponse, http } from 'msw';
@@ -50,9 +51,14 @@ export function dashboardWith(
   return { ...structuredClone(dashboard), ...overrides };
 }
 
-/** Тяло по `apiErrorSchema`, както го връща error handler-ът на api. */
-export function apiError(status: number, error: ApiErrorCode, message: string) {
-  return HttpResponse.json({ error, message }, { status });
+/** Тяло по `apiErrorSchema`, както го връща error handler-ът на api; с `code` — отказ с под-код (`refusalSchemas`). */
+export function apiError(
+  status: number,
+  error: ApiErrorCode,
+  message: string,
+  code?: RefusalCode,
+) {
+  return HttpResponse.json({ error, code, message }, { status });
 }
 
 /** Дните от `from` до `to` (без него), групирани като в api: многодневните са във всеки свой ден. */
@@ -85,13 +91,11 @@ export const handlers = [
   ),
   // Седмица без `serveWeekProposal` няма предложение (нито ръчно, нито от крона).
   http.get('/api/menu/proposals', () =>
-    HttpResponse.json(
-      {
-        error: 'not_found',
-        code: 'no_proposal',
-        message: 'Няма предложение за меню за тази седмица',
-      },
-      { status: 404 },
+    apiError(
+      404,
+      'not_found',
+      'Няма предложение за меню за тази седмица',
+      'no_proposal',
     ),
   ),
   http.get('/api/calendar/events', ({ request }) => {

@@ -6,7 +6,7 @@ import {
   type MenuProposalRequest,
 } from '@family/shared';
 import { HttpResponse, http } from 'msw';
-import { dani, poli, server } from './msw';
+import { apiError, dani, poli, server } from './msw';
 
 // Фикстури за менюто (#37). Сряда, 4 ноември 2026 (`fixtureNow`) е в седмицата от 2 ноември.
 export const thisWeek = '2026-11-02';
@@ -109,25 +109,17 @@ export function serveWeekProposal(...states: MenuProposalRequest[]) {
 
 /** 404 `no_proposal`, както api-то за седмица без предложение. */
 export function noProposal() {
-  return HttpResponse.json(
-    {
-      error: 'not_found',
-      code: 'no_proposal',
-      message: 'Няма предложение за меню за тази седмица',
-    },
-    { status: 404 },
+  return apiError(
+    404,
+    'not_found',
+    'Няма предложение за меню за тази седмица',
+    'no_proposal',
   );
 }
 
-function notFound() {
-  return HttpResponse.json(
-    {
-      error: 'not_found',
-      code: 'no_plan',
-      message: 'Няма меню за тази седмица',
-    },
-    { status: 404 },
-  );
+/** 404 `no_plan`, както api-то за седмица без план. */
+function noPlan() {
+  return apiError(404, 'not_found', 'Няма меню за тази седмица', 'no_plan');
 }
 
 /**
@@ -144,7 +136,7 @@ export function servePlans(plans: Record<string, MealPlan> = {}) {
       }
       asked.push(weekStart);
       const plan = plans[weekStart];
-      return plan ? HttpResponse.json({ plan }) : notFound();
+      return plan ? HttpResponse.json({ plan }) : noPlan();
     }),
   );
   return asked;
