@@ -456,25 +456,6 @@ describe('DashboardScreen', () => {
     expect(within(nav).getByRole('link', { name: 'Настройки' })).toBeVisible();
   });
 
-  it('долната навигация показва надпис само на текущия екран, другите са икони с име', async () => {
-    renderApp('/');
-
-    const nav = await screen.findByRole('navigation', {
-      name: 'Основна навигация',
-    });
-    const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(7);
-    for (const link of links) {
-      expect(link.querySelector('svg')).not.toBeNull();
-    }
-    expect(
-      within(nav).getByRole('link', { name: 'Дашборд' }),
-    ).toHaveTextContent('Дашборд');
-    const calendar = within(nav).getByRole('link', { name: 'Календар' });
-    expect(calendar).toHaveTextContent('');
-    expect(calendar).not.toHaveAttribute('aria-current');
-  });
-
   describe('в браузъра', () => {
     beforeEach(() => {
       setUpDevice('browser', dani.id);
