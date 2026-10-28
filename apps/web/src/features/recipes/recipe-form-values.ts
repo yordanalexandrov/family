@@ -192,6 +192,17 @@ function messageFor(path: string): string {
   );
 }
 
+/** Грешките на един ред продукт от `toRecipeInput`, по поле. */
+export function ingredientRowErrors(
+  errors: RecipeFormErrors,
+  index: number,
+): { ingredientId?: string | undefined; quantity?: string | undefined } {
+  return {
+    ingredientId: errors[`ingredients.${index}.ingredientId`],
+    quantity: errors[`ingredients.${index}.quantity`],
+  };
+}
+
 /** Полетата → `RecipeInput`, валидиран с `recipeInputSchema`; иначе грешки по поле на български. */
 export function toRecipeInput(
   values: RecipeFormValues,

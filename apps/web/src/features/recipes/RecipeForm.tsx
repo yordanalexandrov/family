@@ -9,6 +9,7 @@ import {
   type IngredientRowValues,
   ingredientLineName,
   ingredientLineText,
+  ingredientRowErrors,
   type RecipeFormErrors,
   type RecipeFormValues,
   toRecipeInput,
@@ -84,7 +85,8 @@ export function RecipeForm({
           (row) =>
             row.key !== editing.key ||
             row.ingredient !== null ||
-            row.query.trim() !== '',
+            row.query.trim() !== '' ||
+            row.quantity.trim() !== '',
         ),
       }));
     }
@@ -153,6 +155,8 @@ export function RecipeForm({
       'ingredients',
       values.ingredients.filter((row) => row.key !== key),
     );
+    // Грешките са по индекс на реда; след махане биха паднали под друг ред.
+    setErrors({});
     setEditing(null);
   }
 
@@ -286,10 +290,11 @@ export function RecipeForm({
           <legend>Продукти</legend>
           <ul className="ingredient-lines" aria-label="Продукти">
             {orderedLines.map(({ row, index }) => {
+              const rowErrors = ingredientRowErrors(errors, index);
               const error =
                 (row.ingredient === null
-                  ? errors[`ingredients.${index}.ingredientId`]
-                  : undefined) ?? errors[`ingredients.${index}.quantity`];
+                  ? rowErrors.ingredientId
+                  : undefined) ?? rowErrors.quantity;
               const errorId = `${errorIdPrefix}-${row.key}-error`;
               const open = () => setEditing({ key: row.key, added: false });
               return (
@@ -454,10 +459,7 @@ export function RecipeForm({
       {editing && editingRow && (
         <IngredientLineSheet
           row={editingRow}
-          errors={{
-            ingredientId: errors[`ingredients.${editingIndex}.ingredientId`],
-            quantity: errors[`ingredients.${editingIndex}.quantity`],
-          }}
+          errors={ingredientRowErrors(errors, editingIndex)}
           onChange={(patch) => updateRowByKey(editingRow.key, patch)}
           onSelect={(ingredient) =>
             updateRowByKey(editingRow.key, selected(editingRow, ingredient))

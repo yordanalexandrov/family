@@ -2,12 +2,15 @@ import { type Ingredient, UNIT_LABELS_BG, unitSchema } from '@family/shared';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
 import { IngredientPicker } from './IngredientPicker';
-import type { IngredientRowValues } from './recipe-form-values';
+import type {
+  IngredientRowValues,
+  ingredientRowErrors,
+} from './recipe-form-values';
 
 interface IngredientLineSheetProps {
   row: IngredientRowValues;
   /** Грешките на реда от последния опит за запис, по поле (`ingredientId`, `quantity`). */
-  errors: { ingredientId?: string | undefined; quantity?: string | undefined };
+  errors: ReturnType<typeof ingredientRowErrors>;
   onChange: (patch: Partial<IngredientRowValues>) => void;
   onSelect: (ingredient: Ingredient) => void;
   /** След `onSelect` за продукт, създаден тук с „Нов продукт“. */
