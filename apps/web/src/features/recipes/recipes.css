@@ -354,46 +354,60 @@
   border-radius: var(--radius-sm);
 }
 
-/* Диалогът „Нови продукти“ при одобрение на предложение */
-.resolve__progress {
+/* Продуктите като списък: един ред текст; докосването (или „Свържи“) отваря листа на реда. */
+.ingredient-lines {
+  display: flex;
+  flex-direction: column;
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+  padding: 0;
+  list-style: none;
 }
 
-.sheet__panel fieldset.resolve__item {
-  padding-block: var(--space-3);
-  border-block-start: 1px solid var(--color-line);
-}
-
-/* В диалога целта е ясна от заглавието; подсказката „Нов продукт: …“ на всеки ред би я повтаряла. */
-.resolve__item .ingredient-picker__unresolved {
-  display: none;
-}
-
-.resolve__item-head {
+.ingredient-line {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
+  align-items: center;
+  gap: 0 var(--space-2);
+  border-block-end: 1px solid var(--color-line);
 }
 
-.resolve__name {
+.ingredient-line--unresolved {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+}
+
+.ingredient-line__open {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.ingredient-line--unresolved .ingredient-line__open {
   font-weight: 600;
 }
 
-.resolve__amount {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.resolve__done {
-  margin: 0;
+.ingredient-line__linked {
+  padding-inline: var(--space-3);
   color: var(--color-success);
-  font-size: var(--font-size-sm);
   font-weight: 600;
+}
+
+.ingredient-line__link {
+  margin-inline-end: var(--space-2);
+}
+
+.ingredient-line__error {
+  flex-basis: 100%;
+  margin: 0 0 var(--space-2);
 }
 
 @media (min-width: 48rem) {
@@ -408,19 +422,12 @@
 }
 
 fieldset.chips,
-fieldset.recipe-form__item,
 fieldset.new-ingredient {
   min-inline-size: 0;
   margin: 0;
 }
 
-fieldset.chips,
-fieldset.recipe-form__item {
+fieldset.chips {
   padding: 0;
   border: 0;
-}
-
-fieldset.recipe-form__item {
-  padding-block: var(--space-3);
-  border-block-end: 1px solid var(--color-line);
 }
