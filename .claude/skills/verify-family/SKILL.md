@@ -1,11 +1,11 @@
 ---
 name: verify-family
-description: Launch and drive the family platform (React PWA in apps/web + Fastify api + Postgres) in a disposable, isolated stack and prove user-facing behavior in headless Chrome with screenshots, ARIA snapshots and database reads. Use to confirm a change works in the real app (phone, kiosk or TV mode), to reproduce a UI bug, or to capture screenshots for a PR.
+description: Launch and drive the family platform (React PWA in apps/web + Fastify api + Postgres) in a disposable, isolated stack and prove user-facing behavior in headless Chrome with screenshots, ARIA snapshots and database reads. Use to confirm a change works in the real app (phone, browser, kiosk or TV mode), to reproduce a UI bug, or to capture screenshots for a PR.
 ---
 
 # Verify the family app
 
-The surface is the web PWA (`apps/web`): phone, kitchen tablet (`kiosk`) and TV modes of one React app, talking to the api over `/api` through the Vite proxy. The api has no UI of its own; reach it through the app, or through `ctx.api()` in a scenario for a second view. OpenClaw, Google Calendar and Wallet are external and are **off** in a verify run (see Gotchas).
+The surface is the web PWA (`apps/web`): phone, wide-screen browser (`browser`), kitchen tablet (`kiosk`) and TV modes of one React app, talking to the api over `/api` through the Vite proxy. The api has no UI of its own; reach it through the app, or through `ctx.api()` in a scenario for a second view. OpenClaw, Google Calendar and Wallet are external and are **off** in a verify run (see Gotchas).
 
 Everything runs from `.claude/skills/verify-family/scripts/`. Paths below are relative to that directory.
 
@@ -46,7 +46,7 @@ Run first, and whenever anything looks off:
 ./verify.sh doctor [run]     # default: the latest run
 ```
 
-Read-only. Checks the container is running, api and Vite processes are alive, each port is held by this run's process group (not someone else's), `/healthz` db ok, the proxy reaches the api as `verify@example.test`, and whether `apps/api` or `packages/shared` changed since `up`. Exit 1 on any `FAIL`. A `WARN` about changed code means the api still runs the old code (Vite hot-reloads the web, the api does not): `down` + `up` before proving api changes. `./verify.sh list` shows all runs and whether they are up.
+Read-only. Checks the container is running, api and Vite processes are alive, each port is held by this run's process group (not someone else's), `/healthz` db ok, the proxy reaches the api as `verify@example.test`, and whether the `apps/api` or `packages/shared` trees (committed or not) changed since `up`; commits elsewhere don't count. Exit 1 on any `FAIL`. A `WARN` about changed code means the api still runs the old code (Vite hot-reloads the web, the api does not): `down` + `up` before proving api changes. `./verify.sh list` shows all runs and whether they are up.
 
 ## Drive
 
@@ -55,7 +55,7 @@ Read-only. Checks the container is running, api and Vite processes are alive, ea
 ```bash
 node drive.mjs ../scenarios/setup-phone.mjs          # phone viewport 390×844, bg-BG, Europe/Sofia
 node drive.mjs ../scenarios/recipe-create.mjs
-node drive.mjs my-scenario.mjs --device kiosk        # 1280×800; tv = 1920×1080; --headed to watch; --run <id>
+node drive.mjs my-scenario.mjs --device kiosk        # 1280×800; browser = 1440×900; tv = 1920×1080; --headed to watch; --run <id>
 ```
 
 Any Node ≥ 18 runs it. It prints `PASS <dir>` or `FAIL <dir>` + the error and exits 0/1. The browser profile lives in the run dir, so localStorage (device mode, acting user, theme) carries over between drives of a run, and the database carries over too: scenarios build on each other in order.
@@ -93,10 +93,10 @@ Each drive writes `/tmp/family-verify/<run>/evidence/<UTC timestamp>-<scenario>/
 
 Proof standards:
 
-- Drive the real user path: device and user chosen through the UI or `?device=`, navigation through the bottom nav or links, data entered through forms. Don't seed through `ctx.api()` or SQL what the feature under test is supposed to create; use them only to set up *other* state or as a second view.
+- Drive the real user path: device and user chosen through the UI or `?device=`, navigation through „Основна навигация“ or links, data entered through forms. Don't seed through `ctx.api()` or SQL what the feature under test is supposed to create; use them only to set up *other* state or as a second view.
 - Capture the action and the result: an `aria`/`shot` before and after the change, not only the final screen.
 - Check side effects with a second view: a reload, another screen showing the same data, and `psql` on the table that should have changed (`recipe`, `recipe_ingredient`, `meal_plan`, `meal`, `shopping_list`, `shopping_item`, `recipe_suggestion_request`, `menu_proposal_request`, …).
-- Read `console.log` and `network.log`: a passing scenario with a `[pageerror]` or an unexpected 5xx is not clean. `404` on `GET /api/menu/plans?weekStart=…` is normal (no plan that week).
+- Read `console.log` and `network.log`: a passing scenario with a `[pageerror]` or an unexpected 5xx is not clean. `404` on `GET /api/menu/plans?weekStart=…` or `/api/shopping-lists/<week>` (no plan that week) and on `GET /api/notifications/vapid-key` (push off) is normal, and so is `503` on an AI request (OpenClaw off).
 - External systems are off, not mocked: the app must show its own „не е конфигуриран“ / „AI не е наличен в момента“ states. Proving an AI or sync happy path needs the real system and is the human's manual step (README → Smoke тест), not this skill.
 - For a PR, attach the PNGs from the evidence dir; they show phone width unless you drove with `--device`.
 
@@ -112,7 +112,7 @@ Sends SIGTERM to the api and Vite process groups this run started (by recorded p
 
 - **Node:** `node` on PATH may be 22; `verify.sh` finds nvm's newest 24.x itself, but `pnpm install` needs it on PATH (Launch). In this environment `cd` into the repo may reset the Node version; use the absolute nvm path.
 - **The api does not reload.** Code changes in `apps/api` or `packages/shared` need `down` + `up`; doctor warns.
-- **Device mode is sticky per run.** `?device=kiosk` or `?device=tv` overwrites the stored mode for all later drives in the run; go back with `go('/?device=phone')` (the acting user stays). kiosk and TV have no bottom nav and no acting user.
+- **Device mode is sticky per run.** `?device=browser|kiosk|tv` overwrites the stored mode for all later drives in the run; go back with `go('/?device=phone')` (the acting user stays). kiosk and TV have no navigation and no acting user; browser has both, with the navigation on top.
 - **State accumulates per run.** A plan for a week can be created once (`Започни празно` disappears after); `menu-to-shopping.mjs` uses next week and needs a fresh run to repeat. Unique titles (`Date.now()`) keep recipe scenarios rerunnable.
 - **Selection lists filter by slot:** the meal sheet lists only recipes tagged `вечеря` („Вечерни рецепти“).
 - **Seed data:** users Дани (`11111111-1111-4111-8111-111111111111`) and Поли (`22222222-2222-4222-8222-222222222222`); ~100 ingredients (`лук`, `картоф`, `чесън`, …); no recipes, plans or lists.
