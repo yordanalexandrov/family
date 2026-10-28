@@ -1,22 +1,18 @@
-/* Долната лента стои над съдържанието; екраните оставят място с --bottom-nav-space. */
+/*
+ * Долната лента стои над съдържанието; екраните оставят място с --bottom-nav-space.
+ * Размерите ѝ са в px: при по-голям шрифт на системата rem расте и седемте колони не се събират.
+ */
 :root {
-  --bottom-nav-space: calc(4.25rem + env(safe-area-inset-bottom));
+  --bottom-nav-row: 52px;
+  --bottom-nav-space: calc(
+    var(--bottom-nav-row) +
+    5px +
+    max(4px, env(safe-area-inset-bottom))
+  );
 }
 
 :root[data-device="browser"] {
   --bottom-nav-space: 0px;
-}
-
-.main-nav--bottom {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
-  z-index: 10;
-  display: flex;
-  justify-content: center;
-  padding: var(--space-2) var(--space-4)
-    max(var(--space-2), env(safe-area-inset-bottom));
-  pointer-events: none;
 }
 
 .main-nav__list {
@@ -33,7 +29,7 @@
   pointer-events: auto;
 }
 
-/* Икона за всеки екран; текущият е хапче с иконата и надписа си (BottomNav.tsx). */
+/* Хапче за всеки екран, текущият е запълнен; долната лента го пренарежда в колона (по-долу). */
 .main-nav__link {
   display: inline-flex;
   align-items: center;
@@ -71,17 +67,79 @@
   stroke-linejoin: round;
 }
 
-/* Тесен телефон (≤ 480 px): по-малко въздух; седемте се събират и на 360 px. */
-@media (max-width: 30rem) {
-  .main-nav--bottom {
-    padding-inline: var(--space-2);
-  }
+/*
+ * Телефон: плътна лента на цялата ширина, седем равни колони само с икони. Колоните се свиват
+ * равно (flex 1 1 0, min-inline-size 0); на 360 px всяка е ~51 × 52 px. Текущият екран е със
+ * запълнено хапче зад иконата. Надписът е скрит, но остава достъпното име на линка.
+ */
+.main-nav--bottom {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 10;
+  padding: 4px 2px max(4px, env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  box-shadow: var(--glass-shadow);
+}
 
-  .main-nav__list {
+.main-nav--bottom .main-nav__list {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.main-nav--bottom .main-nav__list > li {
+  display: flex;
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.main-nav--bottom .main-nav__link,
+.main-nav--bottom .main-nav__link:not([aria-current="page"]) {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  min-block-size: var(--bottom-nav-row);
+  padding: 0;
+  border-radius: 12px;
+}
+
+.main-nav--bottom .main-nav__link[aria-current="page"] {
+  background: none;
+}
+
+.main-nav--bottom .main-nav__icon {
+  box-sizing: content-box;
+  inline-size: 24px;
+  block-size: 24px;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.main-nav--bottom .main-nav__link[aria-current="page"] .main-nav__icon {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.main-nav--bottom .main-nav__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Браузър в тесен прозорец (≤ 480 px): по-малко въздух между хапчетата. */
+@media (max-width: 30rem) {
+  .main-nav--top .main-nav__list {
     gap: 0;
   }
 
-  .main-nav__link {
+  .main-nav--top .main-nav__link {
     gap: var(--space-1);
     min-inline-size: 2.625rem;
     font-size: var(--font-size-xs);
@@ -126,7 +184,8 @@
   }
 }
 
-:root[data-effects="full"] .main-nav__list {
+:root[data-effects="full"] .main-nav--top .main-nav__list,
+:root[data-effects="full"] .main-nav--bottom {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
 }
