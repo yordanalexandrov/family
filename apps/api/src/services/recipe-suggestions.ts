@@ -1,12 +1,13 @@
-import type {
-  AnyRecipeSuggestion,
-  Recipe,
-  RecipeInput,
-  RecipeSuggestInput,
-  RecipeSuggestOutput,
-  RecipeSuggestParams,
-  SuggestionRequest,
-  SuggestionRequestDetail,
+import {
+  type AnyRecipeSuggestion,
+  APPLIANCES,
+  type Recipe,
+  type RecipeInput,
+  type RecipeSuggestInput,
+  type RecipeSuggestOutput,
+  type RecipeSuggestParams,
+  type SuggestionRequest,
+  type SuggestionRequestDetail,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import { listIngredientNames } from '../db/repositories/ingredients.js';
@@ -59,8 +60,8 @@ export type SuggestionRequests = ContractRequestHandle<
 
 /**
  * How `recipe.suggest` requests are stored: the input is the request plus the registry context (active recipe titles,
- * ingredient names); a valid answer stores the suggestions in the agent's order, or ends `no_results` when the agent
- * found none.
+ * ingredient names) and the household appliances; a valid answer stores the suggestions in the agent's order, or ends
+ * `no_results` when the agent found none.
  */
 export const suggestionRequestStore: ContractRequestStore<
   RecipeSuggestParams,
@@ -80,6 +81,7 @@ export const suggestionRequestStore: ContractRequestStore<
       hint: request.hint,
       existingRecipeTitles: await listActiveRecipeTitles(db),
       ingredientNames: await listIngredientNames(db),
+      equipment: [...APPLIANCES],
     };
   },
 
