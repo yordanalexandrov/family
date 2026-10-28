@@ -32,7 +32,7 @@ import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
-import { formatDate, formatWeekday } from '../../lib/format';
+import { capitalize, formatDate, formatWeekday } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { useRateRecipe } from '../recipes/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
@@ -541,10 +541,6 @@ function PlanView({
       )}
     </>
   );
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /**
