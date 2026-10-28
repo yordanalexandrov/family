@@ -5,10 +5,10 @@ The week's shopping list is computed from the menu: every ingredient of the plan
 ## Sub-features
 
 - `shopping-computed` items from the week's menu, scaled (recipe 4 servings, `лук 2 бр.`, planned 2 → `1 бр.`), grouped in regions by aisle.
-- `shopping-check` checkbox per item; paragraph „N от M за купуване“ counts the rest.
-- `shopping-hide` „Скрий <item>“ hides a computed item into a collapsed „▸ Скрити (N)“.
-- `shopping-sources` „<item>: от кои ястия“ lists the dinners the item comes from.
-- `shopping-add` „+ Добави“ sheet adds a manual item (marked img „добавен на ръка“) with „Изтрий <item>“.
+- `shopping-check` the whole row is the check target (label for the big checkbox on the right); paragraph „N от M за купуване“ counts the rest. A checked row stays in place, struck through, and drops to the end of its aisle 1.5 s after the last touch in the list.
+- `shopping-hide` „Скрий от списъка“ in the row sheet hides a computed item into a collapsed „▸ Скрити (N)“.
+- `shopping-sources` the ⓘ button „Още за <item>“ (left of the checkbox) opens the row sheet: „От кои ястия“ with the dinners, „Скрий от списъка“, „Имаме го винаги“.
+- `shopping-add` „+ Добави“ sheet adds a manual item (marked img „добавен на ръка“); its row sheet has „Изтрий“ with a confirmation.
 - `shopping-empty` a week without a plan shows „Няма меню за тази седмица“ and link „Към менюто“.
 
 ## How to get to it (user POV)
@@ -25,8 +25,8 @@ Preconditions:
 - **Check.** `tap(getByRole('checkbox', { name: 'лук' }))` → paragraph „0 от 1 за купуване“.
 - **Add manual.** `tap` „+ Добави“ → dialog „Добави“; fill textbox „Заглавие“ `кафе`; `selectOption('Напитки')` on combobox „Щанд“; `tap` button „Добави“ (exact) → the dialog closes and region „Напитки“ has checkbox „кафе“.
 - **Second view.** `page.reload()`, tab „Следваща седмица“ again → checkbox „лук“ is `checked`. `psql` on `shopping_item` join `shopping_list` join `meal_plan` for the week → `computed | лук | t` and `manual | кафе | drinks | f`. All proven by `scenarios/menu-to-shopping.mjs`.
-- **Sources.** `tap(getByRole('button', { name: 'лук: от кои ястия' }))` → dialog „лук“ with paragraph „От кои ястия“ and listitem `понеделник, 2 ноември · <recipe>`; close with Escape.
-- **Hide.** `tap(getByRole('button', { name: 'Скрий лук' }))` → region „Плод и зеленчук“ disappears, button „▸ Скрити (1)“ appears, counter excludes it; `psql` shows `hidden = t` for that `item_key`.
+- **Sources.** `tap(getByRole('button', { name: 'Още за лук' }))` → dialog „лук“ with paragraph „От кои ястия“ and listitem `понеделник, 2 ноември · <recipe>`; close with Escape.
+- **Hide.** `tap(getByRole('button', { name: 'Още за лук' }))`, `tap` „Скрий от списъка“ → region „Плод и зеленчук“ disappears, button „▸ Скрити (1)“ appears, counter excludes it; `psql` shows `hidden = t` for that `item_key`.
 - **Empty.** On a week without a plan → paragraph „Няма меню за тази седмица“ and link „Към менюто“.
 
 ## Gotchas
