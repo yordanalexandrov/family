@@ -19,8 +19,10 @@
 
 .recipes__title {
   flex: 1 1 12rem;
+  min-inline-size: 0;
   font-size: var(--font-size-xl);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .recipes__back {
@@ -148,7 +150,8 @@
 .recipe-card__title {
   font-size: var(--font-size-lg);
   font-weight: 600;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .recipe-card__meta {

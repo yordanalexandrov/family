@@ -12,7 +12,11 @@ import {
 } from '@family/shared';
 import type { ReactNode } from 'react';
 import { Avatar } from '../../components/Avatar';
-import { formatDate, formatServings, formatWeekday } from '../../lib/format';
+import {
+  formatServings,
+  formatShortDate,
+  formatWeekday,
+} from '../../lib/format';
 import { RatingStars } from '../recipes/Stars';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
@@ -54,14 +58,16 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const content = (
     <>
       <span className="meal-row__day">
-        <span className="meal-row__weekday">{formatWeekday(meal.date)}</span>
-        <span className="meal-row__date">{formatDate(meal.date)}</span>
+        <span className="meal-row__weekday">{formatWeekday(meal.date)}</span>{' '}
+        <span className="meal-row__date">{formatShortDate(meal.date)}</span>
       </span>
       <span className="meal-row__main">
         <span
           className={`meal-row__title${title ? '' : ' meal-row__title--empty'}`}
         >
-          {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
+          <span className="meal-row__title-text">
+            {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
+          </span>
           {meal.recipe?.archivedAt && <span className="badge">архивирана</span>}
         </span>
         {meal.recipe && meal.note && (

@@ -15,7 +15,7 @@ interface NextDaysPanelProps {
   maxEventsPerDay?: number;
 }
 
-/** Следващите дни компактно: ден и дата вляво, събитията вдясно. */
+/** Следващите дни компактно: денят е заглавен ред („ЧТ 29 октомври“), събитията под него са на цялата ширина. */
 export function NextDaysPanel({
   days,
   now,
@@ -38,7 +38,7 @@ export function NextDaysPanel({
           {days.map((day) => (
             <li key={day.date} className="next-days__day">
               <h3 className="next-days__head">
-                <b>{formatWeekday(day.date)}</b>
+                <b>{formatWeekday(day.date)}</b>{' '}
                 <span>{formatDate(day.date)}</span>
               </h3>
               <DayEventList

@@ -5,6 +5,7 @@ import {
   type MealPlan,
   type MenuProposalRequest,
 } from '@family/shared';
+import { fireEvent, screen } from '@testing-library/react';
 import { HttpResponse, http } from 'msw';
 import { apiError, dani, poli, server } from './msw';
 
@@ -354,4 +355,12 @@ export function serveThreads(
     }),
   );
   return requests;
+}
+
+/** Разгръща сгънатите минали дни на текущата седмица („Пн–Вт (минали)“), ако ги има и са сгънати. */
+export function showPastDays() {
+  const fold = screen.queryByRole('button', { name: /\(минали?\)$/ });
+  if (fold?.getAttribute('aria-expanded') === 'false') {
+    fireEvent.click(fold);
+  }
 }

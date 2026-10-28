@@ -7,10 +7,9 @@
 }
 
 .next-days__day {
-  display: grid;
-  grid-template-columns: 4.2em minmax(0, 1fr);
-  gap: 0.2em 0.6em;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
   padding-block: 0.4em;
   border-block-start: 1px solid var(--color-line);
 }
@@ -21,8 +20,11 @@
 
 .next-days__head {
   display: flex;
-  flex-direction: column;
-  padding-block-start: 0.2em;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4em;
+  margin: 0;
+  padding-inline: 0.45em;
   font-size: inherit;
   line-height: 1.1;
 }
@@ -37,6 +39,16 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: 500;
+}
+
+/* Събитията са на цялата ширина под деня: по-тясна колона за часа оставя място на заглавието; „цял ден“ се пренася. */
+.next-days .day-events--compact .day-events__item {
+  grid-template-columns: 3.3em auto minmax(0, 1fr);
+}
+
+.next-days .day-events__when {
+  white-space: normal;
+  line-height: 1.15;
 }
 
 .next-days .day-events__empty {

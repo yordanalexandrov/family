@@ -13,9 +13,14 @@
   color: var(--color-text);
 }
 
+/* Извън `.error-box` съобщението стои в колона (напр. `.menu__propose`), където flex-basis би станал височина. */
 .error-box__message {
   margin: 0;
-  flex: 1 1 14rem;
+  flex: none;
   color: var(--color-danger);
   font-weight: 600;
+}
+
+.error-box > .error-box__message {
+  flex: 1 1 14rem;
 }
