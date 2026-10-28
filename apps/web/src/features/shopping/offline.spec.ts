@@ -75,7 +75,8 @@ describe('ShoppingWeek офлайн', () => {
     ).toBeInTheDocument();
     expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Лук', 'Домати', 'Чушки']);
+    // Отметнатият ред стои на мястото си, докато не мине забавянето.
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
     expect(screen.getByText('4 от 6')).toBeInTheDocument();
     expect(shopping.requests).toEqual([]);
 
@@ -314,15 +315,19 @@ describe('ShoppingWeek офлайн', () => {
     await screen.findByText('5 от 6');
     net.offline();
 
-    await user.click(screen.getByRole('button', { name: 'Скрий Лук' }));
+    await user.click(screen.getByRole('button', { name: 'Още за Лук' }));
+    await user.click(screen.getByRole('button', { name: 'Скрий от списъка' }));
     expect(await screen.findByText('Няма връзка')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
 
-    await user.click(screen.getByRole('button', { name: 'Изтрий Кафе' }));
+    await user.click(screen.getByRole('button', { name: 'Още за Кафе' }));
+    await user.click(screen.getByRole('button', { name: 'Изтрий' }));
     await user.click(
       within(
         screen.getByRole('alertdialog', { name: 'Изтриване на Кафе' }),
       ).getByRole('button', { name: 'Изтрий' }),
     );
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
 
     await user.click(screen.getByRole('button', { name: '+ Добави' }));
     const sheet = screen.getByRole('dialog', { name: 'Добави' });

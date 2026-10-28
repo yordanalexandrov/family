@@ -14,7 +14,7 @@ import {
 } from '@family/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useUsers } from '../../api/queries';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -42,6 +42,9 @@ import './shopping.css';
 const AISLE_LABELS = Object.fromEntries(
   AISLES.map(({ key, labelBg }) => [key, labelBg]),
 ) as Record<Aisle, string>;
+
+/** Колко стои отметнатият ред на мястото си след последното докосване в списъка. */
+const SETTLE_MS = 1500;
 
 /**
  * `/shopping`: списъкът за пазаруване на тази или следващата седмица, по щанд. Работи и без връзка: показва
@@ -212,12 +215,15 @@ function ListView({ list, weekStart, users }: ListViewProps) {
     );
   }
 
+  const held = useHeldOrder(list.aisles);
   const rowActions: RowActions = {
-    onToggle: (item) => void toggle(item),
+    onToggle: (item) => {
+      held.hold();
+      void toggle(item);
+    },
     onSources: setSourcesOf,
-    onHide: (item) => setHidden.mutate({ item, hidden: true }, { onError }),
-    onDelete: (item) => deleteItem.mutate(item, { onError }),
   };
+  const closeSheet = () => setSourcesOf(null);
 
   function alwaysHave(item: ShoppingItem) {
     const { ingredientId } = item;
@@ -226,7 +232,7 @@ function ListView({ list, weekStart, users }: ListViewProps) {
     }
     makeStaple.mutate(
       item.pantry ? { pantryId: item.pantry.id } : { ingredientId },
-      { onError, onSuccess: () => setSourcesOf(null) },
+      { onError, onSuccess: closeSheet },
     );
   }
 
@@ -235,25 +241,27 @@ function ListView({ list, weekStart, users }: ListViewProps) {
       {list.aisles.length === 0 ? (
         <p className="shopping__empty">Списъкът е празен.</p>
       ) : (
-        list.aisles.map(({ aisle, items }) => (
-          <section
-            key={aisle}
-            className="shopping__aisle"
-            aria-label={AISLE_LABELS[aisle]}
-          >
-            <h2 className="shopping__aisle-title">{AISLE_LABELS[aisle]}</h2>
-            <ul className="shopping__items">
-              {items.map((item) => (
-                <ItemRow
-                  key={item.key}
-                  item={item}
-                  checkedBy={users.find((u) => u.id === item.checkedBy)}
-                  {...rowActions}
-                />
-              ))}
-            </ul>
-          </section>
-        ))
+        <div ref={held.listRef} className="shopping__list">
+          {held.aisles.map(({ aisle, items }) => (
+            <section
+              key={aisle}
+              className="shopping__aisle"
+              aria-label={AISLE_LABELS[aisle]}
+            >
+              <h2 className="shopping__aisle-title">{AISLE_LABELS[aisle]}</h2>
+              <ul className="shopping__items">
+                {items.map((item) => (
+                  <ItemRow
+                    key={item.key}
+                    item={item}
+                    checkedBy={users.find((u) => u.id === item.checkedBy)}
+                    {...rowActions}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
       <button
         type="button"
@@ -275,7 +283,10 @@ function ListView({ list, weekStart, users }: ListViewProps) {
           {showHidden && (
             <ul className="shopping__items" aria-label="Скрити">
               {list.hidden.map((item) => (
-                <li key={item.key} className="shopping-item">
+                <li
+                  key={item.key}
+                  className="shopping-item shopping-item--hidden"
+                >
                   <span className="shopping-item__main">
                     <span className="shopping-item__title">{item.title}</span>
                     <span className="shopping-item__quantity">
@@ -312,7 +323,10 @@ function ListView({ list, weekStart, users }: ListViewProps) {
             <>
               <ul className="shopping__items" aria-label="Скрити от килера">
                 {list.pantryHidden.map((item) => (
-                  <li key={item.key} className="shopping-item">
+                  <li
+                    key={item.key}
+                    className="shopping-item shopping-item--hidden"
+                  >
                     <span className="shopping-item__main">
                       <span className="shopping-item__title">{item.title}</span>
                       <span className="shopping-item__quantity">
@@ -347,7 +361,16 @@ function ListView({ list, weekStart, users }: ListViewProps) {
           item={sourcesOf}
           online={online}
           onAlwaysHave={alwaysHave}
-          onClose={() => setSourcesOf(null)}
+          onHide={(item) =>
+            setHidden.mutate(
+              { item, hidden: true },
+              { onError, onSuccess: closeSheet },
+            )
+          }
+          onDelete={(item) =>
+            deleteItem.mutate(item, { onError, onSuccess: closeSheet })
+          }
+          onClose={closeSheet}
         />
       )}
       {adding && (
@@ -356,6 +379,57 @@ function ListView({ list, weekStart, users }: ListViewProps) {
       <Toast message={toast} onDone={() => setToast(null)} />
     </>
   );
+}
+
+/**
+ * Редът на редовете, задържан след отметка: отметнатият ред не слиза веднага в края на щанда, а всички редове стоят,
+ * където са били при първата отметка, докато не мине `SETTLE_MS` без докосване в списъка. Нов ред (напр. от
+ * опресняването) отива в края на щанда си.
+ */
+function useHeldOrder(aisles: ShoppingList['aisles']) {
+  const [keys, setKeys] = useState<string[] | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const settleLater = useCallback(() => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setKeys(null), SETTLE_MS);
+  }, []);
+
+  const holding = keys !== null;
+  useEffect(() => {
+    const list = listRef.current;
+    if (!holding || !list) {
+      return;
+    }
+    list.addEventListener('pointerdown', settleLater);
+    return () => list.removeEventListener('pointerdown', settleLater);
+  }, [holding, settleLater]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  return {
+    listRef,
+    aisles: keys
+      ? aisles.map((group) => ({
+          ...group,
+          items: group.items.toSorted(
+            (a, b) => position(keys, a.key) - position(keys, b.key),
+          ),
+        }))
+      : aisles,
+    hold() {
+      setKeys(
+        (current) =>
+          current ?? aisles.flatMap((group) => group.items.map((i) => i.key)),
+      );
+      settleLater();
+    },
+  };
+}
+
+function position(keys: string[], key: string): number {
+  const index = keys.indexOf(key);
+  return index === -1 ? Number.POSITIVE_INFINITY : index;
 }
 
 /** „200 г“, „2 бр.“, „по вкус“; ръчен ред без количество — нищо. */
@@ -389,109 +463,69 @@ function PantryBadge({ item }: { item: ShoppingItem }) {
 interface RowActions {
   onToggle: (item: ShoppingItem) => void;
   onSources: (item: ShoppingItem) => void;
-  onHide: (item: ShoppingItem) => void;
-  onDelete: (item: ShoppingItem) => void;
 }
 
+/**
+ * Редът е една цел за отметка: докосване където и да е го отмята, а голямата отметка е вдясно, в зоната на палеца.
+ * ⓘ отваря менюто на реда и не отмята.
+ */
 function ItemRow({
   item,
   checkedBy,
   onToggle,
   onSources,
-  onHide,
-  onDelete,
 }: RowActions & { item: ShoppingItem; checkedBy: User | undefined }) {
-  const [confirming, setConfirming] = useState(false);
+  const checkId = useId();
   const checked = item.checkedBy !== null;
   const manual = item.kind === 'manual';
   return (
     <li className="shopping-item" data-checked={checked}>
-      <input
-        type="checkbox"
-        className="shopping-item__check"
-        aria-label={item.title}
-        checked={checked}
-        onChange={() => onToggle(item)}
-      />
-      <span className="shopping-item__main">
-        {manual ? (
+      <label htmlFor={checkId} className="shopping-item__label">
+        <span className="shopping-item__main">
           <span className="shopping-item__title">{item.title}</span>
-        ) : (
-          <button
-            type="button"
-            className="shopping-item__title shopping-item__title--button"
-            aria-label={`${item.title}: от кои ястия`}
-            onClick={() => onSources(item)}
-          >
-            {item.title}
-          </button>
-        )}
-        <span className="shopping-item__quantity">
-          {formatItemQuantity(item)}
+          <span className="shopping-item__quantity">
+            {formatItemQuantity(item)}
+          </span>
+          <PantryBadge item={item} />
+          {manual && (
+            <span
+              className="shopping-item__manual"
+              role="img"
+              aria-label="добавен на ръка"
+              title="добавен на ръка"
+            >
+              ✎
+            </span>
+          )}
         </span>
-        <PantryBadge item={item} />
-        {manual && (
-          <span
-            className="shopping-item__manual"
-            role="img"
-            aria-label="добавен на ръка"
-            title="добавен на ръка"
-          >
-            ✎
+        {checked && checkedBy && (
+          <span title={`Отметнато от ${checkedBy.name}`}>
+            <Avatar
+              initial={checkedBy.initial}
+              color={checkedBy.color}
+              size="sm"
+            />
           </span>
         )}
-      </span>
-      {checked && checkedBy && (
-        <span title={`Отметнато от ${checkedBy.name}`}>
-          <Avatar
-            initial={checkedBy.initial}
-            color={checkedBy.color}
-            size="sm"
-          />
-        </span>
-      )}
-      {manual ? (
-        confirming ? (
-          <span
-            className="shopping-item__confirm"
-            role="alertdialog"
-            aria-label={`Изтриване на ${item.title}`}
-          >
-            <button
-              type="button"
-              className="button menu__danger shopping-item__action"
-              onClick={() => onDelete(item)}
-            >
-              Изтрий
-            </button>
-            <button
-              type="button"
-              className="button button--quiet shopping-item__action"
-              onClick={() => setConfirming(false)}
-            >
-              Откажи
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="button button--quiet shopping-item__action"
-            aria-label={`Изтрий ${item.title}`}
-            onClick={() => setConfirming(true)}
-          >
-            изтрий
-          </button>
-        )
-      ) : (
-        <button
-          type="button"
-          className="button button--quiet shopping-item__action"
-          aria-label={`Скрий ${item.title}`}
-          onClick={() => onHide(item)}
-        >
-          скрий
-        </button>
-      )}
+      </label>
+      <button
+        type="button"
+        className="shopping-item__more"
+        aria-label={`Още за ${item.title}`}
+        onClick={() => onSources(item)}
+      >
+        <span aria-hidden="true">ⓘ</span>
+      </button>
+      <label className="shopping-item__check-area">
+        <input
+          id={checkId}
+          type="checkbox"
+          className="shopping-item__check"
+          aria-label={item.title}
+          checked={checked}
+          onChange={() => onToggle(item)}
+        />
+      </label>
     </li>
   );
 }

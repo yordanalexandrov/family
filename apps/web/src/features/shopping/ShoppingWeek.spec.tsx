@@ -129,7 +129,7 @@ describe('ShoppingWeek', () => {
     expect(screen.queryByText('Олио')).not.toBeInTheDocument();
   });
 
-  it('отметка праща PUT …/checked с действащия потребител и мести реда в края на щанда', async () => {
+  it('отметка праща PUT …/checked с действащия потребител', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
@@ -137,7 +137,6 @@ describe('ShoppingWeek', () => {
     await user.click(await screen.findByRole('checkbox', { name: 'Домати' }));
 
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Лук', 'Домати', 'Чушки']);
     expect(await screen.findByText('4 от 6')).toBeInTheDocument();
     await vi.waitFor(() =>
       expect(shopping.requests).toEqual([
@@ -148,6 +147,44 @@ describe('ShoppingWeek', () => {
           actingUser: dani.id,
         },
       ]),
+    );
+  });
+
+  it('отметнат ред остава на мястото си и слиза в края на щанда 1.5 s след последното докосване', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    serveShopping({ [thisWeek]: shoppingList() });
+
+    renderApp('/shopping');
+    await user.click(await screen.findByText('Домати'));
+    expect(await screen.findByText('4 от 6')).toBeInTheDocument();
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    // Докосване другаде в списъка отлага местенето.
+    await user.pointer({
+      keys: '[MouseLeft>]',
+      target: screen.getByText('Лук'),
+    });
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+
+    await act(() => vi.advanceTimersByTimeAsync(600));
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Лук', 'Домати', 'Чушки']);
+  });
+
+  it('докосване на името отмята реда и не отваря листа', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+    renderApp('/shopping');
+    await user.click(await screen.findByText('Домати'));
+
+    expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(shopping.requests.map((r) => r.body)).toEqual([{ checked: true }]),
     );
   });
 
@@ -208,12 +245,17 @@ describe('ShoppingWeek', () => {
     );
   });
 
-  it('„скрий“ на изчислен ред праща PUT …/hidden', async () => {
+  it('„Скрий от списъка“ в листа на изчислен ред праща PUT …/hidden и затваря листа', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
     renderApp('/shopping');
-    await user.click(await screen.findByRole('button', { name: 'Скрий Лук' }));
+    await user.click(await screen.findByRole('button', { name: 'Още за Лук' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Лук' })).getByRole('button', {
+        name: 'Скрий от списъка',
+      }),
+    );
 
     await vi.waitFor(() =>
       expect(shopping.requests).toEqual([
@@ -225,9 +267,9 @@ describe('ShoppingWeek', () => {
         },
       ]),
     );
-    expect(
-      screen.queryByRole('button', { name: 'Скрий Кафе' }),
-    ).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
   });
 
   it('скритата секция се разгъва и „покажи“ праща hidden: false', async () => {
@@ -255,34 +297,45 @@ describe('ShoppingWeek', () => {
     );
   });
 
-  it('докосване на заглавието отваря „от кои ястия“ с деня и рецептата', async () => {
+  it('ⓘ отваря листа с „от кои ястия“ и „Скрий от списъка“, без да отмята', async () => {
     const user = userEvent.setup();
-    serveShopping({ [thisWeek]: shoppingList() });
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
     renderApp('/shopping');
     await user.click(
-      await screen.findByRole('button', { name: 'Домати: от кои ястия' }),
+      await screen.findByRole('button', { name: 'Още за Домати' }),
     );
 
     const sheet = screen.getByRole('dialog', { name: 'Домати' });
+    expect(within(sheet).getByText('От кои ястия')).toBeInTheDocument();
     const sources = within(sheet).getAllByRole('listitem');
     expect(sources).toHaveLength(2);
     expect(sources[0]).toHaveTextContent('понеделник, 2 ноември · Пиле с ориз');
     expect(sources[1]).toHaveTextContent(
       'петък, 6 ноември · Паста с доматен сос',
     );
+    expect(
+      within(sheet).getByRole('button', { name: 'Скрий от списъка' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Домати' })).not.toBeChecked();
+    expect(shopping.requests).toEqual([]);
   });
 
-  it('„изтрий“ на ръчен ред иска потвърждение и праща DELETE', async () => {
+  it('„Изтрий“ в листа на ръчен ред иска потвърждение и праща DELETE', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
     renderApp('/shopping');
     await user.click(
-      await screen.findByRole('button', { name: 'Изтрий Кафе' }),
+      await screen.findByRole('button', { name: 'Още за Кафе' }),
     );
+    const sheet = screen.getByRole('dialog', { name: 'Кафе' });
+    expect(
+      within(sheet).queryByRole('button', { name: 'Скрий от списъка' }),
+    ).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Изтрий' }));
     expect(shopping.requests).toEqual([]);
-    const confirm = screen.getByRole('alertdialog', {
+    const confirm = within(sheet).getByRole('alertdialog', {
       name: 'Изтриване на Кафе',
     });
     await user.click(within(confirm).getByRole('button', { name: 'Изтрий' }));
@@ -425,7 +478,7 @@ describe('ShoppingWeek', () => {
 
       renderApp('/shopping');
       await user.click(
-        await screen.findByRole('button', { name: 'Домати: от кои ястия' }),
+        await screen.findByRole('button', { name: 'Още за Домати' }),
       );
       await user.click(
         within(screen.getByRole('dialog', { name: 'Домати' })).getByRole(
@@ -455,7 +508,7 @@ describe('ShoppingWeek', () => {
 
       renderApp('/shopping');
       await user.click(
-        await screen.findByRole('button', { name: 'Кайма: от кои ястия' }),
+        await screen.findByRole('button', { name: 'Още за Кайма' }),
       );
       await user.click(
         within(screen.getByRole('dialog', { name: 'Кайма' })).getByRole(
@@ -478,7 +531,7 @@ describe('ShoppingWeek', () => {
       renderApp('/shopping');
       await user.click(
         await screen.findByRole('button', {
-          name: `${ranOutMilk.title}: от кои ястия`,
+          name: `Още за ${ranOutMilk.title}`,
         }),
       );
 
@@ -505,9 +558,7 @@ describe('ShoppingWeek', () => {
       expect(
         screen.getByRole('button', { name: 'Свърши Ориз' }),
       ).toBeDisabled();
-      await user.click(
-        screen.getByRole('button', { name: 'Домати: от кои ястия' }),
-      );
+      await user.click(screen.getByRole('button', { name: 'Още за Домати' }));
       const sheet = screen.getByRole('dialog', { name: 'Домати' });
       expect(
         within(sheet).getByRole('button', { name: 'Имаме го винаги' }),

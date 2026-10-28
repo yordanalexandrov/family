@@ -1,4 +1,4 @@
-/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem). */
+/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 44 px (2.75rem); редът на списъка ≥ 56 px (3.5rem). */
 .shopping__count {
   margin: 0;
   color: var(--color-text-muted);
@@ -55,22 +55,67 @@
   list-style: none;
 }
 
+/* Без собствена кутия: щандовете остават деца на екрана с неговия отстъп. */
+.shopping__list {
+  display: contents;
+}
+
+/* Редът е една цел за отметка: етикетът и отметката вдясно покриват цялата му височина. */
 .shopping-item {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: 3.25rem;
-  padding: var(--space-1) var(--space-3);
+  align-items: stretch;
+  min-block-size: 3.5rem;
 }
 
 .shopping-item + .shopping-item {
   border-block-start: 1px solid var(--color-line);
 }
 
-.shopping-item__check {
+/* Скритите редове (без отметка) пазят стария вид: текст и бутон в един ред. */
+.shopping-item--hidden {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+}
+
+.shopping-item__label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shopping-item__more {
   flex: none;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 3rem;
+  min-block-size: 3rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.shopping-item__check-area {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 3.5rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.shopping-item__check {
+  inline-size: 2rem;
+  block-size: 2rem;
   margin: 0;
   accent-color: var(--color-accent);
   cursor: pointer;
@@ -91,16 +136,6 @@
   overflow-wrap: anywhere;
 }
 
-.shopping-item__title--button {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-weight: 600;
-  text-align: start;
-  cursor: pointer;
-}
-
 .shopping-item__quantity,
 .shopping-item__manual {
   color: var(--color-text-muted);
@@ -113,7 +148,7 @@
   text-decoration: line-through;
 }
 
-/* „скрий“/„изтрий“/„покажи“ са второстепенни: текст без фон, но с цялата площ за докосване. */
+/* „покажи“/„Свърши“ на скритите редове са второстепенни: текст без фон, но с цялата площ за докосване. */
 .shopping-item__action {
   flex: none;
   min-block-size: 2.75rem;
@@ -127,12 +162,7 @@
   font-weight: 500;
 }
 
-.shopping-item__confirm {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.shopping-item__confirm .menu__danger {
+.shopping__sheet-actions .menu__danger {
   background: var(--color-danger);
 }
 

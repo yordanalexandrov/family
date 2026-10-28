@@ -1,22 +1,36 @@
 import type { ShoppingItem } from '@family/shared';
+import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { formatDayLong } from '../../lib/format';
 
 /**
- * Менюто на реда: „От кои ястия“ (денят и рецептата на всяко ястие, което внася реда) и „Имаме го винаги“ за
- * изчислен ред, чийто продукт още не е постоянен в килера. „Имаме го винаги“ иска връзка.
+ * Менюто на реда, отворено с ⓘ: „От кои ястия“ (денят и рецептата на всяко ястие, което внася реда), „Скрий от
+ * списъка“ и „Имаме го винаги“ за изчислен ред, чийто продукт още не е постоянен в килера; „Изтрий“ с потвърждение
+ * за ръчен ред. „Имаме го винаги“ иска връзка.
  */
 export function SourcesSheet({
   item,
   online,
   onAlwaysHave,
+  onHide,
+  onDelete,
   onClose,
 }: {
   item: ShoppingItem;
   online: boolean;
   onAlwaysHave: (item: ShoppingItem) => void;
+  onHide: (item: ShoppingItem) => void;
+  onDelete: (item: ShoppingItem) => void;
   onClose: () => void;
 }) {
+  if (item.kind === 'manual') {
+    return (
+      <Sheet title={item.title} onClose={onClose}>
+        <p className="field__label">Добавен на ръка</p>
+        <DeleteAction item={item} onDelete={onDelete} />
+      </Sheet>
+    );
+  }
   const canMakeStaple =
     item.ingredientId !== undefined && item.pantry?.kind !== 'staple';
   return (
@@ -38,6 +52,15 @@ export function SourcesSheet({
       ) : (
         <p className="field__label">Свърши в килера; менюто не го иска</p>
       )}
+      <div className="shopping__sheet-actions">
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => onHide(item)}
+        >
+          Скрий от списъка
+        </button>
+      </div>
       {canMakeStaple && (
         <div className="shopping__sheet-actions">
           <button
@@ -58,5 +81,51 @@ export function SourcesSheet({
         </div>
       )}
     </Sheet>
+  );
+}
+
+/** „Изтрий“ на ръчен ред: второ докосване потвърждава. */
+function DeleteAction({
+  item,
+  onDelete,
+}: {
+  item: ShoppingItem;
+  onDelete: (item: ShoppingItem) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <div className="shopping__sheet-actions">
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => setConfirming(true)}
+        >
+          Изтрий
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div
+      className="shopping__sheet-actions"
+      role="alertdialog"
+      aria-label={`Изтриване на ${item.title}`}
+    >
+      <button
+        type="button"
+        className="button menu__danger"
+        onClick={() => onDelete(item)}
+      >
+        Изтрий
+      </button>
+      <button
+        type="button"
+        className="button button--quiet"
+        onClick={() => setConfirming(false)}
+      >
+        Откажи
+      </button>
+    </div>
   );
 }
