@@ -98,7 +98,7 @@ export function serveWeekProposal(...states: MenuProposalRequest[]) {
       const weekStart = new URL(request.url).searchParams.get('weekStart');
       const proposal = states[Math.min(calls, states.length - 1)];
       if (!proposal || proposal.weekStart !== weekStart) {
-        return notFound();
+        return noProposal();
       }
       calls += 1;
       return HttpResponse.json({ proposal });
@@ -107,15 +107,31 @@ export function serveWeekProposal(...states: MenuProposalRequest[]) {
   return () => calls;
 }
 
+/** 404 `no_proposal`, както api-то за седмица без предложение. */
+export function noProposal() {
+  return HttpResponse.json(
+    {
+      error: 'not_found',
+      code: 'no_proposal',
+      message: 'Няма предложение за меню за тази седмица',
+    },
+    { status: 404 },
+  );
+}
+
 function notFound() {
   return HttpResponse.json(
-    { error: 'not_found', message: 'Няма меню за тази седмица' },
+    {
+      error: 'not_found',
+      code: 'no_plan',
+      message: 'Няма меню за тази седмица',
+    },
     { status: 404 },
   );
 }
 
 /**
- * `GET /api/menu/plans?weekStart=` по седмици: седмица без план е 404, както в api. Връща реда на поисканите
+ * `GET /api/menu/plans?weekStart=` по седмици: седмица без план е 404 `no_plan`, както в api. Връща реда на поисканите
  * седмици.
  */
 export function servePlans(plans: Record<string, MealPlan> = {}) {

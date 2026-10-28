@@ -173,6 +173,38 @@ describe('ShoppingWeek офлайн', () => {
     expect(screen.getByText('3 от 5')).toBeInTheDocument();
   });
 
+  it('404 no_plan (менюто на седмицата е изтрито) маха всички отметки за седмицата и показва „Няма меню“', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    const first = renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Лук' }));
+    await screen.findByText('2 отметки чакат връзка');
+    // Докато телефонът е без връзка, менюто на седмицата е изтрито.
+    delete shopping.lists[thisWeek];
+
+    net.online();
+
+    expect(
+      await screen.findByText('Няма меню за тази седмица'),
+    ).toBeInTheDocument();
+    expect(shopping.requests.map((r) => r.path)).toEqual([
+      `${thisWeek}/items/${tomatoes.key}/checked`,
+      `${thisWeek}/items/${onions.key}/checked`,
+    ]);
+    first.unmount();
+    // Опашката е празна: с ново меню следващото четене не праща нищо и не чака нищо.
+    shopping.lists[thisWeek] = shoppingList();
+    renderApp('/shopping');
+    expect(await screen.findByText('5 от 6')).toBeInTheDocument();
+    expect(screen.queryByText(/чака/)).not.toBeInTheDocument();
+    expect(shopping.requests).toHaveLength(2);
+  });
+
   it('отметката се изпраща от името на този, който я е направил, и след смяна на потребителя', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });

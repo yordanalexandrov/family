@@ -1,14 +1,13 @@
 import {
   type NotificationSettings,
   notificationSettingsBodySchema,
-  pushDisabledSchema,
   pushSubscriptionInputSchema,
   pushTestResponseSchema,
   vapidKeyResponseSchema,
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
+import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { useActingUser } from '../../app/acting-user';
 import { readDeviceMode } from '../../app/device-mode';
 import { logger } from '../../logger';
@@ -39,14 +38,6 @@ export function pushSupported(): boolean {
   );
 }
 
-function isPushDisabled(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status === 404 &&
-    pushDisabledSchema.safeParse(error.body).success
-  );
-}
-
 async function currentSubscription(): Promise<PushSubscription | null> {
   const registration = await navigator.serviceWorker.ready;
   return registration.pushManager.getSubscription();
@@ -63,7 +54,7 @@ async function readPushDevice(): Promise<PushDevice> {
       vapidKeyResponseSchema,
     ));
   } catch (error) {
-    if (isPushDisabled(error)) {
+    if (refusalOf(error, 'push_disabled')) {
       return { status: 'disabled' };
     }
     throw error;

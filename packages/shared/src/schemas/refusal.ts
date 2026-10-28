@@ -55,3 +55,13 @@ export function refusalErrorOf<C extends RefusalCode>(
 ): RefusalOf<C>['error'] {
   return refusalSchemas[code].shape.error.value;
 }
+
+/** The body as the refusal `C`, or `null` when it is anything else (another code, or details that do not match). */
+export function parseRefusal<C extends RefusalCode>(
+  code: C,
+  body: unknown,
+): RefusalOf<C> | null {
+  const parsed = refusalSchemas[code].safeParse(body);
+  // `refusalSchemas[code]` is the schema of `C`, but TS widens the indexed access to the union of all of them.
+  return parsed.success ? (parsed.data as RefusalOf<C>) : null;
+}

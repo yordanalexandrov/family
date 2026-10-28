@@ -51,6 +51,26 @@ describe('MenuWeek', () => {
     );
   });
 
+  it('404 без no_plan (напр. адрес, който api-то не познава) е грешка, а не седмица без план', async () => {
+    server.use(
+      http.get('/api/menu/plans', () =>
+        HttpResponse.json(
+          { error: 'not_found', message: 'Няма такъв адрес' },
+          { status: 404 },
+        ),
+      ),
+    );
+
+    renderApp('/menu');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Няма такъв адрес',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Започни празно' }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each(['next', '2026-11-10'])(
     '?week=%s (не е понеделник) показва текущата седмица',
     async (week) => {

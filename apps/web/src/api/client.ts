@@ -2,6 +2,9 @@ import {
   type ApiErrorCode,
   apiErrorCodeSchema,
   apiErrorSchema,
+  parseRefusal,
+  type RefusalCode,
+  type RefusalOf,
 } from '@family/shared';
 import { readActingUserId } from '../app/acting-user';
 import { readDeviceMode } from '../app/device-mode';
@@ -58,6 +61,17 @@ export class ApiError extends Error {
   isServerError(): boolean {
     return this.status >= 500;
   }
+}
+
+/**
+ * Отказът с под-код `code` (`refusalSchemas` в shared, напр. `no_plan` с 404 или `not_enough_recipes` с 409) с
+ * детайлите му, или `null` за всяка друга грешка, включително същия статус без този под-код.
+ */
+export function refusalOf<C extends RefusalCode>(
+  error: unknown,
+  code: C,
+): RefusalOf<C> | null {
+  return error instanceof ApiError ? parseRefusal(code, error.body) : null;
 }
 
 /**

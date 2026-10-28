@@ -85,7 +85,14 @@ export const handlers = [
   ),
   // Седмица без `serveWeekProposal` няма предложение (нито ръчно, нито от крона).
   http.get('/api/menu/proposals', () =>
-    apiError(404, 'not_found', 'Няма такова предложение за меню'),
+    HttpResponse.json(
+      {
+        error: 'not_found',
+        code: 'no_proposal',
+        message: 'Няма предложение за меню за тази седмица',
+      },
+      { status: 404 },
+    ),
   ),
   http.get('/api/calendar/events', ({ request }) => {
     const url = new URL(request.url);
