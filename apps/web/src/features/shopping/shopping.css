@@ -51,7 +51,9 @@
   padding: 0;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: var(--glass-bg);
+  /* Тъмна тема: основата под стъклото пази „скрий“ и количествата над 4.5:1 и над светла аурора (#138). */
+  background:
+    linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
   list-style: none;
 }
 
