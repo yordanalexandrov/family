@@ -14,12 +14,11 @@ const ITEMS = [
 ] as const;
 
 /**
- * Стъклената лента между основните екрани. На телефона е долу и всеки екран е икона; само текущият
- * показва и надписа си, затова седемте се събират и на 360 px. Иконите без надпис носят името си в
- * `aria-label`. В браузъра е горе и всеки екран е с надписа си.
+ * Стъклената лента между основните екрани. На телефона е долу: седем равни колони само с икони, с
+ * размери в px, за да се събират на 360 px и при по-голям шрифт; надписът е скрит само за окото и
+ * остава достъпното име на линка. В браузъра е горе и всеки екран е с надписа си.
  */
 export function MainNav({ placement }: { placement: 'bottom' | 'top' }) {
-  const labelled = placement === 'top';
   return (
     <nav
       className={`main-nav main-nav--${placement}`}
@@ -33,16 +32,9 @@ export function MainNav({ placement }: { placement: 'bottom' | 'top' }) {
               className="main-nav__link"
               activeOptions={{ exact, includeSearch: false }}
               activeProps={{ 'aria-current': 'page' }}
-              inactiveProps={labelled ? undefined : { 'aria-label': label }}
             >
-              {({ isActive }) => (
-                <>
-                  {icon}
-                  {(labelled || isActive) && (
-                    <span className="main-nav__label">{label}</span>
-                  )}
-                </>
-              )}
+              {icon}
+              <span className="main-nav__label">{label}</span>
             </Link>
           </li>
         ))}
