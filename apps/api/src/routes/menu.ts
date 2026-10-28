@@ -137,6 +137,27 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     }),
   );
 
+  // „Извадих“ on „Извади месото“; the service worker calls it with the person's `x-acting-user`.
+  app.post(
+    '/api/menu/meals/:id/thawed',
+    { schema: { params: idParamsSchema } },
+    async (request, reply) => {
+      await service.markThawed(request.params.id);
+      return reply.code(204).send();
+    },
+  );
+
+  // „Аз“ on „Кой готви довечера“: first wins; 409 `cook_taken` (`cookTakenSchema`) after.
+  app.post(
+    '/api/menu/meals/:id/cook-claim',
+    { schema: { params: idParamsSchema } },
+    async (request, reply) => {
+      const meal = await service.claimCook(request.params.id, request.actor.id);
+      await app.reminders.cookClaimed(meal, request.actor.id);
+      return reply.code(204).send();
+    },
+  );
+
   // GLOSSARY: Разговор. Read for any day; written only from today on.
   app.get(
     '/api/menu/meals/:id/comments',

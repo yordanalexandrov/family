@@ -15,6 +15,7 @@ const mince = {
   },
   kind: 'use_up',
   note: 'фризер, ~500 г',
+  frozen: true,
   ranOutAt: null,
   createdAt: '2026-10-15T08:00:00.000Z',
 };
@@ -53,16 +54,26 @@ describe('createPantryItemSchema', () => {
         kind: 'use_up',
         note: '  фризер ',
       }),
-    ).toEqual({ ingredientId, kind: 'use_up', note: 'фризер' });
+    ).toEqual({ ingredientId, kind: 'use_up', note: 'фризер', frozen: false });
     expect(
       createPantryItemSchema.parse({ ingredientId, kind: 'staple', note: ' ' }),
-    ).toEqual({ ingredientId, kind: 'staple', note: null });
+    ).toEqual({ ingredientId, kind: 'staple', note: null, frozen: false });
   });
 
-  it('takes no note at all', () => {
+  it('takes no note at all, and an item is not in the freezer unless said so', () => {
     expect(
       createPantryItemSchema.parse({ ingredientId, kind: 'staple' }),
-    ).toEqual({ ingredientId, kind: 'staple' });
+    ).toEqual({ ingredientId, kind: 'staple', frozen: false });
+  });
+
+  it('takes an item that is in the freezer („Във фризера“)', () => {
+    expect(
+      createPantryItemSchema.parse({
+        ingredientId,
+        kind: 'use_up',
+        frozen: true,
+      }),
+    ).toEqual({ ingredientId, kind: 'use_up', frozen: true });
   });
 
   it('rejects a note longer than the limit', () => {
@@ -83,6 +94,15 @@ describe('updatePantryItemSchema', () => {
     });
     expect(updatePantryItemSchema.parse({ note: null })).toEqual({
       note: null,
+    });
+  });
+
+  it('accepts taking an item out of the freezer alone, and leaves it as it is when not said', () => {
+    expect(updatePantryItemSchema.parse({ frozen: false })).toEqual({
+      frozen: false,
+    });
+    expect(updatePantryItemSchema.parse({ kind: 'use_up' })).toEqual({
+      kind: 'use_up',
     });
   });
 });

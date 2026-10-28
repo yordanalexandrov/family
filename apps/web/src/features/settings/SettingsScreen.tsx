@@ -12,6 +12,7 @@ import { Avatar } from '../../components/Avatar';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { DEVICE_CHOICES } from '../device/DeviceScreen';
+import { NotificationsSection } from './NotificationsSection';
 import './SettingsScreen.css';
 
 const THEMES: { value: ThemeSetting; label: string }[] = [
@@ -26,7 +27,7 @@ const EFFECTS: { value: EffectsSetting; label: string }[] = [
   { value: 'auto', label: 'Автоматично' },
 ];
 
-/** Настройките на устройството: тема, ефекти, режим, „Кой си“ (само телефон), версия. */
+/** Настройките на устройството: тема, ефекти, режим, „Кой си“ и „Известия“ (само телефон), версия. */
 export function SettingsScreen() {
   const { setting: theme, setTheme } = useTheme();
   const { setting: effects, level, setEffects } = useEffectsLevel();
@@ -85,6 +86,12 @@ export function SettingsScreen() {
       {mode === 'phone' && (
         <Section title="Кой си" index={3}>
           <ActingUser />
+        </Section>
+      )}
+
+      {mode === 'phone' && (
+        <Section title="Известия" index={4}>
+          <NotificationsSection />
         </Section>
       )}
 

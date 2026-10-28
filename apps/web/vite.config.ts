@@ -28,7 +28,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       // Иконите (public/icons/*.png) са рендерирани еднократно от неоновия рисунък
-      // върху черен фон; maskable е с поле, за да не реже маската триъгълника.
+      // върху черен фон; maskable е с поле, за да не реже маската триъгълника. badge-96.png (иконата
+      // на известията в лентата на Android) е само най-ярките линии на рисунъка, бели върху прозрачно.
       includeAssets: ['icons/favicon-48.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'Семейна платформа',
@@ -51,22 +52,11 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        navigateFallback: '/index.html',
-        // Навигация към api/healthz не е страница на приложението.
-        navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],
-        // /api/* само от мрежата, без кеш. Потокът `/api/events` (SSE) не минава през service worker-а
-        // изобщо: браузърът го отваря директно, без посредник, който да го буферира или прекъсне.
-        runtimeCaching: [
-          {
-            urlPattern: ({ url, sameOrigin }) =>
-              sameOrigin &&
-              url.pathname.startsWith('/api/') &&
-              url.pathname !== '/api/events',
-            handler: 'NetworkOnly',
-          },
-        ],
-        cleanupOutdatedCaches: true,
+      // Собственият service worker (src/sw.ts) показва известията (епик Напомняния); кешът е описан в него.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         // woff2: Inter (src/styles/fonts.css) трябва да работи офлайн.
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2}'],
       },

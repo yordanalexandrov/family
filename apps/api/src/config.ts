@@ -87,6 +87,20 @@ function withOpenClaw<T extends OpenClawEnv>(
   };
 }
 
+/** A VAPID key as `web-push` prints it: unpadded base64url. */
+const base64url = z.string().regex(/^[A-Za-z0-9_-]+$/, 'must be base64url');
+
+/** Who the push services may contact about the sender: `mailto:` or an https url. */
+const vapidSubject = z
+  .string()
+  .regex(/^(mailto:|https:\/\/)\S+$/, 'must start with mailto: or https://');
+
+const VAPID_KEYS = [
+  'VAPID_PUBLIC_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_SUBJECT',
+] as const;
+
 const baseEnv = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -102,6 +116,10 @@ const baseEnv = z.object({
   GOOGLE_CALENDARS: optional(calendarsJson),
   WALLET_API_TOKEN: optional(z.string()),
   WALLET_BUDGET_ID: optional(z.string()),
+  // Web Push (ADR-0006): all three or none; without them nothing is sent. `pnpm --filter api vapid-keys` makes a pair.
+  VAPID_PUBLIC_KEY: optional(base64url),
+  VAPID_PRIVATE_KEY: optional(base64url),
+  VAPID_SUBJECT: optional(vapidSubject),
   ...openClawFields(),
 });
 
@@ -176,8 +194,33 @@ const envSchema = z
       message: 'is required unless AUTH_MODE is dev',
     },
   )
+  // VAPID_* turn Web Push on together; one or two of them is a mistake, not "off".
+  .superRefine((config, ctx) => {
+    const given = VAPID_KEYS.filter((key) => config[key] !== undefined);
+    if (given.length === 0 || given.length === VAPID_KEYS.length) {
+      return;
+    }
+    for (const key of VAPID_KEYS) {
+      if (config[key] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `is required with ${given.join(', ')}`,
+        });
+      }
+    }
+  })
   .transform((env) => ({
     ...env,
+    /** Web Push can send: the VAPID key pair and its subject; otherwise `null`. */
+    vapid:
+      env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT
+        ? {
+            publicKey: env.VAPID_PUBLIC_KEY,
+            privateKey: env.VAPID_PRIVATE_KEY,
+            subject: env.VAPID_SUBJECT,
+          }
+        : null,
     /** Google Calendar sync can run: a service account and at least one calendar; otherwise `null`. */
     googleCalendar:
       env.GOOGLE_SERVICE_ACCOUNT_JSON && env.GOOGLE_CALENDARS
@@ -197,6 +240,9 @@ export type Config = z.infer<typeof envSchema>;
 
 /** How `/api/*` requests are authenticated; `allowedEmails` are lowercased. */
 export type AuthConfig = Config['auth'];
+
+/** The VAPID key pair and subject from VAPID_*, when all three are set. */
+export type VapidConfig = NonNullable<Config['vapid']>;
 
 /** Parses the process environment; throws a readable error naming every invalid variable. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {

@@ -65,6 +65,8 @@ export const meal = pgTable(
     }),
     servings: jsonb('servings').$type<Servings>().notNull(),
     why: text('why'),
+    /** „Извадих“ (GLOSSARY): when someone took the meat out for it; a new recipe sets it back to `null`. */
+    thawedAt: timestamp('thawed_at', { withTimezone: true }),
   },
   (t) => [
     uniqueIndex('meal_plan_date_slot_key').on(t.planId, t.date, t.slot),
