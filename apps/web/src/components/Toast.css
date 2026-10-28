@@ -9,7 +9,20 @@
   pointer-events: none;
 }
 
+/* На телефона toast-ът стои над лепкавата лента за действие (components/ActionBar). */
+:root[data-device="phone"] .toast {
+  inset-block-end: calc(
+    var(--bottom-nav-space, 0px) +
+    var(--action-bar-space, 0px) +
+    var(--space-3)
+  );
+}
+
+/* Без действие докосването минава през съобщението; с действие („Върни“) го приема и бутонът е ≥ 48 px (3rem). */
 .toast__message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   margin: 0;
   padding: 0.6em 1.1em;
   border: 1px solid var(--glass-border);
@@ -19,6 +32,27 @@
   color: var(--color-text);
   font-size: var(--font-size-sm);
   font-weight: 600;
+}
+
+.toast__message:has(.toast__action) {
+  pointer-events: auto;
+  padding-block: var(--space-1);
+  padding-inline-end: var(--space-1);
+}
+
+.toast__action {
+  min-block-size: 3rem;
+  padding-inline: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toast__action:hover {
+  background: var(--color-surface-2);
 }
 
 @media (prefers-reduced-motion: no-preference) {
