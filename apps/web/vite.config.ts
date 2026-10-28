@@ -28,7 +28,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       // Иконите (public/icons/*.png) са рендерирани еднократно от неоновия рисунък
-      // върху черен фон; maskable е с поле, за да не реже маската триъгълника.
+      // върху черен фон; maskable е с поле, за да не реже маската триъгълника. badge-96.png (иконата
+      // на известията в лентата на Android) е само най-ярките линии на рисунъка, бели върху прозрачно.
       includeAssets: ['icons/favicon-48.png', 'icons/apple-touch-icon.png'],
       manifest: {
         name: 'Семейна платформа',
@@ -51,9 +52,10 @@ export default defineConfig({
           },
         ],
         // „Сподели → Семейство“ на Android (само за инсталирано PWA): POST multipart, за да носи и снимка. Поема го
-        // service worker-ът (public/share-target-sw.js): снимката оставя в кеша и отваря /recipes/import?shared=photo,
-        // а текст и линк пренасочва към /recipes/import?title=&text=&url= (ImportScreen → importFromShare). Без `tab`
-        // в адреса, за да се различава от вътрешната навигация (`?tab=…`), която само попълва полетата.
+        // service worker-ът (src/sw.ts → receiveShare в features/recipe-import/shared-photo.ts): снимката оставя в
+        // кеша и отваря /recipes/import?shared=photo, а текст и линк пренасочва към /recipes/import?title=&text=&url=
+        // (ImportScreen → importFromShare). Без `tab` в адреса, за да се различава от вътрешната навигация (`?tab=…`),
+        // която само попълва полетата.
         share_target: {
           action: '/recipes/import',
           method: 'POST',
@@ -66,24 +68,11 @@ export default defineConfig({
           },
         },
       },
-      workbox: {
-        // POST-ът на share target-а; зарежда се преди маршрутите на Workbox, които и без това са само за GET.
-        importScripts: ['share-target-sw.js'],
-        navigateFallback: '/index.html',
-        // Навигация към api/healthz не е страница на приложението.
-        navigateFallbackDenylist: [/^\/api\//, /^\/healthz/],
-        // /api/* само от мрежата, без кеш. Потокът `/api/events` (SSE) не минава през service worker-а
-        // изобщо: браузърът го отваря директно, без посредник, който да го буферира или прекъсне.
-        runtimeCaching: [
-          {
-            urlPattern: ({ url, sameOrigin }) =>
-              sameOrigin &&
-              url.pathname.startsWith('/api/') &&
-              url.pathname !== '/api/events',
-            handler: 'NetworkOnly',
-          },
-        ],
-        cleanupOutdatedCaches: true,
+      // Собственият service worker (src/sw.ts) показва известията (епик Напомняния); кешът е описан в него.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         // woff2: Inter (src/styles/fonts.css) трябва да работи офлайн.
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2}'],
       },

@@ -132,11 +132,21 @@ describe('PantryScreen', () => {
     expect(requests).toEqual([
       {
         method: 'POST',
-        body: { ingredientId: mince.id, kind: 'use_up', note: 'хладилник' },
+        body: {
+          ingredientId: mince.id,
+          kind: 'use_up',
+          note: 'хладилник',
+          frozen: false,
+        },
       },
       {
         method: 'POST',
-        body: { ingredientId: cheese.id, kind: 'use_up', note: 'хладилник' },
+        body: {
+          ingredientId: cheese.id,
+          kind: 'use_up',
+          note: 'хладилник',
+          frozen: false,
+        },
       },
     ]);
   });
@@ -201,7 +211,10 @@ describe('PantryScreen', () => {
       within(sheet).getByRole('button', { name: 'Добави 1 продукт' }),
     );
     expect(requests).toEqual([
-      { method: 'POST', body: { ingredientId: mint.id, kind: 'staple' } },
+      {
+        method: 'POST',
+        body: { ingredientId: mint.id, kind: 'staple', frozen: false },
+      },
     ]);
   });
 
@@ -263,6 +276,101 @@ describe('PantryScreen', () => {
       expect(requests).toEqual([
         { method: 'PATCH', id: item.id, body: { kind: 'use_up' } },
         { method: 'PATCH', id: item.id, body: { kind: 'staple' } },
+      ]),
+    );
+  });
+
+  it('„Добави“ с „Във фризера“: целият избор е замразен и има ❄️ до името', async () => {
+    const user = userEvent.setup();
+    const requests = servePantry();
+
+    renderApp('/pantry');
+    await user.click(await screen.findByRole('button', { name: 'Добави' }));
+    const sheet = screen.getByRole('dialog', { name: 'Добави в килера' });
+    await user.type(
+      within(sheet).getByRole('searchbox', { name: 'Търси продукт' }),
+      'кайма',
+    );
+    await user.click(
+      await within(sheet).findByRole('checkbox', { name: 'кайма' }),
+    );
+    await user.click(within(sheet).getByRole('radio', { name: 'Временен' }));
+    await user.click(
+      within(sheet).getByRole('checkbox', { name: '❄️ Във фризера' }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Добави 1 продукт' }),
+    );
+
+    await waitFor(() => expect(names('Временни')).toEqual(['кайма']));
+    const row = within(
+      screen.getByRole('region', { name: 'Временни' }),
+    ).getByRole('listitem');
+    expect(
+      within(row).getByRole('img', { name: 'Във фризера' }),
+    ).toHaveTextContent('❄️');
+    expect(requests).toEqual([
+      {
+        method: 'POST',
+        body: { ingredientId: mince.id, kind: 'use_up', frozen: true },
+      },
+    ]);
+  });
+
+  it('❄️ стои до името на замразените продукти и в двете групи, а бележката остава', async () => {
+    servePantry([
+      pantryItem(rice),
+      pantryItem(salt, { frozen: true }),
+      pantryItem(mince, { kind: 'use_up', note: '~500 г', frozen: true }),
+      pantryItem(cheese, { kind: 'use_up' }),
+    ]);
+
+    renderApp('/pantry');
+    await screen.findByText('кайма');
+
+    function frozenIn(group: string): string[] {
+      return within(screen.getByRole('region', { name: group }))
+        .getAllByRole('listitem')
+        .filter((row) =>
+          within(row).queryByRole('img', { name: 'Във фризера' }),
+        )
+        .map(
+          (row) => row.querySelector('.pantry-item__name')?.textContent ?? '',
+        );
+    }
+    expect(frozenIn('Постоянни')).toEqual(['сол']);
+    expect(frozenIn('Временни')).toEqual(['кайма']);
+    expect(names('Временни')).toEqual(['кайма', 'сирене']);
+    expect(screen.getByText('~500 г')).toBeInTheDocument();
+  });
+
+  it('„Във фризера“ се превключва за всеки продукт и праща PATCH', async () => {
+    const user = userEvent.setup();
+    const item = pantryItem(mince, { kind: 'use_up' });
+    const requests = servePantry([item]);
+
+    renderApp('/pantry');
+    const toggle = await screen.findByRole('button', {
+      name: 'Във фризера: кайма',
+    });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByRole('img', { name: 'Във фризера' }),
+    ).toBeInTheDocument();
+    await user.click(toggle);
+    await waitFor(() =>
+      expect(toggle).toHaveAttribute('aria-pressed', 'false'),
+    );
+    expect(
+      screen.queryByRole('img', { name: 'Във фризера' }),
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(requests).toEqual([
+        { method: 'PATCH', id: item.id, body: { frozen: true } },
+        { method: 'PATCH', id: item.id, body: { frozen: false } },
       ]),
     );
   });

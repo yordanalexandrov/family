@@ -23,6 +23,7 @@ const defaults = {
   DATABASE_URL,
   googleCalendar: null,
   wallet: null,
+  vapid: null,
   openclaw: {
     url: 'http://127.0.0.1:18789',
     gatewayPassword: undefined,
@@ -282,6 +283,65 @@ describe('loadConfig', () => {
       ).toMatchObject({
         wallet: { apiToken: 'token', budgetId: 'budget-1' },
       });
+    });
+  });
+  describe('VAPID_*', () => {
+    const vapid = {
+      VAPID_PUBLIC_KEY:
+        'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM',
+      VAPID_PRIVATE_KEY: 'tUxbf-Ww9wJ9Fk3fXl3b6n2nJxP7Zr0Fb0l4oQe4yTg',
+      VAPID_SUBJECT: 'mailto:family@example.com',
+    };
+
+    it('are optional: without them Web Push is off', () => {
+      expect(loadConfig(dev).vapid).toBeNull();
+      expect(
+        loadConfig({
+          ...dev,
+          VAPID_PUBLIC_KEY: '',
+          VAPID_PRIVATE_KEY: '',
+          VAPID_SUBJECT: '',
+        }).vapid,
+      ).toBeNull();
+    });
+
+    it('turn Web Push on together', () => {
+      expect(loadConfig({ ...dev, ...vapid })).toMatchObject({
+        vapid: {
+          publicKey: vapid.VAPID_PUBLIC_KEY,
+          privateKey: vapid.VAPID_PRIVATE_KEY,
+          subject: vapid.VAPID_SUBJECT,
+        },
+      });
+    });
+
+    it('are all or nothing, naming the missing one', () => {
+      expect(() =>
+        loadConfig({ ...dev, ...vapid, VAPID_PRIVATE_KEY: '' }),
+      ).toThrow(/VAPID_PRIVATE_KEY/);
+      expect(() =>
+        loadConfig({ ...dev, VAPID_SUBJECT: vapid.VAPID_SUBJECT }),
+      ).toThrow(/VAPID_PUBLIC_KEY/);
+    });
+
+    it('take a mailto: or https subject only', () => {
+      expect(
+        loadConfig({
+          ...dev,
+          ...vapid,
+          VAPID_SUBJECT: 'https://family.example.com',
+        }).vapid?.subject,
+      ).toBe('https://family.example.com');
+      expect(() =>
+        loadConfig({ ...dev, ...vapid, VAPID_SUBJECT: 'family@example.com' }),
+      ).toThrow(/VAPID_SUBJECT/);
+    });
+
+    it('never put the private key into the error message', () => {
+      const load = () =>
+        loadConfig({ ...dev, ...vapid, VAPID_SUBJECT: 'nope' });
+      expect(load).toThrow(/VAPID_SUBJECT/);
+      expect(load).not.toThrow(new RegExp(vapid.VAPID_PRIVATE_KEY));
     });
   });
 });

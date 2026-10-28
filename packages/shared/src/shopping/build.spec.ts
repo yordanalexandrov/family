@@ -514,6 +514,7 @@ function inPantry(
     },
     kind,
     note: null,
+    frozen: false,
     ranOutAt: null,
     createdAt: INSTANT,
     ...overrides,

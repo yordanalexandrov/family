@@ -32,6 +32,7 @@ import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
 import { mealReplacementsRoutes } from './routes/meal-replacements.js';
 import { menuRoutes } from './routes/menu.js';
+import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
 import { recipeImportsRoutes } from './routes/recipe-imports.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
@@ -52,10 +53,16 @@ import {
   createMenuService,
   type MenuService,
 } from './services/menu.js';
+import { createMenuNotifications } from './services/menu-notifications.js';
 import {
   createMenuSchedule,
   type MenuSchedule,
 } from './services/menu-schedule.js';
+import {
+  createPushService,
+  type PushService,
+  type WebPushDelivery,
+} from './services/push.js';
 import {
   createRecipeImportStore,
   createRecipeImportsService,
@@ -66,6 +73,7 @@ import {
   type RecipeSuggestionsService,
   suggestionRequestStore,
 } from './services/recipe-suggestions.js';
+import { createReminders, type Reminders } from './services/reminders.js';
 import type { Sync } from './services/sync-mutex.js';
 import { createUsersService, type UsersService } from './services/users.js';
 
@@ -92,6 +100,10 @@ declare module 'fastify' {
     mealReplacements: MealReplacements;
     /** Change signals for `GET /api/events`; services publish after their commit. */
     events: EventBus;
+    /** Web Push to the people's devices; without VAPID keys every send is a no-op. */
+    push: PushService;
+    /** The reminders: the cron's `reminders` job (every 5 minutes) and the answer that replaces „Кой готви довечера?“. */
+    reminders: Reminders;
   }
 }
 
@@ -121,6 +133,11 @@ export interface BuildAppOptions {
    * disabled and `POST /api/recipe-suggestions/requests` answers 503 `openclaw_unavailable`; any other mode throws.
    */
   openclaw?: OpenClawConfig;
+  /**
+   * Web Push: the VAPID public key for the devices and the sender (`server.ts` builds it with `web-push` from
+   * VAPID_*; specs pass a mock). Without it no notification is sent and `GET /api/notifications/vapid-key` is 404.
+   */
+  push?: WebPushDelivery;
 }
 
 /**
@@ -137,6 +154,7 @@ export function buildApp({
   now = () => new Date(),
   scheduler: schedulerOptions,
   openclaw,
+  push,
 }: BuildAppOptions): FastifyInstance {
   if (auth.mode !== 'dev' && !openclaw?.gatewayPassword) {
     // `loadConfig()` refuses this too; checked here so no caller can start a disabled OpenClaw outside dev mode.
@@ -160,6 +178,31 @@ export function buildApp({
     app.log.warn({ err: error }, 'event listener failed'),
   );
   app.decorate('events', events);
+  app.decorate(
+    'push',
+    createPushService({
+      db,
+      delivery: push ?? null,
+      now,
+      log: app.log.child({ module: 'push' }),
+    }),
+  );
+  const menuNotifications = createMenuNotifications({
+    db,
+    push: app.push,
+    now,
+    log: app.log.child({ module: 'menu-notifications' }),
+  });
+  app.decorate(
+    'reminders',
+    createReminders({
+      db,
+      push: app.push,
+      now,
+      log: app.log.child({ module: 'reminders' }),
+      menuNotifications,
+    }),
+  );
   app.decorate(
     'calendarSync',
     googleCalendar
@@ -219,7 +262,7 @@ export function buildApp({
   );
   const menuProposals = contractRequests.register(
     menuPropose,
-    createMenuProposalStore(events),
+    createMenuProposalStore(events, menuNotifications),
     agents.menuAgent,
   );
   app.decorate(
@@ -270,6 +313,7 @@ export function buildApp({
   app.register(shoppingRoutes);
   app.register(pantryRoutes);
   app.register(eventsRoutes);
+  app.register(notificationsRoutes);
 
   return app;
 }

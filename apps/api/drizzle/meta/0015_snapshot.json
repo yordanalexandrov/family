@@ -1,5 +1,5 @@
 {
-  "id": "a7bb6b24-072d-4dbe-8eaf-46d85a33d168",
+  "id": "8e740fe0-23f3-4d06-a830-97706563d264",
   "prevId": "36ad5f9c-4c86-402f-8de6-61a2d6d01b5d",
   "version": "7",
   "dialect": "postgresql",
@@ -594,111 +594,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.recipe_import_request": {
-      "name": "recipe_import_request",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "hint": {
-          "name": "hint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by": {
-          "name": "requested_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "no_results": {
-          "name": "no_results",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "recipe_import_request_requested_by_user_id_fk": {
-          "name": "recipe_import_request_requested_by_user_id_fk",
-          "tableFrom": "recipe_import_request",
-          "tableTo": "user",
-          "columnsFrom": [
-            "requested_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "recipe_import_request_status_check": {
-          "name": "recipe_import_request_status_check",
-          "value": "\"recipe_import_request\".\"status\" in ('pending', 'done', 'failed')"
-        },
-        "recipe_import_request_source_check": {
-          "name": "recipe_import_request_source_check",
-          "value": "\"recipe_import_request\".\"source\" in ('text', 'url', 'photo')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.recipe_ingredient": {
       "name": "recipe_ingredient",
       "schema": "",
@@ -828,13 +723,7 @@
           "name": "request_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "import_request_id": {
-          "name": "import_request_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "position": {
           "name": "position",
@@ -895,21 +784,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "recipe_suggestion_import_request_key": {
-          "name": "recipe_suggestion_import_request_key",
-          "columns": [
-            {
-              "expression": "import_request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -919,19 +793,6 @@
           "tableTo": "recipe_suggestion_request",
           "columnsFrom": [
             "request_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "recipe_suggestion_import_request_id_recipe_import_request_id_fk": {
-          "name": "recipe_suggestion_import_request_id_recipe_import_request_id_fk",
-          "tableFrom": "recipe_suggestion",
-          "tableTo": "recipe_import_request",
-          "columnsFrom": [
-            "import_request_id"
           ],
           "columnsTo": [
             "id"
@@ -973,10 +834,6 @@
         "recipe_suggestion_status_check": {
           "name": "recipe_suggestion_status_check",
           "value": "\"recipe_suggestion\".\"status\" in ('proposed', 'approved', 'rejected')"
-        },
-        "recipe_suggestion_request_check": {
-          "name": "recipe_suggestion_request_check",
-          "value": "num_nonnulls(\"recipe_suggestion\".\"request_id\", \"recipe_suggestion\".\"import_request_id\") = 1"
         }
       },
       "isRLSEnabled": false
@@ -1771,6 +1628,232 @@
           "value": "\"menu_proposal_request\".\"trigger\" <> 'user' or \"menu_proposal_request\".\"requested_by\" is not null"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.notification_log": {
+      "name": "notification_log",
+      "schema": "",
+      "columns": {
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_id": {
+          "name": "subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "on_date": {
+          "name": "on_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notification_log_user_id_user_id_fk": {
+          "name": "notification_log_user_id_user_id_fk",
+          "tableFrom": "notification_log",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "notification_log_kind_subject_id_on_date_user_id_pk": {
+          "name": "notification_log_kind_subject_id_on_date_user_id_pk",
+          "columns": [
+            "kind",
+            "subject_id",
+            "on_date",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "notification_log_kind_check": {
+          "name": "notification_log_kind_check",
+          "value": "\"notification_log\".\"kind\" in ('thaw', 'cook', 'menu')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.notification_setting": {
+      "name": "notification_setting",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notification_setting_user_id_user_id_fk": {
+          "name": "notification_setting_user_id_user_id_fk",
+          "tableFrom": "notification_setting",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "notification_setting_user_id_kind_pk": {
+          "name": "notification_setting_user_id_kind_pk",
+          "columns": [
+            "user_id",
+            "kind"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "notification_setting_kind_check": {
+          "name": "notification_setting_kind_check",
+          "value": "\"notification_setting\".\"kind\" in ('thaw', 'cook', 'menu')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.push_subscription": {
+      "name": "push_subscription",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_success_at": {
+          "name": "last_success_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "push_subscription_user_id_idx": {
+          "name": "push_subscription_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "push_subscription_user_id_user_id_fk": {
+          "name": "push_subscription_user_id_user_id_fk",
+          "tableFrom": "push_subscription",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "push_subscription_endpoint_unique": {
+          "name": "push_subscription_endpoint_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "endpoint"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.pantry_item": {

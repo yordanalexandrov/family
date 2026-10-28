@@ -1,0 +1,1 @@
+ALTER TABLE "pantry_item" ADD COLUMN "frozen" boolean DEFAULT false NOT NULL;

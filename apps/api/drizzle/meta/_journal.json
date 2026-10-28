@@ -110,8 +110,36 @@
     {
       "idx": 15,
       "version": "7",
-      "when": 1793138489474,
-      "tag": "0015_recipe_import",
+      "when": 1793138200965,
+      "tag": "0015_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793138586344,
+      "tag": "0016_pantry_frozen",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793138859372,
+      "tag": "0017_menu_activity",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793139017117,
+      "tag": "0018_meal_thawed",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793168253632,
+      "tag": "0019_recipe_import",
       "breakpoints": true
     }
   ]

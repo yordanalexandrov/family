@@ -162,7 +162,7 @@ describe('Внеси рецепта → таб „Снимка“', () => {
 });
 
 /**
- * The Cache API as the service worker leaves it after „Сподели → Семейство“ with a photo (`public/share-target-sw.js`):
+ * The Cache API as the service worker leaves it after „Сподели → Семейство“ with a photo (`receiveShare` in `shared-photo.ts`):
  * the photo under `/shared-photo` in the cache `family-share-target`. jsdom has no Cache API.
  */
 function sharedPhotoCache(photo: Blob | undefined) {

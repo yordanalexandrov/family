@@ -40,7 +40,7 @@ function postPantryItem(body: CreatePantryItem) {
   });
 }
 
-/** `PATCH /api/pantry/:id`: видът, бележката или двете. */
+/** `PATCH /api/pantry/:id`: видът, бележката или „Във фризера“. */
 function patchPantryItem(id: string, changes: UpdatePantryItem) {
   return apiFetch(`/pantry/${id}`, pantryItemResponseSchema, {
     method: 'PATCH',
@@ -81,22 +81,25 @@ export interface AddPantryItems {
   ingredients: Ingredient[];
   kind: PantryKind;
   note: string;
+  /** „Във фризера“ (GLOSSARY: Във фризера) за целия избор. */
+  frozen: boolean;
 }
 
 /**
- * „Добави“: един `POST /api/pantry` на продукт, всички с един вид и една бележка. Оптимистично: продуктите са в
+ * „Добави“: един `POST /api/pantry` на продукт, всички с един вид, една бележка и една отметка „Във фризера“. Оптимистично: продуктите са в
  * килера веднага; ако някой `POST` не мине, килерът се връща и се чете наново, а грешката е на първия неуспешен.
  */
 export function useAddPantryItems() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ingredients, kind, note }: AddPantryItems) => {
+    mutationFn: async ({ ingredients, kind, note, frozen }: AddPantryItems) => {
       const results = await Promise.allSettled(
         ingredients.map((ingredient) =>
           postPantryItem({
             ingredientId: ingredient.id,
             kind,
             ...(note.trim() ? { note } : {}),
+            frozen,
           }),
         ),
       );
@@ -105,7 +108,7 @@ export function useAddPantryItems() {
         throw failed.reason;
       }
     },
-    onMutate: ({ ingredients, kind, note }) => {
+    onMutate: ({ ingredients, kind, note, frozen }) => {
       const createdAt = new Date().toISOString();
       return applyOptimistic(queryClient, (items) => [
         ...items,
@@ -118,6 +121,7 @@ export function useAddPantryItems() {
           },
           kind,
           note: note.trim() || null,
+          frozen,
           ranOutAt: null,
           createdAt,
         })),
@@ -143,6 +147,22 @@ export function useSetPantryKind() {
                 ranOutAt: kind === 'use_up' ? null : other.ranOutAt,
               }
             : other,
+        ),
+      ),
+    ...rollbackAndRefresh(queryClient),
+  });
+}
+
+/** „Във фризера“ включено или изключено (`PATCH /api/pantry/:id`); видът и бележката остават. */
+export function useSetPantryFrozen() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ item, frozen }: { item: PantryItem; frozen: boolean }) =>
+      patchPantryItem(item.id, { frozen }),
+    onMutate: ({ item, frozen }) =>
+      applyOptimistic(queryClient, (items) =>
+        items.map((other) =>
+          other.id === item.id ? { ...other, frozen } : other,
         ),
       ),
     ...rollbackAndRefresh(queryClient),
@@ -198,6 +218,10 @@ export function useMakeStaple() {
     (target: { ingredientId: string } | { pantryId: string }) =>
       'pantryId' in target
         ? patchPantryItem(target.pantryId, { kind: 'staple' })
-        : postPantryItem({ ingredientId: target.ingredientId, kind: 'staple' }),
+        : postPantryItem({
+            ingredientId: target.ingredientId,
+            kind: 'staple',
+            frozen: false,
+          }),
   );
 }

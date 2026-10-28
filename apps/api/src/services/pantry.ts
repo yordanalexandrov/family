@@ -51,7 +51,7 @@ export function getPantry(db: Db): Promise<PantryItem[]> {
 /** An unknown ingredient is an `InvalidReferenceError`; one already in the pantry a `ConflictError` `already_in_pantry`. */
 export async function addPantryItem(
   { db, events }: PantryDeps,
-  { ingredientId, kind, note }: CreatePantryItem,
+  { ingredientId, kind, note, frozen }: CreatePantryItem,
 ): Promise<PantryItem> {
   const known = await existingIngredientIds(db, [ingredientId]);
   if (!known.has(ingredientId)) {
@@ -59,7 +59,12 @@ export async function addPantryItem(
   }
   let id: string;
   try {
-    id = await insertPantryItem(db, { ingredientId, kind, note: note ?? null });
+    id = await insertPantryItem(db, {
+      ingredientId,
+      kind,
+      note: note ?? null,
+      frozen,
+    });
   } catch (error) {
     if (isUniqueViolation(error, PANTRY_INGREDIENT_UNIQUE)) {
       throw new ConflictError('Продуктът вече е в килера', {
@@ -76,7 +81,7 @@ export async function addPantryItem(
   return item;
 }
 
-/** Changes the kind or the note; an unknown id is a `NotFoundError`. An empty change answers the item and signals nothing. */
+/** Changes the kind, the note or „Във фризера“; an unknown id is a `NotFoundError`. An empty change answers the item and signals nothing. */
 export async function changePantryItem(
   { db, events }: PantryDeps,
   id: string,

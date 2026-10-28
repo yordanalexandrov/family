@@ -9,6 +9,8 @@ const BUDGET_INTERVAL_MS = 60 * MINUTE_MS;
 const PRUNE_INTERVAL_MS = 24 * 60 * MINUTE_MS;
 /** How often the cron looks whether next week's menu is due (`services/menu-schedule.ts`); also once at start. */
 const MENU_PROPOSE_INTERVAL_MS = 15 * MINUTE_MS;
+/** How often the cron sends what is due (`services/reminders.ts`); also once at start. */
+const REMINDERS_INTERVAL_MS = 5 * MINUTE_MS;
 /** Days of `sync_run` history kept (the last success of each source is always kept). */
 const KEEP_RUNS_DAYS = 7;
 
@@ -124,6 +126,17 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
   } else {
     app.log.info('menu propose: unconfigured');
   }
+
+  schedule({
+    name: 'reminders',
+    intervalMs: REMINDERS_INTERVAL_MS,
+    // Notifications are due at fixed times, so the wait does not drift.
+    jitter: 0,
+    run: async () => {
+      await app.reminders.run();
+      return undefined;
+    },
+  });
 
   schedule({
     name: 'prune-runs',
