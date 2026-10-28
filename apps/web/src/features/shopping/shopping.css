@@ -1,4 +1,4 @@
-/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (3rem). */
+/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`). */
 .shopping__count {
   margin: 0;
   color: var(--color-text-muted);
@@ -78,8 +78,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 3rem;
-  block-size: 3rem;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
   margin-inline: calc(var(--space-3) * -1) calc(var(--space-1) * -1);
   cursor: pointer;
 }
@@ -111,9 +111,9 @@
 
 /* „от кои ястия“: текстът не расте, а полето за докосване е ≥ 48 px (отстъп и равен отрицателен margin). */
 .shopping-item__title--button {
-  --target-pad: max(0px, calc((3rem - 1lh) / 2));
+  --target-pad: max(0px, calc((var(--touch-target) - 1lh) / 2));
 
-  min-inline-size: 3rem;
+  min-inline-size: var(--touch-target);
   margin-block: calc(var(--target-pad) * -1);
   padding: var(--target-pad) 0;
   border: 0;
@@ -139,7 +139,7 @@
 /* „скрий“/„изтрий“/„покажи“ са второстепенни: текст без фон, но с цялата площ за докосване. */
 .shopping-item__action {
   flex: none;
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding-inline: var(--space-2);
   font-size: var(--font-size-sm);
 }
@@ -165,7 +165,7 @@
 
 .shopping__hidden-toggle {
   align-self: flex-start;
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding: 0;
   border: 0;
   background: none;
@@ -229,7 +229,7 @@
 
 /* „Към менюто“: на един ред, с поле за докосване ≥ 48 px, без да раздува реда. */
 .shopping__not-agreed a {
-  --target-pad: max(0px, calc((3rem - 1lh) / 2));
+  --target-pad: max(0px, calc((var(--touch-target) - 1lh) / 2));
 
   display: inline-block;
   margin: calc(var(--target-pad) * -1) calc(var(--space-1) * -1);
@@ -254,7 +254,7 @@
 
 /* Лентата „🏠 Скрити от килера: N“ в края на списъка. */
 .shopping__pantry-toggle {
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding: 0.5em 0.85em;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -268,7 +268,7 @@
 
 .shopping__pantry-link {
   align-self: flex-start;
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   display: inline-flex;
   align-items: center;
   color: var(--color-accent);

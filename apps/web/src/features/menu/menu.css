@@ -1,4 +1,4 @@
-/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (3rem). */
+/* Екранът „Меню“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`). */
 .screen.menu {
   align-items: stretch;
   justify-content: flex-start;
@@ -18,8 +18,8 @@
 .menu__back,
 .servings__step {
   flex: none;
-  inline-size: 3rem;
-  block-size: 3rem;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
   border: 1px solid var(--color-line);
   border-radius: 50%;
   background: var(--color-surface);
@@ -46,7 +46,7 @@
 
 .menu__tab {
   flex: 1;
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-pill);
@@ -111,7 +111,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   inline-size: 100%;
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -235,8 +235,8 @@ button.meal-row__content:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: 3rem;
-  min-block-size: 3rem;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
   margin-inline-start: calc(-1 * var(--space-2));
   color: var(--color-text-muted);
   font-size: var(--font-size-lg);
@@ -341,8 +341,8 @@ button.meal-row__content:hover {
 }
 
 .my-vote__button {
-  min-inline-size: 3rem;
-  min-block-size: 3rem;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
@@ -521,7 +521,7 @@ button.meal-row__content:hover {
   align-items: center;
   gap: var(--space-2);
   inline-size: 100%;
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
@@ -656,8 +656,8 @@ button.meal-row__content:hover {
 
 .thread__delete {
   flex: none;
-  inline-size: 3rem;
-  block-size: 3rem;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
   border: 0;
   border-radius: var(--radius-pill);
   background: transparent;

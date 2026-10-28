@@ -18,7 +18,7 @@
   );
 }
 
-/* Без действие докосването минава през съобщението; с действие („Върни“) го приема и бутонът е ≥ 48 px (3rem). */
+/* Без действие докосването минава през съобщението; с действие („Върни“) го приема и бутонът е ≥ 48 px (`--touch-target`). */
 .toast__message {
   display: flex;
   align-items: center;
@@ -41,7 +41,7 @@
 }
 
 .toast__action {
-  min-block-size: 3rem;
+  min-block-size: var(--touch-target);
   padding-inline: var(--space-4);
   border: 0;
   border-radius: var(--radius-pill);
