@@ -452,6 +452,11 @@ button.meal-row__content:hover {
   hyphens: auto;
 }
 
+/* Флекс елемент с min-width 0: иначе дълга дума („манастирски“) не се пренася и излиза в колоната на готвача. */
+.meal-row__title-text {
+  min-inline-size: 0;
+}
+
 .meal-row__title--empty {
   color: var(--color-text-muted);
   font-weight: 400;

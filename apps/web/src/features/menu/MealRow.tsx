@@ -65,7 +65,9 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
         <span
           className={`meal-row__title${title ? '' : ' meal-row__title--empty'}`}
         >
-          {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
+          <span className="meal-row__title-text">
+            {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
+          </span>
           {meal.recipe?.archivedAt && <span className="badge">архивирана</span>}
         </span>
         {meal.recipe && meal.note && (

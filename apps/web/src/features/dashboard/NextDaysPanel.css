@@ -41,6 +41,16 @@
   font-weight: 500;
 }
 
+/* Събитията са на цялата ширина под деня: по-тясна колона за часа оставя място на заглавието; „цял ден“ се пренася. */
+.next-days .day-events--compact .day-events__item {
+  grid-template-columns: 3.3em auto minmax(0, 1fr);
+}
+
+.next-days .day-events__when {
+  white-space: normal;
+  line-height: 1.15;
+}
+
 .next-days .day-events__empty {
   padding: 0.3em 0.45em;
 }
