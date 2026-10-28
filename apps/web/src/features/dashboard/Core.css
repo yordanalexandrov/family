@@ -50,7 +50,7 @@
   overflow: hidden;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
-  background: var(--glass-bg-strong);
+  background: var(--glass-plate);
   color: var(--color-text-muted);
   font-size: max(11px, 3.4cqi);
   font-weight: 600;

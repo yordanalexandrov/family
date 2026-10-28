@@ -110,7 +110,7 @@ function FrozenToggle({
       disabled={isPending(item)}
       onClick={onToggle}
     >
-      ❄️
+      <span aria-hidden="true">❄️</span>
     </button>
   );
 }

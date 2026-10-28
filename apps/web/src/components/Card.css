@@ -8,11 +8,9 @@
   padding: var(--space-pad);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(
-    160deg,
-    var(--glass-bg-strong),
-    var(--glass-bg) 40%
-  );
+  background:
+    linear-gradient(160deg, var(--glass-bg-strong), var(--glass-bg) 40%),
+    var(--glass-tint);
   box-shadow: var(--glass-shadow);
   color: var(--color-text);
   font: inherit;

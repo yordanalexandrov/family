@@ -142,7 +142,8 @@
   border: 1px solid var(--glass-border);
   border-inline-start: 5px solid var(--outcome-color, var(--glass-border));
   border-radius: var(--radius-md);
-  background: var(--glass-bg);
+  background:
+    linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
   color: var(--color-text);
 }
 
@@ -172,8 +173,26 @@ button.meal-row__content:hover {
 
 /* Минал ден: приглушен, без бутони за глас и без изход. */
 /* Приглушено е съдържанието, не „Как беше?“, което кани да се оцени. */
-.meal-row--past > :not(.meal-row__rate) {
-  opacity: 0.6;
+/* Приглушено с цвят (≥ 4.5:1), не с opacity: върху стъклото opacity сваля контраста под AA (#138). */
+.meal-row--past > :not(.meal-row__rate),
+.meal-row--past
+  > :not(.meal-row__rate)
+  :is(
+    .meal-row__date,
+    .meal-row__servings,
+    .meal-row__note,
+    .meal-row__why,
+    .meal-row__title--empty
+  ) {
+  color: var(--color-text-faded);
+}
+
+/* Аватарите на минал ден и на човек без глас: контур в цвета на човека, инициалът в приглушения цвят. */
+.meal-row--past > :not(.meal-row__rate) .avatar,
+.person-vote--none .person-vote__avatar .avatar {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--avatar-color, var(--color-accent));
+  color: var(--color-text-faded);
 }
 
 .meal-row__rate {
@@ -312,10 +331,6 @@ button.meal-row__content:hover {
   color: var(--color-accent-ink);
 }
 
-.person-vote--none .person-vote__avatar {
-  opacity: 0.55;
-}
-
 .person-vote__name {
   font-size: var(--font-size-sm);
 }
@@ -334,13 +349,11 @@ button.meal-row__content:hover {
   color: var(--color-text);
   font: inherit;
   cursor: pointer;
-  filter: grayscale(1);
-  opacity: 0.6;
 }
 
-.my-vote__button[aria-pressed="true"] {
-  filter: none;
-  opacity: 1;
+/* Неактивният глас: сиво емоджи с ≥ 3:1 (филтърът е върху иконата, не върху фона на бутона). */
+.my-vote__button[aria-pressed="false"] > span {
+  filter: var(--icon-faded-filter);
 }
 
 .my-vote__button--up[aria-pressed="true"] {
