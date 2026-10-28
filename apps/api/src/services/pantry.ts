@@ -16,10 +16,10 @@ import {
   updatePantryItem,
 } from '../db/repositories/pantry.js';
 import {
+  type ConflictError,
   InvalidReferenceError,
   NotFoundError,
   refuse,
-  type ServiceRefusal,
 } from './errors.js';
 import type { EventBus } from './events.js';
 
@@ -38,7 +38,7 @@ function notFound(): NotFoundError {
   return new NotFoundError('Няма такъв продукт в килера');
 }
 
-function notStaple(): ServiceRefusal {
+function notStaple(): ConflictError {
   return refuse('not_staple', 'Свършва само постоянен продукт');
 }
 
