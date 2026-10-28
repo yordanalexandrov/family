@@ -2,7 +2,7 @@ import type { Ingredient, Recipe, RecipeInput } from '@family/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { dani, server } from '../../test/msw';
 import {
   chicken,
@@ -47,10 +47,16 @@ function serveForm() {
   return saved;
 }
 
-function ingredientRow(index: number) {
-  return screen.getAllByRole('group', { name: /^Продукт \d+$/ })[
-    index
-  ] as HTMLElement;
+/** Редовете в списъка „Продукти“, в реда, в който се виждат. */
+function ingredientLines() {
+  return within(screen.getByRole('list', { name: 'Продукти' })).queryAllByRole(
+    'listitem',
+  );
+}
+
+/** Листът за един ред продукт. */
+function lineSheet() {
+  return within(screen.getByRole('dialog', { name: 'Продукт' }));
 }
 
 describe('RecipeForm', () => {
@@ -80,22 +86,32 @@ describe('RecipeForm', () => {
     );
 
     await user.click(screen.getByRole('button', { name: 'Добави продукт' }));
-    const row = ingredientRow(0);
-    await user.type(
-      within(row).getByRole('textbox', { name: 'Продукт' }),
-      'пил',
-    );
+    const sheet = lineSheet();
+    await user.type(sheet.getByRole('textbox', { name: 'Продукт' }), 'пил');
     await user.click(
-      await within(row).findByRole('button', { name: 'пилешко филе' }),
+      await sheet.findByRole('button', { name: 'пилешко филе' }),
     );
-    await user.type(
-      within(row).getByRole('textbox', { name: 'Количество' }),
-      '0,5',
-    );
+    await user.type(sheet.getByRole('textbox', { name: 'Количество' }), '0,5');
     await user.selectOptions(
-      within(row).getByRole('combobox', { name: 'Единица' }),
+      sheet.getByRole('combobox', { name: 'Единица' }),
       'кг',
     );
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+
+    // Редът е един ред текст, отбелязан като свързан.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const [line] = ingredientLines();
+    expect(
+      within(line as HTMLElement).getByRole('button', {
+        name: 'пилешко филе · 0,5 кг',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(line as HTMLElement).getByRole('img', { name: 'Свързан' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Количество' }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Запази' }));
 
@@ -135,30 +151,29 @@ describe('RecipeForm', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Добави продукт' }),
     );
-    const row = ingredientRow(0);
-    await user.type(
-      within(row).getByRole('textbox', { name: 'Продукт' }),
-      'Джоджен',
-    );
-    await user.click(
-      await within(row).findByRole('button', { name: 'Нов продукт' }),
-    );
-    const form = within(row).getByRole('group', { name: 'Нов продукт' });
-    expect(within(form).getByRole('textbox', { name: 'Име' })).toHaveValue(
-      'Джоджен',
-    );
+    const sheet = lineSheet();
+    await user.type(sheet.getByRole('textbox', { name: 'Продукт' }), 'Джоджен');
+    await user.click(await sheet.findByRole('button', { name: 'Нов продукт' }));
+    const form = within(sheet.getByRole('group', { name: 'Нов продукт' }));
+    expect(form.getByRole('textbox', { name: 'Име' })).toHaveValue('Джоджен');
     await user.selectOptions(
-      within(form).getByRole('combobox', { name: 'Щанд' }),
+      form.getByRole('combobox', { name: 'Щанд' }),
       'Плод и зеленчук',
     );
-    await user.click(within(form).getByRole('button', { name: 'Създай' }));
+    await user.click(form.getByRole('button', { name: 'Създай' }));
 
+    expect(await sheet.findByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'джоджен',
+    );
     expect(
-      await within(row).findByRole('textbox', { name: 'Продукт' }),
-    ).toHaveValue('джоджен');
-    expect(
-      within(row).queryByRole('group', { name: 'Нов продукт' }),
+      sheet.queryByRole('group', { name: 'Нов продукт' }),
     ).not.toBeInTheDocument();
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+    expect(
+      within(ingredientLines()[0] as HTMLElement).getByRole('img', {
+        name: 'Свързан',
+      }),
+    ).toBeInTheDocument();
     // Каноничното име (малки букви) тръгва още от клиента.
     expect(created).toEqual([{ name: 'джоджен', unit: 'g', aisle: 'produce' }]);
   });
@@ -187,27 +202,25 @@ describe('RecipeForm', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Добави продукт' }),
     );
-    const row = ingredientRow(0);
+    const sheet = lineSheet();
     await user.type(
-      within(row).getByRole('textbox', { name: 'Продукт' }),
+      sheet.getByRole('textbox', { name: 'Продукт' }),
       'Пилешко  филе',
     );
-    await user.click(
-      await within(row).findByRole('button', { name: 'Нов продукт' }),
-    );
+    await user.click(await sheet.findByRole('button', { name: 'Нов продукт' }));
     await user.selectOptions(
-      within(row).getByRole('combobox', { name: 'Щанд' }),
+      sheet.getByRole('combobox', { name: 'Щанд' }),
       'Месо и колбаси',
     );
-    await user.click(within(row).getByRole('button', { name: 'Създай' }));
+    await user.click(sheet.getByRole('button', { name: 'Създай' }));
 
     expect(
-      await within(row).findByText('Вече има „пилешко филе“, ползвай него'),
+      await sheet.findByText('Вече има „пилешко филе“, ползвай него'),
     ).toBeInTheDocument();
     await user.click(
-      within(row).getByRole('button', { name: 'Избери „пилешко филе“' }),
+      sheet.getByRole('button', { name: 'Избери „пилешко филе“' }),
     );
-    expect(within(row).getByRole('textbox', { name: 'Продукт' })).toHaveValue(
+    expect(sheet.getByRole('textbox', { name: 'Продукт' })).toHaveValue(
       'пилешко филе',
     );
   });
@@ -256,9 +269,28 @@ describe('RecipeForm', () => {
     await user.clear(title);
     await user.type(title, 'Пиле с ориз на фурна');
     await user.click(screen.getByRole('button', { name: 'Нагоре: стъпка 2' }));
+
+    // Продуктите са редове текст, всички свързани.
+    expect(ingredientLines().map((line) => line.textContent)).toEqual([
+      'пилешко филе · 500 г✓',
+      'лук · 2 бр.✓',
+      'сол · по вкус✓',
+    ]);
+    await user.click(screen.getByRole('button', { name: 'лук · 2 бр.' }));
+    await user.click(lineSheet().getByRole('button', { name: 'Премахни ред' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
     await user.click(
-      screen.getByRole('button', { name: 'Премахни продукт 2' }),
+      screen.getByRole('button', { name: 'пилешко филе · 500 г' }),
     );
+    const quantity = lineSheet().getByRole('textbox', { name: 'Количество' });
+    await user.clear(quantity);
+    await user.type(quantity, '700');
+    await user.click(lineSheet().getByRole('button', { name: 'Готово' }));
+    expect(
+      screen.getByRole('button', { name: 'пилешко филе · 700 г' }),
+    ).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: 'Запази' }));
 
     expect(
@@ -274,7 +306,7 @@ describe('RecipeForm', () => {
         sourceUrl: 'https://recepti.example/pile-s-oriz',
         nutritionPer100g: { kcal: 150, proteinG: 12, fatG: 5, carbsG: 14 },
         ingredients: [
-          { ingredientId: chicken.id, quantity: 500, unit: 'g' },
+          { ingredientId: chicken.id, quantity: 700, unit: 'g' },
           {
             ingredientId: salt.id,
             quantity: null,
@@ -283,5 +315,42 @@ describe('RecipeForm', () => {
         ],
       },
     ]);
+  });
+
+  it('нов ред, затворен без продукт, не остава в списъка', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveForm();
+
+    renderApp('/recipes/new');
+    await user.click(
+      await screen.findByRole('button', { name: 'Добави продукт' }),
+    );
+    expect(ingredientLines()).toHaveLength(1);
+    await user.click(lineSheet().getByRole('button', { name: 'Готово' }));
+
+    expect(ingredientLines()).toEqual([]);
+  });
+
+  it('полето за продукт в листа се превърта към горния край при фокус', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveForm();
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    onTestFinished(() => {
+      Element.prototype.scrollIntoView = original;
+    });
+
+    renderApp('/recipes/new');
+    await user.click(
+      await screen.findByRole('button', { name: 'Добави продукт' }),
+    );
+    const field = lineSheet().getByRole('textbox', { name: 'Продукт' });
+    await user.click(field);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(field);
   });
 });

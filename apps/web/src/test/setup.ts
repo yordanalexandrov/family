@@ -9,6 +9,9 @@ import { server } from './msw';
 // Под натоварване (няколко worktree-а пускат тестове едновременно) 1 s по подразбиране за findBy/waitFor не стига.
 configure({ asyncUtilTimeout: 3000 });
 
+// jsdom не превърта и няма scrollIntoView; spec, който го проверява, го подменя с vi.fn().
+Element.prototype.scrollIntoView ??= () => {};
+
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
 
 afterEach(async () => {

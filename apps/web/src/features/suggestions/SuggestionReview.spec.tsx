@@ -94,14 +94,20 @@ function serveReview(
   return { approved, searches };
 }
 
-function ingredientRow(index: number) {
-  return screen.getAllByRole('group', { name: /^Продукт \d+$/ })[
-    index
-  ] as HTMLElement;
+/** Редовете в списъка „Продукти“, в реда, в който се виждат. */
+function ingredientLines() {
+  return within(screen.getByRole('list', { name: 'Продукти' })).getAllByRole(
+    'listitem',
+  );
+}
+
+/** Листът за един ред продукт. */
+function lineSheet() {
+  return within(screen.getByRole('dialog', { name: 'Продукт' }));
 }
 
 describe('SuggestionReview', () => {
-  it('„Одобри“ с нов продукт отваря диалог само с него; след свързване праща recipeInput с реални ingredientId и връща към предложенията', async () => {
+  it('новият продукт е отгоре със „Свържи“; след свързване в листа „Одобри“ праща recipeInput в реда на рецептата и връща към предложенията', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const { approved, searches } = serveReview();
@@ -111,18 +117,12 @@ describe('SuggestionReview', () => {
     expect(
       await screen.findByRole('textbox', { name: 'Заглавие' }),
     ).toHaveValue('Пилешки шишчета');
-    // Познатите по име са резолвнати (точно съвпадение), новият е откроен.
-    expect(
-      within(ingredientRow(0)).getByRole('textbox', { name: 'Продукт' }),
-    ).toHaveValue('пилешко филе');
-    expect(
-      within(ingredientRow(0)).queryByText(/Непознат продукт/),
-    ).not.toBeInTheDocument();
-    expect(
-      within(ingredientRow(1)).getByText(
-        'Нов продукт: избери съществуващ или създай нов',
-      ),
-    ).toBeInTheDocument();
+    // Познатите по име са свързани (точно съвпадение), новият е отгоре и чака „Свържи“.
+    expect(ingredientLines().map((line) => line.textContent)).toEqual([
+      'сумак · 1 ч.л.Свържи',
+      'пилешко филе · 0,6 кг✓',
+      'сол · по вкус✓',
+    ]);
     expect(searches).toEqual(expect.arrayContaining(['пилешко филе', 'сол']));
     expect(
       screen.getByRole('link', { name: 'Отвори източника' }),
@@ -131,23 +131,24 @@ describe('SuggestionReview', () => {
       screen.getByRole('link', { name: 'Отвори източника' }),
     ).toHaveAttribute('target', '_blank');
 
-    await user.click(screen.getByRole('button', { name: 'Одобри' }));
-
-    const dialog = within(
-      screen.getByRole('dialog', { name: 'Нови продукти' }),
+    await user.click(screen.getByRole('button', { name: 'Свържи „сумак“' }));
+    const sheet = lineSheet();
+    expect(sheet.getByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'сумак',
     );
-    expect(dialog.getByText('Свързани 0 от 1')).toBeInTheDocument();
-    expect(dialog.getAllByRole('group')).toHaveLength(1);
-    const row = dialog.getByRole('group', { name: 'сумак' });
-    expect(within(row).getByText('1 ч.л.')).toBeInTheDocument();
-    const confirm = dialog.getByRole('button', { name: 'Одобри' });
-    expect(confirm).toBeDisabled();
+    expect(
+      sheet.getByText('Нов продукт: избери съществуващ или създай нов'),
+    ).toBeInTheDocument();
+    await user.click(await sheet.findByRole('button', { name: 'сумак' }));
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
 
-    await user.click(await within(row).findByRole('button', { name: 'сумак' }));
-    expect(dialog.getByText('Свързани 1 от 1')).toBeInTheDocument();
-    expect(within(row).getByText('✓ Свързан с „сумак“')).toBeInTheDocument();
+    expect(
+      within(ingredientLines()[2] as HTMLElement).getByRole('img', {
+        name: 'Свързан',
+      }),
+    ).toBeInTheDocument();
     expect(approved).toEqual([]);
-    await user.click(confirm);
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
     // Обратно към заявката: одобреното е отбелязано, другите предложения са там.
     expect(
@@ -203,13 +204,12 @@ describe('SuggestionReview', () => {
 
     renderApp(reviewPath);
 
-    await user.click(await screen.findByRole('button', { name: 'Одобри' }));
-    const dialog = within(
-      screen.getByRole('dialog', { name: 'Нови продукти' }),
+    await user.click(
+      await screen.findByRole('button', { name: 'Свържи „кокосово мляко“' }),
     );
-    const row = within(dialog.getByRole('group', { name: 'кокосово мляко' }));
-    await user.click(await row.findByRole('button', { name: 'Нов продукт' }));
-    const form = within(row.getByRole('group', { name: 'Нов продукт' }));
+    const sheet = lineSheet();
+    await user.click(await sheet.findByRole('button', { name: 'Нов продукт' }));
+    const form = within(sheet.getByRole('group', { name: 'Нов продукт' }));
     expect(form.getByRole('textbox', { name: 'Име' })).toHaveValue(
       'кокосово мляко',
     );
@@ -221,10 +221,11 @@ describe('SuggestionReview', () => {
       'Консерви и буркани',
     );
     await user.click(form.getByRole('button', { name: 'Създай' }));
-    expect(
-      await dialog.findByText('✓ Свързан с „кокосово мляко“'),
-    ).toBeInTheDocument();
-    await user.click(dialog.getByRole('button', { name: 'Одобри' }));
+    expect(await sheet.findByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'кокосово мляко',
+    );
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
     await screen.findByRole('heading', { name: 'Предложения' });
     expect(created).toEqual([
@@ -236,7 +237,7 @@ describe('SuggestionReview', () => {
     ]);
   });
 
-  it('затвореният диалог пази свързаното; после „Одобри“ минава направо', async () => {
+  it('„Одобри“ с несвързан ред не праща и казва кой ред чака', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const { approved } = serveReview();
@@ -244,25 +245,32 @@ describe('SuggestionReview', () => {
     renderApp(reviewPath);
 
     await user.click(await screen.findByRole('button', { name: 'Одобри' }));
-    const dialog = screen.getByRole('dialog', { name: 'Нови продукти' });
-    await user.click(
-      await within(dialog).findByRole('button', { name: 'сумак' }),
-    );
-    await user.click(within(dialog).getByRole('button', { name: 'Готово' }));
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Чака свързване: сумак.',
+    );
     expect(
-      within(ingredientRow(1)).getByRole('textbox', { name: 'Продукт' }),
-    ).toHaveValue('сумак');
+      screen.getByRole('button', { name: 'сумак · 1 ч.л.' }),
+    ).toHaveAccessibleDescription('Избери продукт от списъка или създай нов');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(approved).toEqual([]);
+  });
+
+  it('с други грешки „Одобри“ казва и кой ред чака, и да се поправят полетата', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const { approved } = serveReview();
+
+    renderApp(reviewPath);
+
+    await user.clear(await screen.findByRole('textbox', { name: 'Заглавие' }));
     await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
-    await screen.findByRole('heading', { name: 'Предложения' });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(approved[0]?.ingredients[1]).toEqual({
-      ingredientId: sumac.id,
-      quantity: 1,
-      unit: 'tsp',
-    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Чака свързване: сумак. Поправи отбелязаните полета.',
+    );
+    expect(screen.getByText('Въведи заглавие')).toBeInTheDocument();
+    expect(approved).toEqual([]);
   });
 
   it('без нови продукти „Одобри“ праща направо, без диалог', async () => {
@@ -288,35 +296,11 @@ describe('SuggestionReview', () => {
     await user.click(screen.getByRole('button', { name: 'Одобри' }));
 
     await screen.findByRole('heading', { name: 'Предложения' });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approved[0]?.ingredients.map((i) => i.ingredientId)).toEqual([
       chicken.id,
       sumac.id,
       salt.id,
     ]);
-  });
-
-  it('други грешки във формата се поправят преди диалога', async () => {
-    const user = userEvent.setup();
-    setUpDevice('phone', dani.id);
-    const { approved } = serveReview();
-
-    renderApp(reviewPath);
-
-    await user.clear(await screen.findByRole('textbox', { name: 'Заглавие' }));
-    await user.click(screen.getByRole('button', { name: 'Одобри' }));
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Поправи отбелязаните полета.',
-    );
-    expect(screen.getByText('Въведи заглавие')).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(
-      within(ingredientRow(1)).queryByText(
-        'Избери продукт от списъка или създай нов',
-      ),
-    ).not.toBeInTheDocument();
-    expect(approved).toEqual([]);
   });
 
   it('„Отхвърли“ праща reject и връща към предложенията', async () => {
