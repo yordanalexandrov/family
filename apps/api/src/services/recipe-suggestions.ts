@@ -81,7 +81,7 @@ export const suggestionRequestStore: ContractRequestStore<
       hint: request.hint,
       existingRecipeTitles: await listActiveRecipeTitles(db),
       ingredientNames: await listIngredientNames(db),
-      equipment: [...APPLIANCES],
+      appliances: [...APPLIANCES],
     };
   },
 

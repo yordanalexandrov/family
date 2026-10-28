@@ -60,7 +60,7 @@ const input: RecipeSuggestInput = {
   ...params.data,
   existingRecipeTitles: [],
   ingredientNames: seed.ingredients.map((ingredient) => ingredient.name),
-  equipment: [...APPLIANCES],
+  appliances: [...APPLIANCES],
 };
 
 process.stderr.write(

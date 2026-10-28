@@ -174,7 +174,7 @@ describe('the recipe.suggest run', () => {
     await finished(await requested({ slots: ['dinner'] }));
 
     const body = calls.bodies[0] as { messages: { content: string }[] };
-    expect(JSON.parse(body.messages[0]?.content ?? '').equipment).toEqual(
+    expect(JSON.parse(body.messages[0]?.content ?? '').appliances).toEqual(
       APPLIANCES,
     );
   });
