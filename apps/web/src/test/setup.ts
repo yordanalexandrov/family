@@ -18,6 +18,7 @@ afterEach(async () => {
   cleanup();
   server.resetHandlers();
   localStorage.clear();
+  sessionStorage.clear();
   await clear();
 });
 

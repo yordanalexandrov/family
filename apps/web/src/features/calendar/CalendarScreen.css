@@ -5,7 +5,8 @@
   inline-size: 100%;
   max-inline-size: 40rem;
   margin-inline: auto;
-  padding-block: var(--space-4) calc(var(--bottom-nav-space) + var(--space-4));
+  /* Горе като .screen на другите основни екрани: аватарът не подскача при смяна на таба. */
+  padding-block: var(--space-6) calc(var(--bottom-nav-space) + var(--space-4));
   padding-inline: max(var(--space-4), env(safe-area-inset-left))
     max(var(--space-4), env(safe-area-inset-right));
 }

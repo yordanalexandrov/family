@@ -333,6 +333,33 @@ describe('menu without an acting user (kiosk)', () => {
     expect(patch.statusCode).toBe(400);
     expect(patch.json()).toMatchObject({ error: 'missing_acting_user' });
   });
+
+  it('reads the week’s proposal, by week and by id, but refuses to ask for one', async () => {
+    const proposal = await propose({ weekStart: WEEK });
+
+    const byWeek = await app.inject({
+      method: 'GET',
+      url: `/api/menu/proposals?weekStart=${WEEK}`,
+    });
+    const byId = await app.inject({
+      method: 'GET',
+      url: `/api/menu/proposals/${proposal.id}`,
+    });
+    const ask = await app.inject({
+      method: 'POST',
+      url: '/api/menu/proposals',
+      payload: { weekStart: WEEK },
+    });
+
+    expect(byWeek.statusCode).toBe(200);
+    expect(byWeek.json()).toMatchObject({
+      proposal: { id: proposal.id, requestedBy: DANI.id },
+    });
+    expect(byId.statusCode).toBe(200);
+    expect(byId.json()).toMatchObject({ proposal: { id: proposal.id } });
+    expect(ask.statusCode).toBe(400);
+    expect(ask.json()).toMatchObject({ error: 'missing_acting_user' });
+  });
 });
 
 describe('PATCH /api/menu/meals/:id', () => {
@@ -628,9 +655,12 @@ describe('votes', () => {
     ]);
   });
 
-  it('a new recipe or note drops the other’s vote and makes the one who changed it up', async () => {
+  it('a new recipe or the note of a day without a recipe drops the other’s vote and makes the one who changed it up', async () => {
     const plan = await proposedPlan();
-    const [monday, tuesday] = plan.meals;
+    const [monday] = plan.meals;
+    const tuesday = (
+      await patchMeal(plan.meals[1].id, { recipeId: null, note: 'навън' })
+    ).json().meal;
     for (const meal of [monday, tuesday]) {
       await vote(meal.id, 'down');
       await vote(meal.id, 'up', POLI.id);
@@ -647,6 +677,25 @@ describe('votes', () => {
       { userId: POLI.id, value: 'up' },
     ]);
     expect(note.json().meal.votes).toEqual([{ userId: DANI.id, value: 'up' }]);
+  });
+
+  it('a note of a day that keeps its recipe leaves the votes as they are', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await vote(monday.id, 'down');
+    await vote(monday.id, 'up', POLI.id);
+
+    const response = await patchMeal(monday.id, { note: 'двойна порция' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().meal).toMatchObject({
+      recipeId: monday.recipeId,
+      note: 'двойна порция',
+      votes: [
+        { userId: DANI.id, value: 'down' },
+        { userId: POLI.id, value: 'up' },
+      ],
+    });
   });
 
   it('the cook, the servings and an unchanged recipe leave the votes as they are', async () => {
@@ -835,6 +884,19 @@ describe('thread of a meal', () => {
         authorUserId: DANI.id,
         body: `смени „${tuesday.recipe.title}“ → „ядем навън“`,
       }),
+    ]);
+  });
+
+  it('a note of a day that keeps its recipe adds no line to the thread', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await comment(monday.id, 'пак пиле?', POLI.id);
+
+    await patchMeal(monday.id, { note: 'двойна порция' });
+    await patchMeal(monday.id, { recipeId: monday.recipeId, note: 'тройна' });
+
+    expect((await thread(monday.id)).json().comments).toEqual([
+      expect.objectContaining({ kind: 'comment', body: 'пак пиле?' }),
     ]);
   });
 
@@ -1077,6 +1139,175 @@ describe('POST /api/menu/meals/:id/swap', () => {
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
 
     await swap(plan.meals[0].id, plan.meals[6].id);
+    unsubscribe();
+
+    expect(signals).toEqual([
+      { type: 'menu.changed', weekStart: WEEK },
+      { type: 'shopping.changed', weekStart: WEEK },
+    ]);
+  });
+});
+
+/** `POST` „Върни“ for a meal whose recipe `as` has just removed; a `payload` is what a client may try to slip in. */
+function restore(id: string, as = DANI.id, payload?: object) {
+  return app.inject({
+    method: 'POST',
+    url: `/api/menu/meals/${id}/restore`,
+    headers: { 'x-acting-user': as },
+    ...(payload ? { payload } : {}),
+  });
+}
+
+function lines(mealId: string) {
+  return testDb()
+    .select({ body: mealComment.body })
+    .from(mealComment)
+    .where(eq(mealComment.mealId, mealId))
+    .orderBy(mealComment.seq)
+    .then((rows) => rows.map((row) => row.body));
+}
+
+describe('POST /api/menu/meals/:id/restore', () => {
+  it('„Върни“ after „Махни ястието от деня“ brings back the recipe, its why and the votes, without new lines in the thread', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await vote(monday.id, 'up');
+    await vote(monday.id, 'up', POLI.id);
+    const before = (await getPlan(WEEK)).json().plan.meals[0];
+    const threadBefore = await lines(monday.id);
+    await patchMeal(monday.id, { recipeId: null }, POLI.id);
+
+    const response = await restore(monday.id, POLI.id);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().meal).toMatchObject({
+      recipeId: before.recipeId,
+      why: before.why,
+      votes: [
+        { userId: DANI.id, value: 'up' },
+        { userId: POLI.id, value: 'up' },
+      ],
+      commentCount: threadBefore.length,
+    });
+    expect(await lines(monday.id)).toEqual(threadBefore);
+    expect((await getPlan(WEEK)).json().plan.meals[0]).toEqual(before);
+  });
+
+  it('brings back the votes the removal took, whatever the client sends', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: recipeId(1) });
+    await patchMeal(monday.id, { recipeId: null }, POLI.id);
+
+    const response = await restore(monday.id, POLI.id, {
+      recipeId: recipeId(2),
+      why: 'подхвърлено',
+      votes: [
+        { userId: DANI.id, value: 'down' },
+        { userId: POLI.id, value: 'up' },
+      ],
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().meal).toMatchObject({
+      recipeId: recipeId(1),
+      why: null,
+      votes: [{ userId: DANI.id, value: 'up' }],
+    });
+  });
+
+  it('keeps the note of the day and the lines written after the removal', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: recipeId(1), note: 'двойна' });
+    await vote(monday.id, 'down', POLI.id);
+    await patchMeal(monday.id, { recipeId: null });
+    await comment(monday.id, 'защо?', POLI.id);
+
+    const response = await restore(monday.id);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().meal).toMatchObject({
+      recipeId: recipeId(1),
+      note: 'двойна',
+      why: null,
+      votes: [
+        { userId: DANI.id, value: 'up' },
+        { userId: POLI.id, value: 'down' },
+      ],
+    });
+    expect(await lines(monday.id)).toEqual([
+      expect.stringMatching(/^избра /),
+      'защо?',
+    ]);
+  });
+
+  it('takes the removal line out even when the recipe was renamed or the note changed since', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: recipeId(1), note: 'двойна' });
+    await patchMeal(monday.id, { recipeId: null });
+    await testDb()
+      .update(recipe)
+      .set({ title: 'Преименувана' })
+      .where(eq(recipe.id, recipeId(1)));
+    await patchMeal(monday.id, { note: 'тройна' });
+
+    const response = await restore(monday.id);
+
+    expect(response.statusCode).toBe(200);
+    expect(await lines(monday.id)).toEqual([
+      expect.stringMatching(/^избра /),
+      'смени „двойна“ → „тройна“',
+    ]);
+  });
+
+  it('answers 409 when the day has a recipe again, and leaves it as it is', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: recipeId(1) });
+    await patchMeal(monday.id, { recipeId: null });
+    await patchMeal(monday.id, { recipeId: recipeId(2) }, POLI.id);
+
+    const response = await restore(monday.id);
+
+    expect(response.statusCode).toBe(409);
+    expect((await getPlan(WEEK)).json().plan.meals[0]).toMatchObject({
+      recipeId: recipeId(2),
+      votes: [{ userId: POLI.id, value: 'up' }],
+    });
+  });
+
+  it('answers 409 when the user removed nothing from the day: „Върни“ is only for the one who removed', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday, tuesday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: recipeId(1) });
+    await patchMeal(monday.id, { recipeId: null });
+
+    expect((await restore(monday.id, POLI.id)).statusCode).toBe(409);
+    expect((await restore(tuesday.id)).statusCode).toBe(409);
+    expect((await getPlan(WEEK)).json().plan.meals[0].recipeId).toBeNull();
+  });
+
+  it('answers 409 past_meal for a day before today and 404 for an unknown meal', async () => {
+    const past = (await createPlan(THIS_WEEK)).meals[0];
+    const unknown = '99999999-9999-4999-8999-999999999999';
+
+    const pastResponse = await restore(past.id);
+    expect(pastResponse.statusCode).toBe(409);
+    expect(pastResponse.json()).toMatchObject({ code: 'past_meal' });
+    expect((await restore(unknown)).statusCode).toBe(404);
+  });
+
+  it('signals menu.changed and shopping.changed for the week', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: recipeId(1) });
+    await patchMeal(monday.id, { recipeId: null });
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await restore(monday.id);
     unsubscribe();
 
     expect(signals).toEqual([

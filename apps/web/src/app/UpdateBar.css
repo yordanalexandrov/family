@@ -1,13 +1,24 @@
-/* Като toast-а (components/Toast.css), но горе и докато версията чака: не спори с toast-а и долната лента. */
+/*
+ * Като toast-а (components/Toast.css), но горе и докато версията чака: не спори с toast-а и долната лента.
+ * В потока на страницата (първото дете на #root), затова бута екрана надолу, вместо да покрива заглавието му;
+ * sticky я държи горе и при превъртане.
+ */
 .update-bar {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-start: max(var(--space-3), env(safe-area-inset-top));
+  position: sticky;
+  inset-block-start: 0;
   z-index: 30;
   display: flex;
+  flex: none;
   justify-content: center;
-  padding-inline: var(--space-4);
+  padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) 0;
   pointer-events: none;
+}
+
+/* kiosk и TV: дашбордът е точно на височината на екрана (KioskLayout), лентата остава над него. */
+:root[data-device="kiosk"] .update-bar,
+:root[data-device="tv"] .update-bar {
+  position: fixed;
+  inset-inline: 0;
 }
 
 .update-bar__message {

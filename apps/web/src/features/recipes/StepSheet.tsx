@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
 
@@ -27,12 +28,26 @@ export function StepSheet({
   onRemove,
   onClose,
 }: StepSheetProps) {
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  // Полето расте с текста (и с шрифта на телефона), за да се вижда цялата стъпка; листът се превърта, ако не стига.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: височината следва текста.
+  useLayoutEffect(() => {
+    const field = textRef.current;
+    if (!field) {
+      return;
+    }
+    field.style.height = 'auto';
+    const border = field.offsetHeight - field.clientHeight;
+    field.style.height = `${field.scrollHeight + border}px`;
+  }, [text]);
+
   return (
     <Sheet title="Стъпка" onClose={onClose}>
       <Field label={`Стъпка ${number}`} error={error}>
         {(props) => (
           <textarea
             {...props}
+            ref={textRef}
             className="field__input step-sheet__text"
             value={text}
             onChange={(event) => onChange(event.target.value)}

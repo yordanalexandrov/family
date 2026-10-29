@@ -62,7 +62,8 @@ export function PantryScreen() {
     (message: string) => setToast({ message }),
     [],
   );
-  const removal = useDeferredRemoval(showMessage);
+  const closeToast = useCallback(() => setToast(null), []);
+  const removal = useDeferredRemoval(showMessage, closeToast);
   const { flush } = removal;
   const onToastDone = useCallback(() => {
     setToast(null);
@@ -144,10 +145,14 @@ export function PantryScreen() {
 
 /**
  * Изтриване, което чака: редът изчезва веднага (`removing`), а `DELETE` тръгва при `flush` — изтичането на toast-а,
- * ново действие или напускане на екрана. `undo` го отменя без заявка, затова бележката и възрастта остават. При
+ * ново действие, напускане на екрана, презареждане, затваряне или скриване на приложението. `undo` го отменя без заявка, затова бележката и възрастта остават. При
  * грешка `useRemovePantryItem` връща килера, а редът се показва пак.
  */
-function useDeferredRemoval(onError: (message: string) => void) {
+function useDeferredRemoval(
+  onError: (message: string) => void,
+  /** Изтриването тръгна, защото страницата се скрива: „Върни“ вече не може да го отмени. */
+  onLeave: () => void,
+) {
   const remove = useRemovePantryItem();
   const mutate = useRef(remove.mutate);
   mutate.current = remove.mutate;
@@ -174,7 +179,27 @@ function useDeferredRemoval(onError: (message: string) => void) {
     });
   }, [onError, show]);
 
-  useEffect(() => flush, [flush]);
+  useEffect(() => {
+    // Презареждане, затваряне или скриване на приложението не чака toast-а: изтриването тръгва веднага (#209).
+    const leave = () => {
+      if (pending.current) {
+        flush();
+        onLeave();
+      }
+    };
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        leave();
+      }
+    };
+    window.addEventListener('pagehide', leave);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      document.removeEventListener('visibilitychange', onHidden);
+      flush();
+    };
+  }, [flush, onLeave]);
 
   return {
     removing,
@@ -212,7 +237,7 @@ function ItemName({ item }: { item: PantryItem }) {
   );
 }
 
-/** Превключвателят „❄️ Във фризера“ на временен продукт, като в листа за добавяне. */
+/** Превключвателят „❄️ Във фризера“ на продукт от килера, като в листа за добавяне. */
 function FrozenToggle({
   item,
   onToggle,
@@ -295,6 +320,7 @@ function Groups({
                   )}
                 </span>
                 <span className="pantry-item__actions">
+                  <FrozenToggle item={item} onToggle={toggleFrozen(item)} />
                   <button
                     type="button"
                     className="button button--quiet pantry-item__action"

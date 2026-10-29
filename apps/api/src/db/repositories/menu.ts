@@ -28,6 +28,7 @@ import {
   meal,
   mealComment,
   mealPlan,
+  mealRemoval,
   mealVote,
   menuProposalRequest,
 } from '../schema/menu.js';
@@ -544,4 +545,40 @@ export async function claimMealCook(
     .where(and(eq(meal.id, id), isNull(meal.cookUserId)))
     .returning({ planId: meal.planId });
   return row ?? null;
+}
+
+export type MealRemoval = typeof mealRemoval.$inferSelect;
+
+/** Keeps the last „Махни ястието от деня“ of a meal for its „Върни“, over any earlier one. */
+export async function saveRemoval(
+  db: DbExecutor,
+  removal: MealRemoval,
+): Promise<void> {
+  const { mealId, ...rest } = removal;
+  await db
+    .insert(mealRemoval)
+    .values(removal)
+    .onConflictDoUpdate({ target: mealRemoval.mealId, set: rest });
+}
+
+/** The last removal of a meal, if `removedBy` made it. */
+export async function findRemoval(
+  db: DbExecutor,
+  mealId: string,
+  removedBy: string,
+): Promise<MealRemoval | undefined> {
+  const [row] = await db
+    .select()
+    .from(mealRemoval)
+    .where(
+      and(eq(mealRemoval.mealId, mealId), eq(mealRemoval.removedBy, removedBy)),
+    );
+  return row;
+}
+
+export async function deleteRemoval(
+  db: DbExecutor,
+  mealId: string,
+): Promise<void> {
+  await db.delete(mealRemoval).where(eq(mealRemoval.mealId, mealId));
 }

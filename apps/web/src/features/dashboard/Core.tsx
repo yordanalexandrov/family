@@ -5,6 +5,7 @@ import { formatDayLong, formatTime } from '../../lib/format';
 import { syncNotes } from '../../lib/sync-notes';
 import { SourceAvatars } from '../calendar/SourceAvatars';
 import { Clock } from './Clock';
+import { useCoreFit } from './core-fit';
 import { DayRing } from './DayRing';
 import { TodayCooking } from './TodayCooking';
 import './Core.css';
@@ -12,8 +13,9 @@ import './Core.css';
 /*
  * Ядро (GLOSSARY: core): кръглата стъклена карта с пръстена на деня по ръба.
  * Вътре отгоре надолу: целодневните като чипове (до 2 + „+N“), часовник, дата,
- * следващото събитие днес (kiosk/TV: до `maxEvents`), „Днес се готви“.
- * Размерът идва отвън през `--core-size` (layout-ът решава).
+ * следващото събитие днес (kiosk/TV: до `maxEvents`), „Днес се готви“ и
+ * надписът за остарели данни. Размерът идва отвън през `--core-size` (layout-ът
+ * решава); съдържанието се смалява, докато се побере в кръга (core-fit.ts).
  */
 const MAX_CHIPS = 2;
 
@@ -64,12 +66,13 @@ export function Core({
   const upcoming = allUpcoming.slice(0, maxEvents);
   const hiddenEvents = showHiddenCount ? allUpcoming.length - maxEvents : 0;
   const hiddenChips = allDay.length - MAX_CHIPS;
+  const staleNote = showStale ? stale : undefined;
+  const innerRef = useCoreFit();
 
   return (
     <Card
       className={opensCalendar ? 'core core--links' : 'core'}
       aria-label="Днес накратко"
-      stale={showStale ? stale : undefined}
     >
       <DayRing events={events} now={now} onSelect={onSelectEvent} />
       {opensCalendar && (
@@ -79,7 +82,7 @@ export function Core({
           aria-label="Календар"
         />
       )}
-      <div className="core__inner">
+      <div className="core__inner" ref={innerRef}>
         {allDay.length > 0 && (
           <ul className="core__chips">
             {allDay.slice(0, MAX_CHIPS).map((event) => (
@@ -120,6 +123,7 @@ export function Core({
           opensMenu={opensMenu}
           opensRecipe={opensRecipe}
         />
+        {staleNote && <p className="core__stale">{staleNote}</p>}
       </div>
     </Card>
   );

@@ -34,9 +34,22 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
     page.getByRole('button', { name: 'лук · 2 бр.' }),
     'ingredient line лук · 2 бр.',
   );
-  await page
+  // Нова рецепта започва без стъпки; стъпката се попълва в лист „Стъпка“.
+  await tap(
+    page.getByRole('button', { name: 'Добави стъпка' }),
+    'Добави стъпка',
+  );
+  const stepSheet = page.getByRole('dialog', { name: 'Стъпка' });
+  await stepSheet
     .getByRole('textbox', { name: 'Стъпка 1' })
     .fill('Свари лещата с лука.');
+  await tap(stepSheet.getByRole('button', { name: 'Готово' }), 'Готово');
+  await see(
+    page
+      .getByRole('list', { name: 'Стъпки' })
+      .getByRole('button', { name: 'Свари лещата с лука.' }),
+    'step line',
+  );
   await aria('form-filled');
 
   await tap(page.getByRole('button', { name: 'Запази' }), 'Запази');
@@ -51,6 +64,13 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
       .filter({ hasText: 'лук' })
       .filter({ hasText: '2 бр.' }),
     'ingredient line лук 2 бр.',
+  );
+  await see(
+    page
+      .getByRole('region', { name: 'Стъпки' })
+      .getByRole('listitem')
+      .filter({ hasText: 'Свари лещата с лука.' }),
+    'step in view',
   );
   await aria('recipe-view');
   await shot('recipe-view');

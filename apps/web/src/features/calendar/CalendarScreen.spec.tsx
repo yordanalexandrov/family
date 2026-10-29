@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -141,6 +141,38 @@ describe('CalendarScreen', () => {
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Няма връзка със сървъра',
+      );
+    });
+
+    it('щом връзката се върне, календарът се опреснява и „остарели данни“ изчезва', async () => {
+      setUpDevice('phone', dani.id);
+      await openedOnceThenUnreachable();
+      const goBackOnline = goOffline();
+      renderApp('/calendar');
+      await screen.findByText('остарели данни · от 1 мин');
+
+      server.resetHandlers();
+      goBackOnline();
+
+      await waitFor(() =>
+        expect(screen.queryByText(/остарели данни/)).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText('Родителска среща')).toBeInTheDocument();
+    });
+
+    it('след мрежова грешка без offline, събитието online пак опреснява', async () => {
+      setUpDevice('phone', dani.id);
+      await openedOnceThenUnreachable();
+      renderApp('/calendar');
+      await screen.findByText('остарели данни · от 1 мин');
+
+      server.resetHandlers();
+      act(() => {
+        window.dispatchEvent(new Event('online'));
+      });
+
+      await waitFor(() =>
+        expect(screen.queryByText(/остарели данни/)).not.toBeInTheDocument(),
       );
     });
 

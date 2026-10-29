@@ -427,6 +427,27 @@ describe('SuggestionReview', () => {
     expect(approved[0]?.appliance).toBe(ninja);
   });
 
+  it('значката за уред следва избора във формата: при „Без уред“ я няма, при друг уред показва него', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const ninja = seedAppliances[1]?.name ?? '';
+    serveReview({
+      ...skewersSuggestion,
+      payload: { ...chickenSkewers, appliance: ninja },
+    });
+
+    renderApp(reviewPath);
+
+    expect(await screen.findByText('🔌 мултикукър')).toBeInTheDocument();
+    const select = await screen.findByRole('combobox', { name: 'Уред' });
+
+    await user.selectOptions(select, 'Без уред');
+    expect(screen.queryByText(/🔌/)).not.toBeInTheDocument();
+
+    await user.selectOptions(select, 'мултикукър');
+    expect(screen.getByText('🔌 мултикукър')).toBeInTheDocument();
+  });
+
   it('„Отхвърли“ праща reject и връща към предложенията с toast „Отхвърлено · Върни“; „Върни“ го прави пак предложение', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
@@ -651,7 +672,7 @@ describe('SuggestionReview', () => {
       ).toBeInTheDocument();
     });
 
-    it('„Внеси въпреки това“ маха предупреждението и връща „Одобри“, което праща одобрението', async () => {
+    it('предложение от „Поискай предложения“: „Одобри въпреки това“ (не „Внеси“) маха предупреждението и връща „Одобри“, което праща одобрението', async () => {
       const user = userEvent.setup();
       setUpDevice('phone', dani.id);
       const { approved } = serveReview({
@@ -675,14 +696,97 @@ describe('SuggestionReview', () => {
         actionBar().queryByRole('button', { name: 'Одобри' }),
       ).not.toBeInTheDocument();
 
+      expect(
+        within(warning).queryByRole('button', { name: 'Внеси въпреки това' }),
+      ).not.toBeInTheDocument();
       await user.click(
-        within(warning).getByRole('button', { name: 'Внеси въпреки това' }),
+        within(warning).getByRole('button', { name: 'Одобри въпреки това' }),
       );
 
       expect(warning).not.toBeInTheDocument();
       await user.click(actionBar().getByRole('button', { name: 'Одобри' }));
       await screen.findByRole('heading', { name: 'Предложения' });
       expect(approved).toHaveLength(1);
+    });
+
+    /** Внасянето с регистър от `recipes`; `duplicateOf` е по заглавието от агента, както го дава api-то. */
+    function serveImportWithRegistry(
+      recipes: Recipe[],
+      duplicateOf?: RecipeSuggestion['duplicateOf'],
+    ) {
+      server.use(
+        http.get(`/api/recipe-imports/${importId}`, () =>
+          HttpResponse.json({
+            request: doneImport,
+            suggestion: {
+              ...importedSuggestion,
+              ...(duplicateOf ? { duplicateOf } : {}),
+            },
+            ingredients: [chicken, salt, importedSumac],
+          }),
+        ),
+        http.get('/api/recipes', () => HttpResponse.json({ recipes })),
+      );
+    }
+
+    it('друго заглавие във формата маха предупреждението и връща „Одобри“', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveImportWithRegistry([existing], {
+        id: existing.id,
+        title: existing.title,
+      });
+
+      renderApp(`/recipes/import/${importId}`);
+      await screen.findByRole('region', {
+        name: 'Има рецепта със същото заглавие',
+      });
+      const title = await screen.findByRole('textbox', { name: 'Заглавие' });
+      await user.clear(title);
+      await user.type(title, 'Пиле със сумак на тиган');
+
+      expect(
+        screen.queryByRole('region', {
+          name: 'Има рецепта със същото заглавие',
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        actionBar().getByRole('button', { name: 'Одобри' }),
+      ).toBeInTheDocument();
+    });
+
+    it('заглавие във формата, което регистърът вече има, показва предупреждението с „Отвори“ към тази рецепта', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      const moussaka: Recipe = {
+        ...omelette,
+        id: 'bbbbbbbb-0000-4000-8000-000000000098',
+        title: 'Мусака',
+      };
+      serveImportWithRegistry([existing, moussaka]);
+
+      renderApp(`/recipes/import/${importId}`);
+      const title = await screen.findByRole('textbox', { name: 'Заглавие' });
+      expect(
+        screen.queryByRole('region', {
+          name: 'Има рецепта със същото заглавие',
+        }),
+      ).not.toBeInTheDocument();
+      await user.clear(title);
+      await user.type(title, '  МУСАКА ');
+
+      const warning = within(
+        await screen.findByRole('region', {
+          name: 'Има рецепта със същото заглавие',
+        }),
+      );
+      expect(warning.getByRole('link', { name: 'Отвори' })).toHaveAttribute(
+        'href',
+        `/recipes/${moussaka.id}`,
+      );
+      expect(
+        actionBar().queryByRole('button', { name: 'Одобри' }),
+      ).not.toBeInTheDocument();
     });
   });
 });

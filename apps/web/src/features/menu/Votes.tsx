@@ -14,8 +14,11 @@ export function voteOf(meal: Meal, userId: string): VoteValue | undefined {
   return meal.votes.find((vote) => vote.userId === userId)?.value;
 }
 
-/** Изходът като цветен етикет. */
-export function OutcomeLabel({ outcome }: { outcome: MealOutcome }) {
+/** Изходът като цветен етикет; празен ден няма изход и етикет (чака ястие, не глас). */
+export function OutcomeLabel({ outcome }: { outcome: MealOutcome | null }) {
+  if (outcome === null) {
+    return null;
+  }
   return (
     <span className={`outcome outcome--${outcome}`}>
       {OUTCOME_LABELS[outcome]}
@@ -65,7 +68,7 @@ export function MyVote({
       <button
         type="button"
         className="my-vote__button my-vote__button--down"
-        aria-label="Против"
+        aria-label="Не"
         aria-pressed={mine === 'down'}
         onClick={() => press('down')}
       >
@@ -77,7 +80,7 @@ export function MyVote({
       <button
         type="button"
         className="my-vote__button my-vote__button--up"
-        aria-label="За"
+        aria-label="Да"
         aria-pressed={mine === 'up'}
         onClick={() => press('up')}
       >

@@ -119,6 +119,18 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     }),
   );
 
+  // „Върни“ after „Махни ястието от деня“ (GLOSSARY: Ястие): the api brings back what the acting user's removal took
+  // (the recipe, its why, the votes) and takes its line out of the thread. No body: what comes back is what was kept.
+  app.post(
+    '/api/menu/meals/:id/restore',
+    {
+      schema: { params: idParamsSchema, response: { 200: mealResponseSchema } },
+    },
+    async (request) => ({
+      meal: await service.restoreMeal(request.params.id, request.actor.id),
+    }),
+  );
+
   app.post(
     '/api/menu/meals/:id/swap',
     {
@@ -217,9 +229,11 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
+  // The two reads of a proposal: the tablet and the TV show the week waiting for one; asking for one still needs a user.
   app.get(
     '/api/menu/proposals',
     {
+      config: { actingUser: false },
       schema: {
         querystring: menuProposalsQuerySchema,
         response: { 200: menuProposalResponseSchema },
@@ -233,6 +247,7 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/api/menu/proposals/:id',
     {
+      config: { actingUser: false },
       schema: {
         params: idParamsSchema,
         response: { 200: menuProposalResponseSchema },

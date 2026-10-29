@@ -496,6 +496,39 @@ describe('RecipeForm', () => {
     expect(put[0]?.steps).toEqual(['Задуши с лука и морков.', 'Сервирай.']);
   });
 
+  it('грешката изчезва, когато полето е поправено, без ново „Запази“', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const saved = serveForm();
+
+    renderApp('/recipes/new');
+    await user.click(await screen.findByRole('button', { name: 'Запази' }));
+    const title = screen.getByRole('textbox', { name: 'Заглавие' });
+    expect(title).toHaveAccessibleDescription('Въведи заглавие');
+    expect(screen.getByText('Добави поне една стъпка')).toBeInTheDocument();
+
+    await user.type(title, 'Супа');
+    expect(title).not.toHaveAttribute('aria-invalid', 'true');
+    expect(title).not.toHaveAccessibleDescription();
+    // Стъпките още липсват: тяхната грешка и алармата остават.
+    expect(screen.getByText('Добави поне една стъпка')).toBeInTheDocument();
+    expect(actionBar().getByRole('alert')).toHaveTextContent(
+      'Поправи отбелязаните полета.',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Добави стъпка' }));
+    await user.type(
+      stepSheet().getByRole('textbox', { name: 'Стъпка 1' }),
+      'Свари.',
+    );
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    expect(
+      screen.queryByText('Добави поне една стъпка'),
+    ).not.toBeInTheDocument();
+    expect(actionBar().queryByRole('alert')).not.toBeInTheDocument();
+    expect(saved).toEqual([]);
+  });
+
   it('нова стъпка, затворена празна, не остава в списъка; без стъпки записът казва да се добави', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
@@ -602,7 +635,7 @@ describe('RecipeForm', () => {
     const saved = serveForm();
 
     renderApp('/recipes/new');
-    const summary = await screen.findByText('+ Хранителна стойност');
+    const summary = await screen.findByText('Хранителна стойност');
     const details = summary.closest('details');
     await user.click(summary);
     const kcal = screen.getByRole('textbox', { name: 'Енергия (kcal)' });
@@ -624,7 +657,7 @@ describe('RecipeForm', () => {
     serveForm();
 
     renderApp('/recipes/new');
-    const summary = await screen.findByText('+ Хранителна стойност');
+    const summary = await screen.findByText('Хранителна стойност');
     const details = summary.closest('details');
     await user.click(summary);
     await user.type(
@@ -649,7 +682,7 @@ describe('RecipeForm', () => {
     serveForm();
 
     const blank = renderApp('/recipes/new');
-    const summary = await screen.findByText('+ Хранителна стойност');
+    const summary = await screen.findByText('Хранителна стойност');
     const empty = summary.closest('details');
     expect(empty).not.toHaveAttribute('open');
     // След „Стъпки“ във формата.
@@ -666,7 +699,7 @@ describe('RecipeForm', () => {
 
     renderApp(`/recipes/${chickenWithRice.id}/edit`);
     expect(
-      (await screen.findByText('+ Хранителна стойност')).closest('details'),
+      (await screen.findByText('Хранителна стойност')).closest('details'),
     ).toHaveAttribute('open');
     expect(screen.getByRole('textbox', { name: 'Енергия (kcal)' })).toHaveValue(
       '150',

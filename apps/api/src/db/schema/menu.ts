@@ -8,6 +8,7 @@ import {
   type Servings,
   type Slot,
   slotSchema,
+  type Vote,
   type VoteValue,
   voteValueSchema,
 } from '@family/shared';
@@ -127,6 +128,28 @@ export const mealComment = pgTable(
     ),
   ],
 );
+
+/**
+ * The last „Махни ястието от деня“ of a meal, kept for its „Върни“: the recipe, its `why` and the votes it took, and
+ * the system line it wrote (`comment_id`). Only `removed_by` may bring it back; a new recipe for the day drops it.
+ */
+export const mealRemoval = pgTable('meal_removal', {
+  mealId: uuid('meal_id')
+    .primaryKey()
+    .references(() => meal.id, { onDelete: 'cascade' }),
+  removedBy: uuid('removed_by')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  recipeId: uuid('recipe_id')
+    .notNull()
+    .references(() => recipe.id, { onDelete: 'cascade' }),
+  why: text('why'),
+  votes: jsonb('votes').$type<Vote[]>().notNull(),
+  commentId: uuid('comment_id').references(() => mealComment.id, {
+    onDelete: 'set null',
+  }),
+  removedAt: timestamp('removed_at', { withTimezone: true }).notNull(),
+});
 
 /**
  * GLOSSARY: Предложение за меню. One run of `menu.propose` for a week; `plan_id` is set when it is `done`.

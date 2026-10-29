@@ -26,8 +26,8 @@ function withRecipe(recipe: { id: string; title: string }) {
 }
 
 /**
- * Седмицата на `fixtureNow` (сряда, 4 ноември): понеделник и вторник са минали. Всеки изход по веднъж, плюс два дни,
- * които чакат глас.
+ * Седмицата на `fixtureNow` (сряда, 4 ноември): понеделник и вторник са минали. Всеки изход по веднъж, плюс празна
+ * неделя, която чака ястие, не глас.
  */
 function mixedPlan() {
   return planFor(thisWeek, {
@@ -101,7 +101,7 @@ describe('MenuWeek: гласове', () => {
 
     const keep = row(lentils.title);
     expect(keep).toHaveTextContent('Остава');
-    expect(within(keep).getByRole('button', { name: 'За' })).toHaveAttribute(
+    expect(within(keep).getByRole('button', { name: 'Да' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -112,7 +112,7 @@ describe('MenuWeek: гласове', () => {
     expect(discuss).toHaveTextContent('Поли: против');
     const pending = row(pasta.title);
     expect(pending).toHaveTextContent('Чака глас');
-    expect(within(pending).getByRole('button', { name: 'За' })).toHaveAttribute(
+    expect(within(pending).getByRole('button', { name: 'Да' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
@@ -142,8 +142,8 @@ describe('MenuWeek: гласове', () => {
     await screen.findByRole('list', { name: 'Вечери' });
 
     const discuss = within(row(fish.title));
-    const up = discuss.getByRole('button', { name: 'За' });
-    const down = discuss.getByRole('button', { name: 'Против' });
+    const up = discuss.getByRole('button', { name: 'Да' });
+    const down = discuss.getByRole('button', { name: 'Не' });
     expect(up).toHaveAttribute('aria-pressed', 'true');
     expect(down).toHaveAttribute('aria-pressed', 'false');
     expect(up).toHaveTextContent('Да');
@@ -177,7 +177,7 @@ describe('MenuWeek: гласове', () => {
     expect(within(sheet).getByText(why)).toBeVisible();
   });
 
-  it('празен ден е без гласове (бутони и чипове) и в реда, и в листа; изходът му чака', async () => {
+  it('празен ден е без гласове (бутони и чипове) и без изход и в реда, и в листа', async () => {
     const user = userEvent.setup();
     servePlans({ [thisWeek]: mixedPlan() });
     serveDinnerRecipes();
@@ -186,32 +186,58 @@ describe('MenuWeek: гласове', () => {
     await screen.findByRole('list', { name: 'Вечери' });
 
     const empty = row('Избери ястие');
-    expect(empty).toHaveTextContent('Чака глас');
-    expect(within(empty).queryByRole('button', { name: 'За' })).toBeNull();
-    expect(within(empty).queryByRole('button', { name: 'Против' })).toBeNull();
+    expect(empty).not.toHaveTextContent('Чака глас');
+    expect(within(empty).queryByRole('button', { name: 'Да' })).toBeNull();
+    expect(within(empty).queryByRole('button', { name: 'Не' })).toBeNull();
     expect(within(empty).queryByText(/Поли:|Дани:/)).toBeNull();
 
     await user.click(
       within(empty).getByRole('button', { name: /Избери ястие/ }),
     );
     const sheet = screen.getByRole('dialog', { name: 'неделя, 8 ноември' });
-    expect(within(sheet).queryByRole('button', { name: 'За' })).toBeNull();
-    expect(within(sheet).queryByRole('button', { name: 'Против' })).toBeNull();
+    expect(within(sheet).queryByRole('button', { name: 'Да' })).toBeNull();
+    expect(within(sheet).queryByRole('button', { name: 'Не' })).toBeNull();
     expect(within(sheet).queryByText(/Поли:|Дани:/)).toBeNull();
+    expect(sheet).not.toHaveTextContent('Чака глас');
   });
 
-  it('седмица с празен ден от днес нататък не е съгласувана, дори с 👍 на двамата', async () => {
+  it('празен ден от днес нататък се влачи за дръжката като ден с ястие; минал празен ден — не', async () => {
+    servePlans({ [thisWeek]: planFor(thisWeek, {}) });
+
+    renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+    await showPastDays();
+
+    const handle = 'Задръж и влачи към друг ден';
+    expect(within(row('нд')).getByTitle(handle)).toBeInTheDocument();
+    expect(within(row('пн')).queryByTitle(handle)).toBeNull();
+  });
+
+  it('седмица, в която всички ястия са „Остава“, е съгласувана и с празни дни', async () => {
     const plan = agreedPlan();
-    // Неделя без рецепта, но с двата 👍 отпреди.
+    // Петък и неделя без рецепта и без гласове.
     plan.meals = plan.meals.map((meal, day) =>
-      day === 6 ? { ...meal, recipeId: null, recipe: null } : meal,
+      day === 4 || day === 6
+        ? { ...meal, recipeId: null, recipe: null, votes: [] }
+        : meal,
     );
     servePlans({ [thisWeek]: plan });
 
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
 
+    expect(await screen.findByText('Менюто е съгласувано')).toBeVisible();
+    expect(screen.queryByRole('tablist', { name: 'Филтър' })).toBeNull();
+  });
+
+  it('седмица само с празни дни от днес нататък няма какво да съгласува: нито лента, нито „съгласувано“', async () => {
+    servePlans({ [thisWeek]: planFor(thisWeek, {}) });
+
+    renderApp('/menu');
+    await screen.findByRole('list', { name: 'Вечери' });
+
     expect(screen.queryByText('Менюто е съгласувано')).toBeNull();
+    expect(screen.queryByRole('tablist', { name: 'Филтър' })).toBeNull();
   });
 
   it('миналите дни са само за четене: без бутони за глас и без изход', async () => {
@@ -222,8 +248,8 @@ describe('MenuWeek: гласове', () => {
     await showPastDays();
 
     for (const past of [row(chicken.title), row('остатъци')]) {
-      expect(within(past).queryByRole('button', { name: 'За' })).toBeNull();
-      expect(within(past).queryByRole('button', { name: 'Против' })).toBeNull();
+      expect(within(past).queryByRole('button', { name: 'Да' })).toBeNull();
+      expect(within(past).queryByRole('button', { name: 'Не' })).toBeNull();
       expect(past).not.toHaveTextContent('За смяна');
       expect(past).not.toHaveTextContent('Чака глас');
     }
@@ -246,9 +272,10 @@ describe('MenuWeek: гласове', () => {
       expect.stringContaining(moussaka.title),
     ]);
 
-    await user.click(within(filters).getByRole('tab', { name: 'Чака глас 2' }));
-    expect(rows()).toHaveLength(2);
-    expect(rows()[0]).toHaveTextContent(pasta.title);
+    await user.click(within(filters).getByRole('tab', { name: 'Чака глас 1' }));
+    expect(rows().map((item) => item.textContent)).toEqual([
+      expect.stringContaining(pasta.title),
+    ]);
 
     await user.click(
       within(filters).getByRole('tab', { name: 'Да поговорим 1' }),
@@ -267,21 +294,21 @@ describe('MenuWeek: гласове', () => {
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
     await user.click(
-      within(row(pasta.title)).getByRole('button', { name: 'За' }),
+      within(row(pasta.title)).getByRole('button', { name: 'Да' }),
     );
 
     expect(
-      within(row(pasta.title)).getByRole('button', { name: 'За' }),
+      within(row(pasta.title)).getByRole('button', { name: 'Да' }),
     ).toHaveAttribute('aria-pressed', 'true');
     await expect.poll(() => row(pasta.title).textContent).toContain('Остава');
 
     await user.click(
-      within(row(pasta.title)).getByRole('button', { name: 'За' }),
+      within(row(pasta.title)).getByRole('button', { name: 'Да' }),
     );
     await expect
       .poll(() =>
         within(row(pasta.title))
-          .getByRole('button', { name: 'За' })
+          .getByRole('button', { name: 'Да' })
           .getAttribute('aria-pressed'),
       )
       .toBe('false');
@@ -310,12 +337,12 @@ describe('MenuWeek: гласове', () => {
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
     await user.click(
-      within(row(pasta.title)).getByRole('button', { name: 'Против' }),
+      within(row(pasta.title)).getByRole('button', { name: 'Не' }),
     );
 
     expect(await screen.findByText(/Денят е минал/)).toBeInTheDocument();
     expect(
-      within(row(pasta.title)).getByRole('button', { name: 'Против' }),
+      within(row(pasta.title)).getByRole('button', { name: 'Не' }),
     ).toHaveAttribute('aria-pressed', 'false');
     expect(row(pasta.title)).toHaveTextContent('Чака глас');
   });
@@ -343,7 +370,7 @@ describe('MenuWeek: гласове', () => {
       within(filters)
         .getAllByRole('tab')
         .map((tab) => tab.textContent),
-    ).toEqual(['Всички', 'Чака глас 2', 'Да поговорим 1', 'За смяна 1']);
+    ).toEqual(['Всички', 'Чака глас 1', 'Да поговорим 1', 'За смяна 1']);
   });
 
   it('последният глас под филтър „Чака глас“ показва цялата седмица с „Менюто е съгласувано“', async () => {
@@ -357,7 +384,7 @@ describe('MenuWeek: гласове', () => {
     await user.click(within(filters).getByRole('tab', { name: 'Чака глас 1' }));
     expect(rows()).toHaveLength(1);
     await user.click(
-      within(row(pasta.title)).getByRole('button', { name: 'За' }),
+      within(row(pasta.title)).getByRole('button', { name: 'Да' }),
     );
 
     expect(await screen.findByText('Менюто е съгласувано')).toBeInTheDocument();
@@ -380,7 +407,7 @@ describe('MenuWeek: гласове', () => {
       within(filters).getByRole('tab', { name: 'Да поговорим 1' }),
     );
     await user.click(
-      within(row(fish.title)).getByRole('button', { name: 'Против' }),
+      within(row(fish.title)).getByRole('button', { name: 'Не' }),
     );
 
     await expect
@@ -415,7 +442,7 @@ describe('MenuWeek: гласове', () => {
     expect(votes).toHaveTextContent('Дани: за');
     expect(votes).toHaveTextContent('Поли: против');
     expect(votes).toHaveTextContent('Да поговорим');
-    expect(within(votes).getByRole('button', { name: 'За' })).toHaveAttribute(
+    expect(within(votes).getByRole('button', { name: 'Да' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -430,7 +457,7 @@ describe('MenuWeek: гласове', () => {
       within(past).queryByRole('searchbox', { name: 'Търси рецепта' }),
     ).toBeNull();
     expect(within(past).queryByRole('textbox', { name: 'Бележка' })).toBeNull();
-    expect(within(past).queryByRole('button', { name: 'За' })).toBeNull();
+    expect(within(past).queryByRole('button', { name: 'Да' })).toBeNull();
     expect(
       within(past).getByRole('button', { name: 'Поли' }),
     ).toBeInTheDocument();
@@ -454,7 +481,7 @@ describe('MenuWeek: гласове на kiosk', () => {
     renderApp('/menu');
     await screen.findByRole('list', { name: 'Вечери' });
 
-    expect(screen.queryByRole('button', { name: 'За' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Да' })).toBeNull();
     expect(screen.queryByRole('tablist', { name: 'Филтър' })).toBeNull();
     expect(screen.queryByText('Да поговорим')).toBeNull();
   });
@@ -471,7 +498,7 @@ describe('ShoppingWeek: несъгласувано меню', () => {
     vi.useRealTimers();
   });
 
-  it('докато менюто не е съгласувано, лента казва колко ястия чакат и води към менюто', async () => {
+  it('докато менюто не е съгласувано, лента казва колко ястия чакат (без празните дни) и води към менюто', async () => {
     serveShopping({ [thisWeek]: shoppingList() });
     servePlans({ [thisWeek]: mixedPlan() });
 
@@ -479,7 +506,7 @@ describe('ShoppingWeek: несъгласувано меню', () => {
 
     const banner = await screen.findByText(/Менюто още не е съгласувано/);
     expect(banner).toHaveTextContent(
-      'Менюто още не е съгласувано: 4 ястия чакат',
+      'Менюто още не е съгласувано: 3 ястия чакат',
     );
     expect(screen.getByRole('link', { name: 'Към менюто' })).toHaveAttribute(
       'href',

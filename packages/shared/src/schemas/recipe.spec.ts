@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canonicalTitle,
   putRatingSchema,
+  recipeFiltersSchema,
   recipeInputSchema,
   recipeSchema,
   recipesQuerySchema,
@@ -67,6 +68,40 @@ describe('recipesQuerySchema', () => {
     expect(recipesQuerySchema.parse({}).sort).toBe('title');
     expect(recipesQuerySchema.parse({ sort: 'rating' }).sort).toBe('rating');
     expect(recipesQuerySchema.safeParse({ sort: 'stars' }).success).toBe(false);
+  });
+});
+
+describe('recipeFiltersSchema', () => {
+  it('keeps the known filters of a stored value', () => {
+    const filters = {
+      tags: ['dinner', 'quick'],
+      times: ['15-30'],
+      includeArchived: true,
+      sort: 'rating',
+    };
+    expect(recipeFiltersSchema.parse(filters)).toEqual(filters);
+  });
+
+  it('drops what an older or edited value no longer knows, field by field', () => {
+    expect(
+      recipeFiltersSchema.parse({
+        tags: ['dinner', 'spicy', 3],
+        times: 'all',
+        includeArchived: 'yes',
+        sort: 'stars',
+      }),
+    ).toEqual({
+      tags: ['dinner'],
+      times: [],
+      includeArchived: false,
+      sort: 'title',
+    });
+    expect(recipeFiltersSchema.parse({})).toEqual({
+      tags: [],
+      times: [],
+      includeArchived: false,
+      sort: 'title',
+    });
   });
 });
 

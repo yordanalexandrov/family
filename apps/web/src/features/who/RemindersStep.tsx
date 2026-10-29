@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDeviceMode } from '../../app/device-mode';
 import { useInstallPrompt } from '../../app/install-prompt';
 import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
@@ -9,15 +10,20 @@ import { dismissPushPrompt, usePushDevice } from '../settings/push';
 /**
  * „Искаш ли напомняния?“ веднага след „Кой си?“ на телефона и в браузъра (A-03): същото включване като в Настройки.
  * Прескача се, ако известията не се поддържат, не са включени на сървъра, забранени са или устройството вече е абонирано.
- * „По-късно“ се помни на устройството.
+ * „По-късно“ се помни на устройството. В режим „Браузър“ (обикновено десктоп) говори за браузъра и не подсказва
+ * инсталиране за Android.
  */
 export function RemindersStep({ onDone }: { onDone: () => void }) {
   const device = usePushDevice();
+  const browser = useDeviceMode().mode === 'browser';
   const [enabled, setEnabled] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Без активен service worker (`unready`) стъпката не чака: само „По-късно“.
+  const status = device.data?.status;
   const skip =
     !enabled &&
-    (device.isError || (device.isSuccess && device.data.status !== 'off'));
+    (device.isError ||
+      (device.isSuccess && status !== 'off' && status !== 'unready'));
 
   useEffect(() => {
     if (skip) {
@@ -38,7 +44,7 @@ export function RemindersStep({ onDone }: { onDone: () => void }) {
       <h1 className="screen__title">Искаш ли напомняния?</h1>
       <p className="who__why">
         „Извади месото“, „Кой готви довечера“ и съгласуването на менюто идват
-        като известия на този телефон.
+        като известия {browser ? 'в този браузър' : 'на този телефон'}.
       </p>
       {enabled ? (
         <>
@@ -52,28 +58,28 @@ export function RemindersStep({ onDone }: { onDone: () => void }) {
           </div>
         </>
       ) : (
-        device.data?.status === 'off' && (
-          <div className="reminders__actions">
+        <div className="reminders__actions">
+          {device.data?.status === 'off' && (
             <EnablePushButton
               publicKey={device.data.publicKey}
               label="Включи"
               onEnabled={() => setEnabled(true)}
               onError={(error) => setToast(errorMessage(error))}
             />
-            <button
-              type="button"
-              className="button button--quiet"
-              onClick={() => {
-                dismissPushPrompt();
-                onDone();
-              }}
-            >
-              По-късно
-            </button>
-          </div>
-        )
+          )}
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={() => {
+              dismissPushPrompt();
+              onDone();
+            }}
+          >
+            По-късно
+          </button>
+        </div>
       )}
-      <InstallHint />
+      {!browser && <InstallHint />}
       <Toast message={toast} onDone={() => setToast(null)} />
     </main>
   );

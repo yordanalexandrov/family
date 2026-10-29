@@ -44,7 +44,7 @@
   gap: var(--space-3);
 }
 
-/* Търсене, „Филтри (N)“ и „Изчисти“ на един ред; на тесен екран бутоните минават отдолу. */
+/* Търсене, „Филтри (N)“ и „Изчисти“ (✕) на един ред и на 390 px; бутоните минават отдолу чак при едър шрифт. */
 .recipes__search {
   display: flex;
   flex-wrap: wrap;
@@ -53,8 +53,14 @@
 }
 
 .recipes__search > .field__input {
-  flex: 1 1 8rem;
+  flex: 1 1 5rem;
   min-inline-size: 0;
+}
+
+.recipes__search-clear {
+  flex: none;
+  min-inline-size: var(--touch-target);
+  padding-inline: 0;
 }
 
 .recipes__count {
@@ -448,11 +454,14 @@
   margin: 0 0 var(--space-2);
 }
 
-.step-sheet__text {
+/* Височината я дава `StepSheet` по текста; ръчното разтягане само би ѝ пречило. */
+.field__input.step-sheet__text {
   min-block-size: 8rem;
+  resize: none;
+  overflow-y: hidden;
 }
 
-/* Сгънатата част най-долу (хранителна стойност): отваря се с „+ …“, разгъната само ако има стойности. */
+/* Сгънатата част най-долу (хранителна стойност): отваря се с „+ …“ („− …“, когато е разгъната), разгъната само ако има стойности. */
 .recipe-form__more-summary {
   min-block-size: var(--touch-target);
   display: flex;
@@ -467,7 +476,18 @@
   display: none;
 }
 
+/* Знакът е само за окото: разгънатото състояние го казва `<details>`. */
+.recipe-form__more-summary::before {
+  content: "+\00a0" / "";
+}
+
+.recipe-form__more[open] > .recipe-form__more-summary::before {
+  content: "\2212\00a0" / "";
+}
+
+/* Сгъната: само редът, без отстъпа (`gap`) към скритото съдържание под него. */
 .recipe-form__more:not([open]) {
+  gap: 0;
   padding-block: var(--space-1);
 }
 

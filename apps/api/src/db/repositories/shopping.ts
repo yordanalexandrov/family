@@ -55,6 +55,19 @@ export async function ensureShoppingList(
   return row.id;
 }
 
+/** The id of the week's shopping list, `undefined` while nothing has been written to it. */
+export async function findShoppingListId(
+  db: DbExecutor,
+  weekStart: string,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ id: shoppingList.id })
+    .from(shoppingList)
+    .where(eq(shoppingList.weekStart, weekStart))
+    .limit(1);
+  return row?.id;
+}
+
 /** Every stored item of the list: the overlay of computed items and the manual items. */
 export async function listShoppingItems(
   db: DbExecutor,

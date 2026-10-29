@@ -190,7 +190,7 @@ const key = {
 };
 
 describe('GET /api/shopping-lists/:weekStart', () => {
-  it('creates the list once, also when asked for twice at the same time', async () => {
+  it('answers the same list when asked twice at the same time', async () => {
     await seedMenu();
     const responses = await Promise.all([getList(), getList()]);
     expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
@@ -198,14 +198,26 @@ describe('GET /api/shopping-lists/:weekStart', () => {
     expect((await getList()).json().list.remaining).toBe(3);
   });
 
-  it('answers 400 without an acting user', async () => {
+  it('stores nothing for a week that is only read, any Monday (#209)', async () => {
+    for (const week of ['1999-01-04', WEEK, '2030-01-07']) {
+      expect((await getList(week)).statusCode).toBe(200);
+    }
+    expect(await testDb().select().from(shoppingList)).toEqual([]);
+  });
+
+  it('answers the list without an acting user, as the tablet and the TV read it, and stores nothing (#219)', async () => {
     await seedMenu();
     const response = await app.inject({
       method: 'GET',
       url: `/api/shopping-lists/${WEEK}`,
     });
-    expect(response.statusCode).toBe(400);
-    expect(response.json().error).toBe('missing_acting_user');
+    expect(response.statusCode).toBe(200);
+    expect(response.json().list).toMatchObject({
+      weekStart: WEEK,
+      hasMenu: true,
+      total: 4,
+    });
+    expect(await testDb().select().from(shoppingList)).toEqual([]);
   });
 
   it('answers 400 for a week that does not start on Monday', async () => {
@@ -418,8 +430,10 @@ describe('one row per ingredient (migration of the old keys)', () => {
   }
 
   it('moves the checks and hides stored per unit onto the ingredient’s row, the latest check winning', async () => {
-    await getList();
-    const [list] = await testDb().select().from(shoppingList);
+    const [list] = await testDb()
+      .insert(shoppingList)
+      .values({ weekStart: WEEK })
+      .returning();
     const listId = list?.id ?? '';
     const earlier = new Date('2026-10-27T08:00:00Z');
     await testDb()
@@ -514,6 +528,16 @@ describe('manual items', () => {
     ).json();
     expect(item).toMatchObject({ quantity: 2, unit: 'l', aisle: 'dairy' });
     expect(rows((await getList()).json().list)).toContain('dairy мляко 2 l ×0');
+  });
+
+  it('answers 400 for an item added without an acting user (#219)', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/shopping-lists/${WEEK}/items`,
+      payload: { title: 'кафе' },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error).toBe('missing_acting_user');
   });
 
   it('answers 400 for a blank or too long title', async () => {

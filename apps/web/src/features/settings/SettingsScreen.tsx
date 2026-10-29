@@ -15,6 +15,7 @@ import { type ThemeSetting, useTheme } from '../../app/theme';
 import { Avatar } from '../../components/Avatar';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
+import { useKeepHashTargetInView } from '../../lib/use-hash-target';
 import { DEVICE_CHOICES } from '../device/DeviceScreen';
 import { AppliancesSection } from './AppliancesSection';
 import { DeviceModeConfirm, needsConfirmation } from './DeviceModeConfirm';
@@ -52,6 +53,8 @@ export function SettingsScreen() {
     : 'Като устройството';
   // „Кой си“, „Известия“ и „Уреди“ най-горе на телефона и в браузъра; появата на останалите карти започва след тях.
   const animationOffset = personal ? 3 : 0;
+  // „Промени“ под „Поискай предложения“ води до `#appliances`: картата остава горе, докато „Известия“ се зарежда.
+  useKeepHashTargetInView();
 
   return (
     <main className={`settings${mode === 'phone' ? '' : ' settings--wide'}`}>

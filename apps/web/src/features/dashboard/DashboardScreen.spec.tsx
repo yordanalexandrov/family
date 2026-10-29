@@ -1,5 +1,5 @@
 import type { DashboardResponse } from '@family/shared';
-import { screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -641,6 +641,26 @@ describe('DashboardScreen', () => {
       await screen.findByText('Няма връзка със сървъра · данни от 12 мин'),
     ).toBeInTheDocument();
     expect(screen.getByText('Родителска среща')).toBeInTheDocument();
+  });
+
+  it('щом връзката се върне, банерът изчезва без излизане от екрана', async () => {
+    const first = renderApp('/');
+    await screen.findByText('Родителска среща');
+    first.unmount();
+    server.use(http.get('/api/dashboard', () => HttpResponse.error()));
+    renderApp('/');
+    await screen.findByText('Няма връзка със сървъра · данни от 1 мин');
+
+    server.resetHandlers();
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Няма връзка със сървъра/),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   describe('без връзка', () => {

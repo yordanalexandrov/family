@@ -19,7 +19,7 @@ export interface MenuActivity {
 /**
  * Counts one action of `actorUserId` on the menu of `weekStart` for every other person, and makes `at` the last one;
  * in the transaction of the action. The menu service (`services/menu.ts`) calls it for a vote put, a comment written
- * and a changed meal: its recipe or note (by hand or from „Предложи друго“) or its day (a swap).
+ * and a changed meal: its recipe, or the note of a meal without one (by hand or from „Предложи друго“) or its day (a swap).
  */
 export async function addMenuActivity(
   db: DbExecutor,

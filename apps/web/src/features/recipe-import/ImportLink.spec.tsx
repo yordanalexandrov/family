@@ -202,7 +202,7 @@ describe('ImportRequestView: страница, която не се чете', (
 
     expect(
       await screen.findByText(
-        'Сайтът не позволява автоматично четене — постави текста',
+        'Сайтът не позволява автоматично четене — постави текста.',
       ),
     ).toBeInTheDocument();
     expect(
@@ -232,7 +232,9 @@ describe('ImportRequestView: страница, която не се чете', (
     renderApp(`/recipes/import/${importId}`);
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('Страницата не се отвори — постави текста');
+    expect(alert).toHaveTextContent(
+      'Страницата не се отвори — постави текста.',
+    );
     expect(
       within(alert).getByText('Линк: bonapeti.example'),
     ).toBeInTheDocument();

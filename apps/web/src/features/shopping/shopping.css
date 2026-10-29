@@ -1,7 +1,91 @@
 /* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`); редът на списъка ≥ 56 px (3.5rem). */
 .shopping__count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
   margin: 0;
   color: var(--color-text-muted);
+}
+
+/* Иконата за синхронизация (#208): вдясно в реда, винаги там и с фиксиран размер, за да не мести нищо. Отрицателното
+   поле пази височината на реда въпреки 48 px цел за докосване. */
+.sync-icon {
+  position: relative;
+  align-self: center;
+  margin-block: -0.75rem;
+  margin-inline: auto -0.75rem;
+}
+
+.sync-icon__button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-target);
+  block-size: var(--touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sync-icon__button:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: -3px;
+}
+
+.sync-icon__button[data-state="sent"] {
+  opacity: 0.55;
+}
+
+.sync-icon__button[data-state="offline"] {
+  color: var(--color-stale);
+}
+
+.sync-icon__button svg {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sync-icon__badge {
+  position: absolute;
+  inset-block-start: 0.35rem;
+  inset-inline-end: 0.2rem;
+  min-inline-size: 1.15rem;
+  block-size: 1.15rem;
+  padding-inline: 0.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+}
+
+/* Обяснението стои над съдържанието под иконата и не мести редовете. */
+.sync-icon__explain:not(:empty) {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(100% - 0.25rem);
+  inset-inline-end: 0.5rem;
+  inline-size: max-content;
+  max-inline-size: min(16rem, 80vw);
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 
 .shopping__count-value {
@@ -10,8 +94,7 @@
   font-weight: 700;
 }
 
-.shopping__stale,
-.shopping__pending {
+.shopping__stale {
   margin: 0;
   padding: 0.5em 0.85em;
   border: 1px solid var(--color-status-stale);
@@ -20,11 +103,6 @@
   color: var(--color-stale);
   font-size: var(--font-size-sm);
   font-weight: 600;
-}
-
-.shopping__pending {
-  border-color: var(--color-line);
-  color: var(--color-text-muted);
 }
 
 .shopping__aisle,
@@ -201,7 +279,7 @@
   );
 }
 
-/* „+ Добави“ плава над долната лента вдясно, в зоната на палеца, и се вижда при превъртане (#129 D-10). Toast-ът е над него. */
+/* „+ Добави“ плава над долната лента вдясно, в зоната на палеца, и се вижда при превъртане (#129 D-10). Toast-ът е над него (виж долу). */
 .shopping__add {
   position: fixed;
   inset-inline-end: max(var(--space-4), env(safe-area-inset-right));
@@ -210,6 +288,17 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Toast-ът стои над плаващия „+ Добави“, не върху него (#209). */
+:root:has(.screen.shopping .shopping__add) .toast {
+  inset-block-end: calc(
+    var(--bottom-nav-space, 0px) +
+    var(--action-bar-space, 0px) +
+    var(--touch-target) +
+    var(--space-3) *
+    2
+  );
 }
 
 .shopping__add-button {

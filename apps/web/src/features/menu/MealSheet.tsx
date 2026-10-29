@@ -25,7 +25,7 @@ import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
 import { MealReplace } from './MealReplace';
 import { MoveMeal } from './MoveMeal';
-import { usePlan, useUpdateMeal } from './queries';
+import { usePlan, useRestoreMeal, useUpdateMeal } from './queries';
 import { Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
@@ -67,7 +67,7 @@ export function MealSheet({
   const day = formatDayLong(meal.date);
   const title = mealTitle(meal);
   const past = readOnly || isPastMeal(meal, today);
-  // Празен ден чака ястие, не глас: без чиповете на гласовете и без моите 👎/👍.
+  // Празен ден чака ястие, не глас: без групата „Гласове“ (чипове, изход и моите 👎/👍).
   const empty = isEmptyMeal(meal);
   const [picking, setPicking] = useState(false);
 
@@ -82,8 +82,6 @@ export function MealSheet({
     const before: RemovedRecipe = {
       mealId: meal.id,
       date: meal.date,
-      recipeId: meal.recipeId,
-      why: meal.why,
       title: title ?? '',
     };
     update.mutate(
@@ -101,14 +99,13 @@ export function MealSheet({
           {meal.why && <p className="meal-sheet__why">{meal.why}</p>}
         </div>
       )}
-      {voterId && !(past && empty) && (
+      {voterId && !empty && (
         <fieldset className="sheet__section meal-votes" aria-label="Гласове">
           <legend className="field__label">Гласове</legend>
           <div className="meal-votes__people">
-            {!empty &&
-              users.map((user) => (
-                <PersonVote key={user.id} meal={meal} user={user} />
-              ))}
+            {users.map((user) => (
+              <PersonVote key={user.id} meal={meal} user={user} />
+            ))}
             {!past && (
               <OutcomeLabel
                 outcome={mealOutcome(
@@ -118,7 +115,7 @@ export function MealSheet({
               />
             )}
           </div>
-          {!past && !empty && onVote && (
+          {!past && onVote && (
             <MyVote
               meal={meal}
               userId={voterId}
@@ -196,18 +193,16 @@ export function MealSheet({
   );
 }
 
-/** Рецептата, която „Махни ястието от деня“ е махнало, за „Върни“: с „защо“-то ѝ, ако е имала. */
+/** Рецептата, която „Махни ястието от деня“ е махнало, за toast-а с „Върни“; какво се връща пази api-то. */
 export interface RemovedRecipe {
   mealId: string;
   date: DateKey;
-  recipeId: string;
-  why: string | null;
   title: string;
 }
 
 /**
- * „„Мусака“ е махнато от четвъртък“ с „Върни“, което връща рецептата (и „защо“-то ѝ). Живее в екрана, не в листа:
- * затварянето на листа веднага след махането не губи „Върни“.
+ * „„Мусака“ е махнато от четвъртък“ с „Върни“, което връща рецептата, „защо“-то ѝ и гласовете, без нов ред в
+ * разговора. Живее в екрана, не в листа: затварянето на листа веднага след махането не губи „Върни“.
  */
 export function RemovedRecipeToast({
   removed,
@@ -218,28 +213,17 @@ export function RemovedRecipeToast({
   weekStart: DateKey;
   onDone: () => void;
 }) {
-  const update = useUpdateMeal(weekStart);
+  const restore = useRestoreMeal(weekStart);
   return (
     <>
-      {update.isError && <ErrorBox error={update.error} />}
+      {restore.isError && <ErrorBox error={restore.error} />}
       <Toast
         message={
           removed &&
           `„${removed.title}“ е махнато от ${weekdayName(removed.date)}`
         }
         onDone={onDone}
-        undo={
-          removed
-            ? () =>
-                update.mutate({
-                  id: removed.mealId,
-                  patch: {
-                    recipeId: removed.recipeId,
-                    ...(removed.why ? { why: removed.why } : {}),
-                  },
-                })
-            : undefined
-        }
+        undo={removed ? () => restore.mutate(removed.mealId) : undefined}
       />
     </>
   );

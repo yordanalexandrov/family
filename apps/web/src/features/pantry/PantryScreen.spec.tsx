@@ -314,6 +314,42 @@ describe('PantryScreen', () => {
       );
     });
 
+    it.each([
+      [
+        'презареждане или затваряне (pagehide)',
+        () => window.dispatchEvent(new Event('pagehide')),
+      ],
+      [
+        'скриване на приложението (visibilitychange)',
+        () => {
+          vi.spyOn(document, 'visibilityState', 'get').mockReturnValue(
+            'hidden',
+          );
+          document.dispatchEvent(new Event('visibilitychange'));
+        },
+      ],
+    ])(
+      '%s праща изчакващото изтриване веднага, без да чака toast-а (#209)',
+      async (_name, leave) => {
+        const user = userEvent.setup({
+          advanceTimers: vi.advanceTimersByTime,
+        });
+        const item = pantryItem(mince, { kind: 'use_up' });
+        const requests = servePantry([item]);
+
+        renderApp('/pantry');
+        await user.click(
+          await screen.findByRole('button', { name: 'Използвано: кайма' }),
+        );
+        act(leave);
+
+        await vi.waitFor(() =>
+          expect(requests).toEqual([{ method: 'DELETE', id: item.id }]),
+        );
+        expect(screen.queryByRole('button', { name: 'Върни' })).toBeNull();
+      },
+    );
+
     it('при грешка редът се връща и казва защо', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       servePantry([pantryItem(mince, { kind: 'use_up' })]);
@@ -427,37 +463,56 @@ describe('PantryScreen', () => {
     expect(screen.getByText('~500 г')).toBeInTheDocument();
   });
 
-  it('„Във фризера“ е превключвател с надпис само на временните продукти и праща PATCH', async () => {
+  it.each([
+    ['Временни', pantryItem(mince, { kind: 'use_up' }), 'кайма'],
+    ['Постоянни', pantryItem(rice), 'ориз'],
+  ] as const)(
+    '„Във фризера“ е превключвател с надпис в група „%s“ и праща PATCH',
+    async (group, item, name) => {
+      const user = userEvent.setup();
+      const requests = servePantry([item]);
+
+      renderApp('/pantry');
+      await screen.findByText(name);
+      const toggle = within(
+        screen.getByRole('region', { name: group }),
+      ).getByRole('checkbox', { name: '❄️ Във фризера' });
+      expect(toggle).not.toBeChecked();
+      await user.click(toggle);
+
+      expect(toggle).toBeChecked();
+      expect(
+        screen.getByRole('img', { name: 'Във фризера' }),
+      ).toBeInTheDocument();
+      await user.click(toggle);
+      await waitFor(() => expect(toggle).not.toBeChecked());
+      expect(
+        screen.queryByRole('img', { name: 'Във фризера' }),
+      ).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(requests).toEqual([
+          { method: 'PATCH', id: item.id, body: { frozen: true } },
+          { method: 'PATCH', id: item.id, body: { frozen: false } },
+        ]),
+      );
+    },
+  );
+
+  it('постоянен продукт, добавен „Във фризера“, се изважда с превключвателя (#209)', async () => {
     const user = userEvent.setup();
-    const item = pantryItem(mince, { kind: 'use_up' });
-    const requests = servePantry([pantryItem(rice), item]);
+    const item = pantryItem(salt, { frozen: true });
+    const requests = servePantry([item]);
 
     renderApp('/pantry');
-    await screen.findByText('кайма');
-    expect(
-      within(screen.getByRole('region', { name: 'Постоянни' })).queryByRole(
-        'checkbox',
-        { name: /Във фризера/ },
-      ),
-    ).not.toBeInTheDocument();
-    const toggle = within(
-      screen.getByRole('region', { name: 'Временни' }),
-    ).getByRole('checkbox', { name: '❄️ Във фризера' });
-    expect(toggle).not.toBeChecked();
+    const toggle = await within(
+      await screen.findByRole('region', { name: 'Постоянни' }),
+    ).findByRole('checkbox', { name: '❄️ Във фризера' });
+    expect(toggle).toBeChecked();
     await user.click(toggle);
 
-    expect(toggle).toBeChecked();
-    expect(
-      screen.getByRole('img', { name: 'Във фризера' }),
-    ).toBeInTheDocument();
-    await user.click(toggle);
     await waitFor(() => expect(toggle).not.toBeChecked());
-    expect(
-      screen.queryByRole('img', { name: 'Във фризера' }),
-    ).not.toBeInTheDocument();
     await waitFor(() =>
       expect(requests).toEqual([
-        { method: 'PATCH', id: item.id, body: { frozen: true } },
         { method: 'PATCH', id: item.id, body: { frozen: false } },
       ]),
     );

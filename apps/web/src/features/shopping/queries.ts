@@ -35,8 +35,6 @@ export type ShoppingWeekData = {
   list: ShoppingList;
   /** Без връзка: кога е взет показаният (кеширан) списък; `null`, когато е от api-то сега. */
   staleSince: Date | null;
-  /** Колко отметки на седмицата чакат връзка. */
-  pending: number;
 };
 
 const listPath = (weekStart: DateKey) => `/shopping-lists/${weekStart}`;
@@ -81,11 +79,9 @@ async function fetchShoppingWeek(
     list = cached.list;
     staleSince = cached.fetchedAt;
   }
-  const queue = await queuedChecks(weekStart);
   return {
-    list: applyQueuedChecks(list, queue),
+    list: applyQueuedChecks(list, await queuedChecks(weekStart)),
     staleSince,
-    pending: queue.length,
   };
 }
 
@@ -125,7 +121,6 @@ export function useToggleCheck(weekStart: DateKey) {
           ? {
               ...data,
               list: applyQueuedChecks(data.list, [entry]),
-              pending: data.pending + 1,
             }
           : data,
       );

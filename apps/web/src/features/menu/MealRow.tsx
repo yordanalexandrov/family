@@ -43,13 +43,13 @@ interface MealRowProps {
   onOpen?: () => void;
   /** Без него редът е без гласове и без разговор (kiosk, TV): изглежда както преди съгласуването. */
   voting?: RowVoting;
-  /** Дръжката за влачене (`MealDrag`), в реда с гласовете. */
+  /** Дръжката за влачене (`MealDrag`): в реда с гласовете, а на празен ден в края на единствения ред. */
   handle?: ReactNode;
 }
 
 /**
  * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода и последният
- * ред от разговора. Заглавието е до 3 реда, а „защо“ на 1 ред (с „…“): целите са в листа на ястието. Минал ден е приглушен, без бутони за глас и без изход; празен ден е без гласове и чака. Под минало ястие с неоценена рецепта
+ * ред от разговора. Заглавието е до 3 реда, а „защо“ на 1 ред (с „…“): целите са в листа на ястието. Минал ден е приглушен, без бутони за глас и без изход; празен ден е без гласове и без изход: чака ястие. Под минало ястие с неоценена рецепта
  * телефонът пита „Как беше?“: оценката е на рецептата, не на ястието, затова денят остава само за четене.
  */
 export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
@@ -110,14 +110,17 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
     ? users.filter((user) => user.id !== voting.userId)
     : [];
   const me = voting && users.find((user) => user.id === voting.userId);
-  const outcomeClass = voting && !past ? ` meal-row--${outcome}` : '';
+  const outcomeClass =
+    voting && !past && outcome ? ` meal-row--${outcome}` : '';
   // „Как беше?“ под отминало ястие с рецепта, която още няма оценка.
   const rateRecipeId =
     voting && past && meal.recipe?.rating === null ? meal.recipeId : null;
+  // Празен ден е без гласове, затова е един ред: дръжката е в края на реда, не сама на втори ред.
+  const oneLine = voting && empty;
   return (
     <div
       id={mealRowId(meal.id)}
-      className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}
+      className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}${oneLine ? ' meal-row--one-line' : ''}`}
     >
       {onOpen ? (
         <button type="button" className="meal-row__content" onClick={onOpen}>
@@ -126,7 +129,8 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
       ) : (
         <div className="meal-row__content">{content}</div>
       )}
-      {voting && (
+      {oneLine && handle}
+      {voting && !oneLine && (
         <div className="meal-row__votes">
           {handle ? (
             <span className="meal-row__lead">
@@ -136,22 +140,20 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
           ) : (
             !past && <OutcomeLabel outcome={outcome} />
           )}
-          {!empty && (
-            <span className="meal-row__people">
-              {others.map((user) => (
-                <PersonVote key={user.id} meal={meal} user={user} />
-              ))}
-              {past ? (
-                me && <PersonVote meal={meal} user={me} />
-              ) : (
-                <MyVote
-                  meal={meal}
-                  userId={voting.userId}
-                  onVote={(value) => voting.onVote(meal, value)}
-                />
-              )}
-            </span>
-          )}
+          <span className="meal-row__people">
+            {others.map((user) => (
+              <PersonVote key={user.id} meal={meal} user={user} />
+            ))}
+            {past ? (
+              me && <PersonVote meal={meal} user={me} />
+            ) : (
+              <MyVote
+                meal={meal}
+                userId={voting.userId}
+                onVote={(value) => voting.onVote(meal, value)}
+              />
+            )}
+          </span>
         </div>
       )}
       {voting && rateRecipeId !== null && (

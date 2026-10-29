@@ -1,5 +1,12 @@
 import type { Ingredient, RecipeInput, Tag } from '@family/shared';
-import { type FormEvent, useCallback, useId, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  useCallback,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { type Action, ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
@@ -39,6 +46,10 @@ export interface RecipeFormProps {
   extraActions?: readonly Action[];
   /** Основното действие на лентата на мястото на записа, напр. „Отвори“ при рецепта със същото заглавие. */
   primaryAction?: Action | undefined;
+  /** Заглавието при всяка промяна, напр. за проверката за рецепта със същото заглавие при преглед. */
+  onTitleChange?: (title: string) => void;
+  /** Изборът в „Уред“ се смени (`''` = „Без уред“), напр. за значката над формата при преглед. */
+  onApplianceChange?: (appliance: string) => void;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -98,6 +109,23 @@ function reindexErrors(
   return next;
 }
 
+/** Отбелязаните грешки, чиито полета `values` още не поправят; нова грешка излиза чак при следващото „Запази“. */
+function stillFailing(
+  flagged: RecipeFormErrors,
+  values: RecipeFormValues,
+): RecipeFormErrors {
+  if (Object.keys(flagged).length === 0) {
+    return flagged;
+  }
+  const result = toRecipeInput(values);
+  if (result.ok) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(flagged).filter(([path]) => path in result.errors),
+  );
+}
+
 /** Новият индекс на ред след махането на `removed`. */
 function afterRemoving(removed: number) {
   return (index: number) =>
@@ -115,11 +143,21 @@ export function RecipeForm({
   requireResolvedIngredients = false,
   extraActions = [],
   primaryAction,
+  onTitleChange,
+  onApplianceChange,
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
   );
-  const [errors, setErrors] = useState<RecipeFormErrors>({});
+  /**
+   * Грешките на клиентската проверка от последното „Запази“ (тази от сървъра е `submitError`); показват се само докато
+   * полето им още не минава проверката.
+   */
+  const [flagged, setFlagged] = useState<RecipeFormErrors>({});
+  const errors = useMemo(
+    () => stillFailing(flagged, values),
+    [flagged, values],
+  );
   const appliances = useAppliances();
   // Всички уреди, и изключените; уред, махнат от Настройки, остава избран, докато не се смени.
   const applianceNames = appliances.data?.map((a) => a.name) ?? [];
@@ -156,7 +194,7 @@ export function RecipeForm({
         ...current,
         steps: current.steps.filter((_, index) => index !== removed),
       }));
-      setErrors((current) =>
+      setFlagged((current) =>
         reindexErrors(current, 'steps', afterRemoving(removed)),
       );
     }
@@ -241,7 +279,7 @@ export function RecipeForm({
       'ingredients',
       values.ingredients.filter((row) => row.key !== key),
     );
-    setErrors((current) =>
+    setFlagged((current) =>
       reindexErrors(current, 'ingredients', afterRemoving(removed)),
     );
     setEditing(null);
@@ -259,7 +297,7 @@ export function RecipeForm({
       from,
       to,
     );
-    setErrors((current) =>
+    setFlagged((current) =>
       reindexErrors(current, 'steps', (index) => order.indexOf(index)),
     );
     setEditingStep((current) => current && { ...current, index: to });
@@ -270,7 +308,7 @@ export function RecipeForm({
       'steps',
       values.steps.filter((_, i) => i !== index),
     );
-    setErrors((current) =>
+    setFlagged((current) =>
       reindexErrors(current, 'steps', afterRemoving(index)),
     );
     setEditingStep(null);
@@ -296,7 +334,7 @@ export function RecipeForm({
     }
     const result = toRecipeInput(values);
     if (!result.ok) {
-      setErrors(result.errors);
+      setFlagged(result.errors);
       if (
         Object.keys(result.errors).some(isNutritionPath) &&
         nutritionRef.current
@@ -305,7 +343,7 @@ export function RecipeForm({
       }
       return;
     }
-    setErrors({});
+    setFlagged({});
     onSubmit(result.input);
   }
 
@@ -338,7 +376,10 @@ export function RecipeForm({
                 {...props}
                 className="field__input"
                 value={values.title}
-                onChange={(event) => set('title', event.target.value)}
+                onChange={(event) => {
+                  set('title', event.target.value);
+                  onTitleChange?.(event.target.value);
+                }}
               />
             )}
           </Field>
@@ -383,7 +424,10 @@ export function RecipeForm({
                 {...props}
                 className="field__input"
                 value={values.appliance}
-                onChange={(event) => set('appliance', event.target.value)}
+                onChange={(event) => {
+                  set('appliance', event.target.value);
+                  onApplianceChange?.(event.target.value);
+                }}
               >
                 <option value="">Без уред</option>
                 {applianceNames.map((name) => (
@@ -512,7 +556,7 @@ export function RecipeForm({
           open={hasNutrition}
         >
           <summary className="recipe-form__more-summary">
-            + Хранителна стойност
+            Хранителна стойност
           </summary>
           <p className="recipe-form__hint">На 100 г, по избор.</p>
           <div className="recipe-form__row">

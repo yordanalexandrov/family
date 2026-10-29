@@ -30,14 +30,14 @@ export interface VotedMeal extends MealContent {
 
 /**
  * The outcome of the votes of `userIds`: both up → keep, both down → replace, one of each → discuss, else pending. An
- * empty day (GLOSSARY: Ястие, without a recipe and a note) is pending whatever its votes: there is nothing to keep.
+ * empty day (GLOSSARY: Ястие, without a recipe and a note) has none (`null`): it waits for a meal, not for a vote.
  */
 export function mealOutcome(
   { votes, ...content }: VotedMeal,
   userIds: readonly string[],
-): MealOutcome {
+): MealOutcome | null {
   if (isEmptyMeal(content)) {
-    return 'pending';
+    return null;
   }
   const values = userIds.map(
     (id) => votes.find((vote) => vote.userId === id)?.value,
@@ -59,19 +59,20 @@ export function isPastMeal(meal: { date: DateKey }, today: DateKey): boolean {
   return meal.date < today;
 }
 
-/** The meals from `today` on whose outcome is not `keep` yet, in the order given. */
+/** The meals from `today` on that have an outcome and it is not `keep` yet, in the order given; empty days have none. */
 export function mealsToAgree<T extends VotedMeal & { date: DateKey }>(
   meals: readonly T[],
   userIds: readonly string[],
   today: DateKey,
 ): T[] {
-  return meals.filter(
-    (meal) => !isPastMeal(meal, today) && mealOutcome(meal, userIds) !== 'keep',
-  );
+  return meals.filter((meal) => {
+    const outcome = mealOutcome(meal, userIds);
+    return !isPastMeal(meal, today) && outcome !== null && outcome !== 'keep';
+  });
 }
 
 /**
- * GLOSSARY: Съгласувано меню. Every meal from `today` on is `keep`, so none of them is empty; past days take no part.
+ * GLOSSARY: Съгласувано меню. Every meal from `today` on is `keep`; empty days and past days take no part.
  * Computed, never stored.
  */
 export function isAgreed(

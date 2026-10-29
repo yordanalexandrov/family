@@ -277,6 +277,36 @@ describe('ImportScreen', () => {
     expect(calls).toEqual(['reject', 'restore']);
   });
 
+  it('след „Отхвърли“ полето „Текст“ не взима фокус; избран отново, табът „Текст“ пак го взима', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveImport();
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json(DONE),
+      ),
+      http.post(`/api/recipe-suggestions/${importedSuggestion.id}/reject`, () =>
+        HttpResponse.json({
+          suggestion: { ...importedSuggestion, status: 'rejected' },
+        }),
+      ),
+    );
+
+    renderApp(`/recipes/import/${importId}`);
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    await user.click(screen.getByRole('button', { name: 'Отхвърли' }));
+    await screen.findByText('Отхвърлено');
+
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).not.toHaveFocus();
+    await user.click(screen.getByRole('tab', { name: 'Линк' }));
+    await user.click(screen.getByRole('tab', { name: 'Текст' }));
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveFocus();
+  });
+
   it('отхвърленото внасяне казва, че е отхвърлено, и има „Върни“ към прегледа', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
@@ -442,6 +472,69 @@ describe('ImportScreen', () => {
     expect(
       screen.getByRole('textbox', { name: 'Текст на рецептата' }),
     ).toHaveValue(importText);
+  });
+
+  it('Текст → Линк → Текст пази поставения текст и линка към източника', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText: () => Promise.resolve(importText) },
+    });
+    setUpDevice('phone', dani.id);
+    serveImport(DONE);
+
+    renderApp('/recipes/import');
+    await user.click(
+      await screen.findByRole('button', { name: 'Постави от клипборда' }),
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'Линк към източника (по желание)' }),
+      importUrl,
+    );
+    await user.click(screen.getByRole('tab', { name: 'Линк' }));
+    await user.click(screen.getByRole('tab', { name: 'Текст' }));
+
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveValue(importText);
+    expect(
+      screen.getByRole('textbox', { name: 'Линк към източника (по желание)' }),
+    ).toHaveValue(importUrl);
+  });
+
+  it('линк, написан докато клипбордът се чете, остава и след Текст → Линк → Текст (#213)', async () => {
+    const user = userEvent.setup();
+    let release: (text: string) => void = () => {};
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: () =>
+          new Promise<string>((resolve) => {
+            release = resolve;
+          }),
+      },
+    });
+    setUpDevice('phone', dani.id);
+    serveImport(DONE);
+
+    renderApp('/recipes/import');
+    await user.click(
+      await screen.findByRole('button', { name: 'Постави от клипборда' }),
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: 'Линк към източника (по желание)' }),
+      importUrl,
+    );
+    await act(async () => release(importText));
+    await user.click(screen.getByRole('tab', { name: 'Линк' }));
+    await user.click(screen.getByRole('tab', { name: 'Текст' }));
+
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveValue(importText);
+    expect(
+      screen.getByRole('textbox', { name: 'Линк към източника (по желание)' }),
+    ).toHaveValue(importUrl);
   });
 
   it('под формата са последните внасяния със статус, заглавие и връзка', async () => {

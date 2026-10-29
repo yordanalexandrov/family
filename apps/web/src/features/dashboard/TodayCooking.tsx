@@ -6,8 +6,7 @@ import {
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useUsers } from '../../api/queries';
-import { useActingUser } from '../../app/acting-user';
-import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
+import { useWritingUserId } from '../../app/acting-user';
 import { Avatar } from '../../components/Avatar';
 import { formatServings } from '../../lib/format';
 import { useClaimCook } from './today-actions';
@@ -32,9 +31,7 @@ export function TodayCooking({
   opensRecipe = false,
 }: TodayCookingProps) {
   const users = useUsers();
-  const { mode } = useDeviceMode();
-  const { actingUserId } = useActingUser();
-  const actor = isPersonalDevice(mode) ? actingUserId : null;
+  const actor = useWritingUserId();
 
   // Порциите се показват само когато се различават от подразбирането (по 1 за всеки).
   const servings = dinner?.servings;

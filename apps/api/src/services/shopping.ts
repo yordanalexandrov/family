@@ -15,6 +15,7 @@ import { findRecipe } from '../db/repositories/recipes.js';
 import {
   deleteManualItem,
   ensureShoppingList,
+  findShoppingListId,
   insertManualItem,
   listShoppingItems,
   setComputedItemOverlay,
@@ -38,11 +39,17 @@ function signal(events: EventBus, weekStart?: string): void {
   );
 }
 
-/** A week's shopping list as opened by `openList`. */
-interface ListWeek {
+/** A week's shopping list as read by `readList`. */
+interface ReadWeek {
   weekStart: string;
   /** The week's menu, `null` without one: the list then has only its manual items and the staples that ran out. */
   plan: MealPlan | null;
+  /** `null` for a list nothing has been written to: it has no stored items. */
+  listId: string | null;
+}
+
+/** A week's shopping list as opened by `openList`, for a change: it exists. */
+interface ListWeek extends ReadWeek {
   listId: string;
 }
 
@@ -54,6 +61,15 @@ async function openList(db: DbExecutor, weekStart: string): Promise<ListWeek> {
     plan,
     listId: await ensureShoppingList(db, weekStart, plan?.id ?? null),
   };
+}
+
+/** The week's menu and shopping list for reading: nothing is stored for a week that is only read (#209). */
+async function readList(db: DbExecutor, weekStart: string): Promise<ReadWeek> {
+  const [plan, listId] = await Promise.all([
+    findPlanByWeek(db, weekStart),
+    findShoppingListId(db, weekStart),
+  ]);
+  return { weekStart, plan: plan ?? null, listId: listId ?? null };
 }
 
 const NO_SUCH_ITEM = 'Няма такъв ред в списъка';
@@ -95,7 +111,7 @@ async function readItem(
  */
 async function computeList(
   db: DbExecutor,
-  { weekStart, plan, listId }: ListWeek,
+  { weekStart, plan, listId }: ReadWeek,
 ): Promise<ShoppingList> {
   const recipeIds = new Set(
     (plan?.meals ?? []).flatMap((meal) =>
@@ -109,20 +125,21 @@ async function computeList(
     weekStart,
     plan,
     recipes: recipes.filter((recipe) => recipe !== undefined),
-    items: await listShoppingItems(db, listId),
+    items: listId === null ? [] : await listShoppingItems(db, listId),
     pantry: await listPantryItems(db),
   });
 }
 
 /**
  * The week's shopping list (GLOSSARY: Списък за пазаруване), computed from its menu on every read; a week without a
- * menu has one too, `hasMenu: false`, with its manual items (#129 D-11).
+ * menu has one too, `hasMenu: false`, with its manual items (#129 D-11). Reading stores nothing: the list is created
+ * by the first change to it.
  */
 export async function getShoppingList(
   db: Db,
   weekStart: string,
 ): Promise<ShoppingList> {
-  return computeList(db, await openList(db, weekStart));
+  return computeList(db, await readList(db, weekStart));
 }
 
 /**
