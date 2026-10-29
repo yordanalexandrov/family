@@ -130,7 +130,13 @@ function build(
   items: ShoppingItemRecord[] = [],
   pantry: PantryItem[] = [],
 ) {
-  return buildShoppingList({ plan: plan(meals), recipes, items, pantry });
+  return buildShoppingList({
+    weekStart: WEEK,
+    plan: plan(meals),
+    recipes,
+    items,
+    pantry,
+  });
 }
 
 /** Every visible row as `title quantity unit`, in display order. */
@@ -164,23 +170,87 @@ describe('buildShoppingList', () => {
     expect(lines(list)).toEqual(['лук 150 g', 'ориз 150 g']);
   });
 
-  it('keeps an ingredient in grams and in pieces as two rows', () => {
+  it('lists an ingredient in grams and in pieces as one row with both quantities, its base unit first', () => {
     const soup = recipe('Супа', 2, [[ONION, 100, 'g']]);
-    const stew = recipe('Яхния', 2, [[ONION, 2, 'pcs']]);
+    const stew = recipe('Яхния', 2, [
+      [ONION, 2, 'pcs'],
+      [ONION, 0.65, 'kg'],
+    ]);
+    const leek = { ...ONION, unit: 'pcs' } as const;
+    const pie = recipe('Баница', 2, [[leek, 1, 'pcs']]);
 
     const list = build(
-      [meal('2026-10-26', soup), meal('2026-10-27', stew)],
-      [soup, stew],
+      [
+        meal('2026-10-26', soup),
+        meal('2026-10-27', stew),
+        meal('2026-10-28', pie),
+      ],
+      [soup, stew, pie],
     );
 
-    expect(lines(list)).toEqual(['лук 100 g', 'лук 2 pcs']);
-    expect(list.aisles[0]?.items.map((item) => item.key)).toEqual([
-      `${ONION.id}:g`,
-      `${ONION.id}:pcs`,
+    expect(list.aisles[0]?.items).toHaveLength(1);
+    expect(list.aisles[0]?.items[0]).toMatchObject({
+      key: ONION.id,
+      ingredientId: ONION.id,
+      quantity: 750,
+      unit: 'g',
+      extraAmounts: [{ quantity: 3, unit: 'pcs' }],
+    });
+    expect(list.total).toBe(1);
+  });
+
+  it('puts the base unit first: лук in pieces is 3 бр. + 750 г', () => {
+    const onion = { ...ONION, unit: 'pcs' } as const;
+    const soup = recipe('Супа', 2, [[onion, 750, 'g']]);
+    const stew = recipe('Яхния', 2, [[onion, 3, 'pcs']]);
+
+    const [row] =
+      build([meal('2026-10-26', soup), meal('2026-10-27', stew)], [soup, stew])
+        .aisles[0]?.items ?? [];
+
+    expect(row).toMatchObject({
+      quantity: 3,
+      unit: 'pcs',
+      extraAmounts: [{ quantity: 750, unit: 'g' }],
+    });
+  });
+
+  it('keeps a row in one unit without extra amounts', () => {
+    const soup = recipe('Супа', 2, [[ONION, 100, 'g']]);
+
+    const [row] =
+      build([meal('2026-10-26', soup)], [soup]).aisles[0]?.items ?? [];
+
+    expect(row).not.toHaveProperty('extraAmounts');
+  });
+
+  it('says on every source how much its meal wants, scaled to its servings', () => {
+    const soup = recipe('Супа', 4, [[ONION, 100, 'g']]);
+    const stew = recipe('Яхния', 2, [
+      [ONION, 3, 'pcs'],
+      [ONION, null, 'pinch'],
     ]);
-    expect(list.aisles[0]?.items.map((item) => item.ingredientId)).toEqual([
-      ONION.id,
-      ONION.id,
+    const monday = meal('2026-10-26', soup);
+    const tuesday = meal('2026-10-27', stew);
+
+    const [row] = build([monday, tuesday], [soup, stew]).aisles[0]?.items ?? [];
+
+    expect(row?.sources).toEqual([
+      {
+        date: '2026-10-26',
+        mealId: monday.id,
+        recipeTitle: 'Супа',
+        amounts: [{ quantity: 50, unit: 'g' }],
+      },
+      {
+        date: '2026-10-27',
+        mealId: tuesday.id,
+        recipeTitle: 'Яхния',
+        amounts: [
+          { quantity: 3, unit: 'pcs' },
+          { quantity: null, unit: 'pinch' },
+        ],
+      },
     ]);
   });
 
@@ -289,8 +359,18 @@ describe('buildShoppingList', () => {
     const list = build([tuesday, monday], [pilaf, soup]);
 
     expect(list.aisles[0]?.items[0]?.sources).toEqual([
-      { date: '2026-10-26', mealId: monday.id, recipeTitle: 'Пилаф' },
-      { date: '2026-10-27', mealId: tuesday.id, recipeTitle: 'Супа' },
+      {
+        date: '2026-10-26',
+        mealId: monday.id,
+        recipeTitle: 'Пилаф',
+        amounts: [{ quantity: 100, unit: 'g' }],
+      },
+      {
+        date: '2026-10-27',
+        mealId: tuesday.id,
+        recipeTitle: 'Супа',
+        amounts: [{ quantity: 50, unit: 'g' }],
+      },
     ]);
   });
 
@@ -304,7 +384,12 @@ describe('buildShoppingList', () => {
     const list = build([monday], [pudding]);
 
     expect(list.aisles[0]?.items[0]?.sources).toEqual([
-      { date: '2026-10-26', mealId: monday.id, recipeTitle: 'Мляко с ориз' },
+      {
+        date: '2026-10-26',
+        mealId: monday.id,
+        recipeTitle: 'Мляко с ориз',
+        amounts: [{ quantity: 1250, unit: 'ml' }],
+      },
     ]);
   });
 });
@@ -358,15 +443,11 @@ describe('buildShoppingList overlay', () => {
   });
 
   it('moves a hidden item out of its aisle into hidden', () => {
-    const list = build(
-      week,
-      [dinner],
-      [record(`${RICE.id}:g`, { hidden: true })],
-    );
+    const list = build(week, [dinner], [record(RICE.id, { hidden: true })]);
 
     expect(lines(list)).not.toContain('ориз 200 g');
     expect(list.hidden).toMatchObject([
-      { key: `${RICE.id}:g`, title: 'ориз', quantity: 200, hidden: true },
+      { key: RICE.id, title: 'ориз', quantity: 200, hidden: true },
     ]);
     expect(list.aisles.map(({ aisle }) => aisle)).not.toContain('grains');
   });
@@ -386,7 +467,7 @@ describe('buildShoppingList overlay', () => {
     const list = build(
       [meal('2026-10-26', salad)],
       [salad],
-      [record(`${cheese.id}:g`, { checkedBy: POLI, checkedAt: CHECKED_AT })],
+      [record(cheese.id, { checkedBy: POLI, checkedAt: CHECKED_AT })],
     );
 
     expect(list.aisles).toMatchObject([
@@ -445,8 +526,8 @@ describe('buildShoppingList overlay', () => {
       week,
       [dinner],
       [
-        record(`${RICE.id}:g`, { hidden: true }),
-        record(`${EGG.id}:pcs`, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+        record(RICE.id, { hidden: true }),
+        record(EGG.id, { checkedBy: DANI, checkedAt: CHECKED_AT }),
         manual(MANUAL_ID, { title: 'кафе' }),
       ],
     );
@@ -472,7 +553,7 @@ describe('buildShoppingList overlay', () => {
     const list = build(
       week,
       [dinner],
-      [record(`${MILK.id}:ml`, { checkedBy: DANI, checkedAt: CHECKED_AT })],
+      [record(MILK.id, { checkedBy: DANI, checkedAt: CHECKED_AT })],
     );
 
     expect(list.total).toBe(4);
@@ -480,7 +561,23 @@ describe('buildShoppingList overlay', () => {
   });
 
   it('gives the list the week of its plan', () => {
-    expect(build(week, [dinner]).weekStart).toBe(WEEK);
+    expect(build(week, [dinner])).toMatchObject({
+      weekStart: WEEK,
+      hasMenu: true,
+    });
+  });
+
+  it('builds the list of a week without a menu from its manual items and the staples that ran out (#129 D-11)', () => {
+    const list = buildShoppingList({
+      weekStart: WEEK,
+      plan: null,
+      recipes: [],
+      items: [manual(MANUAL_ID, { title: 'кафе' })],
+      pantry: [inPantry(RICE, 'staple', { ranOutAt: CHECKED_AT })],
+    });
+
+    expect(list).toMatchObject({ weekStart: WEEK, hasMenu: false, total: 2 });
+    expect(lines(list)).toEqual(['ориз null null', 'кафе null null']);
   });
 
   it('builds a list that the API contract accepts', () => {
@@ -488,8 +585,8 @@ describe('buildShoppingList overlay', () => {
       week,
       [dinner],
       [
-        record(`${RICE.id}:g`, { hidden: true }),
-        record(`${EGG.id}:pcs`, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+        record(RICE.id, { hidden: true }),
+        record(EGG.id, { checkedBy: DANI, checkedAt: CHECKED_AT }),
         manual(MANUAL_ID, { title: 'кафе' }),
       ],
     );
@@ -537,7 +634,7 @@ describe('buildShoppingList pantry', () => {
     expect(list.hidden).toEqual([]);
     expect(list.pantryHidden).toMatchObject([
       {
-        key: `${RICE.id}:g`,
+        key: RICE.id,
         title: 'ориз',
         quantity: 200,
         hidden: false,
@@ -552,7 +649,7 @@ describe('buildShoppingList pantry', () => {
     const hidden = build(
       week,
       [dinner],
-      [record(`${RICE.id}:g`, { hidden: true })],
+      [record(RICE.id, { hidden: true })],
       [rice],
     );
     const shown = build(week, [dinner], [], [rice]);
@@ -594,7 +691,7 @@ describe('buildShoppingList pantry', () => {
       aisle: 'spices',
       items: [
         {
-          key: `${oil.id}:none`,
+          key: oil.id,
           kind: 'computed',
           ingredientId: oil.id,
           title: 'олио',
@@ -617,7 +714,7 @@ describe('buildShoppingList pantry', () => {
     const list = build(
       week,
       [dinner],
-      [record(`${RICE.id}:g`, { checkedBy: DANI, checkedAt: INSTANT })],
+      [record(RICE.id, { checkedBy: DANI, checkedAt: INSTANT })],
       [inPantry(RICE, 'staple', { ranOutAt: RAN_OUT_AT })],
     );
 
@@ -636,8 +733,8 @@ describe('buildShoppingList pantry', () => {
       week,
       [dinner],
       [
-        record(`${RICE.id}:g`, { checkedBy: DANI, checkedAt: CHECKED_AT }),
-        record(`${SALT.id}:none`, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+        record(RICE.id, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+        record(SALT.id, { checkedBy: DANI, checkedAt: CHECKED_AT }),
       ],
       [inPantry(RICE, 'staple'), salt],
     );
@@ -682,8 +779,8 @@ describe('withCheck', () => {
     [RICE, 100, 'g'],
   ]);
   const week = [meal('2026-10-26', breakfast)];
-  const milkKey = `${MILK.id}:ml`;
-  const riceKey = `${RICE.id}:g`;
+  const milkKey = MILK.id;
+  const riceKey = RICE.id;
   const milkChecked = record(milkKey, {
     checkedBy: DANI,
     checkedAt: CHECKED_AT,
@@ -718,7 +815,7 @@ describe('withCheck', () => {
     {
       name: 'an unknown key changes nothing',
       records: [milkChecked],
-      key: `${BREAD.id}:pcs`,
+      key: BREAD.id,
       check: { checkedBy: POLI, checkedAt: CHECKED_AT },
       dairy: ['яйце', 'прясно мляко'],
       remaining: 2,

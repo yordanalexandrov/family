@@ -2,30 +2,31 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import './Toast.css';
 
-interface ToastAction {
-  label: string;
-  onAction: () => void;
+/** Съобщението на екрана, по избор с „Върни“ след разрушително действие. */
+export interface ToastMessage {
+  message: string;
+  undo?: () => void;
 }
 
 interface ToastProps {
   message: string | null;
   onDone: () => void;
   durationMs?: number;
-  /** Напр. „Върни“ след разрушително действие; с него toast-ът стои по-дълго. */
-  action?: ToastAction;
+  /** „Върни“ до съобщението; с него toast-ът стои по-дълго. */
+  undo?: () => void;
 }
 
 const DURATION_MS = 4000;
-const ACTION_DURATION_MS = 8000;
+const UNDO_DURATION_MS = 8000;
 
 /**
- * Кратко съобщение над долната лента; изчезва само след `durationMs`. Действието
- * вика `onAction` и скрива съобщението; изтичането само го скрива. Рендерира се в
+ * Кратко съобщение над долната лента; изчезва само след `durationMs`. „Върни“
+ * вика `undo` и скрива съобщението; изтичането само го скрива. Рендерира се в
  * `document.body`: карта с `backdrop-filter` или анимиран `translate` става
  * containing block за `position: fixed` и toast-ът иначе застава в нея (A-19).
  */
-export function Toast({ message, onDone, durationMs, action }: ToastProps) {
-  const duration = durationMs ?? (action ? ACTION_DURATION_MS : DURATION_MS);
+export function Toast({ message, onDone, durationMs, undo }: ToastProps) {
+  const duration = durationMs ?? (undo ? UNDO_DURATION_MS : DURATION_MS);
 
   useEffect(() => {
     if (message === null) {
@@ -40,16 +41,16 @@ export function Toast({ message, onDone, durationMs, action }: ToastProps) {
       {message && (
         <p className="toast__message">
           <span>{message}</span>
-          {action && (
+          {undo && (
             <button
               type="button"
               className="toast__action"
               onClick={() => {
-                action.onAction();
+                undo();
                 onDone();
               }}
             >
-              {action.label}
+              Върни
             </button>
           )}
         </p>

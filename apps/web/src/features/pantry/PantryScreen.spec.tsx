@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -32,6 +32,9 @@ describe('PantryScreen', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+    // react-query помни `offline` от теста без връзка; връзката се връща и за следващия.
+    window.dispatchEvent(new Event('online'));
     delete document.documentElement.dataset.theme;
   });
 
@@ -218,42 +221,122 @@ describe('PantryScreen', () => {
     ]);
   });
 
-  it('„Използвано“ маха временния продукт веднага и праща DELETE', async () => {
-    const user = userEvent.setup();
-    const item = pantryItem(mince, { kind: 'use_up' });
-    const requests = servePantry([item, pantryItem(rice)]);
+  describe('„Върни“ (#129 D-05)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(fixtureNow);
+    });
 
-    renderApp('/pantry');
-    await user.click(
-      await screen.findByRole('button', { name: 'Използвано: кайма' }),
-    );
+    it('„Използвано“ маха реда веднага, а DELETE тръгва чак когато toast-ът изтече', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const item = pantryItem(mince, { kind: 'use_up' });
+      const requests = servePantry([item, pantryItem(rice)]);
 
-    expect(screen.queryByText('кайма')).not.toBeInTheDocument();
-    await waitFor(() =>
-      expect(requests).toEqual([{ method: 'DELETE', id: item.id }]),
-    );
-    expect(names('Постоянни')).toEqual(['ориз']);
-  });
+      renderApp('/pantry');
+      await user.click(
+        await screen.findByRole('button', { name: 'Използвано: кайма' }),
+      );
 
-  it('при грешка „Използвано“ връща продукта и казва защо', async () => {
-    const user = userEvent.setup();
-    servePantry([pantryItem(mince, { kind: 'use_up' })]);
-    server.use(
-      http.delete('/api/pantry/:id', () =>
-        HttpResponse.json(
-          { error: 'internal_error', message: 'Сървърът не отговаря' },
-          { status: 500 },
+      expect(screen.queryByText('кайма')).not.toBeInTheDocument();
+      expect(screen.getByText('Махна „кайма“ от килера')).toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(7000));
+      expect(requests).toEqual([]);
+
+      await act(() => vi.advanceTimersByTimeAsync(1500));
+      await vi.waitFor(() =>
+        expect(requests).toEqual([{ method: 'DELETE', id: item.id }]),
+      );
+      expect(screen.queryByText('Махна „кайма“ от килера')).toBeNull();
+      expect(screen.queryByText('кайма')).not.toBeInTheDocument();
+      expect(names('Постоянни')).toEqual(['ориз']);
+    });
+
+    it('„Върни“ връща реда с бележката и възрастта, без заявка', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const requests = servePantry([
+        pantryItem(mince, {
+          kind: 'use_up',
+          note: '500 г',
+          createdAt: '2026-11-01T07:00:00.000Z',
+        }),
+      ]);
+
+      renderApp('/pantry');
+      await user.click(
+        await screen.findByRole('button', { name: 'Използвано: кайма' }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+      expect(names('Временни')).toEqual(['кайма']);
+      expect(screen.getByText('500 г')).toBeInTheDocument();
+      expect(screen.getByText('от 3 дни')).toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(requests).toEqual([]);
+    });
+
+    it('„махни“ на постоянен продукт: същият toast; ново действие праща изчакващото изтриване веднага', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const riceItem = pantryItem(rice);
+      const saltItem = pantryItem(salt);
+      const requests = servePantry([riceItem, saltItem]);
+
+      renderApp('/pantry');
+      await user.click(
+        await screen.findByRole('button', { name: 'Махни: ориз' }),
+      );
+      expect(screen.getByText('Махна „ориз“ от килера')).toBeInTheDocument();
+      expect(names('Постоянни')).toEqual(['сол']);
+
+      await user.click(screen.getByRole('button', { name: 'Махни: сол' }));
+      await vi.waitFor(() =>
+        expect(requests).toEqual([{ method: 'DELETE', id: riceItem.id }]),
+      );
+      expect(screen.getByText('Махна „сол“ от килера')).toBeInTheDocument();
+      expect(screen.queryByText('Махна „ориз“ от килера')).toBeNull();
+    });
+
+    it('напускане на екрана праща изчакващото изтриване веднага', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const item = pantryItem(mince, { kind: 'use_up' });
+      const requests = servePantry([item]);
+
+      renderApp('/pantry');
+      await user.click(
+        await screen.findByRole('button', { name: 'Използвано: кайма' }),
+      );
+      const nav = screen.getByRole('navigation', {
+        name: 'Основна навигация',
+      });
+      await user.click(within(nav).getByRole('link', { name: 'Меню' }));
+
+      await vi.waitFor(() =>
+        expect(requests).toEqual([{ method: 'DELETE', id: item.id }]),
+      );
+    });
+
+    it('при грешка редът се връща и казва защо', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      servePantry([pantryItem(mince, { kind: 'use_up' })]);
+      server.use(
+        http.delete('/api/pantry/:id', () =>
+          HttpResponse.json(
+            { error: 'internal_error', message: 'Сървърът не отговаря' },
+            { status: 500 },
+          ),
         ),
-      ),
-    );
+      );
 
-    renderApp('/pantry');
-    await user.click(
-      await screen.findByRole('button', { name: 'Използвано: кайма' }),
-    );
+      renderApp('/pantry');
+      await user.click(
+        await screen.findByRole('button', { name: 'Използвано: кайма' }),
+      );
+      await act(() => vi.advanceTimersByTimeAsync(8500));
 
-    expect(await screen.findByText('Сървърът не отговаря')).toBeInTheDocument();
-    expect(names('Временни')).toEqual(['кайма']);
+      expect(
+        await screen.findByText('Сървърът не отговаря'),
+      ).toBeInTheDocument();
+      expect(names('Временни')).toEqual(['кайма']);
+    });
   });
 
   it('постоянен продукт става временен и обратно', async () => {
@@ -344,26 +427,31 @@ describe('PantryScreen', () => {
     expect(screen.getByText('~500 г')).toBeInTheDocument();
   });
 
-  it('„Във фризера“ се превключва за всеки продукт и праща PATCH', async () => {
+  it('„Във фризера“ е превключвател с надпис само на временните продукти и праща PATCH', async () => {
     const user = userEvent.setup();
     const item = pantryItem(mince, { kind: 'use_up' });
-    const requests = servePantry([item]);
+    const requests = servePantry([pantryItem(rice), item]);
 
     renderApp('/pantry');
-    const toggle = await screen.findByRole('button', {
-      name: 'Във фризера: кайма',
-    });
-    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await screen.findByText('кайма');
+    expect(
+      within(screen.getByRole('region', { name: 'Постоянни' })).queryByRole(
+        'checkbox',
+        { name: /Във фризера/ },
+      ),
+    ).not.toBeInTheDocument();
+    const toggle = within(
+      screen.getByRole('region', { name: 'Временни' }),
+    ).getByRole('checkbox', { name: '❄️ Във фризера' });
+    expect(toggle).not.toBeChecked();
     await user.click(toggle);
 
-    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle).toBeChecked();
     expect(
       screen.getByRole('img', { name: 'Във фризера' }),
     ).toBeInTheDocument();
     await user.click(toggle);
-    await waitFor(() =>
-      expect(toggle).toHaveAttribute('aria-pressed', 'false'),
-    );
+    await waitFor(() => expect(toggle).not.toBeChecked());
     expect(
       screen.queryByRole('img', { name: 'Във фризера' }),
     ).not.toBeInTheDocument();
@@ -374,4 +462,107 @@ describe('PantryScreen', () => {
       ]),
     );
   });
+
+  it('„Свърши“ на постоянен продукт праща ran-out и показва „свърши · в списъка“', async () => {
+    const user = userEvent.setup();
+    const item = pantryItem(rice);
+    const requests = servePantry([item, pantryItem(salt)]);
+
+    renderApp('/pantry');
+    await screen.findByText('ориз');
+    const [riceRow, saltRow] = within(
+      screen.getByRole('region', { name: 'Постоянни' }),
+    ).getAllByRole('listitem');
+    expect(riceRow).not.toHaveTextContent('свърши · в списъка');
+    await user.click(screen.getByRole('button', { name: 'Свърши: ориз' }));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('region', { name: 'Постоянни' })).getAllByRole(
+          'listitem',
+        )[0],
+      ).toHaveTextContent('свърши · в списъка'),
+    );
+    expect(requests).toEqual([{ method: 'POST', id: item.id }]);
+    expect(saltRow).not.toHaveTextContent('свърши · в списъка');
+    expect(screen.getByRole('button', { name: 'Свърши: ориз' })).toBeDisabled();
+  });
+
+  it('без връзка всяко „Свърши“ е изключено и описано с „Иска връзка“', async () => {
+    servePantry([pantryItem(rice), pantryItem(salt)]);
+    renderApp('/pantry');
+    await screen.findByText('ориз');
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+
+    for (const name of ['Свърши: ориз', 'Свърши: сол']) {
+      const ranOut = screen.getByRole('button', { name });
+      expect(ranOut).toBeDisabled();
+      expect(ranOut).toHaveAccessibleDescription('Иска връзка');
+    }
+  });
+
+  it('„Добави в килера“: бележката подсказва количество, а горният бутон е „Затвори“ и не записва', async () => {
+    const user = userEvent.setup();
+    const requests = servePantry();
+
+    renderApp('/pantry');
+    await screen.findByText('Няма постоянни продукти.');
+    await user.click(screen.getByRole('button', { name: 'Добави' }));
+    const sheet = screen.getByRole('dialog', { name: 'Добави в килера' });
+    expect(
+      within(sheet).getByRole('textbox', { name: 'Бележка' }),
+    ).toHaveAttribute('placeholder', 'напр. 500 г, отворено от понеделник');
+    expect(
+      within(sheet).queryByRole('button', { name: 'Готово' }),
+    ).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Затвори' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Добави в килера' }),
+    ).not.toBeInTheDocument();
+    expect(requests).toEqual([]);
+  });
+
+  it.each([
+    { picks: ['кайма'], message: 'Добавен: кайма', submit: 'Добави 1 продукт' },
+    {
+      picks: ['кайма', 'сирене', 'олио'],
+      message: 'Добавени: 3 продукта',
+      submit: 'Добави 3 продукта',
+    },
+  ])(
+    'след „Добави“ toast „$message“ и превъртане до първия добавен ред',
+    async ({ picks, message, submit }) => {
+      const user = userEvent.setup();
+      const scrolled: string[] = [];
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(
+        function (this: Element) {
+          scrolled.push(
+            this.querySelector('.pantry-item__name')?.textContent ?? '',
+          );
+        },
+      );
+      servePantry([pantryItem(rice)]);
+
+      renderApp('/pantry');
+      await screen.findByText('ориз');
+      await user.click(screen.getByRole('button', { name: 'Добави' }));
+      const sheet = screen.getByRole('dialog', { name: 'Добави в килера' });
+      const search = within(sheet).getByRole('searchbox', {
+        name: 'Търси продукт',
+      });
+      for (const name of picks) {
+        await user.clear(search);
+        await user.type(search, name);
+        await user.click(await within(sheet).findByRole('checkbox', { name }));
+      }
+      await user.click(within(sheet).getByRole('button', { name: submit }));
+
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(scrolled[0]).toBe(picks[0]);
+    },
+  );
 });

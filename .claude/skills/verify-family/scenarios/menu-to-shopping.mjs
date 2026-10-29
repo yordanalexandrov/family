@@ -105,7 +105,7 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
   const rows = psql(
     'select si.kind, coalesce(si.title, i.name) as item, si.aisle, si.checked_by is not null as checked ' +
       'from shopping_item si join shopping_list sl on sl.id = si.list_id join meal_plan mp on mp.id = sl.plan_id ' +
-      "left join ingredient i on si.item_key like i.id || ':%' " +
+      'left join ingredient i on si.item_key = i.id::text ' +
       "where mp.week_start = date_trunc('week', now() + interval '7 days')::date order by 1, 2",
   );
   if (

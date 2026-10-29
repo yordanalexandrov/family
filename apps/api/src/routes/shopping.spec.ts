@@ -1,6 +1,8 @@
+import { readdir, readFile } from 'node:fs/promises';
+import { sql } from 'drizzle-orm';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { shoppingItem } from '../db/schema/shopping.js';
+import { shoppingItem, shoppingList } from '../db/schema/shopping.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import { DANI, POLI } from '../test/users.js';
@@ -135,23 +137,29 @@ async function seedMenu() {
   await patchMeal(sun, { recipeId: recipes.stew });
 }
 
-/** The visible rows as `aisle title quantity unit ×sources`, in the list's order. */
+interface Amount {
+  quantity: number | null;
+  unit: string | null;
+}
+
+/** The visible rows as `aisle title quantity unit[ + quantity unit…] ×sources`, in the list's order. */
 function rows(list: {
   aisles: {
     aisle: string;
-    items: {
+    items: (Amount & {
       title: string;
-      quantity: number | null;
-      unit: string | null;
+      extraAmounts?: Amount[];
       sources: unknown[];
-    }[];
+    })[];
   }[];
 }) {
   return list.aisles.flatMap(({ aisle, items }) =>
-    items.map(
-      (item) =>
-        `${aisle} ${item.title} ${item.quantity} ${item.unit} ×${item.sources.length}`,
-    ),
+    items.map((item) => {
+      const amounts = [item, ...(item.extraAmounts ?? [])]
+        .map(({ quantity, unit }) => `${quantity} ${unit}`)
+        .join(' + ');
+      return `${aisle} ${item.title} ${amounts} ×${item.sources.length}`;
+    }),
   );
 }
 
@@ -177,8 +185,8 @@ async function itemOf(itemKey: string) {
 }
 
 const key = {
-  tomato: () => `${ids.tomato}:g`,
-  eggs: () => `${ids.eggs}:pcs`,
+  tomato: () => ids.tomato,
+  eggs: () => ids.eggs,
 };
 
 describe('GET /api/shopping-lists/:weekStart', () => {
@@ -187,7 +195,7 @@ describe('GET /api/shopping-lists/:weekStart', () => {
     const responses = await Promise.all([getList(), getList()]);
     expect(responses.map((r) => r.statusCode)).toEqual([200, 200]);
     await setChecked(key.tomato(), true);
-    expect((await getList()).json().list.remaining).toBe(4);
+    expect((await getList()).json().list.remaining).toBe(3);
   });
 
   it('answers 400 without an acting user', async () => {
@@ -206,34 +214,38 @@ describe('GET /api/shopping-lists/:weekStart', () => {
     expect(response.json().error).toBe('validation_error');
   });
 
-  it('answers 404 no_plan for a week without a menu', async () => {
+  it('answers an empty list without a menu for a week without one (#129 D-11)', async () => {
     const response = await getList();
-    expect(response.statusCode).toBe(404);
-    expect(response.json()).toMatchObject({
-      error: 'not_found',
-      code: 'no_plan',
+    expect(response.statusCode).toBe(200);
+    expect(response.json().list).toEqual({
+      weekStart: WEEK,
+      hasMenu: false,
+      aisles: [],
+      hidden: [],
+      pantryHidden: [],
+      total: 0,
+      remaining: 0,
     });
   });
 
-  it('sums the menu’s ingredients per ingredient and unit, rounded up, by aisle', async () => {
+  it('sums the menu’s ingredients per ingredient, one amount per unit, rounded up, by aisle', async () => {
     await seedMenu();
     const response = await getList();
     expect(response.statusCode).toBe(200);
     const { list } = response.json();
     // Tomato: 250 + 100 + 150 + 625 + 150 = 1275 g; oil: 25 + 15 + 62.5 ml; eggs: 3 (Saturday has 0 servings);
-    // salt: a pinch on Monday and Thursday, 2.5 + 2.5 g in the stew.
+    // salt: 2.5 + 2.5 g in the stew and a pinch on Monday and Thursday, one row.
     expect(rows(list)).toEqual([
       'produce зелен домат 1280 g ×5',
       'dairy пъдпъдъчи яйца 3 pcs ×1',
       'spices гроздово олио 110 ml ×3',
-      'spices хималайска сол 10 g ×2',
-      'spices хималайска сол null pinch ×2',
+      'spices хималайска сол 10 g + null pinch ×4',
     ]);
     expect(list).toMatchObject({
       weekStart: WEEK,
       hidden: [],
-      total: 5,
-      remaining: 5,
+      total: 4,
+      remaining: 4,
     });
     expect(list.aisles[0].items[0]).toMatchObject({
       key: key.tomato(),
@@ -243,7 +255,12 @@ describe('GET /api/shopping-lists/:weekStart', () => {
       hidden: false,
     });
     expect(list.aisles[1].items[0].sources).toEqual([
-      { date: '2026-11-03', mealId: meals[1], recipeTitle: 'Омлет' },
+      {
+        date: '2026-11-03',
+        mealId: meals[1],
+        recipeTitle: 'Омлет',
+        amounts: [{ quantity: 3, unit: 'pcs' }],
+      },
     ]);
   });
 });
@@ -262,23 +279,24 @@ describe('PUT …/items/:key/checked', () => {
     };
     expect(response.json().item).toMatchObject(checked);
     const { list } = (await getList()).json();
-    expect(list.remaining).toBe(4);
+    expect(list.remaining).toBe(3);
     expect(await itemOf(key.tomato())).toMatchObject(checked);
   });
 
-  it('lets the other user check over a check (the last write wins), and keeps the check after the menu changes', async () => {
+  it('keeps the first check when the other user checks it again (#129 D-04), and keeps it after the menu changes', async () => {
     await setChecked(key.tomato(), true);
     clock = new Date('2026-10-28T09:30:00Z');
     const response = await setChecked(key.tomato(), true, POLI.id);
     expect(response.json().item).toMatchObject({
-      checkedBy: POLI.id,
-      checkedAt: clock.toISOString(),
+      checkedBy: DANI.id,
+      checkedAt: NOW.toISOString(),
     });
     // Monday's salad becomes a stew: 250 g of tomato become 150 g, the check stays.
     await patchMeal(meals[0] ?? '', { recipeId: recipes.stew });
     expect(await itemOf(key.tomato())).toMatchObject({
       quantity: 1180,
-      checkedBy: POLI.id,
+      checkedBy: DANI.id,
+      checkedAt: NOW.toISOString(),
     });
   });
 
@@ -293,14 +311,15 @@ describe('PUT …/items/:key/checked', () => {
       quantity: 1280,
     });
     expect(await testDb().select().from(shoppingItem)).toEqual([]);
-    expect((await getList()).json().list.remaining).toBe(5);
+    expect((await getList()).json().list.remaining).toBe(4);
   });
 
   it('answers 404 for a key that is not in the list as it is now computed', async () => {
     const elsewhere = '33333333-3333-4333-8333-333333333333';
     for (const unknown of [
-      `${ids.eggs}:g`,
+      elsewhere,
       `${elsewhere}:g`,
+      `${ids.eggs}:cup`,
       `manual:${elsewhere}`,
       'кафе',
     ]) {
@@ -313,14 +332,29 @@ describe('PUT …/items/:key/checked', () => {
     expect((await setChecked(key.eggs(), true)).statusCode).toBe(404);
   });
 
-  it('answers 404 no_plan for a week without a menu', async () => {
+  it('checks the ingredient’s row under an old key (<ingredientId>:<unit>), as a check queued offline sends it', async () => {
+    const response = await setChecked(`${ids.salt}:pinch`, true);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().item).toMatchObject({
+      key: ids.salt,
+      checkedBy: DANI.id,
+    });
+    expect(await itemOf(ids.salt)).toMatchObject({ checkedBy: DANI.id });
+    expect(await setHidden(`${ids.eggs}:pcs`, true)).toMatchObject({
+      statusCode: 200,
+    });
+    expect(await itemOf(ids.eggs)).toMatchObject({ hidden: true });
+  });
+
+  it('answers 404 for a computed key in a week without a menu', async () => {
     const response = await inject(
       'PUT',
       `/api/shopping-lists/2026-11-09/items/${encodeURIComponent(key.tomato())}/checked`,
       { checked: true },
     );
     expect(response.statusCode).toBe(404);
-    expect(response.json().code).toBe('no_plan');
+    expect(response.json().error).toBe('not_found');
   });
 });
 
@@ -343,7 +377,7 @@ describe('PUT …/items/:key/hidden', () => {
     expect(list.hidden.map((item: { key: string }) => item.key)).toEqual([
       key.eggs(),
     ]);
-    expect(list.total).toBe(4);
+    expect(list.total).toBe(3);
 
     expect((await setHidden(key.eggs(), false)).json().item.hidden).toBe(false);
     ({ list } = (await getList()).json());
@@ -359,7 +393,90 @@ describe('PUT …/items/:key/hidden', () => {
   });
 
   it('answers 404 for a key that is not in the list', async () => {
-    expect((await setHidden(`${ids.eggs}:g`, true)).statusCode).toBe(404);
+    expect(
+      (await setHidden('33333333-3333-4333-8333-333333333333', true))
+        .statusCode,
+    ).toBe(404);
+  });
+});
+
+describe('one row per ingredient (migration of the old keys)', () => {
+  beforeEach(seedMenu);
+
+  const DRIZZLE = new URL('../../drizzle/', import.meta.url);
+
+  /** Runs the data migration again, as it ran once over the records stored before it; found by name, not number. */
+  async function migrate() {
+    const file = (await readdir(DRIZZLE)).find((name) =>
+      name.endsWith('_shopping_item_per_ingredient.sql'),
+    );
+    expect(file).toBeDefined();
+    const text = await readFile(new URL(file ?? '', DRIZZLE), 'utf8');
+    for (const statement of text.split('--> statement-breakpoint')) {
+      await testDb().execute(sql.raw(statement));
+    }
+  }
+
+  it('moves the checks and hides stored per unit onto the ingredient’s row, the latest check winning', async () => {
+    await getList();
+    const [list] = await testDb().select().from(shoppingList);
+    const listId = list?.id ?? '';
+    const earlier = new Date('2026-10-27T08:00:00Z');
+    await testDb()
+      .insert(shoppingItem)
+      .values([
+        {
+          listId,
+          itemKey: `${ids.salt}:g`,
+          kind: 'computed',
+          checkedBy: DANI.id,
+          checkedAt: earlier,
+        },
+        {
+          listId,
+          itemKey: `${ids.salt}:pinch`,
+          kind: 'computed',
+          checkedBy: POLI.id,
+          checkedAt: NOW,
+        },
+        { listId, itemKey: `${ids.eggs}:pcs`, kind: 'computed', hidden: true },
+        {
+          listId,
+          itemKey: `${ids.oil}:ml`,
+          kind: 'computed',
+          checkedBy: DANI.id,
+          checkedAt: earlier,
+        },
+      ]);
+    const manual = await created(
+      await inject('POST', `/api/shopping-lists/${WEEK}/items`, {
+        title: 'кафе',
+      }),
+    );
+
+    await migrate();
+    // Rows already per ingredient are kept as they are.
+    await migrate();
+
+    expect(await itemOf(ids.salt)).toMatchObject({
+      checkedBy: POLI.id,
+      checkedAt: NOW.toISOString(),
+      hidden: false,
+    });
+    expect(await itemOf(ids.oil)).toMatchObject({
+      checkedBy: DANI.id,
+      checkedAt: earlier.toISOString(),
+    });
+    expect(await itemOf(ids.eggs)).toMatchObject({
+      hidden: true,
+      checkedBy: null,
+    });
+    const keys = (
+      await testDb().select({ key: shoppingItem.itemKey }).from(shoppingItem)
+    ).map((row) => row.key);
+    expect(keys.sort()).toEqual(
+      [ids.salt, ids.eggs, ids.oil, manual.item.key].sort(),
+    );
   });
 });
 
@@ -388,7 +505,7 @@ describe('manual items', () => {
     });
     const { list } = (await getList()).json();
     expect(list.aisles.at(-1)).toEqual({ aisle: 'other', items: [item] });
-    expect(list.total).toBe(6);
+    expect(list.total).toBe(5);
   });
 
   it('keeps the quantity, unit and aisle it was given, next to the computed items', async () => {
@@ -444,23 +561,61 @@ describe('manual items', () => {
     expect(response.json().error).toBe('invalid_action');
     expect(await itemOf(key.tomato())).toBeDefined();
   });
+});
 
-  it('answers 404 no_plan for a week without a menu', async () => {
-    const response = await inject(
-      'POST',
-      '/api/shopping-lists/2026-11-09/items',
+describe('a week without a menu (#129 D-11)', () => {
+  function addItem(payload: object) {
+    return inject('POST', `/api/shopping-lists/${WEEK}/items`, payload);
+  }
+
+  it('adds a manual item and reads it back, with no menu', async () => {
+    const { item } = await created(await addItem({ title: 'кафе' }));
+
+    const checked = await setChecked(item.key, true);
+
+    expect(checked.statusCode).toBe(200);
+    const { list } = (await getList()).json();
+    expect(list).toMatchObject({ hasMenu: false, total: 1, remaining: 0 });
+    expect(list.aisles).toEqual([
       {
-        title: 'кафе',
+        aisle: 'other',
+        items: [expect.objectContaining({ title: 'кафе', checkedBy: DANI.id })],
       },
-    );
-    expect(response.statusCode).toBe(404);
-    expect(response.json().code).toBe('no_plan');
+    ]);
+  });
+
+  it('adds the rows of a menu made later and keeps the manual item', async () => {
+    const { item } = await created(await addItem({ title: 'кафе' }));
+
+    await seedMenu();
+
+    const { list } = (await getList()).json();
+    expect(list).toMatchObject({ hasMenu: true, total: 5 });
+    expect(rows(list)).toContain('produce зелен домат 1280 g ×5');
+    expect(list.aisles.at(-1).items).toEqual([
+      expect.objectContaining({ key: item.key, title: 'кафе' }),
+    ]);
+  });
+
+  it('keeps the list and its manual item when the menu is deleted', async () => {
+    await seedMenu();
+    const { item } = await created(await addItem({ title: 'кафе' }));
+    const { plan } = (
+      await inject('GET', `/api/menu/plans?weekStart=${WEEK}`)
+    ).json();
+
+    const deleted = await inject('DELETE', `/api/menu/plans/${plan.id}`);
+
+    expect(deleted.statusCode).toBe(204);
+    const { list } = (await getList()).json();
+    expect(list).toMatchObject({ hasMenu: false, total: 1 });
+    expect(list.aisles[0].items[0].key).toBe(item.key);
   });
 });
 
 describe('the pantry in the list', () => {
   const NEXT_WEEK = '2026-11-09';
-  const oilKey = () => `${ids.oil}:ml`;
+  const oilKey = () => ids.oil;
 
   /** NEXT_WEEK's menu: a stew on Monday, so tomato and salt but no oil. */
   async function seedNextWeek() {
@@ -512,9 +667,9 @@ describe('the pantry in the list', () => {
       {
         title: 'хималайска сол',
         unit: 'g',
+        extraAmounts: [{ quantity: null, unit: 'pinch' }],
         pantry: { id: pantryId, kind: 'staple', ranOut: false },
       },
-      { title: 'хималайска сол', unit: 'pinch' },
     ]);
     expect(list).toMatchObject({ total: 3, remaining: 3 });
     expect(rows(await listOf(NEXT_WEEK))).toEqual([
@@ -553,7 +708,7 @@ describe('the pantry in the list', () => {
 
     const response = await inject(
       'PUT',
-      `/api/shopping-lists/${NEXT_WEEK}/items/${encodeURIComponent(`${ids.oil}:none`)}/checked`,
+      `/api/shopping-lists/${NEXT_WEEK}/items/${encodeURIComponent(oilKey())}/checked`,
       { checked: true },
     );
     unsubscribe();
@@ -574,7 +729,7 @@ describe('the pantry in the list', () => {
 
     await inject(
       'PUT',
-      `/api/shopping-lists/${NEXT_WEEK}/items/${encodeURIComponent(`${ids.oil}:none`)}/checked`,
+      `/api/shopping-lists/${NEXT_WEEK}/items/${encodeURIComponent(oilKey())}/checked`,
       { checked: false },
     );
     expect(rows(await listOf(NEXT_WEEK))).not.toContain(
@@ -585,28 +740,20 @@ describe('the pantry in the list', () => {
     ).toBeNull();
   });
 
-  it('buying one row of a staple in several units returns its other rows to the pantry', async () => {
+  it('buys a staple in several units with the one check of its row', async () => {
     const pantryId = await addToPantry(ids.salt, 'staple');
     await ranOut(pantryId);
-    const saltRows = (list: {
-      aisles: { items: { title: string; unit: string | null }[] }[];
-    }) =>
-      list.aisles
-        .flatMap(({ items }) => items)
-        .filter((item) => item.title === 'хималайска сол')
-        .map((item) => item.unit);
-    expect(saltRows(await listOf())).toEqual(['g', 'pinch']);
+    expect(rows(await listOf())).toContain(
+      'spices хималайска сол 10 g + null pinch ×4',
+    );
 
-    await setChecked(`${ids.salt}:g`, true);
+    await setChecked(ids.salt, true);
 
-    // The check is the purchase of the staple: the flag is cleared, so the unchecked pinch row is hidden by the pantry.
-    const list = await listOf();
-    expect(saltRows(list)).toEqual(['g']);
-    expect(await itemOf(`${ids.salt}:g`)).toMatchObject({
+    expect(await itemOf(ids.salt)).toMatchObject({
       checkedBy: DANI.id,
       pantry: { ranOut: false },
     });
-    expect(list.pantryHidden).toMatchObject([{ key: `${ids.salt}:pinch` }]);
+    expect((await listOf()).pantryHidden).toEqual([]);
   });
 
   it('shows a staple that ran out also where its row is hidden by hand, and „Покажи“ leaves the pantry as it is', async () => {

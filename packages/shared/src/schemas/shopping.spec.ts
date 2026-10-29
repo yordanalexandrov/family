@@ -44,6 +44,7 @@ describe('shoppingListSchema', () => {
         { aisle: 'produce', items: [onion] },
         { aisle: 'other', items: [coffee] },
       ],
+      hasMenu: true,
       hidden: [{ ...onion, key: `${ONION}:pcs`, unit: 'pcs', hidden: true }],
       pantryHidden: [],
       total: 2,
@@ -63,6 +64,33 @@ describe('shoppingListSchema', () => {
     };
 
     expect(shoppingListSchema.parse(list).pantryHidden).toEqual([]);
+  });
+
+  it('accepts the list of a week without a menu: only manual items (#129 D-11)', () => {
+    const list = {
+      weekStart: '2026-10-26',
+      hasMenu: false,
+      aisles: [{ aisle: 'other', items: [coffee] }],
+      hidden: [],
+      pantryHidden: [],
+      total: 1,
+      remaining: 1,
+    };
+
+    expect(shoppingListSchema.parse(list)).toEqual(list);
+  });
+
+  it('reads a list cached before lists without a menu as the list of a menu', () => {
+    const list = {
+      weekStart: '2026-10-26',
+      aisles: [],
+      hidden: [],
+      pantryHidden: [],
+      total: 0,
+      remaining: 0,
+    };
+
+    expect(shoppingListSchema.parse(list).hasMenu).toBe(true);
   });
 
   it('refuses a week that does not start on Monday', () => {

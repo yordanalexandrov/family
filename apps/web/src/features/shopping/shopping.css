@@ -65,6 +65,7 @@
 /* Редът е една цел за отметка: етикетът и отметката вдясно покриват цялата му височина. */
 .shopping-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   min-block-size: 3.5rem;
 }
@@ -153,6 +154,25 @@
   text-decoration: line-through;
 }
 
+/* „Дани го взе. Махни отметката?“ под чуждата отметка (#129 D-04): цял ред, „Махни“ вдясно в зоната на палеца. */
+.shopping-item__confirm {
+  display: flex;
+  flex: 1 0 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-2) var(--space-3);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.shopping-item__confirm-action {
+  flex: none;
+  min-block-size: var(--touch-target);
+}
+
 /* „покажи“/„Свърши“ на скритите редове са второстепенни: текст без фон, но с цялата площ за докосване. */
 .shopping-item__action {
   flex: none;
@@ -171,8 +191,45 @@
   background: var(--color-danger);
 }
 
+/* Над редовете остава място за плаващия „+ Добави“: последният ред не е под него. */
+.screen.shopping {
+  padding-block-end: calc(
+    var(--bottom-nav-space) +
+    var(--touch-target) +
+    var(--space-3) *
+    2
+  );
+}
+
+/* „+ Добави“ плава над долната лента вдясно, в зоната на палеца, и се вижда при превъртане (#129 D-10). Toast-ът е над него. */
 .shopping__add {
-  align-self: flex-start;
+  position: fixed;
+  inset-inline-end: max(var(--space-4), env(safe-area-inset-right));
+  inset-block-end: calc(var(--bottom-nav-space) + var(--space-3));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.shopping__add-button {
+  box-shadow: var(--shadow);
+}
+
+/* „Иска връзка“ до плаващия бутон: на хапче, защото стои над списъка. */
+.shopping__add-hint {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+
+.shopping__no-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 .shopping__hidden-toggle {

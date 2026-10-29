@@ -11,12 +11,7 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import {
-  apiFetch,
-  isConnectionError,
-  JSON_HEADERS,
-  refusalOf,
-} from '../../api/client';
+import { apiFetch, isConnectionError, JSON_HEADERS } from '../../api/client';
 import { readActingUserId } from '../../app/acting-user';
 import {
   applyQueuedChecks,
@@ -36,16 +31,13 @@ export const shoppingKeys = {
   list: (weekStart: DateKey) => ['shopping', weekStart] as const,
 };
 
-export type ShoppingWeekData =
-  | { kind: 'no_plan' }
-  | {
-      kind: 'list';
-      list: ShoppingList;
-      /** Без връзка: кога е взет показаният (кеширан) списък; `null`, когато е от api-то сега. */
-      staleSince: Date | null;
-      /** Колко отметки на седмицата чакат връзка. */
-      pending: number;
-    };
+export type ShoppingWeekData = {
+  list: ShoppingList;
+  /** Без връзка: кога е взет показаният (кеширан) списък; `null`, когато е от api-то сега. */
+  staleSince: Date | null;
+  /** Колко отметки на седмицата чакат връзка. */
+  pending: number;
+};
 
 const listPath = (weekStart: DateKey) => `/shopping-lists/${weekStart}`;
 const itemPath = (weekStart: DateKey, key: string) =>
@@ -80,9 +72,6 @@ async function fetchShoppingWeek(
       .list;
     await writeCachedList(list, new Date());
   } catch (error) {
-    if (refusalOf(error, 'no_plan')) {
-      return { kind: 'no_plan' };
-    }
     const cached = isConnectionError(error)
       ? await readCachedList(weekStart)
       : null;
@@ -94,7 +83,6 @@ async function fetchShoppingWeek(
   }
   const queue = await queuedChecks(weekStart);
   return {
-    kind: 'list',
     list: applyQueuedChecks(list, queue),
     staleSince,
     pending: queue.length,
@@ -133,7 +121,7 @@ export function useToggleCheck(weekStart: DateKey) {
       const queued = enqueueCheck(entry);
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<ShoppingWeekData>(queryKey, (data) =>
-        data?.kind === 'list'
+        data
           ? {
               ...data,
               list: applyQueuedChecks(data.list, [entry]),

@@ -7,10 +7,10 @@ import { Toast } from './Toast';
 /** Екранът държи съобщението в state и го маха в `onDone`, както PantryScreen. */
 function Host({
   durationMs,
-  onAction,
+  onUndo,
 }: {
   durationMs?: number;
-  onAction?: () => void;
+  onUndo?: () => void;
 }) {
   const [message, setMessage] = useState<string | null>('Рецептата е изтрита');
   return (
@@ -18,7 +18,7 @@ function Host({
       message={message}
       onDone={() => setMessage(null)}
       durationMs={durationMs}
-      action={onAction && { label: 'Върни', onAction }}
+      undo={onUndo}
     />
   );
 }
@@ -55,30 +55,30 @@ describe('Toast', () => {
     expect(message.closest('.toast')?.parentElement).toBe(document.body);
   });
 
-  it('„Върни“ вика onAction веднъж и скрива съобщението', async () => {
+  it('„Върни“ вика undo веднъж и скрива съобщението', async () => {
     vi.useRealTimers();
     const user = userEvent.setup();
-    const onAction = vi.fn();
-    render(<Host onAction={onAction} />);
+    const undo = vi.fn();
+    render(<Host onUndo={undo} />);
 
     await user.click(screen.getByRole('button', { name: 'Върни' }));
 
-    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(undo).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Рецептата е изтрита')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Върни' }),
     ).not.toBeInTheDocument();
   });
 
-  it('с действие стои 8 s по подразбиране, а изтичането не вика onAction', () => {
-    const onAction = vi.fn();
-    render(<Host onAction={onAction} />);
+  it('с „Върни“ стои 8 s по подразбиране, а изтичането не вика undo', () => {
+    const undo = vi.fn();
+    render(<Host onUndo={undo} />);
 
     act(() => vi.advanceTimersByTime(7999));
     expect(screen.getByRole('button', { name: 'Върни' })).toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(1));
     expect(screen.queryByText('Рецептата е изтрита')).not.toBeInTheDocument();
-    expect(onAction).not.toHaveBeenCalled();
+    expect(undo).not.toHaveBeenCalled();
   });
 });

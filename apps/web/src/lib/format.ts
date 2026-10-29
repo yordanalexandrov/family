@@ -100,6 +100,16 @@ export function formatNumber(value: number): string {
   return numberFormat.format(value);
 }
 
+/** Няколко количества в мерни единици, които не се превръщат една в друга: „3 бр. + 750 г“. */
+export function formatAmounts(
+  amounts: Pick<RecipeLine, 'quantity' | 'unit'>[],
+): string {
+  return amounts
+    .map(formatQuantity)
+    .filter((text) => text !== '')
+    .join(' + ');
+}
+
 /** „500 г“, „2 бр.“, „по вкус“; без количество — само единицата не се показва. */
 export function formatQuantity(line: Pick<RecipeLine, 'quantity' | 'unit'>) {
   if (line.unit === 'pinch') {

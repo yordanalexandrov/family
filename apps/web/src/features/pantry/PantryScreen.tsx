@@ -2,16 +2,21 @@ import {
   type DateKey,
   dateKeyInSofia,
   daysBetween,
+  type Ingredient,
   type PantryItem,
+  type PantryKind,
 } from '@family/shared';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScreenHeader } from '../../app/ScreenHeader';
 import { ErrorBox } from '../../components/ErrorBox';
+import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
-import { Toast } from '../../components/Toast';
+import { Toast, type ToastMessage } from '../../components/Toast';
 import { useNow } from '../../lib/use-now';
+import { useOnline } from '../../lib/use-online';
 import { AddPantrySheet } from './AddPantrySheet';
 import {
+  useMarkRanOut,
   usePantry,
   useRemovePantryItem,
   useSetPantryFrozen,
@@ -36,17 +41,59 @@ function isPending(item: PantryItem): boolean {
   return item.id.startsWith('pending:');
 }
 
+/** „Добавен: кайма“ или „Добавени: 3 продукта“. */
+function addedMessage(ingredients: Ingredient[]): string {
+  return ingredients.length === 1
+    ? `Добавен: ${ingredients[0]?.name}`
+    : `Добавени: ${ingredients.length} продукта`;
+}
+
 /**
  * `/pantry` (GLOSSARY: Килер), само на телефона: постоянните продукти по име и временните от най-старите, с бележката
- * и възрастта им; ❄️ до името на тези „Във фризера“. Промените са оптимистични и се връщат при грешка.
+ * и възрастта им; ❄️ до името на тези „Във фризера“. Постоянният продукт има „Свърши“ и знак „свърши · в списъка“ до
+ * покупката. Промените са оптимистични и се връщат при грешка; след „Добави“ екранът казва какво е добавено и
+ * превърта до първия нов ред. „Използвано“ и „махни“ чакат toast-а с „Върни“, преди да изтрият (#129 D-05).
  */
 export function PantryScreen() {
   const pantry = usePantry();
   const [adding, setAdding] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const showMessage = useCallback(
+    (message: string) => setToast({ message }),
+    [],
+  );
+  const removal = useDeferredRemoval(showMessage);
+  const { flush } = removal;
+  const onToastDone = useCallback(() => {
+    setToast(null);
+    flush();
+  }, [flush]);
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (scrollTo === null || !pantry.data) {
+      return;
+    }
+    const row = mainRef.current?.querySelector(
+      `[data-ingredient-id="${scrollTo}"]`,
+    );
+    if (row) {
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setScrollTo(null);
+    }
+  }, [scrollTo, pantry.data]);
+
+  function remove(item: PantryItem) {
+    removal.schedule(item);
+    setToast({
+      message: `Махна „${item.ingredient.name}“ от килера`,
+      undo: removal.undo,
+    });
+  }
 
   return (
-    <main className="screen recipes menu pantry">
+    <main ref={mainRef} className="screen recipes menu pantry">
       <ScreenHeader
         title="Килер"
         actions={
@@ -54,7 +101,10 @@ export function PantryScreen() {
             type="button"
             className="button"
             disabled={!pantry.data}
-            onClick={() => setAdding(true)}
+            onClick={() => {
+              flush();
+              setAdding(true);
+            }}
           >
             Добави
           </button>
@@ -65,18 +115,83 @@ export function PantryScreen() {
       ) : pantry.isError ? (
         <ErrorBox error={pantry.error} onRetry={() => void pantry.refetch()} />
       ) : (
-        <Groups items={pantry.data} onError={setToast} />
+        <Groups
+          items={pantry.data.filter((item) => !removal.removing.has(item.id))}
+          onError={showMessage}
+          onRemove={remove}
+          onAction={flush}
+        />
       )}
       {adding && pantry.data && (
         <AddPantrySheet
           inPantry={new Set(pantry.data.map((item) => item.ingredient.id))}
           onClose={() => setAdding(false)}
-          onError={setToast}
+          onAdded={(ingredients) => {
+            showMessage(addedMessage(ingredients));
+            setScrollTo(ingredients[0]?.id ?? null);
+          }}
+          onError={showMessage}
         />
       )}
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast
+        message={toast?.message ?? null}
+        onDone={onToastDone}
+        undo={toast?.undo}
+      />
     </main>
   );
+}
+
+/**
+ * Изтриване, което чака: редът изчезва веднага (`removing`), а `DELETE` тръгва при `flush` — изтичането на toast-а,
+ * ново действие или напускане на екрана. `undo` го отменя без заявка, затова бележката и възрастта остават. При
+ * грешка `useRemovePantryItem` връща килера, а редът се показва пак.
+ */
+function useDeferredRemoval(onError: (message: string) => void) {
+  const remove = useRemovePantryItem();
+  const mutate = useRef(remove.mutate);
+  mutate.current = remove.mutate;
+  const pending = useRef<PantryItem | null>(null);
+  const [removing, setRemoving] = useState<ReadonlySet<string>>(new Set());
+
+  const show = useCallback((id: string) => {
+    setRemoving((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const flush = useCallback(() => {
+    const item = pending.current;
+    if (!item) {
+      return;
+    }
+    pending.current = null;
+    mutate.current(item, {
+      onError: (error) => onError(errorMessage(error)),
+      onSettled: () => show(item.id),
+    });
+  }, [onError, show]);
+
+  useEffect(() => flush, [flush]);
+
+  return {
+    removing,
+    flush,
+    schedule(item: PantryItem) {
+      flush();
+      pending.current = item;
+      setRemoving((current) => new Set(current).add(item.id));
+    },
+    undo() {
+      const item = pending.current;
+      pending.current = null;
+      if (item) {
+        show(item.id);
+      }
+    },
+  };
 }
 
 /** Името на продукта и ❄️, ако е „Във фризера“ (GLOSSARY: Във фризера). */
@@ -97,7 +212,7 @@ function ItemName({ item }: { item: PantryItem }) {
   );
 }
 
-/** Превключвателят „Във фризера“ на един продукт. */
+/** Превключвателят „❄️ Във фризера“ на временен продукт, като в листа за добавяне. */
 function FrozenToggle({
   item,
   onToggle,
@@ -106,33 +221,45 @@ function FrozenToggle({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className="button button--quiet pantry-item__action pantry-item__freeze"
-      aria-label={`Във фризера: ${item.ingredient.name}`}
-      aria-pressed={item.frozen}
-      disabled={isPending(item)}
-      onClick={onToggle}
-    >
-      <span aria-hidden="true">❄️</span>
-    </button>
+    <label className="pantry__kind pantry-item__freeze">
+      <input
+        type="checkbox"
+        checked={item.frozen}
+        disabled={isPending(item)}
+        onChange={onToggle}
+      />
+      ❄️ Във фризера
+    </label>
   );
 }
 
 function Groups({
   items,
   onError,
+  onRemove,
+  onAction,
 }: {
   items: PantryItem[];
   onError: (message: string) => void;
+  /** „Използвано“ или „махни“: изтриване, което чака „Върни“. */
+  onRemove: (item: PantryItem) => void;
+  /** Всяко друго действие на ред; изпраща изчакващото изтриване. */
+  onAction: () => void;
 }) {
   const today = dateKeyInSofia(useNow(60_000));
-  const setKind = useSetPantryKind();
+  const ranOutOffline = useNeedsConnection(useOnline());
+  const markRanOut = useMarkRanOut();
+  const setKindMutation = useSetPantryKind();
   const setFrozen = useSetPantryFrozen();
-  const remove = useRemovePantryItem();
   const options = { onError: (error: unknown) => onError(errorMessage(error)) };
-  const toggleFrozen = (item: PantryItem) => () =>
+  const setKind = (item: PantryItem, kind: PantryKind) => {
+    onAction();
+    setKindMutation.mutate({ item, kind }, options);
+  };
+  const toggleFrozen = (item: PantryItem) => () => {
+    onAction();
     setFrozen.mutate({ item, frozen: !item.frozen }, options);
+  };
   const staples = items
     .filter((item) => item.kind === 'staple')
     .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name, 'bg'));
@@ -154,20 +281,43 @@ function Groups({
         ) : (
           <ul className="pantry__items">
             {staples.map((item) => (
-              <li key={item.id} className="pantry-item">
+              <li
+                key={item.id}
+                className="pantry-item"
+                data-ingredient-id={item.ingredient.id}
+              >
                 <span className="pantry-item__main">
                   <ItemName item={item} />
+                  {item.ranOutAt && (
+                    <span className="pantry-item__badge">
+                      свърши · в списъка
+                    </span>
+                  )}
                 </span>
                 <span className="pantry-item__actions">
-                  <FrozenToggle item={item} onToggle={toggleFrozen(item)} />
+                  <button
+                    type="button"
+                    className="button button--quiet pantry-item__action"
+                    aria-label={`Свърши: ${item.ingredient.name}`}
+                    disabled={
+                      ranOutOffline.disabled ||
+                      isPending(item) ||
+                      !!item.ranOutAt
+                    }
+                    aria-describedby={ranOutOffline.describedBy}
+                    onClick={() => {
+                      onAction();
+                      markRanOut.mutate(item.id, options);
+                    }}
+                  >
+                    Свърши
+                  </button>
                   <button
                     type="button"
                     className="button button--quiet pantry-item__action"
                     aria-label={`Направи временен: ${item.ingredient.name}`}
                     disabled={isPending(item)}
-                    onClick={() =>
-                      setKind.mutate({ item, kind: 'use_up' }, options)
-                    }
+                    onClick={() => setKind(item, 'use_up')}
                   >
                     временен
                   </button>
@@ -176,7 +326,7 @@ function Groups({
                     className="button button--quiet pantry-item__action pantry-item__remove"
                     aria-label={`Махни: ${item.ingredient.name}`}
                     disabled={isPending(item)}
-                    onClick={() => remove.mutate(item, options)}
+                    onClick={() => onRemove(item)}
                   >
                     махни
                   </button>
@@ -185,6 +335,7 @@ function Groups({
             ))}
           </ul>
         )}
+        {staples.length > 0 && ranOutOffline.hint}
       </section>
       <section className="pantry__group" aria-label="Временни">
         <h2 className="pantry__group-title">Временни</h2>
@@ -196,7 +347,11 @@ function Groups({
         ) : (
           <ul className="pantry__items">
             {useUp.map((item) => (
-              <li key={item.id} className="pantry-item">
+              <li
+                key={item.id}
+                className="pantry-item"
+                data-ingredient-id={item.ingredient.id}
+              >
                 <span className="pantry-item__main">
                   <ItemName item={item} />
                   {item.note && (
@@ -213,9 +368,7 @@ function Groups({
                     className="button button--quiet pantry-item__action"
                     aria-label={`Направи постоянен: ${item.ingredient.name}`}
                     disabled={isPending(item)}
-                    onClick={() =>
-                      setKind.mutate({ item, kind: 'staple' }, options)
-                    }
+                    onClick={() => setKind(item, 'staple')}
                   >
                     постоянен
                   </button>
@@ -224,7 +377,7 @@ function Groups({
                     className="button pantry-item__action pantry-item__used"
                     aria-label={`Използвано: ${item.ingredient.name}`}
                     disabled={isPending(item)}
-                    onClick={() => remove.mutate(item, options)}
+                    onClick={() => onRemove(item)}
                   >
                     Използвано
                   </button>

@@ -17,8 +17,8 @@ import {
 } from '../services/shopping.js';
 
 /**
- * The shopping list of a weekly menu (GLOSSARY: Списък за пазаруване), addressed by the menu's week. A week without a
- * menu answers 404 `no_plan` on every route.
+ * The shopping list of a week (GLOSSARY: Списък за пазаруване), addressed by its week. A week without a menu has a
+ * list too (#129 D-11): `hasMenu: false`, only manual items.
  */
 export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
   const deps = { db: app.db, events: app.events };

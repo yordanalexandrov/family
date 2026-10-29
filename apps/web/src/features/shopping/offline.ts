@@ -6,7 +6,7 @@ import {
   withCheck,
 } from '@family/shared';
 import { get, set, update } from 'idb-keyval';
-import { ApiError, isConnectionError, refusalOf } from '../../api/client';
+import { ApiError, isConnectionError } from '../../api/client';
 import { logger } from '../../logger';
 
 /*
@@ -121,7 +121,7 @@ export function applyQueuedChecks(
 let flushing: Promise<number> = Promise.resolve(0);
 
 /**
- * Изпраща опашката по реда ѝ с `send`. Изпратеното и 404 (редът или менюто вече ги няма) се махат. Друг 4xx
+ * Изпраща опашката по реда ѝ с `send`. Изпратеното и 404 (редът вече го няма) се махат. Друг 4xx
  * остава за следващия път, а по-късните отметки за същия ред чакат с него, за да не се разменя редът им. Мрежова
  * грешка, 5xx или изтекла сесия спират изпращането и оставят всичко останало. Не хвърля: повреден IndexedDB само
  * се логва, за да не пречи на четенето на списъка. Връща колко записа са махнати.
@@ -179,13 +179,6 @@ async function sendOne(
       (error instanceof ApiError && error.isSessionExpired())
     ) {
       return 'stop';
-    }
-    if (refusalOf(error, 'no_plan')) {
-      logger.warn(
-        'Менюто на седмицата го няма; отметката се маха от опашката',
-        error,
-      );
-      return 'done';
     }
     if (error instanceof ApiError && error.status === 404) {
       logger.warn('Редът вече го няма; отметката се маха от опашката', error);

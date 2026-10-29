@@ -83,15 +83,18 @@
   white-space: nowrap;
 }
 
+/* На 360 px действията на временен продукт не се побират на един ред: пренасят се вдясно, без да излизат от картата. */
 .pantry-item__actions {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-2);
   margin-inline-start: auto;
 }
 
-/* Тесен отстъп (целите пак са ≥ 48 px): редът с постоянен продукт се побира на един ред и на 360 px. */
+/* Тесен отстъп (целите пак са ≥ 48 px): редът с постоянен продукт се побира на един ред от 412 px; на 360 px действията са под името. */
 .pantry-item .pantry-item__action {
   flex: none;
   min-block-size: var(--touch-target);
@@ -115,18 +118,23 @@
   font-weight: 500;
 }
 
+/* „❄️ Във фризера“ на временен продукт: отметка с надпис, като в листа за добавяне. */
 .pantry-item .pantry-item__freeze {
-  min-inline-size: var(--touch-target);
+  flex: none;
   padding-inline: 0;
+  font-size: var(--font-size-sm);
 }
 
-/* Изключеният превключвател е сив (≥ 3:1, без opacity); включеният е в цвят с акцентна рамка. */
-.pantry-item .pantry-item__freeze[aria-pressed="false"] > span {
-  filter: var(--icon-faded-filter);
-}
-
-.pantry-item .pantry-item__freeze[aria-pressed="true"] {
-  box-shadow: inset 0 0 0 2px var(--color-accent);
+/* „свърши · в списъка“ под името на постоянен продукт, докато не се купи. */
+.pantry-item__badge {
+  align-self: flex-start;
+  padding: 0.1em 0.55em;
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .pantry__form {
