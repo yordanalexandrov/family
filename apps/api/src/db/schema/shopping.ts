@@ -9,6 +9,7 @@ import {
 import {
   boolean,
   check,
+  date,
   numeric,
   pgTable,
   text,
@@ -22,20 +23,21 @@ import { mealPlan } from './menu.js';
 import { user } from './user.js';
 
 /**
- * GLOSSARY: Списък за пазаруване. One per weekly menu, created on its first read; the items are computed from the
- * menu on every read, so only the overlay in `shopping_item` is stored.
+ * GLOSSARY: Списък за пазаруване. One per week, with or without a menu (#129 D-11), created on its first use; the items
+ * are computed from the week's menu on every read, so only the overlay in `shopping_item` is stored. `plan_id` is the
+ * week's menu once there is one; a deleted menu leaves the list and its manual items.
  */
 export const shoppingList = pgTable('shopping_list', {
   id: uuid('id').primaryKey().defaultRandom(),
+  weekStart: date('week_start', { mode: 'string' }).notNull().unique(),
   planId: uuid('plan_id')
-    .notNull()
     .unique()
-    .references(() => mealPlan.id, { onDelete: 'cascade' }),
+    .references(() => mealPlan.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
 });
 
 /**
- * GLOSSARY: Ред от списъка, the stored part. A `computed` record (`item_key` `<ingredientId>:<unit>`) holds only a
+ * GLOSSARY: Ред от списъка, the stored part. A `computed` record (`item_key` `<ingredientId>`) holds only a
  * check or `hidden` and exists only while it holds one; a `manual` record (`manual:<id>`) is the whole manual item
  * with its title, optional quantity, unit and aisle.
  */

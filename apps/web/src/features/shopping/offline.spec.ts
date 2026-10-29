@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +30,9 @@ function connection() {
     offline() {
       offline = true;
       onLine.mockReturnValue(false);
+      act(() => {
+        window.dispatchEvent(new Event('offline'));
+      });
     },
     online() {
       offline = false;
@@ -58,6 +61,12 @@ describe('ShoppingWeek офлайн', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    // `onlineManager` на react-query е общ за всички тестове. Екранът се затваря първо, за да не презареди нищо,
+    // което да пише в кеша след почистването му.
+    cleanup();
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
   });
 
   it('без връзка отметката остава локално и чака в опашката; при online се изпраща и опашката се чисти', async () => {
@@ -174,7 +183,7 @@ describe('ShoppingWeek офлайн', () => {
     expect(screen.getByText('3 от 5')).toBeInTheDocument();
   });
 
-  it('404 no_plan (менюто на седмицата е изтрито) маха всички отметки за седмицата и показва „Няма меню“', async () => {
+  it('404 (менюто на седмицата е изтрито) маха всички отметки за седмицата и показва списъка без меню', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
     const net = connection();
@@ -191,7 +200,9 @@ describe('ShoppingWeek офлайн', () => {
     net.online();
 
     expect(
-      await screen.findByText('Няма меню за тази седмица'),
+      await screen.findByText(
+        'Менюто ще добави продуктите си, когато е готово',
+      ),
     ).toBeInTheDocument();
     expect(shopping.requests.map((r) => r.path)).toEqual([
       `${thisWeek}/items/${tomatoes.key}/checked`,
@@ -306,7 +317,7 @@ describe('ShoppingWeek офлайн', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('добавяне, скриване и изтриване без връзка казват „Няма връзка“ и не пращат нищо', async () => {
+  it('без връзка „Скрий“, „Изтрий“ и „+ Добави“ са изключени с „Иска връзка“ още преди докосването', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
     const net = connection();
@@ -315,30 +326,105 @@ describe('ShoppingWeek офлайн', () => {
     await screen.findByText('5 от 6');
     net.offline();
 
+    const add = screen.getByRole('button', { name: '+ Добави' });
+    expect(add).toBeDisabled();
+    expect(add).toHaveAccessibleDescription('Иска връзка');
+
     await user.click(screen.getByRole('button', { name: 'Още за Лук' }));
-    await user.click(screen.getByRole('button', { name: 'Скрий от списъка' }));
-    expect(await screen.findByText('Няма връзка')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    const sheet = screen.getByRole('dialog', { name: 'Лук' });
+    const hide = within(sheet).getByRole('button', {
+      name: 'Скрий от списъка',
+    });
+    expect(hide).toBeDisabled();
+    expect(hide).toHaveAccessibleDescription('Иска връзка');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
 
     await user.click(screen.getByRole('button', { name: 'Още за Кафе' }));
-    await user.click(screen.getByRole('button', { name: 'Изтрий' }));
-    await user.click(
-      within(
-        screen.getByRole('alertdialog', { name: 'Изтриване на Кафе' }),
-      ).getByRole('button', { name: 'Изтрий' }),
-    );
-    await user.click(screen.getByRole('button', { name: 'Готово' }));
-
-    await user.click(screen.getByRole('button', { name: '+ Добави' }));
-    const sheet = screen.getByRole('dialog', { name: 'Добави' });
-    await user.type(within(sheet).getByLabelText('Заглавие'), 'кафе');
-    await user.click(within(sheet).getByRole('button', { name: 'Добави' }));
-    expect(await within(sheet).findByRole('alert')).toHaveTextContent(
-      'Няма връзка',
-    );
+    const manual = screen.getByRole('dialog', { name: 'Кафе' });
+    const remove = within(manual).getByRole('button', { name: 'Изтрий' });
+    expect(remove).toBeDisabled();
+    expect(remove).toHaveAccessibleDescription('Иска връзка');
 
     expect(shopping.requests).toEqual([]);
-    expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Кафе' })).toBeInTheDocument();
+  });
+
+  it('листът „Добави“, отворен преди връзката да падне, казва „Иска връзка“ веднъж и не праща нищо', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    await user.click(screen.getByRole('button', { name: '+ Добави' }));
+    const sheet = screen.getByRole('dialog', { name: 'Добави' });
+    await user.type(within(sheet).getByLabelText('Заглавие'), 'кърпи');
+    net.offline();
+
+    const submit = within(sheet).getByRole('button', { name: 'Добави' });
+    expect(submit).toBeDisabled();
+    expect(within(sheet).getAllByText('Иска връзка')).toHaveLength(1);
+    expect(screen.queryByText('Няма връзка')).not.toBeInTheDocument();
+    expect(shopping.requests).toEqual([]);
+  });
+
+  it('след online `GET /api/users` се вика отново и аватарите на отметналите се виждат', async () => {
+    const user = userEvent.setup();
+    serveShopping({ [thisWeek]: shoppingList() });
+    let usersDown = true;
+    let usersRequests = 0;
+    server.use(
+      http.get('/api/users', () => {
+        usersRequests += 1;
+        return usersDown ? HttpResponse.error() : undefined;
+      }),
+    );
+    const net = connection();
+
+    // Хората не са стигнали до телефона (сървърът не ги е дал), а после връзката пада.
+    const first = renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+    await screen.findByText('1 отметка чака връзка');
+    first.unmount();
+
+    // Презареждане без връзка: списъкът е от кеша, но кой е отметнал не се знае.
+    renderApp('/shopping');
+    await screen.findByText(/остарели данни/);
+    expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
+    expect(screen.queryByTitle(/Отметнато от/)).not.toBeInTheDocument();
+    const before = usersRequests;
+
+    usersDown = false;
+    net.online();
+
+    await vi.waitFor(() => expect(usersRequests).toBeGreaterThan(before));
+    await vi.waitFor(() =>
+      expect(screen.getAllByTitle('Отметнато от Дани')).toHaveLength(2),
+    );
+  });
+
+  it('хората се пазят в кеша със списъка: след презареждане без връзка аватарите се виждат', async () => {
+    const user = userEvent.setup();
+    serveShopping({ [thisWeek]: shoppingList() });
+    let usersDown = false;
+    server.use(
+      http.get('/api/users', () =>
+        usersDown ? HttpResponse.error() : undefined,
+      ),
+    );
+    const net = connection();
+
+    const first = renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    await screen.findByTitle('Отметнато от Дани');
+    first.unmount();
+
+    usersDown = true;
+    net.offline();
+    renderApp('/shopping');
+    await user.click(await screen.findByRole('checkbox', { name: 'Домати' }));
+    await screen.findByText('1 отметка чака връзка');
+    expect(await screen.findAllByTitle('Отметнато от Дани')).toHaveLength(2);
   });
 });

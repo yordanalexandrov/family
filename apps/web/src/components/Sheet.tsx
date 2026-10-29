@@ -8,13 +8,21 @@ interface SheetProps {
   children: ReactNode;
   /** Без „Готово“ в заглавието: листът сам носи бутоните си (напр. потвърждение) и сам слага фокуса. */
   hideClose?: boolean;
+  /** Надписът на бутона в заглавието, ако не е „Готово“ (напр. „Затвори“, когато записът е отделен бутон в листа). */
+  closeLabel?: string;
 }
 
 /**
  * Лист отдолу на телефона, прозорец на таблета: заглавие, „Готово“, Escape и фонът го затварят. Съдържанието е в
  * `.sheet__section` (и `.sheet__row` за ред от полета). Отвореният лист е запис в историята: „назад“ го затваря.
  */
-export function Sheet({ title, onClose, children, hideClose }: SheetProps) {
+export function Sheet({
+  title,
+  onClose,
+  children,
+  hideClose,
+  closeLabel = 'Готово',
+}: SheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   useSheetHistory(onClose);
   useEffect(() => {
@@ -52,7 +60,7 @@ export function Sheet({ title, onClose, children, hideClose }: SheetProps) {
               className="button button--quiet"
               onClick={onClose}
             >
-              Готово
+              {closeLabel}
             </button>
           )}
         </header>

@@ -141,6 +141,20 @@
       "when": 1793168253632,
       "tag": "0019_recipe_import",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793216558098,
+      "tag": "0020_shopping_item_per_ingredient",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793217834005,
+      "tag": "0021_shopping_list_by_week",
+      "breakpoints": true
     }
   ]
 }

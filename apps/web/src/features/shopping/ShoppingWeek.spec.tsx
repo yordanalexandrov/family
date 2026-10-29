@@ -1,8 +1,9 @@
+import { type ShoppingList, withCheck } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextWeek, thisWeek } from '../../test/menu';
-import { dani, fixtureNow } from '../../test/msw';
+import { dani, fixtureNow, poli } from '../../test/msw';
 import { pantryItem, servePantry } from '../../test/pantry';
 import { renderApp, setUpDevice } from '../../test/render';
 import {
@@ -12,6 +13,7 @@ import {
   onions,
   pantryRice,
   pantryShoppingList,
+  peppers,
   ranOutMilk,
   serveShopping,
   shoppingList,
@@ -68,22 +70,50 @@ describe('ShoppingWeek', () => {
     },
   );
 
-  it('седмица без меню: „Няма меню за тази седмица“ с линк към менюто', async () => {
+  it('седмица без меню (#129 D-11): празен списък с „+ Добави“, подсказка и линк към менюто', async () => {
     serveShopping();
 
     renderApp('/shopping');
 
     expect(
-      await screen.findByText('Няма меню за тази седмица'),
+      await screen.findByText(
+        'Менюто ще добави продуктите си, когато е готово',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '+ Добави' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Към менюто' })).toHaveAttribute(
       'href',
       '/menu',
     );
+    expect(screen.queryByText(/за купуване/)).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Тази седмица' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
+  });
+
+  it('седмица без меню: ръчен ред се добавя и се вижда в списъка, подсказката остава', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping();
+
+    renderApp('/shopping');
+    await user.click(await screen.findByRole('button', { name: '+ Добави' }));
+    const sheet = screen.getByRole('dialog', { name: 'Добави' });
+    await user.type(within(sheet).getByLabelText('Заглавие'), 'кафе');
+    await user.click(within(sheet).getByRole('button', { name: 'Добави' }));
+
+    expect(
+      await screen.findByRole('checkbox', { name: 'кафе' }),
+    ).toBeInTheDocument();
+    expect(shopping.requests).toMatchObject([
+      { method: 'POST', path: `${thisWeek}/items`, body: { title: 'кафе' } },
+    ]);
+    expect(screen.getByText('1 от 1')).toBeInTheDocument();
+    expect(
+      screen.getByText('Менюто ще добави продуктите си, когато е готово'),
+    ).toBeInTheDocument();
   });
 
   it('списък: щандовете в реда на api-то, редове с количество и единица, брояч', async () => {
@@ -105,7 +135,7 @@ describe('ShoppingWeek', () => {
       screen.getByRole('region', { name: 'Плод и зеленчук' }),
     ).getAllByRole('listitem');
     expect(rows[0]).toHaveTextContent('500 г');
-    expect(rows[1]).toHaveTextContent('2 бр.');
+    expect(rows[1]).toHaveTextContent('2 бр. + 750 г');
     expect(rows[2]).toHaveTextContent('3 бр.');
     const peppersRow = rows[2] as HTMLElement;
     expect(within(peppersRow).getByRole('checkbox')).toBeChecked();
@@ -204,6 +234,121 @@ describe('ShoppingWeek', () => {
     );
   });
 
+  describe('чужда отметка (#129 D-04)', () => {
+    beforeEach(() => setUpDevice('phone', poli.id));
+
+    it('първото докосване пита „Дани го взе. Махни отметката?“ и не праща нищо; „Махни“ я маха', async () => {
+      const user = userEvent.setup();
+      const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await user.click(await screen.findByRole('checkbox', { name: 'Чушки' }));
+
+      const row = screen.getByRole('checkbox', { name: 'Чушки' }).closest('li');
+      expect(row).not.toBeNull();
+      expect(row).toHaveTextContent('Дани го взе. Махни отметката?');
+      expect(screen.getByRole('checkbox', { name: 'Чушки' })).toBeChecked();
+      expect(shopping.requests).toEqual([]);
+
+      await user.click(
+        within(row as HTMLElement).getByRole('button', { name: 'Махни' }),
+      );
+
+      expect(screen.getByRole('checkbox', { name: 'Чушки' })).not.toBeChecked();
+      expect(await screen.findByText('6 от 6')).toBeInTheDocument();
+      await vi.waitFor(() =>
+        expect(shopping.requests).toEqual([
+          {
+            method: 'PUT',
+            path: `${thisWeek}/items/${peppers.key}/checked`,
+            body: { checked: false },
+            actingUser: poli.id,
+          },
+        ]),
+      );
+    });
+
+    it('след „Махни“ toast „Махна отметката на Дани · Върни“; „Върни“ праща пак checked: true', async () => {
+      const user = userEvent.setup();
+      const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await user.click(await screen.findByText('Чушки'));
+      await user.click(screen.getByRole('button', { name: 'Махни' }));
+
+      expect(
+        await screen.findByText('Махна отметката на Дани'),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+      expect(screen.getByRole('checkbox', { name: 'Чушки' })).toBeChecked();
+      expect(await screen.findByText('5 от 6')).toBeInTheDocument();
+      await vi.waitFor(() =>
+        expect(shopping.requests.map((r) => [r.body, r.actingUser])).toEqual([
+          [{ checked: false }, poli.id],
+          [{ checked: true }, poli.id],
+        ]),
+      );
+      expect(screen.queryByText('Махна отметката на Дани')).toBeNull();
+    });
+
+    it('ред, вече отметнат от Дани на сървъра, остава с неговия аватар веднага след отговора', async () => {
+      const user = userEvent.setup();
+      const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await screen.findByText('5 от 6');
+      shopping.lists[thisWeek] = withCheck(
+        shopping.lists[thisWeek] as ShoppingList,
+        tomatoes.key,
+        { checkedBy: dani.id, checkedAt: '2026-11-04T08:10:00.000Z' },
+      );
+      const gets = shopping.gets.length;
+      await user.click(screen.getByText('Домати'));
+
+      const row = screen
+        .getByRole('checkbox', { name: 'Домати' })
+        .closest('li');
+      expect(
+        await within(row as HTMLElement).findByTitle('Отметнато от Дани'),
+      ).toBeInTheDocument();
+      expect(shopping.gets.length).toBe(gets + 1);
+      expect(shopping.requests.map((r) => r.body)).toEqual([{ checked: true }]);
+    });
+
+    it('второ докосване на реда затваря въпроса, без да праща', async () => {
+      const user = userEvent.setup();
+      const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await user.click(await screen.findByText('Чушки'));
+      await user.click(screen.getByText('Чушки'));
+
+      expect(screen.queryByRole('button', { name: 'Махни' })).toBeNull();
+      expect(screen.getByRole('checkbox', { name: 'Чушки' })).toBeChecked();
+      expect(shopping.requests).toEqual([]);
+    });
+
+    it('своята отметка се маха с едно докосване, без въпрос', async () => {
+      const user = userEvent.setup();
+      const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await user.click(await screen.findByText('Домати'));
+      expect(await screen.findByText('4 от 6')).toBeInTheDocument();
+      await user.click(screen.getByText('Домати'));
+
+      expect(screen.queryByRole('button', { name: 'Махни' })).toBeNull();
+      expect(await screen.findByText('5 от 6')).toBeInTheDocument();
+      await vi.waitFor(() =>
+        expect(shopping.requests.map((r) => r.body)).toEqual([
+          { checked: true },
+          { checked: false },
+        ]),
+      );
+    });
+  });
+
   it('„+ Добави“ праща POST с ръчния ред; празно заглавие не се праща', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
@@ -272,6 +417,32 @@ describe('ShoppingWeek', () => {
     );
   });
 
+  it('„Скрий от списъка“ показва toast „Скри „Лук“ от списъка · Върни“; „Върни“ праща hidden: false', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+    renderApp('/shopping');
+    await user.click(await screen.findByRole('button', { name: 'Още за Лук' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Лук' })).getByRole('button', {
+        name: 'Скрий от списъка',
+      }),
+    );
+
+    expect(
+      await screen.findByText('Скри „Лук“ от списъка'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+    await vi.waitFor(() =>
+      expect(shopping.requests.map((r) => [r.path, r.body])).toEqual([
+        [`${thisWeek}/items/${onions.key}/hidden`, { hidden: true }],
+        [`${thisWeek}/items/${onions.key}/hidden`, { hidden: false }],
+      ]),
+    );
+    expect(screen.queryByText('Скри „Лук“ от списъка')).toBeNull();
+  });
+
   it('скритата секция се разгъва и „покажи“ праща hidden: false', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
@@ -321,7 +492,26 @@ describe('ShoppingWeek', () => {
     expect(shopping.requests).toEqual([]);
   });
 
-  it('„Изтрий“ в листа на ръчен ред иска потвърждение и праща DELETE', async () => {
+  it('продукт в две мерни единици: един ред с една отметка, а листът казва кое ястие колко иска', async () => {
+    const user = userEvent.setup();
+    serveShopping({ [thisWeek]: shoppingList() });
+
+    renderApp('/shopping');
+    expect(
+      await screen.findByRole('checkbox', { name: 'Лук' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Още за Лук' }));
+
+    const sources = within(
+      screen.getByRole('dialog', { name: 'Лук' }),
+    ).getAllByRole('listitem');
+    expect(sources.map((source) => source.textContent)).toEqual([
+      'понеделник, 2 ноември · Пиле с ориз · 2 бр.',
+      'четвъртък, 5 ноември · Лучена супа · 750 г + по вкус',
+    ]);
+  });
+
+  it('„Изтрий“ в листа на ръчен ред праща DELETE без потвърждение; „Върни“ го добавя пак', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
@@ -334,17 +524,27 @@ describe('ShoppingWeek', () => {
       within(sheet).queryByRole('button', { name: 'Скрий от списъка' }),
     ).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Изтрий' }));
-    expect(shopping.requests).toEqual([]);
-    const confirm = within(sheet).getByRole('alertdialog', {
-      name: 'Изтриване на Кафе',
-    });
-    await user.click(within(confirm).getByRole('button', { name: 'Изтрий' }));
 
     await vi.waitFor(() =>
       expect(shopping.requests).toEqual([
         expect.objectContaining({
           method: 'DELETE',
           path: `${thisWeek}/items/${coffee.key}`,
+        }),
+      ]),
+    );
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText('Изтри „Кафе“ от списъка')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+    await vi.waitFor(() =>
+      expect(shopping.requests.slice(1)).toEqual([
+        expect.objectContaining({
+          method: 'POST',
+          path: `${thisWeek}/items`,
+          body: { title: 'Кафе', quantity: 2, unit: 'pcs', aisle: 'other' },
         }),
       ]),
     );
@@ -359,7 +559,9 @@ describe('ShoppingWeek', () => {
     await user.click(screen.getByRole('tab', { name: 'Следваща седмица' }));
 
     expect(
-      await screen.findByText('Няма меню за тази седмица'),
+      await screen.findByText(
+        'Менюто ще добави продуктите си, когато е готово',
+      ),
     ).toBeInTheDocument();
     expect(shopping.gets).toContain(nextWeek);
   });
@@ -420,7 +622,7 @@ describe('ShoppingWeek', () => {
       expect(screen.queryByRole('checkbox', { name: 'Ориз' })).toBeNull();
     });
 
-    it('„Свърши“ на скрит ред праща POST /api/pantry/:id/ran-out', async () => {
+    it('„Свърши“ на скрит ред праща POST /api/pantry/:id/ran-out и казва, че продуктът е в списъка', async () => {
       const user = userEvent.setup();
       serveShopping({ [thisWeek]: pantryShoppingList() });
       const pantry = servePantry([
@@ -444,6 +646,9 @@ describe('ShoppingWeek', () => {
       await vi.waitFor(() =>
         expect(pantry).toEqual([{ method: 'POST', id: pantryRice.pantry?.id }]),
       );
+      expect(
+        await screen.findByText('Ориз е добавено в списъка'),
+      ).toBeInTheDocument();
     });
 
     it('значки: „свърши“ на свършил постоянен, „🏠 в килера — провери“ с бележката на временен', async () => {
@@ -555,18 +760,16 @@ describe('ShoppingWeek', () => {
       await user.click(
         screen.getByRole('button', { name: '🏠 Скрити от килера: 2' }),
       );
-      expect(
-        screen.getByRole('button', { name: 'Свърши Ориз' }),
-      ).toBeDisabled();
+      const ranOut = screen.getByRole('button', { name: 'Свърши Ориз' });
+      expect(ranOut).toBeDisabled();
+      expect(ranOut).toHaveAccessibleDescription('Иска връзка');
       await user.click(screen.getByRole('button', { name: 'Още за Домати' }));
       const sheet = screen.getByRole('dialog', { name: 'Домати' });
-      expect(
-        within(sheet).getByRole('button', { name: 'Имаме го винаги' }),
-      ).toBeDisabled();
-      expect(sheet).toHaveTextContent('Иска връзка');
-      expect(screen.getAllByText('Иска връзка').length).toBeGreaterThanOrEqual(
-        2,
-      );
+      const alwaysHave = within(sheet).getByRole('button', {
+        name: 'Имаме го винаги',
+      });
+      expect(alwaysHave).toBeDisabled();
+      expect(alwaysHave).toHaveAccessibleDescription('Иска връзка');
     });
   });
 });

@@ -27,16 +27,19 @@ function submitLabel(count: number): string {
 /**
  * „Добави в килера“: търсене в продуктите (`GET /api/ingredients?q=`) с избор на няколко, нов продукт на място
  * (`NewIngredientForm`), един вид и „Във фризера“ за целия избор и бележка по избор. Продуктите, които вече са в килера, не се
- * предлагат. Листът се затваря веднага; записът е оптимистичен.
+ * предлагат. Листът се затваря веднага; записът е оптимистичен. „Затвори“ горе не записва.
  */
 export function AddPantrySheet({
   inPantry,
   onClose,
+  onAdded,
   onError,
 }: {
   /** Id-тата на продуктите в килера. */
   inPantry: ReadonlySet<string>;
   onClose: () => void;
+  /** Изборът е записан (оптимистично): за съобщението и превъртането до него. */
+  onAdded: (ingredients: Ingredient[]) => void;
   onError: (message: string) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -85,11 +88,12 @@ export function AddPantrySheet({
         onError: (error) => onError(errorMessage(error)),
       },
     );
+    onAdded(selected);
     onClose();
   }
 
   return (
-    <Sheet title="Добави в килера" onClose={onClose}>
+    <Sheet title="Добави в килера" closeLabel="Затвори" onClose={onClose}>
       <form className="pantry__form" noValidate onSubmit={submit}>
         <Field label="Търси продукт">
           {(props) => (
@@ -179,7 +183,7 @@ export function AddPantrySheet({
               {...props}
               className="field__input"
               maxLength={PANTRY_NOTE_MAX}
-              placeholder="по избор, напр. фризер"
+              placeholder="напр. 500 г, отворено от понеделник"
               value={note}
               onChange={(event) => setNote(event.target.value)}
             />

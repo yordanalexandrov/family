@@ -12,11 +12,23 @@ export type ShoppingItemKind = z.infer<typeof shoppingItemKindSchema>;
 /** Longest title of a manual item ("кафе", "тоалетна хартия"). */
 export const MANUAL_ITEM_TITLE_MAX = 60;
 
-/** A meal a computed item comes from: the day, the meal and the recipe's title. */
+/** An amount of a row or a source: a quantity in its unit, `quantity: null` for a pinch. */
+export const shoppingAmountSchema = z.object({
+  quantity: quantitySchema,
+  unit: unitSchema,
+});
+
+export type ShoppingAmount = z.infer<typeof shoppingAmountSchema>;
+
+/**
+ * A meal a computed item comes from: the day, the meal, the recipe's title and how much the meal wants, scaled to its
+ * servings, one amount per unit (`amounts` is absent in a list cached offline before it was sent).
+ */
 export const shoppingItemSourceSchema = z.object({
   date: dateKeySchema,
   mealId: z.uuid(),
   recipeTitle: z.string(),
+  amounts: z.array(shoppingAmountSchema).optional(),
 });
 
 export type ShoppingItemSource = z.infer<typeof shoppingItemSourceSchema>;
@@ -35,11 +47,13 @@ export const shoppingItemPantrySchema = z.object({
 export type ShoppingItemPantry = z.infer<typeof shoppingItemPantrySchema>;
 
 /**
- * One line of a shopping list (GLOSSARY: Ред от списъка). A computed item is an ingredient in one unit, keyed
- * `<ingredientId>:<unit>`, with `quantity: null` for a pinch; a manual item is keyed `manual:<id>` and has no sources.
+ * One line of a shopping list (GLOSSARY: Ред от списъка). A computed item is an ingredient, keyed `<ingredientId>`, with
+ * `quantity: null` for a pinch; units that do not convert into each other (бр. and г) stay apart: `quantity`/`unit`
+ * is the amount in the ingredient's base unit (or the first unit by `unitSchema` order) and `extraAmounts` the other
+ * units, absent when there are none („лук 3 бр. + 750 г“). A manual item is keyed `manual:<id>` and has no sources.
  * `checkedBy`/`checkedAt` are the check (GLOSSARY: Отметка); `hidden` is a hidden item, computed only. `pantry` is
  * there when the ingredient is in the pantry; a staple that ran out and the menu does not want is a computed row
- * without quantity and unit, keyed `<ingredientId>:none`. `ingredientId` is the ingredient of a computed row (absent
+ * without quantity and unit. `ingredientId` is the ingredient of a computed row (absent
  * on a manual one, and in a list cached offline before it was sent).
  */
 export const shoppingItemSchema = z.object({
@@ -49,6 +63,7 @@ export const shoppingItemSchema = z.object({
   title: z.string(),
   quantity: quantitySchema,
   unit: unitSchema.nullable(),
+  extraAmounts: z.array(shoppingAmountSchema).optional(),
   aisle: aisleSchema,
   checkedBy: z.uuid().nullable(),
   checkedAt: instantSchema.nullable(),
@@ -60,13 +75,16 @@ export const shoppingItemSchema = z.object({
 export type ShoppingItem = z.infer<typeof shoppingItemSchema>;
 
 /**
- * The shopping list of one weekly menu (GLOSSARY: Списък за пазаруване): the visible items by aisle in walking order
- * (empty aisles left out), the hidden items apart. `pantryHidden` are the rows hidden by the pantry: unchecked rows of
+ * The shopping list of one week (GLOSSARY: Списък за пазаруване): the visible items by aisle in walking order
+ * (empty aisles left out), the hidden items apart. `hasMenu: false` is a week without a menu (#129 D-11): no rows computed
+ * from a menu, only the manual items and the staples that ran out. `pantryHidden` are the rows hidden by the pantry: unchecked rows of
  * a staple that has not run out („🏠 Скрити от килера“), apart from the manually hidden ones. `total` and `remaining`
  * (not checked) count the visible items only.
  */
 export const shoppingListSchema = z.object({
   weekStart: weekStartSchema,
+  // A list cached offline before lists without a menu always had one.
+  hasMenu: z.boolean().default(true),
   aisles: z.array(
     z.object({ aisle: aisleSchema, items: z.array(shoppingItemSchema) }),
   ),
@@ -81,7 +99,7 @@ export type ShoppingList = z.infer<typeof shoppingListSchema>;
 
 /**
  * A stored `shopping_item` as `buildShoppingList` reads it: for a computed item only the check and `hidden` (its key
- * is `<ingredientId>:<unit>`), for a manual item the whole line (`manual:<id>`).
+ * is `<ingredientId>`), for a manual item the whole line (`manual:<id>`).
  */
 export interface ShoppingItemRecord {
   itemKey: string;
@@ -124,12 +142,15 @@ export const shoppingItemResponseSchema = z.object({
   item: shoppingItemSchema,
 });
 
-/** `/api/shopping-lists/:weekStart…`: the list is addressed by its menu's week. */
+/** `/api/shopping-lists/:weekStart…`: the list is addressed by its week, with or without a menu. */
 export const shoppingListParamsSchema = z.object({
   weekStart: weekStartSchema,
 });
 
-/** `…/items/:key`: the item's key as is (`<ingredientId>:<unit>` or `manual:<id>`), URL-encoded by the client. */
+/**
+ * `…/items/:key`: the item's key as is (`<ingredientId>` or `manual:<id>`), URL-encoded by the client; an old
+ * `<ingredientId>:<unit>` is read as `<ingredientId>`.
+ */
 export const shoppingItemParamsSchema = shoppingListParamsSchema.extend({
   key: z.string().min(1),
 });

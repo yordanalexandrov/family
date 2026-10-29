@@ -2,6 +2,7 @@ import {
   AISLES,
   type Aisle,
   addDays,
+  type CreateManualItem,
   type DateKey,
   dateKeyInSofia,
   formatAge,
@@ -15,21 +16,24 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { useUsers } from '../../api/queries';
+import { queryKeys, useUsers } from '../../api/queries';
+import { useActingUser } from '../../app/acting-user';
 import { ScreenHeader } from '../../app/ScreenHeader';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
+import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
-import { Toast } from '../../components/Toast';
-import { formatDate, formatNumber, formatQuantity } from '../../lib/format';
+import { Toast, type ToastMessage } from '../../components/Toast';
+import { formatAmounts, formatDate, formatNumber } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
-import { NEEDS_CONNECTION, useOnline } from '../../lib/use-online';
+import { useOnline } from '../../lib/use-online';
 import { usePlan } from '../menu/queries';
 import { useMakeStaple, useMarkRanOut } from '../pantry/queries';
 import { AddItemSheet } from './AddItemSheet';
 import {
   OfflineError,
   shoppingKeys,
+  useAddManualItem,
   useDeleteManualItem,
   useSetHidden,
   useShoppingWeek,
@@ -90,12 +94,16 @@ export function ShoppingWeek() {
   );
 }
 
-/** При върната връзка списъкът се презарежда, а с това се изпраща и опашката. */
+/**
+ * При върната връзка списъкът се презарежда, а с това се изпраща и опашката; хората също, за да се вижда кой какво е
+ * взел (аватарите).
+ */
 function useRefreshWhenOnline() {
   const queryClient = useQueryClient();
   useEffect(() => {
     function onOnline() {
       void queryClient.invalidateQueries({ queryKey: shoppingKeys.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users });
     }
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
@@ -112,26 +120,18 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
   if (week.isError) {
     return <ErrorBox error={week.error} onRetry={() => void week.refetch()} />;
   }
-  if (week.data.kind === 'no_plan') {
-    return (
-      <div className="recipes__empty">
-        <p>Няма меню за тази седмица</p>
-        <Link to="/menu" className="button">
-          Към менюто
-        </Link>
-      </div>
-    );
-  }
   const { list, staleSince, pending } = week.data;
   return (
     <>
       <NotAgreed weekStart={weekStart} now={now} />
-      <p className="shopping__count">
-        <span className="shopping__count-value">
-          {list.remaining} от {list.total}
-        </span>{' '}
-        за купуване
-      </p>
+      {list.total > 0 && (
+        <p className="shopping__count">
+          <span className="shopping__count-value">
+            {list.remaining} от {list.total}
+          </span>{' '}
+          за купуване
+        </p>
+      )}
       {staleSince && (
         <p className="shopping__stale" role="status">
           Няма връзка · остарели данни от {formatAge(staleSince, now)}
@@ -144,7 +144,12 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
             : `${pending} отметки чакат връзка`}
         </p>
       )}
-      <ListView list={list} weekStart={weekStart} users={users.data ?? []} />
+      <ListView
+        list={list}
+        weekStart={weekStart}
+        now={now}
+        users={users.data ?? []}
+      />
     </>
   );
 }
@@ -188,41 +193,99 @@ function countWaiting(plan: MealPlan, users: User[], now: Date): number {
 interface ListViewProps {
   list: ShoppingList;
   weekStart: DateKey;
+  now: Date;
   users: User[];
 }
 
-function ListView({ list, weekStart, users }: ListViewProps) {
+function ListView({ list, weekStart, now, users }: ListViewProps) {
   const toggle = useToggleCheck(weekStart);
   const setHidden = useSetHidden(weekStart);
   const deleteItem = useDeleteManualItem(weekStart);
+  const addItem = useAddManualItem(weekStart);
   const markRanOut = useMarkRanOut();
   const makeStaple = useMakeStaple();
   const online = useOnline();
+  const addOffline = useNeedsConnection(online, 'shopping__add-hint');
+  const ranOutOffline = useNeedsConnection(online);
   const [sourcesOf, setSourcesOf] = useState<ShoppingItem | null>(null);
   const [adding, setAdding] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [showPantry, setShowPantry] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  // Стабилно: иначе всяко опресняване на списъка рестартира таймера на toast-а.
+  const clearToast = useCallback(() => setToast(null), []);
+  const { actingUserId } = useActingUser();
+  /** Чуждата отметка, която чака „Махни“ (ключът на реда). */
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   function onError(error: unknown) {
-    setToast(
-      error instanceof OfflineError
-        ? 'Няма връзка'
-        : error instanceof Error
-          ? error.message
-          : 'Нещо се обърка',
-    );
+    setToast({
+      message:
+        error instanceof OfflineError
+          ? 'Няма връзка'
+          : error instanceof Error
+            ? error.message
+            : 'Нещо се обърка',
+    });
   }
 
   const held = useHeldOrder(list.aisles);
+  function setCheck(item: ShoppingItem) {
+    held.hold();
+    void toggle(item);
+  }
+  /** Чужда отметка се маха чак след „Махни“ (#129 D-04); „Върни“ в toast-а я слага пак, вече от действащия. */
+  function uncheckForeign(item: ShoppingItem, by: User | undefined) {
+    setConfirming(null);
+    setCheck(item);
+    setToast({
+      message: by ? `Махна отметката на ${by.name}` : 'Махна отметката',
+      undo: () => setCheck({ ...item, checkedBy: null }),
+    });
+  }
   const rowActions: RowActions = {
     onToggle: (item) => {
-      held.hold();
-      void toggle(item);
+      if (isForeignCheck(item, actingUserId)) {
+        setConfirming((key) => (key === item.key ? null : item.key));
+        return;
+      }
+      setCheck(item);
     },
     onSources: setSourcesOf,
+    onUncheckForeign: uncheckForeign,
   };
   const closeSheet = () => setSourcesOf(null);
+
+  /** „Скрий от списъка“ тръгва веднага; „Върни“ в toast-а го показва пак (#129 D-05). */
+  function hide(item: ShoppingItem) {
+    setHidden.mutate(
+      { item, hidden: true },
+      {
+        onError,
+        onSuccess: () => {
+          closeSheet();
+          setToast({
+            message: `Скри „${item.title}“ от списъка`,
+            undo: () => setHidden.mutate({ item, hidden: false }, { onError }),
+          });
+        },
+      },
+    );
+  }
+
+  /** Изтриване на ръчен ред тръгва веднага; „Върни“ го добавя пак със същото заглавие, количество и щанд. */
+  function deleteManual(item: ShoppingItem) {
+    deleteItem.mutate(item, {
+      onError,
+      onSuccess: () => {
+        closeSheet();
+        setToast({
+          message: `Изтри „${item.title}“ от списъка`,
+          undo: () => addItem.mutate(manualItemOf(item), { onError }),
+        });
+      },
+    });
+  }
 
   function alwaysHave(item: ShoppingItem) {
     const { ingredientId } = item;
@@ -238,7 +301,7 @@ function ListView({ list, weekStart, users }: ListViewProps) {
   return (
     <>
       {list.aisles.length === 0 ? (
-        <p className="shopping__empty">Списъкът е празен.</p>
+        list.hasMenu && <p className="shopping__empty">Списъкът е празен.</p>
       ) : (
         <div ref={held.listRef} className="shopping__list">
           {held.aisles.map(({ aisle, items }) => (
@@ -254,6 +317,10 @@ function ListView({ list, weekStart, users }: ListViewProps) {
                     key={item.key}
                     item={item}
                     checkedBy={users.find((u) => u.id === item.checkedBy)}
+                    confirming={
+                      confirming === item.key &&
+                      isForeignCheck(item, actingUserId)
+                    }
                     {...rowActions}
                   />
                 ))}
@@ -262,13 +329,33 @@ function ListView({ list, weekStart, users }: ListViewProps) {
           ))}
         </div>
       )}
-      <button
-        type="button"
-        className="button shopping__add"
-        onClick={() => setAdding(true)}
-      >
-        + Добави
-      </button>
+      {!list.hasMenu && (
+        <div className="shopping__no-menu">
+          <p className="shopping__empty">
+            Менюто ще добави продуктите си, когато е готово
+          </p>
+          <Link
+            to="/menu"
+            search={weekStart === weekStartOf(now) ? {} : { week: weekStart }}
+            className="button button--quiet"
+          >
+            Към менюто
+          </Link>
+        </div>
+      )}
+      {/* Плаващ над долната лента вдясно, в зоната на палеца (#129 D-10), с „Иска връзка“ до себе си. */}
+      <div className="shopping__add">
+        {addOffline.hint}
+        <button
+          type="button"
+          className="button shopping__add-button"
+          disabled={addOffline.disabled}
+          aria-describedby={addOffline.describedBy}
+          onClick={() => setAdding(true)}
+        >
+          + Добави
+        </button>
+      </div>
       {list.hidden.length > 0 && (
         <section className="shopping__hidden">
           <button
@@ -336,10 +423,17 @@ function ListView({ list, weekStart, users }: ListViewProps) {
                       type="button"
                       className="button button--quiet shopping-item__action"
                       aria-label={`Свърши ${item.title}`}
-                      disabled={!online || !item.pantry}
+                      disabled={ranOutOffline.disabled || !item.pantry}
+                      aria-describedby={ranOutOffline.describedBy}
                       onClick={() =>
                         item.pantry &&
-                        markRanOut.mutate(item.pantry.id, { onError })
+                        markRanOut.mutate(item.pantry.id, {
+                          onError,
+                          onSuccess: () =>
+                            setToast({
+                              message: `${item.title} е добавено в списъка`,
+                            }),
+                        })
                       }
                     >
                       Свърши
@@ -347,7 +441,7 @@ function ListView({ list, weekStart, users }: ListViewProps) {
                   </li>
                 ))}
               </ul>
-              {!online && <p className="shopping__hint">{NEEDS_CONNECTION}</p>}
+              {ranOutOffline.hint}
             </>
           )}
           <Link to="/pantry" className="shopping__pantry-link">
@@ -360,22 +454,19 @@ function ListView({ list, weekStart, users }: ListViewProps) {
           item={sourcesOf}
           online={online}
           onAlwaysHave={alwaysHave}
-          onHide={(item) =>
-            setHidden.mutate(
-              { item, hidden: true },
-              { onError, onSuccess: closeSheet },
-            )
-          }
-          onDelete={(item) =>
-            deleteItem.mutate(item, { onError, onSuccess: closeSheet })
-          }
+          onHide={hide}
+          onDelete={deleteManual}
           onClose={closeSheet}
         />
       )}
       {adding && (
         <AddItemSheet weekStart={weekStart} onClose={() => setAdding(false)} />
       )}
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast
+        message={toast?.message ?? null}
+        onDone={clearToast}
+        undo={toast?.undo}
+      />
     </>
   );
 }
@@ -431,12 +522,25 @@ function position(keys: string[], key: string): number {
   return index === -1 ? Number.POSITIVE_INFINITY : index;
 }
 
-/** „200 г“, „2 бр.“, „по вкус“; ръчен ред без количество — нищо. */
+/** Ръчният ред като `POST` за „Върни“ след изтриването му. */
+function manualItemOf(item: ShoppingItem): CreateManualItem {
+  return {
+    title: item.title,
+    ...(item.quantity === null ? {} : { quantity: item.quantity }),
+    ...(item.unit === null ? {} : { unit: item.unit }),
+    aisle: item.aisle,
+  };
+}
+
+/** „200 г“, „2 бр.“, „по вкус“, „3 бр. + 750 г“; ръчен ред без количество — нищо. */
 function formatItemQuantity(item: ShoppingItem): string {
   if (item.unit === null) {
     return item.quantity === null ? '' : formatNumber(item.quantity);
   }
-  return formatQuantity({ quantity: item.quantity, unit: item.unit });
+  return formatAmounts([
+    { quantity: item.quantity, unit: item.unit },
+    ...(item.extraAmounts ?? []),
+  ]);
 }
 
 /** „свърши“ на свършил постоянен продукт; „🏠 в килера — провери“ и бележката на временен. */
@@ -459,21 +563,38 @@ function PantryBadge({ item }: { item: ShoppingItem }) {
   return null;
 }
 
+/** Отметнат от друг, не от действащия потребител на устройството. */
+function isForeignCheck(item: ShoppingItem, actingUserId: string | null) {
+  return (
+    item.checkedBy !== null &&
+    actingUserId !== null &&
+    item.checkedBy !== actingUserId
+  );
+}
+
 interface RowActions {
   onToggle: (item: ShoppingItem) => void;
   onSources: (item: ShoppingItem) => void;
+  /** „Махни“ на чужда отметка; `by` е отметналият (без списъка с хората — неизвестен). */
+  onUncheckForeign: (item: ShoppingItem, by: User | undefined) => void;
 }
 
 /**
  * Редът е една цел за отметка: докосване където и да е го отмята, а голямата отметка е вдясно, в зоната на палеца.
- * ⓘ отваря менюто на реда и не отмята.
+ * ⓘ отваря менюто на реда и не отмята. Чужда отметка не се маха с докосване: редът пита и чака „Махни“.
  */
 function ItemRow({
   item,
   checkedBy,
+  confirming,
   onToggle,
   onSources,
-}: RowActions & { item: ShoppingItem; checkedBy: User | undefined }) {
+  onUncheckForeign,
+}: RowActions & {
+  item: ShoppingItem;
+  checkedBy: User | undefined;
+  confirming: boolean;
+}) {
   const checkId = useId();
   const checked = item.checkedBy !== null;
   const manual = item.kind === 'manual';
@@ -525,6 +646,21 @@ function ItemRow({
           onChange={() => onToggle(item)}
         />
       </label>
+      {confirming && (
+        <p className="shopping-item__confirm" role="status">
+          <span>
+            {checkedBy ? `${checkedBy.name} го взе.` : 'Вече е взето.'} Махни
+            отметката?
+          </span>
+          <button
+            type="button"
+            className="button shopping-item__confirm-action"
+            onClick={() => onUncheckForeign(item, checkedBy)}
+          >
+            Махни
+          </button>
+        </p>
+      )}
     </li>
   );
 }

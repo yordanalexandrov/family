@@ -25,19 +25,32 @@ function toRecord(row: ItemRow): ShoppingItemRecord {
   };
 }
 
-/** The id of the plan's shopping list, created on the first call; safe to call concurrently. */
+/**
+ * The id of the week's shopping list, created on the first call and linked to the week's menu once there is one
+ * (`planId`), so its manual items stay when the menu comes later; safe to call concurrently.
+ */
 export async function ensureShoppingList(
   db: DbExecutor,
-  planId: string,
+  weekStart: string,
+  planId: string | null,
 ): Promise<string> {
-  await db.insert(shoppingList).values({ planId }).onConflictDoNothing();
+  await db
+    .insert(shoppingList)
+    .values({ weekStart, planId })
+    .onConflictDoNothing();
   const [row] = await db
-    .select({ id: shoppingList.id })
+    .select({ id: shoppingList.id, planId: shoppingList.planId })
     .from(shoppingList)
-    .where(eq(shoppingList.planId, planId))
+    .where(eq(shoppingList.weekStart, weekStart))
     .limit(1);
   if (!row) {
-    throw new Error(`shopping list of plan ${planId} vanished`);
+    throw new Error(`shopping list of week ${weekStart} vanished`);
+  }
+  if (planId !== null && row.planId !== planId) {
+    await db
+      .update(shoppingList)
+      .set({ planId })
+      .where(eq(shoppingList.id, row.id));
   }
   return row.id;
 }

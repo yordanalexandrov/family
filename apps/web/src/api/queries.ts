@@ -9,7 +9,8 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useActingUser } from '../app/acting-user';
-import { apiFetch } from './client';
+import { offlineCache } from '../lib/offline-cache';
+import { apiFetch, isConnectionError } from './client';
 
 export const queryKeys = {
   users: ['users'] as const,
@@ -19,16 +20,36 @@ export const queryKeys = {
     ['calendar-events', from, to] as const,
 };
 
-export function fetchUsers() {
-  return apiFetch('/users', usersResponseSchema).then((body) => body.users);
-}
-
 export function fetchMe() {
   return apiFetch('/me', meResponseSchema);
 }
 
+/** Последните хора от api-то: без връзка аватарите (кой какво е отметнал) идват от тук. */
+const usersCache = offlineCache('family.users', usersResponseSchema, 'хората');
+
+/** Хората от api-то, а без връзка последните записани; без запис грешката остава. */
+async function fetchUsers() {
+  try {
+    const body = await apiFetch('/users', usersResponseSchema);
+    usersCache.write(body, new Date());
+    return body.users;
+  } catch (error) {
+    const cached = isConnectionError(error) ? usersCache.read() : null;
+    if (!cached) {
+      throw error;
+    }
+    return cached.data.users;
+  }
+}
+
+/** Хората; пазят се в кеша като списъка за пазаруване, затова се виждат и без връзка. */
 export function useUsers() {
-  return useQuery({ queryKey: queryKeys.users, queryFn: fetchUsers });
+  return useQuery({
+    queryKey: queryKeys.users,
+    queryFn: fetchUsers,
+    // Без връзка заявката пак тръгва и чете кеша, вместо да чака.
+    networkMode: 'always',
+  });
 }
 
 export function useMe() {

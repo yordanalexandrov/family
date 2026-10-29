@@ -208,7 +208,7 @@ export function GlassScreen() {
       <Toast
         message={toast}
         onDone={hideToast}
-        action={{ label: 'Върни', onAction: () => setUndone((n) => n + 1) }}
+        undo={() => setUndone((n) => n + 1)}
       />
     </div>
   );

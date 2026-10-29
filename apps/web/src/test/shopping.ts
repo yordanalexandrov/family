@@ -19,7 +19,7 @@ function computed(
   overrides: Partial<ShoppingItem>,
 ): ShoppingItem {
   return {
-    key: `${ingredient(n)}:${unit}`,
+    key: ingredient(n),
     kind: 'computed',
     ingredientId: ingredient(n),
     title: '',
@@ -48,12 +48,28 @@ export const tomatoes = computed(1, 'g', {
   ],
 });
 
+/** Лук в две мерни единици, които не се превръщат една в друга: един ред с две количества (#152). */
 export const onions = computed(2, 'pcs', {
   title: 'Лук',
   quantity: 2,
+  extraAmounts: [{ quantity: 750, unit: 'g' }],
   aisle: 'produce',
   sources: [
-    { date: '2026-11-02', mealId: mealId(0), recipeTitle: 'Пиле с ориз' },
+    {
+      date: '2026-11-02',
+      mealId: mealId(0),
+      recipeTitle: 'Пиле с ориз',
+      amounts: [{ quantity: 2, unit: 'pcs' }],
+    },
+    {
+      date: '2026-11-05',
+      mealId: mealId(3),
+      recipeTitle: 'Лучена супа',
+      amounts: [
+        { quantity: 750, unit: 'g' },
+        { quantity: null, unit: 'pinch' },
+      ],
+    },
   ],
 });
 
@@ -118,15 +134,33 @@ export function shoppingList(weekStart = thisWeek): ShoppingList {
   });
 }
 
-export function noPlan() {
-  return HttpResponse.json(
-    {
-      error: 'not_found',
-      code: 'no_plan',
-      message: 'Няма меню за тази седмица',
-    },
-    { status: 404 },
-  );
+/** Списъкът на седмица без меню, както го дава api-то (#129 D-11): без редове от меню. */
+export function withoutMenu(weekStart: string): ShoppingList {
+  return shoppingListSchema.parse({
+    weekStart,
+    hasMenu: false,
+    aisles: [],
+    hidden: [],
+    total: 0,
+    remaining: 0,
+  });
+}
+
+/** Като api-то: ръчният ред отива в края на щанда си. */
+function withItem(list: ShoppingList, item: ShoppingItem): ShoppingList {
+  const aisles = list.aisles.some((group) => group.aisle === item.aisle)
+    ? list.aisles.map((group) =>
+        group.aisle === item.aisle
+          ? { ...group, items: [...group.items, item] }
+          : group,
+      )
+    : [...list.aisles, { aisle: item.aisle, items: [item] }];
+  return {
+    ...list,
+    aisles,
+    total: list.total + 1,
+    remaining: list.remaining + 1,
+  };
 }
 
 export interface ShoppingRequest {
@@ -137,8 +171,8 @@ export interface ShoppingRequest {
 }
 
 /**
- * `/api/shopping-lists/:weekStart…` върху `lists` като api: седмица без списък е 404 `no_plan`; отметката се
- * прилага като в api (отметнатите в края на щанда). Връща заявките за промяна по ред.
+ * `/api/shopping-lists/:weekStart…` върху `lists` като api: седмица без списък е списък без меню; отметката се
+ * прилага като в api (отметнатите в края на щанда, отметнат ред пази първата отметка). Връща заявките за промяна по ред.
  */
 export function serveShopping(lists: Record<string, ShoppingList> = {}) {
   const requests: ShoppingRequest[] = [];
@@ -168,21 +202,21 @@ export function serveShopping(lists: Record<string, ShoppingList> = {}) {
     http.get(base, ({ params }) => {
       const week = String(params.weekStart);
       gets.push(week);
-      const list = lists[week];
-      return list ? HttpResponse.json({ list }) : noPlan();
+      return HttpResponse.json({ list: lists[week] ?? withoutMenu(week) });
     }),
     http.put(`${base}/items/:key/checked`, async ({ params, request }) => {
       const week = String(params.weekStart);
       const key = String(params.key);
       const body = await record(request, `${week}/items/${key}/checked`);
       const list = lists[week];
-      if (!list) {
-        return noPlan();
-      }
-      if (!find(list, key)) {
+      if (!list || !find(list, key)) {
         return notFound();
       }
       const checked = body.checked === true;
+      // Като api-то: отметка върху отметнат ред пази първата (#129 D-04).
+      if (checked && find(list, key)?.checkedBy) {
+        return HttpResponse.json({ item: find(list, key) });
+      }
       lists[week] = withCheck(list, key, {
         checkedBy: checked ? request.headers.get('x-acting-user') : null,
         checkedAt: checked ? '2026-11-04T08:30:00.000Z' : null,
@@ -208,6 +242,7 @@ export function serveShopping(lists: Record<string, ShoppingList> = {}) {
         unit: (body.unit as ShoppingItem['unit']) ?? null,
         aisle: (body.aisle as ShoppingItem['aisle']) ?? 'other',
       };
+      lists[week] = withItem(lists[week] ?? withoutMenu(week), item);
       return HttpResponse.json({ item }, { status: 201 });
     }),
     http.delete(`${base}/items/:key`, async ({ params, request }) => {
@@ -237,7 +272,6 @@ export const ranOutMilk: ShoppingItem = {
 
 /** Свършил постоянен продукт, който менюто не иска: ред без количество. */
 export const ranOutOil = computed(8, null, {
-  key: `${ingredient(8)}:none`,
   title: 'Слънчогледово олио',
   aisle: 'spices',
   pantry: { id: pantryId(3), kind: 'staple', ranOut: true },

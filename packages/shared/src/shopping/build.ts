@@ -1,3 +1,4 @@
+import type { DateKey } from '../dashboard/time.js';
 import { AISLES, type Aisle } from '../food/aisles.js';
 import { normalizeQuantity, type Unit, unitSchema } from '../food/units.js';
 import { totalServings } from '../menu/meal.js';
@@ -5,27 +6,32 @@ import type { MealPlan } from '../schemas/menu.js';
 import type { PantryItem } from '../schemas/pantry.js';
 import type { Recipe } from '../schemas/recipe.js';
 import type {
+  ShoppingAmount,
   ShoppingItem,
   ShoppingItemPantry,
   ShoppingItemRecord,
+  ShoppingItemSource,
   ShoppingList,
 } from '../schemas/shopping.js';
 import { computedItemKey } from './item-key.js';
 
 export interface BuildShoppingListInput {
-  plan: MealPlan;
+  weekStart: DateKey;
+  /** The week's menu; `null` for a week without one (#129 D-11), whose list has no rows computed from a menu. */
+  plan: MealPlan | null;
   /** The recipes of the plan's meals, with their ingredients. A meal whose recipe is missing adds nothing. */
   recipes: Recipe[];
-  /** The stored `shopping_item` records of the plan's list. */
+  /** The stored `shopping_item` records of the week's list. */
   items: ShoppingItemRecord[];
   /** The pantry (GLOSSARY: Килер); without it no row is hidden by the pantry. */
   pantry?: PantryItem[];
 }
 
 /**
- * The shopping list of a weekly menu (GLOSSARY: Списък за пазаруване): every meal with a recipe and servings adds the
- * recipe's ingredients scaled to its servings, summed per ingredient and unit (kg → g, l → ml) over the week and
- * rounded up; a pinch is one row without a quantity. The stored records add checks, hidden items and manual items.
+ * The shopping list of a week (GLOSSARY: Списък за пазаруване): every meal of its menu with a recipe and servings adds the
+ * recipe's ingredients scaled to its servings, summed per ingredient over the week: one row per ingredient, one
+ * amount per unit that does not convert into another (kg → g, l → ml), each rounded up;
+ * a pinch has no quantity. The stored records add checks, hidden items and manual items.
  *
  * The pantry: a row of a staple is hidden by the pantry (`pantryHidden`) unless it ran out or is checked; a staple
  * that ran out and the menu does not want gets a row without a quantity, kept while it is checked. A staple that ran
@@ -33,15 +39,18 @@ export interface BuildShoppingListInput {
  * count. A row of a use-up item stays as it is, marked with the note.
  */
 export function buildShoppingList({
+  weekStart,
   plan,
   recipes,
   items: records,
   pantry = [],
 }: BuildShoppingListInput): ShoppingList {
   const recipesById = new Map(recipes.map((r) => [r.id, r]));
-  const computed = new Map<string, ShoppingItem & { ingredientId: string }>();
+  const computed = new Map<string, ComputedRow>();
   const notInMenu = new Set<string>();
-  const meals = [...plan.meals].sort((a, b) => a.date.localeCompare(b.date));
+  const meals = [...(plan?.meals ?? [])].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
   for (const meal of meals) {
     const recipe = meal.recipeId ? recipesById.get(meal.recipeId) : undefined;
     const servings = totalServings(meal.servings);
@@ -51,31 +60,27 @@ export function buildShoppingList({
     const factor = servings / recipe.servings;
     for (const line of recipe.ingredients) {
       const { quantity, unit } = normalizeQuantity(line.quantity, line.unit);
-      const key = computedItemKey(line.ingredientId, unit);
-      const item = computed.get(key) ?? {
+      const key = computedItemKey(line.ingredientId);
+      const row = computed.get(key) ?? {
         key,
-        kind: 'computed',
         ingredientId: line.ingredientId,
         title: line.ingredient.name,
-        quantity: null,
-        unit,
         aisle: line.ingredient.aisle,
-        checkedBy: null,
-        checkedAt: null,
-        hidden: false,
-        sources: [],
+        baseUnit: line.ingredient.unit,
+        totals: new Map(),
+        sources: new Map(),
       };
-      if (quantity !== null) {
-        item.quantity = (item.quantity ?? 0) + quantity * factor;
-      }
-      if (!item.sources.some((source) => source.mealId === meal.id)) {
-        item.sources.push({
-          date: meal.date,
-          mealId: meal.id,
-          recipeTitle: recipe.title,
-        });
-      }
-      computed.set(key, item);
+      const scaled = quantity === null ? null : quantity * factor;
+      addAmount(row.totals, unit, scaled);
+      const source = row.sources.get(meal.id) ?? {
+        date: meal.date,
+        mealId: meal.id,
+        recipeTitle: recipe.title,
+        totals: new Map(),
+      };
+      addAmount(source.totals, unit, scaled);
+      row.sources.set(meal.id, source);
+      computed.set(key, row);
     }
   }
   const pantryByIngredient = new Map(
@@ -88,19 +93,15 @@ export function buildShoppingList({
     if (entry.kind !== 'staple' || wanted.has(entry.ingredient.id)) {
       continue;
     }
-    const key = computedItemKey(entry.ingredient.id, null);
+    const key = computedItemKey(entry.ingredient.id);
     computed.set(key, {
       key,
-      kind: 'computed',
       ingredientId: entry.ingredient.id,
       title: entry.ingredient.name,
-      quantity: null,
-      unit: null,
       aisle: entry.ingredient.aisle,
-      checkedBy: null,
-      checkedAt: null,
-      hidden: false,
-      sources: [],
+      baseUnit: null,
+      totals: new Map(),
+      sources: new Map(),
     });
     notInMenu.add(key);
   }
@@ -115,12 +116,20 @@ export function buildShoppingList({
     const counts =
       overlay?.checkedAt != null &&
       (ranOutAt === null || overlay.checkedAt >= ranOutAt);
+    const [first, ...extra] = amountsOf(item.totals, item.baseUnit, roundUp);
     const row: ShoppingItem = {
-      ...item,
-      quantity:
-        item.quantity === null || item.unit === null
-          ? item.quantity
-          : roundUp(item.quantity, item.unit),
+      key: item.key,
+      kind: 'computed',
+      ingredientId: item.ingredientId,
+      title: item.title,
+      quantity: first?.quantity ?? null,
+      unit: first?.unit ?? null,
+      ...(extra.length > 0 && { extraAmounts: extra }),
+      aisle: item.aisle,
+      sources: [...item.sources.values()].map(({ totals, ...source }) => ({
+        ...source,
+        amounts: amountsOf(totals, item.baseUnit, roundMeal),
+      })),
       checkedBy: counts ? (overlay?.checkedBy ?? null) : null,
       checkedAt: counts ? (overlay?.checkedAt ?? null) : null,
       // Every list shows a staple that ran out, so a hand-hidden row of it is visible until it is bought.
@@ -143,13 +152,63 @@ export function buildShoppingList({
   const flat = (rows: ShoppingItem[]) =>
     byAisle(rows).flatMap(({ items }) => items);
   return {
-    weekStart: plan.weekStart,
+    weekStart,
+    hasMenu: plan !== null,
     aisles: byAisle(visible),
     hidden: flat(items.filter((item) => item.hidden)),
     pantryHidden: flat(items.filter(byPantry)),
     total: visible.length,
     remaining: visible.filter((item) => item.checkedBy === null).length,
   };
+}
+
+/** A computed row while the week is summed: the quantity per unit over the week and per meal. */
+interface ComputedRow {
+  key: string;
+  ingredientId: string;
+  title: string;
+  aisle: Aisle;
+  /** The ingredient's base unit; `null` on the row of a staple the menu does not want, which has no amounts. */
+  baseUnit: Unit | null;
+  /** The sum per unit after normalization; `null` for a pinch. */
+  totals: Map<Unit, number | null>;
+  sources: Map<
+    string,
+    Omit<ShoppingItemSource, 'amounts'> & { totals: Map<Unit, number | null> }
+  >;
+}
+
+/** Adds an amount to its unit's sum; a pinch (`null`) is kept once, without a quantity. */
+function addAmount(
+  totals: Map<Unit, number | null>,
+  unit: Unit,
+  quantity: number | null,
+): void {
+  const sum = totals.get(unit) ?? null;
+  totals.set(unit, quantity === null ? sum : (sum ?? 0) + quantity);
+}
+
+/**
+ * The sums as amounts, the ingredient's base unit first and the rest by `unitSchema` order (pinch last); units are not
+ * converted into each other (no average weight of a piece).
+ */
+function amountsOf(
+  totals: Map<Unit, number | null>,
+  baseUnit: Unit | null,
+  round: (quantity: number, unit: Unit) => number,
+): ShoppingAmount[] {
+  const rank = (unit: Unit) => (unit === baseUnit ? -1 : unitRank(unit));
+  return [...totals]
+    .sort(([a], [b]) => rank(a) - rank(b))
+    .map(([unit, quantity]) => ({
+      quantity: quantity === null ? null : round(quantity, unit),
+      unit,
+    }));
+}
+
+/** What a meal wants is shown as it is, without the float noise of scaling (0.1 × 3). */
+function roundMeal(quantity: number): number {
+  return Math.round(quantity * 1000) / 1000;
 }
 
 /** What a row shows of its ingredient's pantry item; only a staple runs out. */
@@ -224,21 +283,17 @@ function roundUp(quantity: number, unit: Unit): number {
 
 const UNIT_ORDER = unitSchema.options;
 
-/**
- * Checked items last, then title in Bulgarian alphabetical order; rows of one ingredient stay together, ordered by
- * unit.
- */
+/** Checked items last, then title in Bulgarian alphabetical order. */
 function compareItems(a: ShoppingItem, b: ShoppingItem): number {
   return (
     Number(a.checkedBy !== null) - Number(b.checkedBy !== null) ||
     a.title.localeCompare(b.title, 'bg') ||
-    unitRank(a.unit) - unitRank(b.unit) ||
     a.key.localeCompare(b.key)
   );
 }
 
-function unitRank(unit: Unit | null): number {
-  return unit === null ? UNIT_ORDER.length : UNIT_ORDER.indexOf(unit);
+function unitRank(unit: Unit): number {
+  return UNIT_ORDER.indexOf(unit);
 }
 
 /** The items by aisle in walking order (`AISLES.order`), without empty aisles. */

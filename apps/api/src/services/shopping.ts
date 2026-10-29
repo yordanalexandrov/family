@@ -3,6 +3,7 @@ import {
   type CreateManualItem,
   checkState,
   type MealPlan,
+  normalizeItemKey,
   parseItemKey,
   type ShoppingItem,
   type ShoppingList,
@@ -19,7 +20,7 @@ import {
   setComputedItemOverlay,
   setManualItemCheck,
 } from '../db/repositories/shopping.js';
-import { InvalidActionError, NotFoundError, refuse } from './errors.js';
+import { InvalidActionError, NotFoundError } from './errors.js';
 import type { EventBus } from './events.js';
 
 /** What a change to the list needs: the database, and the bus that signals `shopping.changed` after the commit. */
@@ -37,19 +38,22 @@ function signal(events: EventBus, weekStart?: string): void {
   );
 }
 
-/**
- * The week's menu and its shopping list id, the list created on first use. A week without a menu is a 404 `no_plan`
- * (the „Няма меню“ screen).
- */
-async function openList(
-  db: DbExecutor,
-  weekStart: string,
-): Promise<{ plan: MealPlan; listId: string }> {
-  const plan = await findPlanByWeek(db, weekStart);
-  if (!plan) {
-    throw refuse('no_plan', 'Няма меню за тази седмица');
-  }
-  return { plan, listId: await ensureShoppingList(db, plan.id) };
+/** A week's shopping list as opened by `openList`. */
+interface ListWeek {
+  weekStart: string;
+  /** The week's menu, `null` without one: the list then has only its manual items and the staples that ran out. */
+  plan: MealPlan | null;
+  listId: string;
+}
+
+/** The week's menu and shopping list, the list created on first use and linked to the menu once there is one. */
+async function openList(db: DbExecutor, weekStart: string): Promise<ListWeek> {
+  const plan = (await findPlanByWeek(db, weekStart)) ?? null;
+  return {
+    weekStart,
+    plan,
+    listId: await ensureShoppingList(db, weekStart, plan?.id ?? null),
+  };
 }
 
 const NO_SUCH_ITEM = 'Няма такъв ред в списъка';
@@ -63,9 +67,13 @@ function itemsOf(list: ShoppingList): ShoppingItem[] {
   ];
 }
 
-/** The row of `key` in the list; an unknown key (e.g. the menu has changed) is a 404. */
+/**
+ * The row of `key` in the list; an old computed key (`<ingredientId>:<unit>`, e.g. a check queued offline) finds its
+ * ingredient's row. An unknown key (e.g. the menu has changed) is a 404.
+ */
 function findItem(list: ShoppingList, key: string): ShoppingItem {
-  const item = itemsOf(list).find((row) => row.key === key);
+  const rowKey = normalizeItemKey(key);
+  const item = itemsOf(list).find((row) => row.key === rowKey);
   if (!item) {
     throw new NotFoundError(NO_SUCH_ITEM);
   }
@@ -75,11 +83,10 @@ function findItem(list: ShoppingList, key: string): ShoppingItem {
 /** The row of `key` in the list as it is now computed. */
 async function readItem(
   db: DbExecutor,
-  plan: MealPlan,
-  listId: string,
+  week: ListWeek,
   key: string,
 ): Promise<ShoppingItem> {
-  return findItem(await computeList(db, plan, listId), key);
+  return findItem(await computeList(db, week), key);
 }
 
 /**
@@ -88,16 +95,18 @@ async function readItem(
  */
 async function computeList(
   db: DbExecutor,
-  plan: MealPlan,
-  listId: string,
+  { weekStart, plan, listId }: ListWeek,
 ): Promise<ShoppingList> {
   const recipeIds = new Set(
-    plan.meals.flatMap((meal) => (meal.recipeId ? [meal.recipeId] : [])),
+    (plan?.meals ?? []).flatMap((meal) =>
+      meal.recipeId ? [meal.recipeId] : [],
+    ),
   );
   const recipes = await Promise.all(
     [...recipeIds].map((id) => findRecipe(db, id)),
   );
   return buildShoppingList({
+    weekStart,
     plan,
     recipes: recipes.filter((recipe) => recipe !== undefined),
     items: await listShoppingItems(db, listId),
@@ -105,18 +114,20 @@ async function computeList(
   });
 }
 
-/** The shopping list of the week's menu (GLOSSARY: Списък за пазаруване), computed on every read. */
+/**
+ * The week's shopping list (GLOSSARY: Списък за пазаруване), computed from its menu on every read; a week without a
+ * menu has one too, `hasMenu: false`, with its manual items (#129 D-11).
+ */
 export async function getShoppingList(
   db: Db,
   weekStart: string,
 ): Promise<ShoppingList> {
-  const { plan, listId } = await openList(db, weekStart);
-  return computeList(db, plan, listId);
+  return computeList(db, await openList(db, weekStart));
 }
 
 /**
- * Checks or unchecks a row (GLOSSARY: Отметка) as the acting user at `now`; the last write wins, whoever checked it
- * before. A computed key must be in the list as it is now computed. Checking the row of a staple that ran out buys
+ * Checks or unchecks a row (GLOSSARY: Отметка) as the acting user at `now`. Checking a row that is already checked
+ * keeps the first check, whoever sends it (two people in the shop, #129 D-04); unchecking clears anyone's. A computed key must be in the list as it is now computed. Checking the row of a staple that ran out buys
  * it: `ran_out_at` is cleared in the same transaction and every list is signalled; unchecking does not bring it back.
  */
 export async function setItemChecked(
@@ -136,13 +147,17 @@ export async function setItemChecked(
   },
 ): Promise<ShoppingItem> {
   const updated = await db.transaction(async (tx) => {
-    const { plan, listId } = await openList(tx, weekStart);
-    const item = await readItem(tx, plan, listId, key);
+    const week = await openList(tx, weekStart);
+    const { listId } = week;
+    const item = await readItem(tx, week, key);
+    if (checked && item.checkedBy !== null) {
+      return { bought: false, item, unchanged: true };
+    }
     const check = checkState(checked, actingUserId, now);
     if (item.kind === 'manual') {
-      await setManualItemCheck(tx, listId, key, check);
+      await setManualItemCheck(tx, listId, item.key, check);
     } else {
-      await setComputedItemOverlay(tx, listId, key, check);
+      await setComputedItemOverlay(tx, listId, item.key, check);
     }
     const bought = checked && item.pantry?.ranOut === true;
     if (bought && item.pantry) {
@@ -150,6 +165,7 @@ export async function setItemChecked(
     }
     return {
       bought,
+      unchanged: false,
       item: {
         ...item,
         ...checkState(checked, actingUserId, now.toISOString()),
@@ -158,7 +174,9 @@ export async function setItemChecked(
       },
     };
   });
-  signal(events, updated.bought ? undefined : weekStart);
+  if (!updated.unchanged) {
+    signal(events, updated.bought ? undefined : weekStart);
+  }
   return updated.item;
 }
 
@@ -172,28 +190,29 @@ export async function setItemHidden(
   }: { weekStart: string; key: string; hidden: boolean },
 ): Promise<ShoppingItem> {
   const updated = await db.transaction(async (tx) => {
-    const { plan, listId } = await openList(tx, weekStart);
+    const week = await openList(tx, weekStart);
+    const { listId } = week;
     if (parseItemKey(key)?.kind === 'manual') {
       throw new InvalidActionError('Ръчен ред не се скрива, а се изтрива');
     }
-    const item = await readItem(tx, plan, listId, key);
-    await setComputedItemOverlay(tx, listId, key, { hidden });
+    const item = await readItem(tx, week, key);
+    await setComputedItemOverlay(tx, listId, item.key, { hidden });
     return { ...item, hidden };
   });
   signal(events, weekStart);
   return updated;
 }
 
-/** Adds a manual row (GLOSSARY: Ръчен ред), keyed `manual:<id>`. */
+/** Adds a manual row (GLOSSARY: Ръчен ред), keyed `manual:<id>`, also to a week without a menu (#129 D-11). */
 export async function addManualItem(
   { db, events }: ShoppingDeps,
   weekStart: string,
   input: CreateManualItem,
 ): Promise<ShoppingItem> {
   const item = await db.transaction(async (tx) => {
-    const { plan, listId } = await openList(tx, weekStart);
-    const record = await insertManualItem(tx, listId, input);
-    return readItem(tx, plan, listId, record.itemKey);
+    const week = await openList(tx, weekStart);
+    const record = await insertManualItem(tx, week.listId, input);
+    return readItem(tx, week, record.itemKey);
   });
   signal(events, weekStart);
   return item;

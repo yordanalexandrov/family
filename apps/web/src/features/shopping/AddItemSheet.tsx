@@ -11,13 +11,18 @@ import {
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
+import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Sheet } from '../../components/Sheet';
-import { OfflineError, useAddManualItem } from './queries';
+import { useOnline } from '../../lib/use-online';
+import { useAddManualItem } from './queries';
 
 // Ръчен ред „по вкус“ няма смисъл; останалите единици са по избор.
 const UNITS = unitSchema.options.filter((unit) => unit !== 'pinch');
 
-/** „+ Добави“: ръчен ред (заглавие, количество, единица, щанд), валидиран с `createManualItemSchema`. */
+/**
+ * „+ Добави“: ръчен ред (заглавие, количество, единица, щанд), валидиран с `createManualItemSchema`. Без връзка
+ * „Добави“ е изключено с „Иска връзка“.
+ */
 export function AddItemSheet({
   weekStart,
   onClose,
@@ -33,6 +38,8 @@ export function AddItemSheet({
     {},
   );
   const add = useAddManualItem(weekStart);
+  const online = useOnline();
+  const offline = useNeedsConnection(online);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -120,19 +127,17 @@ export function AddItemSheet({
             </select>
           )}
         </Field>
-        {add.isError &&
-          (add.error instanceof OfflineError ? (
-            <p className="error-box__message" role="alert">
-              Няма връзка
-            </p>
-          ) : (
-            <ErrorBox error={add.error} />
-          ))}
-        <div className="recipes__actions">
-          <button type="submit" className="button" disabled={add.isPending}>
-            Добави
-          </button>
-        </div>
+        {add.isError && online && <ErrorBox error={add.error} />}
+        {/* На цялата ширина, както в килера. */}
+        <button
+          type="submit"
+          className="button"
+          disabled={offline.disabled || add.isPending}
+          aria-describedby={offline.describedBy}
+        >
+          Добави
+        </button>
+        {offline.hint}
       </form>
     </Sheet>
   );
