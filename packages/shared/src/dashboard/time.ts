@@ -85,6 +85,16 @@ export function startOfDayInSofia(date: Date | DateKey): Date {
   return new Date(midnightAsUtc - offsetMs);
 }
 
+/**
+ * The instant `hour`:00 in Sofia on `date`, counted back from the next midnight: the DST jumps there are at 03:00/04:00,
+ * so this holds for hours from 04:00 on.
+ */
+export function atHourInSofia(date: DateKey, hour: number): number {
+  return (
+    startOfDayInSofia(addDays(date, 1)).getTime() - (24 - hour) * 3_600_000
+  );
+}
+
 /** The date key `days` calendar days after `key` (negative: before). */
 export function addDays(key: DateKey, days: number): DateKey {
   const date = new Date(utcMidnightOf(key));

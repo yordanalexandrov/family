@@ -6,8 +6,11 @@ import {
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import { useUsers } from '../../api/queries';
+import { useActingUser } from '../../app/acting-user';
+import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
 import { Avatar } from '../../components/Avatar';
 import { formatServings } from '../../lib/format';
+import { useClaimCook } from './today-actions';
 
 interface TodayCookingProps {
   dinner: CookingMeal | null;
@@ -19,7 +22,9 @@ interface TodayCookingProps {
 
 /**
  * Редът „Днес се готви“ в ядрото: днешната вечеря от менюто (заглавието на
- * рецептата или бележката) и аватарът на готвача; без план — „Няма меню за днес“.
+ * рецептата или бележката) и под нея кой готви; без план — „Няма меню за
+ * днес“. „Аз“ има само на устройство с действащ потребител (телефон, браузър);
+ * kiosk и TV само показват.
  */
 export function TodayCooking({
   dinner,
@@ -27,9 +32,9 @@ export function TodayCooking({
   opensRecipe = false,
 }: TodayCookingProps) {
   const users = useUsers();
-  const cook = dinner?.cookUserId
-    ? users.data?.find((user) => user.id === dinner.cookUserId)
-    : undefined;
+  const { mode } = useDeviceMode();
+  const { actingUserId } = useActingUser();
+  const actor = isPersonalDevice(mode) ? actingUserId : null;
 
   // Порциите се показват само когато се различават от подразбирането (по 1 за всеки).
   const servings = dinner?.servings;
@@ -44,30 +49,71 @@ export function TodayCooking({
       : null;
 
   return (
-    <Row
-      opensMenu={opensMenu}
-      recipeId={opensRecipe ? (dinner?.recipeId ?? null) : null}
-    >
-      <small>Днес се готви</small>
-      {dinner ? (
-        <span className="core__cooking-meal">
-          {cook && (
-            <>
-              <Avatar initial={cook.initial} color={cook.color} size="sm" />
-              <span className="visually-hidden">готви {cook.name}</span>
-            </>
-          )}
-          <b>{dinner.title}</b>
-        </span>
-      ) : (
-        <span className="core__cooking-empty">Няма меню за днес</span>
+    <div className="core__cooking">
+      <Row
+        opensMenu={opensMenu}
+        recipeId={opensRecipe ? (dinner?.recipeId ?? null) : null}
+      >
+        <small>Днес се готви</small>
+        {dinner ? (
+          <span className="core__cooking-meal">
+            <b>{dinner.title}</b>
+          </span>
+        ) : (
+          <span className="core__cooking-empty">Няма меню за днес</span>
+        )}
+        {changedServings !== null && (
+          <span className="core__cooking-servings">
+            {formatServings(changedServings)}
+          </span>
+        )}
+      </Row>
+      {dinner && <CookLine dinner={dinner} actor={actor} />}
+    </div>
+  );
+}
+
+/** „готви Поли“ с аватара, „готвиш ти“ или „няма готвач“ с „Аз“. */
+function CookLine({
+  dinner,
+  actor,
+}: {
+  dinner: CookingMeal;
+  actor: string | null;
+}) {
+  const users = useUsers();
+  const claim = useClaimCook(actor);
+  const cook = dinner.cookUserId
+    ? users.data?.find((user) => user.id === dinner.cookUserId)
+    : undefined;
+
+  if (dinner.cookUserId) {
+    return (
+      <p className="core__cooking-line">
+        {cook && <Avatar initial={cook.initial} color={cook.color} size="sm" />}
+        {dinner.cookUserId === actor ? (
+          <span>готвиш ти</span>
+        ) : (
+          cook && <span>готви {cook.name}</span>
+        )}
+      </p>
+    );
+  }
+  const { mealId } = dinner;
+  return (
+    <p className="core__cooking-line">
+      <span className="core__cooking-muted">няма готвач</span>
+      {actor && mealId && (
+        <button
+          type="button"
+          className="button core__cooking-action"
+          disabled={claim.isPending}
+          onClick={() => claim.mutate(mealId)}
+        >
+          Аз
+        </button>
       )}
-      {changedServings !== null && (
-        <span className="core__cooking-servings">
-          {formatServings(changedServings)}
-        </span>
-      )}
-    </Row>
+    </p>
   );
 }
 
@@ -81,14 +127,14 @@ function Row({
   children: ReactNode;
 }) {
   if (!opensMenu) {
-    return <div className="core__cooking">{children}</div>;
+    return <div className="core__cooking-main">{children}</div>;
   }
   if (recipeId) {
     return (
       <Link
         to="/recipes/$id"
         params={{ id: recipeId }}
-        className="core__cooking core__cooking--link"
+        className="core__cooking-main core__cooking--link"
       >
         {children}
       </Link>
@@ -96,7 +142,7 @@ function Row({
   }
   // Екранът „Меню“ без параметри показва тази седмица.
   return (
-    <Link to="/menu" className="core__cooking core__cooking--link">
+    <Link to="/menu" className="core__cooking-main core__cooking--link">
       {children}
     </Link>
   );

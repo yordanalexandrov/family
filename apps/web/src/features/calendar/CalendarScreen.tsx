@@ -1,16 +1,11 @@
 import {
-  addDays,
-  CALENDAR_MAX_DAYS,
   dateKeyInSofia,
+  formatDataAge,
   type SyncRunResult,
 } from '@family/shared';
 import { type CSSProperties, useCallback, useState } from 'react';
 import { ApiError } from '../../api/client';
-import {
-  useCalendarEvents,
-  useDashboard,
-  useSyncCalendar,
-} from '../../api/queries';
+import { useDashboard, useSync } from '../../api/queries';
 import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
@@ -20,7 +15,9 @@ import { Toast } from '../../components/Toast';
 import { formatDayLong } from '../../lib/format';
 import { syncNotes } from '../../lib/sync-notes';
 import { useNow } from '../../lib/use-now';
+import { NEEDS_CONNECTION, useOnline } from '../../lib/use-online';
 import { DayEventList } from './DayEventList';
+import { useCalendarDays } from './use-calendar-days';
 import './CalendarScreen.css';
 
 const SYNC_MESSAGES: Record<SyncRunResult['status'], string> = {
@@ -41,11 +38,12 @@ function syncMessage(result: SyncRunResult): string {
 export function CalendarScreen() {
   const now = useNow(30_000);
   const today = dateKeyInSofia(now);
-  const days = useCalendarEvents(today, addDays(today, CALENDAR_MAX_DAYS));
+  const days = useCalendarDays(today);
+  const online = useOnline();
   // Свежестта на календара идва с дашборда (обикновено вече е в кеша на заявките).
   const sync = useDashboard().data?.sync.calendar;
   const { mode } = useDeviceMode();
-  const syncCalendar = useSyncCalendar();
+  const syncCalendar = useSync('calendar');
   const [toast, setToast] = useState<string | null>(null);
   const hideToast = useCallback(() => setToast(null), []);
 
@@ -60,7 +58,10 @@ export function CalendarScreen() {
   }
 
   const notes = sync && syncNotes(sync, now);
-  const note = notes?.unconfigured ?? notes?.stale;
+  const note =
+    days.status === 'offline'
+      ? `остарели данни · ${formatDataAge(days.fetchedAt, now)}`
+      : (notes?.unconfigured ?? notes?.stale);
 
   return (
     <main className={`calendar${mode === 'kiosk' ? ' calendar--kiosk' : ''}`}>
@@ -72,17 +73,21 @@ export function CalendarScreen() {
             type="button"
             className="button"
             onClick={refresh}
-            disabled={syncCalendar.isPending}
+            disabled={!online || syncCalendar.isPending}
           >
-            {syncCalendar.isPending ? 'Обновява…' : 'Обнови'}
+            {!online
+              ? NEEDS_CONNECTION
+              : syncCalendar.isPending
+                ? 'Обновява…'
+                : 'Обнови'}
           </button>
         )}
       </header>
       {note && <p className="calendar__note">{note}</p>}
-      {days.isPending ? (
+      {days.status === 'pending' ? (
         <Spinner />
-      ) : days.isError ? (
-        <ErrorBox error={days.error} onRetry={() => void days.refetch()} />
+      ) : days.status === 'error' ? (
+        <ErrorBox error={days.error} onRetry={days.retry} />
       ) : (
         days.data.map((day, index) => (
           <Card

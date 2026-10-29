@@ -1,11 +1,11 @@
 import {
   addDays,
+  atHourInSofia,
   type DateKey,
   dateKeyInSofia,
   type Meal,
   mealTitle,
   type NotificationSettings,
-  startOfDayInSofia,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
@@ -22,18 +22,18 @@ import {
 } from '../db/repositories/reminders.js';
 import { listUsers } from '../db/repositories/users.js';
 import type { MenuNotifications } from './menu-notifications.js';
-import { mealDayUrl, notificationTag } from './notification-links.js';
+import { mealUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
+import {
+  THAW_EVENING_HOUR,
+  THAW_MORNING_HOUR,
+  thawCandidates,
+} from './thaw.js';
 
-/** „Извади месото“ comes at these hours in Sofia: the evening before the dinner and its morning. Changed by PR. */
-export const THAW_EVENING_HOUR = 20;
-export const THAW_MORNING_HOUR = 8;
 /** „Кой готви довечера“ comes at this hour in Sofia on the day of the dinner. Changed by PR. */
 export const COOK_HOUR = 16;
 /** A reminder later than this after its hour (the api was down) is skipped. */
 export const REMINDER_GRACE_MS = 2 * 3_600_000;
-
-const HOUR_MS = 3_600_000;
 
 /** What {@link dueReminders} decides from. */
 export interface ReminderState {
@@ -49,14 +49,6 @@ export interface ReminderState {
 /** One reminder to send to one person; once sent it goes to `notification_log` with these `kind`, `subjectId` and `onDate`. */
 export interface DueReminder extends NotificationLogEntry {
   message: PushMessage;
-}
-
-/**
- * The instant `hour`:00 in Sofia on `date`, counted back from the next midnight: the DST jumps there are at 03:00/04:00,
- * so this holds for hours from 04:00 on.
- */
-function atHourInSofia(date: DateKey, hour: number): number {
-  return startOfDayInSofia(addDays(date, 1)).getTime() - (24 - hour) * HOUR_MS;
 }
 
 /** Whether a reminder for `hour` on `date` is due at `now`: from that hour until {@link REMINDER_GRACE_MS} after it. */
@@ -75,7 +67,7 @@ function thawMessage(
     title,
     body: `${meal.title}: ${products.join(', ')}`,
     tag: notificationTag.thaw(meal.id),
-    url: mealDayUrl(meal.date),
+    url: mealUrl(meal),
     actions: [
       {
         action: 'thawed',
@@ -101,13 +93,13 @@ export function dueReminders(now: Date, state: ReminderState): DueReminder[] {
 /** „Извади месото“ due at `now`, sent or not. */
 function dueThaw(now: Date, state: ReminderState): DueReminder[] {
   const today = dateKeyInSofia(now);
-  const frozen = new Set(state.frozen);
   const due: DueReminder[] = [];
-  for (const meal of state.meals) {
-    const products = meal.ingredients
-      .filter((ingredient) => frozen.has(ingredient.id))
-      .map((ingredient) => ingredient.name);
-    if (meal.title === null || products.length === 0 || meal.thawedAt) {
+  for (const { meal, products } of thawCandidates(
+    state.meals,
+    state.frozen,
+    now,
+  )) {
+    if (meal.thawedAt) {
       continue;
     }
     const occasions = [
@@ -160,7 +152,7 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
     const base = {
       body: title,
       tag: notificationTag.cook(meal.id),
-      url: mealDayUrl(meal.date),
+      url: mealUrl(meal),
     };
     const message: PushMessage = meal.cookUserId
       ? { ...base, title: 'Довечера готвиш ти' }
@@ -272,7 +264,7 @@ export function createReminders({
               : `Довечера готви ${cook?.name ?? ''}`.trim(),
           body: mealTitle(meal) ?? '',
           tag: notificationTag.cook(meal.id),
-          url: mealDayUrl(meal.date),
+          url: mealUrl(meal),
         });
       }
     },

@@ -1,0 +1,31 @@
+.thaw__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thaw__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.thaw__text {
+  min-inline-size: 0;
+  font-weight: 600;
+}
+
+.thaw__action {
+  flex: none;
+}
+
+.thaw__done {
+  flex: none;
+  color: var(--color-accent);
+  font-weight: 600;
+  white-space: nowrap;
+}

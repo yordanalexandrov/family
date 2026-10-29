@@ -11,6 +11,7 @@ import { noteProposalChange } from '../features/menu/unseen-proposals';
 import { pantryKeys } from '../features/pantry/queries';
 import { shoppingKeys } from '../features/shopping/queries';
 import { logger } from '../logger';
+import { queryKeys } from './queries';
 
 const EVENTS_URL = '/api/events';
 
@@ -22,6 +23,7 @@ function invalidateAll(queryClient: QueryClient) {
 }
 
 /**
+ * `menu.changed` презарежда и дашборда: „Днес се готви“ (готвачът) е от менюто.
  * `menu.proposal.changed` презарежда последното предложение на седмицата (чакането на другия телефон) и отбелязва
  * готовото чуждо като невидяно (точката на „Меню“);
  * `shopping.changed` без седмица идва от килера: важи за всеки списък и за самия килер.
@@ -31,6 +33,7 @@ function invalidate(queryClient: QueryClient, event: ServerEvent) {
     void queryClient.invalidateQueries({
       queryKey: menuKeys.plan(event.weekStart),
     });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
   } else if (event.type === 'menu.proposal.changed') {
     void queryClient.invalidateQueries({
       queryKey: menuKeys.weekProposal(event.weekStart),

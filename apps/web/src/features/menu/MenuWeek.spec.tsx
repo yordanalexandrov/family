@@ -88,6 +88,37 @@ describe('MenuWeek', () => {
     },
   );
 
+  it('?meal= (линкът от известие) отваря листа на ястието и превърта до реда; затварянето маха параметъра', async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi
+      .spyOn(Element.prototype, 'scrollIntoView')
+      .mockImplementation(() => {});
+    const plan = planFor(thisWeek, { 3: { note: 'мусака' } });
+    servePlans({ [thisWeek]: plan });
+    const thursday = plan.meals[3]?.id;
+
+    const { router } = renderApp(`/menu?week=${thisWeek}&meal=${thursday}`);
+
+    const sheet = await screen.findByRole('dialog', {
+      name: 'четвъртък, 5 ноември',
+    });
+    const row = within(screen.getByRole('list', { name: 'Вечери' })).getByRole(
+      'button',
+      { name: /мусака/ },
+    );
+    expect(
+      scrollIntoView.mock.contexts.some(
+        (target) => target instanceof Element && target.contains(row),
+      ),
+    ).toBe(true);
+    scrollIntoView.mockRestore();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(router.state.location.search).toEqual({ week: thisWeek });
+  });
+
   it('при < 7 вечерни рецепти казва колко още трябват и води към предложенията', async () => {
     const user = userEvent.setup();
     servePlans();

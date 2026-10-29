@@ -20,6 +20,11 @@ import {
 import { RatingStars } from '../recipes/Stars';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
+/** Id-то на реда на ястието: `MenuWeek` превърта до него, когато листът му е отворен от адреса (`?meal=`). */
+export function mealRowId(mealId: string): string {
+  return `meal-row-${mealId}`;
+}
+
 /** Гласуването на реда: само в телефонния изглед, с действащ потребител. */
 export interface RowVoting {
   /** Действащият потребител. */
@@ -106,7 +111,10 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const rateRecipeId =
     voting && past && meal.recipe?.rating === null ? meal.recipeId : null;
   return (
-    <div className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}>
+    <div
+      id={mealRowId(meal.id)}
+      className={`meal-row${outcomeClass}${past ? ' meal-row--past' : ''}`}
+    >
       {onOpen ? (
         <button type="button" className="meal-row__content" onClick={onOpen}>
           {content}

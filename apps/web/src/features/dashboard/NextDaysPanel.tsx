@@ -23,12 +23,12 @@ export function NextDaysPanel({
   index = 3,
   maxEventsPerDay,
 }: NextDaysPanelProps) {
-  const { unconfigured, stale } = syncNotes(sync, now);
+  // Остарелите данни на календара ги казва ядрото или „Днес“, не и тази карта.
+  const { unconfigured } = syncNotes(sync, now);
   return (
     <Card
       title="Следващите дни"
       aria-label="Следващите дни"
-      stale={stale}
       style={{ '--card-index': index } as CSSProperties}
     >
       {unconfigured ? (

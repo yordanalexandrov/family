@@ -2,6 +2,7 @@ import type { ShoppingItem } from '@family/shared';
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { formatDayLong } from '../../lib/format';
+import { NEEDS_CONNECTION } from '../../lib/use-online';
 
 /**
  * Менюто на реда, отворено с ⓘ: „От кои ястия“ (денят и рецептата на всяко ястие, което внася реда), „Скрий от
@@ -76,7 +77,7 @@ export function SourcesSheet({
               Продуктът отива в килера като постоянен и не се показва в списъка.
             </p>
           ) : (
-            <p className="shopping__hint">Иска връзка</p>
+            <p className="shopping__hint">{NEEDS_CONNECTION}</p>
           )}
         </div>
       )}

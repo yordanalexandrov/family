@@ -1,0 +1,69 @@
+.sync-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  margin-block: -0.75rem;
+  margin-inline-end: -0.75rem;
+}
+
+.sync-button__message {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* 48 dp цел за докосване; самата икона е по-малка. */
+.sync-button__icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sync-button__icon:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: -3px;
+}
+
+.sync-button__icon[aria-disabled] {
+  cursor: progress;
+}
+
+.sync-button__icon svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sync-button__icon[data-pending] svg {
+    animation: sync-button-turn 0.9s linear infinite;
+  }
+}
+
+/* Без движение въртенето е само приглушена икона. */
+@media (prefers-reduced-motion: reduce) {
+  .sync-button__icon[data-pending] {
+    opacity: 0.5;
+  }
+}
+
+@keyframes sync-button-turn {
+  to {
+    rotate: 1turn;
+  }
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Drives the family web app of a verify run in headless Chrome (playwright-core + the system Chrome).
 //
-//   drive.mjs <scenario.mjs> [--run <id>] [--device phone|browser|kiosk|tv] [--headed]
+//   drive.mjs <scenario.mjs> [--run <id>] [--device phone|browser|kiosk|tv] [--headed] [--service-workers]
 //
 // A scenario is an ES module whose default export is `async (ctx) => {}`. ctx:
 //   page, context          Playwright page and persistent context (localStorage survives between drives of a run)
@@ -44,10 +44,12 @@ const flag = (name) => {
 const runArg = opt('run', '');
 const device = opt('device', 'phone');
 const headed = flag('headed');
+// The PWA service worker (offline shell) only exists in a WEB_MODE=preview run; blocked by default.
+const serviceWorkers = flag('service-workers') ? 'allow' : 'block';
 const scenarioPath = args[0];
 if (!scenarioPath) {
   console.error(
-    'usage: drive.mjs <scenario.mjs> [--run <id>] [--device phone|browser|kiosk|tv] [--headed]',
+    'usage: drive.mjs <scenario.mjs> [--run <id>] [--device phone|browser|kiosk|tv] [--headed] [--service-workers]',
   );
   process.exit(2);
 }
@@ -113,7 +115,7 @@ const context = await chromium.launchPersistentContext(
     viewport: VIEWPORTS[device] ?? VIEWPORTS.phone,
     locale: 'bg-BG',
     timezoneId: 'Europe/Sofia',
-    serviceWorkers: 'block',
+    serviceWorkers,
   },
 );
 const page = context.pages()[0] ?? (await context.newPage());

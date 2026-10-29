@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 
+/** Надписът на действие, което без мрежа е изключено (обновяване, синхронизация). */
+export const NEEDS_CONNECTION = 'Иска връзка';
+
 /** Дали има връзка (`navigator.onLine`), обновявано при `online` и `offline`. */
 export function useOnline(): boolean {
   const [online, setOnline] = useState(() => navigator.onLine);

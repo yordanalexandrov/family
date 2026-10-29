@@ -46,7 +46,15 @@
   opacity: 0.55;
 }
 
-.day-ring__avatar circle {
+.day-ring__markers {
+  pointer-events: none;
+}
+
+.day-ring__avatar--past {
+  opacity: 0.55;
+}
+
+.day-ring__avatar rect {
   fill: var(--avatar-color);
   stroke: var(--glass-border);
   stroke-width: 2;

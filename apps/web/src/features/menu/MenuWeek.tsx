@@ -10,6 +10,7 @@ import {
   type MealPlan,
   type MenuProposalRequest,
   mealOutcome,
+  mealSchema,
   menuProposalRequestSchema,
   type Rating,
   type User,
@@ -24,6 +25,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useRef,
   useState,
 } from 'react';
 import { refusalOf } from '../../api/client';
@@ -38,7 +40,7 @@ import { capitalize, formatDate, formatWeekday } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { useRateRecipe } from '../recipes/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
-import { MealRow } from './MealRow';
+import { MealRow, mealRowId } from './MealRow';
 import { MealSheet } from './MealSheet';
 import {
   useCreatePlan,
@@ -54,10 +56,14 @@ import { OUTCOME_LABELS } from './Votes';
 import '../recipes/recipes.css';
 import './menu.css';
 
-/** `?week=` (понеделник) и `?proposal=` (предложението, което се чака) на `/menu`. */
+/**
+ * `?week=` (понеделник), `?proposal=` (предложението, което се чака) и `?meal=` (ястието с отворен лист, напр. от
+ * известие) на `/menu`.
+ */
 export interface MenuSearch {
   week?: DateKey;
   proposal?: string;
+  meal?: string;
 }
 
 /**
@@ -69,9 +75,11 @@ export function parseMenuSearch(search: Record<string, unknown>): MenuSearch {
   const proposal = menuProposalRequestSchema.shape.id.safeParse(
     search.proposal,
   );
+  const meal = mealSchema.shape.id.safeParse(search.meal);
   return {
     week: week.success ? week.data : undefined,
     proposal: proposal.success ? proposal.data : undefined,
+    meal: meal.success ? meal.data : undefined,
   };
 }
 
@@ -99,6 +107,15 @@ export function MenuWeek() {
       void navigate({
         search: ({ proposal: _, ...rest }) =>
           proposal ? { ...rest, proposal } : rest,
+        replace: true,
+      }),
+    [navigate],
+  );
+
+  const setOpenMeal = useCallback(
+    (meal: string | null) =>
+      void navigate({
+        search: ({ meal: _, ...rest }) => (meal ? { ...rest, meal } : rest),
         replace: true,
       }),
     [navigate],
@@ -156,6 +173,8 @@ export function MenuWeek() {
         today={dateKeyInSofia(now)}
         proposalId={search.proposal}
         onProposal={setProposal}
+        openMealId={search.meal ?? null}
+        onOpenMeal={setOpenMeal}
       />
     </main>
   );
@@ -169,6 +188,9 @@ interface WeekProps {
   today: DateKey;
   proposalId: string | undefined;
   onProposal: (id: string | undefined) => void;
+  /** Ястието с отворен лист (`?meal=`). */
+  openMealId: string | null;
+  onOpenMeal: (id: string | null) => void;
 }
 
 function Week({
@@ -179,6 +201,8 @@ function Week({
   today,
   proposalId,
   onProposal,
+  openMealId,
+  onOpenMeal,
 }: WeekProps) {
   const plan = usePlan(weekStart);
   const users = useUsers();
@@ -276,6 +300,8 @@ function Week({
       canDelete={canDelete}
       voterId={voterId}
       today={today}
+      openMealId={openMealId}
+      onOpenMeal={onOpenMeal}
     />
   );
 }
@@ -468,6 +494,8 @@ interface PlanViewProps {
   /** Действащият потребител, който гласува; `null` без гласове (kiosk). */
   voterId: string | null;
   today: DateKey;
+  openMealId: string | null;
+  onOpenMeal: (id: string | null) => void;
 }
 
 /** Филтрите по изход на ястие; „Остава“ няма свой, защото е целта. */
@@ -487,14 +515,26 @@ function PlanView({
   canDelete,
   voterId,
   today,
+  openMealId,
+  onOpenMeal,
 }: PlanViewProps) {
-  const [openMealId, setOpenMealId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [pastOpen, setPastOpen] = useState(false);
   const mealsId = useId();
   const vote = useVote(plan.weekStart);
   const rate = useRateRecipe();
   const openMeal = plan.meals.find((meal) => meal.id === openMealId);
+  // Ястието от адреса (известие) е някъде в седмицата: редът му идва в изгледа под листа. Докоснат ред вече се вижда.
+  const fromUrl = useRef(openMealId);
+  const openMealFound = openMeal !== undefined;
+  useEffect(() => {
+    if (openMealFound && fromUrl.current === openMealId && openMealId) {
+      fromUrl.current = null;
+      document
+        .getElementById(mealRowId(openMealId))
+        ?.scrollIntoView({ block: 'center' });
+    }
+  }, [openMealFound, openMealId]);
   const userIds = users.map((user) => user.id);
   const outcomeOf = (meal: MealPlan['meals'][number]) =>
     mealOutcome(meal.votes, userIds);
@@ -590,7 +630,7 @@ function PlanView({
                   <MealRow
                     meal={meal}
                     users={users}
-                    onOpen={() => setOpenMealId(meal.id)}
+                    onOpen={() => onOpenMeal(meal.id)}
                     voting={voting}
                     handle={handle}
                   />
@@ -608,7 +648,7 @@ function PlanView({
                 users={users}
                 {...(readOnly && !voting
                   ? {}
-                  : { onOpen: () => setOpenMealId(meal.id) })}
+                  : { onOpen: () => onOpenMeal(meal.id) })}
                 {...(voting ? { voting } : {})}
               />
             </li>
@@ -628,7 +668,7 @@ function PlanView({
           today={today}
           readOnly={readOnly}
           {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
-          onClose={() => setOpenMealId(null)}
+          onClose={() => onOpenMeal(null)}
         />
       )}
     </>

@@ -28,6 +28,42 @@ describe('dashboardResponseSchema', () => {
     expect(dashboardResponseSchema.parse(dashboard)).toEqual(dashboard);
   });
 
+  it('accepts „Извади месото“ before and after „Извадих“', () => {
+    const thaw = [
+      {
+        mealId: '33333333-3333-4333-8333-333333333333',
+        date: '2026-10-25',
+        products: ['смесена кайма'],
+        thawedAt: null,
+      },
+      {
+        mealId: '44444444-4444-4444-8444-444444444444',
+        date: '2026-10-26',
+        products: ['свински врат', 'пилешко филе'],
+        thawedAt: '2026-10-25T18:05:00.000Z',
+      },
+    ];
+
+    expect(dashboardResponseSchema.parse({ ...dashboard, thaw }).thaw).toEqual(
+      thaw,
+    );
+  });
+
+  it('rejects „Извади месото“ without products', () => {
+    const thaw = [
+      {
+        mealId: '33333333-3333-4333-8333-333333333333',
+        date: '2026-10-25',
+        products: [],
+        thawedAt: null,
+      },
+    ];
+
+    expect(
+      dashboardResponseSchema.safeParse({ ...dashboard, thaw }).success,
+    ).toBe(false);
+  });
+
   it('accepts a meal with its cook', () => {
     const cooking = {
       lunch: null,
