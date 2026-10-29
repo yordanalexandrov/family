@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { dani, poli } from '../../test/msw';
+import { apiError, dani, poli, server } from '../../test/msw';
 import {
   servePushApi,
   stubPushBrowser,
@@ -57,6 +58,109 @@ describe('Настройки → Известия', () => {
         },
       },
     ]);
+  });
+
+  it('докато абонирането чака, бутонът е „Включване…“, изключен и със спинер; после казва, че са включени', async () => {
+    const browser = stubPushBrowser({ slowSubscribe: true });
+    servePushApi();
+    const user = userEvent.setup();
+    renderApp('/settings');
+
+    const section = await findSection();
+    await user.click(
+      await within(section).findByRole('button', {
+        name: 'Включи известия на това устройство',
+      }),
+    );
+
+    const pending = await within(section).findByRole('button', {
+      name: 'Включване…',
+    });
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute('aria-busy', 'true');
+
+    browser.finishSubscribe();
+
+    expect(
+      await screen.findByText('Известията са включени'),
+    ).toBeInTheDocument();
+    expect(
+      await within(section).findByRole('button', { name: 'Изпрати пробно' }),
+    ).toBeInTheDocument();
+  });
+
+  it('грешка при записа на абонамента показва съобщението и бутона отново', async () => {
+    const browser = stubPushBrowser();
+    servePushApi();
+    server.use(
+      http.put('/api/notifications/subscription', () =>
+        apiError(500, 'error', 'Абонаментът не се записа'),
+      ),
+    );
+    const user = userEvent.setup();
+    renderApp('/settings');
+
+    const section = await findSection();
+    await user.click(
+      await within(section).findByRole('button', {
+        name: 'Включи известия на това устройство',
+      }),
+    );
+
+    expect(
+      await screen.findByText('Абонаментът не се записа'),
+    ).toBeInTheDocument();
+    expect(
+      await within(section).findByRole('button', {
+        name: 'Включи известия на това устройство',
+      }),
+    ).toBeEnabled();
+    expect(browser.subscription()).toBeNull();
+    expect(
+      screen.queryByText('Известията са включени'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('без абонамент видовете са приглушени и казват, че важат след включване на устройството', async () => {
+    stubPushBrowser();
+    servePushApi();
+    renderApp('/settings');
+
+    const section = await findSection();
+    const kinds = await within(section).findByRole('group', {
+      name: 'Видове известия',
+    });
+    expect(kinds).toHaveAccessibleDescription(
+      'Важат, когато включиш известията на това устройство.',
+    );
+    expect(kinds).toHaveClass('settings__kinds--muted');
+    expect(
+      within(section).getByText(
+        'Видовете са за теб и важат на всичките ти устройства.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('с абонамент видовете не са приглушени', async () => {
+    stubPushBrowser({ permission: 'granted', subscribed: true });
+    servePushApi();
+    renderApp('/settings');
+
+    const section = await findSection();
+    const kinds = await within(section).findByRole('group', {
+      name: 'Видове известия',
+    });
+    expect(kinds).not.toHaveClass('settings__kinds--muted');
+    expect(
+      within(section).queryByText(
+        'Важат, когато включиш известията на това устройство.',
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(
+        'Видовете са за теб и важат на всичките ти устройства.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('отказ в браузъра не абонира устройството и обяснява как се разрешава', async () => {
@@ -211,6 +315,7 @@ describe('Настройки → Известия', () => {
     });
     await user.click(screen.getByRole('link', { name: 'Смени' }));
     await user.click(await screen.findByRole('button', { name: 'Поли' }));
+    await user.click(await screen.findByRole('button', { name: 'По-късно' }));
     await screen.findByRole('region', { name: 'Днес накратко' });
 
     expect(api.requests.some((r) => r.method === 'PUT')).toBe(false);

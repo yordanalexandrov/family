@@ -58,7 +58,7 @@ import {
   isMenuRecipe,
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
-import { listUsers } from '../db/repositories/users.js';
+import { findUser, listUsers } from '../db/repositories/users.js';
 import { menuProposalRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
@@ -133,7 +133,7 @@ export interface MenuService {
   markThawed(id: string): Promise<void>;
   /**
    * „Аз“ on „Кой готви довечера“: `actingUserId` becomes the cook unless the meal has one, so the first to answer
-   * wins; signalled as a cook picked in the menu. 409 `cook_taken` with `cookUserId` once the meal has a cook (the one
+   * wins; signalled as a cook picked in the menu. 409 `cook_taken` with `cookUserId` and `cookName` once the meal has a cook (the one
    * answering included); 404 for an unknown meal. Returns the meal.
    */
   claimCook(id: string, actingUserId: string): Promise<Meal>;
@@ -487,8 +487,14 @@ export function createMenuService({
             // Unclaimed a moment ago, cleared since: the claim did not clash with anyone.
             throw new Error('cook of a taken meal vanished');
           }
+          const cook = await findUser(tx, current.cookUserId);
+          if (!cook) {
+            // `cook_user_id` references the user (`on delete set null`).
+            throw new Error('cook of a meal is no user');
+          }
           throw refuse('cook_taken', COOK_TAKEN, {
             cookUserId: current.cookUserId,
+            cookName: cook.name,
           });
         }
         // As a cook picked in the menu: the plan changed now.

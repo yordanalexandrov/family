@@ -1,8 +1,4 @@
 /* Екранът „Килер“: само телефонът (една колона). Докосване ≥ 48 px (`--touch-target`). */
-.pantry .recipes__header {
-  justify-content: space-between;
-}
-
 .pantry__group {
   display: flex;
   flex-direction: column;

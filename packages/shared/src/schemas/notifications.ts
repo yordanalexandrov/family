@@ -59,10 +59,11 @@ export type PushDisabled = z.infer<typeof pushDisabledSchema>;
 
 /**
  * 409 of `POST /api/menu/meals/:id/cook-claim` („Аз“ on „Кой готви довечера“): the meal has a cook, `cookUserId`, who
- * answered first or was picked in the menu.
+ * answered first or was picked in the menu. `cookName` lets the service worker say who („Поли вече готви“).
  */
 export const cookTakenSchema = refusalBody('conflict', 'cook_taken', {
   cookUserId: z.uuid(),
+  cookName: z.string(),
 });
 
 export type CookTaken = z.infer<typeof cookTakenSchema>;

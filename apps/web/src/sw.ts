@@ -52,8 +52,13 @@ registerRoute(
   new NetworkOnly(),
 );
 
-// registerType: 'autoUpdate' — новата версия поема веднага.
-self.skipWaiting();
+// Новата версия чака: поема, когато приложението прати SKIP_WAITING („Обнови“ или връщане след дълго скриване,
+// app/app-update.ts). След активиране clientsClaim поема отворените страници; техният `controllerchange` ги презарежда.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    void self.skipWaiting();
+  }
+});
 clientsClaim();
 
 const worker: PushWorker = {

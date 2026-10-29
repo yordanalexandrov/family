@@ -32,6 +32,7 @@ import { refusalOf } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
 import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
+import { ScreenHeader } from '../../app/ScreenHeader';
 import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
@@ -127,10 +128,7 @@ export function MenuWeek() {
 
   return (
     <main className="screen recipes menu">
-      <header className="recipes__header">
-        {!canEdit && <BackLink />}
-        <h1 className="recipes__title">Меню</h1>
-      </header>
+      <ScreenHeader title="Меню" start={!canEdit && <BackLink />} />
       <nav className="menu__weeks" aria-label="Седмица">
         <button
           type="button"

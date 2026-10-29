@@ -34,6 +34,7 @@ import { SuggestionRequestView } from '../features/suggestions/SuggestionRequest
 import { SuggestionReview } from '../features/suggestions/SuggestionReview';
 import { SuggestScreen } from '../features/suggestions/SuggestScreen';
 import { WhoScreen } from '../features/who/WhoScreen';
+import { ActingUserToast } from './ActingUserAvatar';
 import { useActingUser } from './acting-user';
 
 import {
@@ -45,6 +46,7 @@ import {
 import { IdleReturn } from './IdleReturn';
 import { MainNav } from './MainNav';
 import { useAutoTheme } from './theme';
+import { UpdateBar } from './UpdateBar';
 import { useWakeLock } from './wake-lock';
 
 const WHO_PATH = '/who';
@@ -80,6 +82,8 @@ function RootLayout() {
   return (
     <>
       <Aurora />
+      <UpdateBar />
+      {isPersonalDevice(mode) && <ActingUserToast />}
       {queryMode ? (
         <ApplyDeviceQuery mode={queryMode} />
       ) : (

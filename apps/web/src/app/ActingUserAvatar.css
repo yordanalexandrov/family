@@ -1,0 +1,15 @@
+/* Аватарът е малък, но докосването е ≥ 48 px (`--touch-target`). */
+.acting-user {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
+  margin-inline-start: auto;
+  border-radius: 50%;
+  text-decoration: none;
+}
+
+.acting-user .avatar {
+  --avatar-size: 2.25rem;
+}

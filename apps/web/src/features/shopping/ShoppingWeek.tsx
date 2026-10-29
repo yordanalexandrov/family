@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useUsers } from '../../api/queries';
+import { ScreenHeader } from '../../app/ScreenHeader';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
@@ -59,9 +60,7 @@ export function ShoppingWeek() {
 
   return (
     <main className="screen recipes menu shopping">
-      <header className="recipes__header">
-        <h1 className="recipes__title">Пазаруване</h1>
-      </header>
+      <ScreenHeader title="Пазаруване" />
       <nav className="menu__weeks" aria-label="Седмица">
         <div className="menu__tabs" role="tablist">
           {(

@@ -1,4 +1,8 @@
-import { type PushPayload, pushPayloadSchema } from '@family/shared';
+import {
+  cookTakenSchema,
+  type PushPayload,
+  pushPayloadSchema,
+} from '@family/shared';
 import { logger } from '../logger';
 
 /** Какво `showNotification` получава; `actions` го няма в DOM типовете на TypeScript. */
@@ -9,6 +13,8 @@ export interface NotificationShowOptions {
   actions: { action: string; title: string }[];
   icon: string;
   badge: string;
+  /** Без звук и вибрация: потвърждение на бутон, който човекът току-що е натиснал. */
+  silent?: boolean;
 }
 
 /** Отворен прозорец на приложението (`WindowClient`). */
@@ -77,7 +83,16 @@ export async function onPush(
   if (payload.kind === 'menu' && (await appInFront(worker))) {
     return;
   }
-  await worker.showNotification(payload.title, {
+  await show(worker, payload);
+}
+
+/** Показва `payload` с бутоните му; `data` е самият payload, за да го прочете `notificationclick`. */
+function show(
+  worker: PushWorker,
+  payload: PushPayload,
+  extra: Pick<NotificationShowOptions, 'silent'> = {},
+): Promise<void> {
+  return worker.showNotification(payload.title, {
     body: payload.body,
     tag: payload.tag,
     data: payload,
@@ -87,6 +102,7 @@ export async function onPush(
     })),
     icon: '/icons/icon-192.png',
     badge: '/icons/badge-96.png',
+    ...extra,
   });
 }
 
@@ -115,28 +131,72 @@ async function openApp(worker: PushWorker, path: string): Promise<void> {
 }
 
 /**
- * Бутон (епик #110 → Бутони): `POST <post>` като човека, за когото е известието. Отговорът е изцяло в api-то.
- * `redirect: 'manual'`: изтекла сесия на Cloudflare Access пренасочва към вход, а това е грешка, не успех.
+ * Бутон (епик #110 → Бутони): `POST <post>` като човека, за когото е известието. Отговорът е изцяло в api-то; `null`,
+ * ако заявката не стигна до него. `redirect: 'manual'`: изтекла сесия на Cloudflare Access пренасочва към вход, а това
+ * е грешка, не успех (`opaqueredirect`, не `ok`).
  */
 async function answer(
   worker: PushWorker,
   payload: PushPayload,
   post: string,
-): Promise<boolean> {
+): Promise<Response | null> {
   try {
     const response = await worker.fetch(new URL(post, worker.origin).href, {
       method: 'POST',
       headers: { 'x-acting-user': payload.userId },
       redirect: 'manual',
     });
-    if (response.ok) {
-      return true;
+    if (!response.ok) {
+      logger.warn(
+        'push: бутонът не мина',
+        post,
+        response.status,
+        response.type,
+      );
     }
-    logger.warn('push: бутонът не мина', post, response.status, response.type);
+    return response;
   } catch (error) {
     logger.warn('push: бутонът не мина', post, error);
+    return null;
   }
-  return false;
+}
+
+/** Името на готвача от 409 `cook_taken`; `null` за всеки друг отговор. */
+async function takenBy(response: Response | null): Promise<string | null> {
+  if (response?.status !== 409) {
+    return null;
+  }
+  try {
+    const parsed = cookTakenSchema.safeParse(await response.json());
+    return parsed.success ? parsed.data.cookName : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * „Аз“ на „Кой готви довечера“ (A-19): отговорът идва като ново известие със същия `tag` на мястото на въпроса, без
+ * да отваря приложението. Без бутони, затова докосването му отваря деня на ястието (`url`).
+ */
+async function confirmCook(
+  worker: PushWorker,
+  payload: PushPayload,
+  response: Response | null,
+): Promise<void> {
+  const reply = { ...payload, actions: [] };
+  if (response?.ok) {
+    await show(
+      worker,
+      { ...reply, title: 'Записано: готвиш ти' },
+      { silent: true },
+    );
+    return;
+  }
+  const cook = await takenBy(response);
+  await show(worker, {
+    ...reply,
+    title: cook ? `${cook} вече готви` : 'Не успях да запиша. Отвори менюто',
+  });
 }
 
 /** `notificationclick`: бутон отговаря през api-то; докосване на тялото отваря екрана от `url`. */
@@ -150,9 +210,17 @@ export async function onNotificationClick(
     (candidate) => candidate.action === action,
   );
   notification.close();
-  // При грешка човекът отговаря сам от екрана на известието.
-  if (button && (await answer(worker, payload, button.post))) {
+  if (!button) {
+    await openApp(worker, payload.url);
     return;
   }
-  await openApp(worker, payload.url);
+  const response = await answer(worker, payload, button.post);
+  if (payload.kind === 'cook') {
+    await confirmCook(worker, payload, response);
+    return;
+  }
+  // При грешка човекът отговаря сам от екрана на известието.
+  if (!response?.ok) {
+    await openApp(worker, payload.url);
+  }
 }

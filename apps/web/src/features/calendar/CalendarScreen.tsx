@@ -7,6 +7,7 @@ import { type CSSProperties, useCallback, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useDashboard, useSync } from '../../api/queries';
 import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
+import { ScreenHeader } from '../../app/ScreenHeader';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -65,24 +66,26 @@ export function CalendarScreen() {
 
   return (
     <main className={`calendar${mode === 'kiosk' ? ' calendar--kiosk' : ''}`}>
-      <header className="calendar__header">
-        {mode === 'kiosk' && <BackLink />}
-        <h1 className="calendar__title">Календар</h1>
-        {isPersonalDevice(mode) && (
-          <button
-            type="button"
-            className="button"
-            onClick={refresh}
-            disabled={!online || syncCalendar.isPending}
-          >
-            {!online
-              ? NEEDS_CONNECTION
-              : syncCalendar.isPending
-                ? 'Обновява…'
-                : 'Обнови'}
-          </button>
-        )}
-      </header>
+      <ScreenHeader
+        title="Календар"
+        start={mode === 'kiosk' && <BackLink />}
+        actions={
+          isPersonalDevice(mode) && (
+            <button
+              type="button"
+              className="button"
+              onClick={refresh}
+              disabled={!online || syncCalendar.isPending}
+            >
+              {!online
+                ? NEEDS_CONNECTION
+                : syncCalendar.isPending
+                  ? 'Обновява…'
+                  : 'Обнови'}
+            </button>
+          )
+        }
+      />
       {note && <p className="calendar__note">{note}</p>}
       {days.status === 'pending' ? (
         <Spinner />

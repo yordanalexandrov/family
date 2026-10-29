@@ -1,8 +1,10 @@
 import type { Freshness, SyncSource } from '@family/shared';
+import type { ReactNode } from 'react';
 import './TopBar.css';
 
 /*
- * Горната лента на дашборда: вляво датата, вдясно по една точка за всеки източник.
+ * Горната лента на дашборда: вляво датата, вдясно по една точка за всеки източник (kiosk, TV) или
+ * аватарът на действащия човек (телефон, `avatar`).
  * `sync` е обектът от `GET /api/dashboard`; тук се ползва само `status`, затова и
  * по-тесен обект (витрината в /dev/glass) става.
  */
@@ -12,6 +14,8 @@ interface TopBarProps {
   now: Date;
   /** kiosk, TV: по една точка за източник. Телефонът я няма: състоянието е на картите. */
   sync?: TopBarSync;
+  /** Горе вдясно: аватарът на действащия човек. */
+  avatar?: ReactNode;
 }
 
 const SOURCES: { source: SyncSource; name: string }[] = [
@@ -37,7 +41,7 @@ const dateFormat = new Intl.DateTimeFormat('bg-BG', {
   timeZone: 'Europe/Sofia',
 });
 
-export function TopBar({ now, sync }: TopBarProps) {
+export function TopBar({ now, sync, avatar }: TopBarProps) {
   return (
     <header className="top-bar">
       <p className="top-bar__date">{dateFormat.format(now)}</p>
@@ -61,6 +65,7 @@ export function TopBar({ now, sync }: TopBarProps) {
           })}
         </ul>
       )}
+      {avatar}
     </header>
   );
 }

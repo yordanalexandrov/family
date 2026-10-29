@@ -55,6 +55,7 @@ beforeAll(async () => {
   test.get('/test/cook-taken', async () => {
     throw refuse('cook_taken', 'Някой вече готви', {
       cookUserId: '00000000-0000-4000-8000-000000000001',
+      cookName: 'Поли',
     });
   });
   test.get(
@@ -164,6 +165,7 @@ describe('error handler', () => {
         code: 'cook_taken',
         message: 'Някой вече готви',
         cookUserId: '00000000-0000-4000-8000-000000000001',
+        cookName: 'Поли',
       },
     ],
   ])(

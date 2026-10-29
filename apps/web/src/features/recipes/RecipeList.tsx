@@ -6,6 +6,7 @@ import {
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
+import { ScreenHeader } from '../../app/ScreenHeader';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatMinutes } from './format';
@@ -39,11 +40,7 @@ export function RecipeList() {
 
   return (
     <main className="screen recipes">
-      <header className="recipes__header">
-        <Link to="/" className="recipes__back">
-          ← Начало
-        </Link>
-        <h1 className="recipes__title">Рецепти</h1>
+      <ScreenHeader title="Рецепти">
         <Link to="/recipes/suggest" className="button button--quiet">
           Поискай предложение
         </Link>
@@ -53,7 +50,7 @@ export function RecipeList() {
         <Link to="/recipes/new" className="button">
           Нова рецепта
         </Link>
-      </header>
+      </ScreenHeader>
 
       <div className="recipes__filters">
         <input

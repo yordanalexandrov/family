@@ -10,17 +10,6 @@
     max(var(--space-4), env(safe-area-inset-right));
 }
 
-.calendar__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.calendar__title {
-  font-size: var(--font-size-xl);
-}
-
 .calendar__note {
   margin: 0;
   color: var(--color-stale);
@@ -33,15 +22,11 @@
   max-inline-size: 60rem;
 }
 
-/* kiosk: без долна навигация, по-широко и с по-едри редове, „Назад“ вляво от заглавието. */
+/* kiosk: без долна навигация, по-широко и с по-едри редове, „Назад“ вляво от заглавието (ScreenHeader). */
 .calendar--kiosk {
   max-inline-size: 60rem;
   padding-block-end: var(--space-5);
   font-size: var(--font-size-lg);
-}
-
-.calendar--kiosk .calendar__header {
-  justify-content: flex-start;
 }
 
 .calendar--kiosk .day-events__item {

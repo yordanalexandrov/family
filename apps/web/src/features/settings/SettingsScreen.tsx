@@ -1,7 +1,11 @@
 import { Link } from '@tanstack/react-router';
-import type { CSSProperties, ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useState } from 'react';
 import { useMe } from '../../api/queries';
-import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
+import {
+  type DeviceMode,
+  isPersonalDevice,
+  useDeviceMode,
+} from '../../app/device-mode';
 import {
   type EffectsSetting,
   supportsBlur,
@@ -12,14 +16,19 @@ import { Avatar } from '../../components/Avatar';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { DEVICE_CHOICES } from '../device/DeviceScreen';
+import { DeviceModeConfirm, needsConfirmation } from './DeviceModeConfirm';
 import { NotificationsSection } from './NotificationsSection';
 import './SettingsScreen.css';
 
-const THEMES: { value: ThemeSetting; label: string }[] = [
-  { value: 'light', label: 'Светла' },
-  { value: 'dark', label: 'Тъмна' },
-  { value: 'auto', label: 'Автоматично по часа' },
-];
+/** „Като телефона“ на телефона и в браузъра; на kiosk и TV — неутрално „Като устройството“. */
+function themes(systemLabel: string): { value: ThemeSetting; label: string }[] {
+  return [
+    { value: 'light', label: 'Светла' },
+    { value: 'dark', label: 'Тъмна' },
+    { value: 'system', label: systemLabel },
+    { value: 'auto', label: 'Автоматично по часа' },
+  ];
+}
 
 const EFFECTS: { value: EffectsSetting; label: string }[] = [
   { value: 'full', label: 'Пълни' },
@@ -27,12 +36,21 @@ const EFFECTS: { value: EffectsSetting; label: string }[] = [
   { value: 'auto', label: 'Автоматично' },
 ];
 
-/** Настройките на устройството: тема, ефекти, режим, „Кой си“ и „Известия“ (телефон и браузър), версия. */
+/** Настройките на устройството: „Кой си“ и „Известия“ (телефон и браузър), тема, ефекти, режим, версия. */
 export function SettingsScreen() {
   const { setting: theme, setTheme } = useTheme();
   const { setting: effects, level, setEffects } = useEffectsLevel();
   const { mode, setMode } = useDeviceMode();
+  const current = mode ?? 'phone';
+  // Режимът, който чака „Смени“ в листа за потвърждение.
+  const [confirmingMode, setConfirmingMode] = useState<DeviceMode | null>(null);
   const blur = supportsBlur();
+  const personal = isPersonalDevice(mode);
+  const systemLabel = isPersonalDevice(current)
+    ? 'Като телефона'
+    : 'Като устройството';
+  // „Кой си“ и „Известия“ най-горе на телефона и в браузъра; появата на останалите карти започва след тях.
+  const animationOffset = personal ? 2 : 0;
 
   return (
     <main className={`settings${mode === 'phone' ? '' : ' settings--wide'}`}>
@@ -41,20 +59,33 @@ export function SettingsScreen() {
         <h1 className="settings__title">Настройки</h1>
       </header>
 
-      <Section title="Тема" index={0}>
+      {personal && (
+        <Section title="Кой си" index={0}>
+          <ActingUser />
+        </Section>
+      )}
+
+      {personal && (
+        <Section title="Известия" index={1}>
+          <NotificationsSection />
+        </Section>
+      )}
+
+      <Section title="Тема" index={animationOffset}>
         <Choices
           name="theme"
           legend="Тема"
           value={theme}
-          options={THEMES}
+          options={themes(systemLabel)}
           onChange={setTheme}
         />
         <p className="settings__hint">
-          Автоматично: тъмна от 20:00 до 07:00, светла през деня.
+          {systemLabel}: следва тъмния режим на устройството. По часа: тъмна от
+          20:00 до 07:00, светла през деня.
         </p>
       </Section>
 
-      <Section title="Ефекти" index={1}>
+      <Section title="Ефекти" index={animationOffset + 1}>
         <Choices
           name="effects"
           legend="Ефекти"
@@ -69,30 +100,34 @@ export function SettingsScreen() {
         </p>
       </Section>
 
-      <Section title="Устройство" index={2}>
+      <Section title="Устройство" index={animationOffset + 2}>
         <Choices
           name="device"
           legend="Устройство"
-          value={mode ?? 'phone'}
+          value={current}
           options={DEVICE_CHOICES.map(({ mode: value, name, description }) => ({
             value,
             label: name,
             description,
           }))}
-          onChange={setMode}
+          onChange={(next) =>
+            needsConfirmation(current, next)
+              ? setConfirmingMode(next)
+              : setMode(next)
+          }
         />
       </Section>
 
-      {isPersonalDevice(mode) && (
-        <Section title="Кой си" index={3}>
-          <ActingUser />
-        </Section>
-      )}
-
-      {isPersonalDevice(mode) && (
-        <Section title="Известия" index={4}>
-          <NotificationsSection />
-        </Section>
+      {confirmingMode && (
+        <DeviceModeConfirm
+          from={current}
+          to={confirmingMode}
+          onConfirm={() => {
+            setMode(confirmingMode);
+            setConfirmingMode(null);
+          }}
+          onCancel={() => setConfirmingMode(null)}
+        />
       )}
 
       <p className="settings__version">Версия {__APP_VERSION__}</p>

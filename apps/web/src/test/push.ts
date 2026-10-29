@@ -15,6 +15,8 @@ interface PushBrowserOptions {
   answer?: NotificationPermission;
   /** Устройството вече е абонирано. */
   subscribed?: boolean;
+  /** `pushManager.subscribe()` виси до `finishSubscribe()`, за да се види „Включване…“ (FCM отнема до 26 s). */
+  slowSubscribe?: boolean;
 }
 
 /**
@@ -25,8 +27,15 @@ export function stubPushBrowser({
   permission = 'default',
   answer = 'granted',
   subscribed = false,
+  slowSubscribe = false,
 }: PushBrowserOptions = {}) {
   let current: PushSubscription | null = null;
+  let finishSubscribe = () => {};
+  const subscribeGate = slowSubscribe
+    ? new Promise<void>((done) => {
+        finishSubscribe = done;
+      })
+    : Promise.resolve();
 
   const makeSubscription = (): PushSubscription => {
     const subscription = {
@@ -57,6 +66,7 @@ export function stubPushBrowser({
   const pushManager = {
     getSubscription: vi.fn(async () => current),
     subscribe: vi.fn(async (_options: PushSubscriptionOptionsInit) => {
+      await subscribeGate;
       current = makeSubscription();
       return current;
     }),
@@ -78,6 +88,8 @@ export function stubPushBrowser({
     pushManager,
     /** Текущият абонамент на устройството, ако има. */
     subscription: () => current,
+    /** Пуска висящия `subscribe()` при `slowSubscribe`. */
+    finishSubscribe: () => finishSubscribe(),
   };
 }
 

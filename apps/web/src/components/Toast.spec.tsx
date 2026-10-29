@@ -43,6 +43,18 @@ describe('Toast', () => {
     expect(screen.queryByText('Рецептата е изтрита')).not.toBeInTheDocument();
   });
 
+  it('стои извън съдържанието на екрана, за да е над долната лента и вътре в карта', () => {
+    const { container } = render(
+      <section aria-label="Известия">
+        <Host />
+      </section>,
+    );
+
+    const message = screen.getByText('Рецептата е изтрита');
+    expect(container).not.toContainElement(message);
+    expect(message.closest('.toast')?.parentElement).toBe(document.body);
+  });
+
   it('„Върни“ вика onAction веднъж и скрива съобщението', async () => {
     vi.useRealTimers();
     const user = userEvent.setup();

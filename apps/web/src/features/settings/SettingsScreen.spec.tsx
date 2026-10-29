@@ -29,6 +29,15 @@ describe('SettingsScreen', () => {
     delete document.documentElement.dataset.effects;
   });
 
+  it('на телефона картите са „Кой си“, „Известия“, „Тема“, „Ефекти“, „Устройство“', async () => {
+    renderApp('/settings');
+    await screen.findByRole('region', { name: 'Кой си' });
+
+    expect(
+      screen.getAllByRole('region').map((region) => region.ariaLabel),
+    ).toEqual(['Кой си', 'Известия', 'Тема', 'Ефекти', 'Устройство']);
+  });
+
   it('смяна на темата слага data-theme и я пази в family.theme', async () => {
     const user = userEvent.setup();
     renderApp('/settings');
@@ -53,11 +62,50 @@ describe('SettingsScreen', () => {
       await screen.findByRole('radio', { name: 'Автоматично по часа' }),
     );
     expect(document.documentElement.dataset.theme).toBe('dark');
-    expect(localStorage.getItem('family.theme')).toBeNull();
+    expect(localStorage.getItem('family.theme')).toBe('auto');
 
     vi.setSystemTime(new Date('2026-11-05T05:00:00Z'));
     await vi.advanceTimersByTimeAsync(60_000);
     expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+  it('на телефон без избор е отметнато „Като телефона“ и тъмният телефон дава тъмна тема', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(prefers-color-scheme: dark)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    renderApp('/settings');
+
+    expect(
+      await screen.findByRole('radio', { name: 'Като телефона' }),
+    ).toBeChecked();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it.each(['kiosk', 'tv'] as const)(
+    'на %s темата по системата е „Като устройството“',
+    async (mode) => {
+      setUpDevice(mode);
+      renderApp('/settings');
+
+      expect(
+        await screen.findByRole('radio', { name: 'Като устройството' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('radio', { name: 'Като телефона' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('в браузъра темата по системата остава „Като телефона“', async () => {
+    setUpDevice('browser', dani.id);
+    renderApp('/settings');
+
+    expect(
+      await screen.findByRole('radio', { name: 'Като телефона' }),
+    ).toBeInTheDocument();
   });
 
   it('„Леки“ слага data-effects="lite", „Пълни“ — full', async () => {
@@ -82,19 +130,83 @@ describe('SettingsScreen', () => {
     ).toBeInTheDocument();
   });
 
-  it('смяна на устройството записва режима; извън телефона няма „Кой си“', async () => {
+  it('„Телевизор“ без потвърждение не сменя режима', async () => {
     const user = userEvent.setup();
     renderApp('/settings');
-    expect(
-      await screen.findByRole('region', { name: 'Кой си' }),
-    ).toBeInTheDocument();
+    await screen.findByRole('region', { name: 'Кой си' });
 
     await user.click(screen.getByRole('radio', { name: /Телевизор/ }));
 
+    const sheet = screen.getByRole('dialog', { name: 'Телевизор' });
+    expect(sheet).toHaveTextContent(
+      'Телефонът ще стане телевизор: без навигация и без известия. Продължи?',
+    );
+    expect(sheet).toHaveTextContent('?device=phone');
+    expect(localStorage.getItem('family.deviceMode')).toBe('phone');
+    expect(screen.getByRole('radio', { name: /Телефон/ })).toBeChecked();
+  });
+
+  it('„Смени“ сменя режима; извън телефона няма „Кой си“', async () => {
+    const user = userEvent.setup();
+    renderApp('/settings');
+    await screen.findByRole('region', { name: 'Кой си' });
+
+    await user.click(screen.getByRole('radio', { name: /Телевизор/ }));
+    await user.click(screen.getByRole('button', { name: 'Смени' }));
+
     expect(localStorage.getItem('family.deviceMode')).toBe('tv');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('region', { name: 'Кой си' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('„Откажи“ оставя „Телефон“', async () => {
+    const user = userEvent.setup();
+    renderApp('/settings');
+    await screen.findByRole('region', { name: 'Кой си' });
+
+    await user.click(screen.getByRole('radio', { name: /Телевизор/ }));
+    await user.click(screen.getByRole('button', { name: 'Откажи' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(localStorage.getItem('family.deviceMode')).toBe('phone');
+    expect(screen.getByRole('radio', { name: /Телефон/ })).toBeChecked();
+  });
+
+  it('„Таблет в кухнята“ казва как се връща обратно', async () => {
+    const user = userEvent.setup();
+    renderApp('/settings');
+    await screen.findByRole('region', { name: 'Кой си' });
+
+    await user.click(screen.getByRole('radio', { name: /Таблет в кухнята/ }));
+
+    expect(
+      screen.getByRole('dialog', { name: 'Таблет в кухнята' }),
+    ).toHaveTextContent(/зъбчето.*Настройки.*Телефон/);
+    expect(localStorage.getItem('family.deviceMode')).toBe('phone');
+  });
+
+  it('„Телефон“ казва всичко, което има телефонът', async () => {
+    renderApp('/settings');
+    await screen.findByRole('region', { name: 'Кой си' });
+
+    expect(
+      screen.getByRole('radio', {
+        name: /Телефон\s*Всичко за един човек: дашборд, календар, рецепти, меню, пазаруване, килер, известия\./,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('„Браузър“ се сменя без потвърждение', async () => {
+    const user = userEvent.setup();
+    renderApp('/settings');
+    await screen.findByRole('region', { name: 'Кой си' });
+
+    await user.click(screen.getByRole('radio', { name: /Браузър/ }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(localStorage.getItem('family.deviceMode')).toBe('browser');
   });
 
   it('в браузъра има „Кой си“ и „Известия“ като на телефона', async () => {

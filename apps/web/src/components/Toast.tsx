@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import './Toast.css';
 
 interface ToastAction {
@@ -19,7 +20,9 @@ const ACTION_DURATION_MS = 8000;
 
 /**
  * Кратко съобщение над долната лента; изчезва само след `durationMs`. Действието
- * вика `onAction` и скрива съобщението; изтичането само го скрива.
+ * вика `onAction` и скрива съобщението; изтичането само го скрива. Рендерира се в
+ * `document.body`: карта с `backdrop-filter` или анимиран `translate` става
+ * containing block за `position: fixed` и toast-ът иначе застава в нея (A-19).
  */
 export function Toast({ message, onDone, durationMs, action }: ToastProps) {
   const duration = durationMs ?? (action ? ACTION_DURATION_MS : DURATION_MS);
@@ -32,7 +35,7 @@ export function Toast({ message, onDone, durationMs, action }: ToastProps) {
     return () => clearTimeout(timer);
   }, [message, onDone, duration]);
 
-  return (
+  return createPortal(
     <div className="toast" role="status" aria-live="polite">
       {message && (
         <p className="toast__message">
@@ -51,6 +54,7 @@ export function Toast({ message, onDone, durationMs, action }: ToastProps) {
           )}
         </p>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
