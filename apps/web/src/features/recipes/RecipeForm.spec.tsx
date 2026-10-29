@@ -59,6 +59,23 @@ function lineSheet() {
   return within(screen.getByRole('dialog', { name: 'Продукт' }));
 }
 
+/** Редовете в списъка „Стъпки“, в реда, в който се виждат. */
+function stepLines() {
+  return within(screen.getByRole('list', { name: 'Стъпки' }))
+    .queryAllByRole('listitem')
+    .map((line) => line.textContent);
+}
+
+/** Листът за една стъпка. */
+function stepSheet() {
+  return within(screen.getByRole('dialog', { name: 'Стъпка' }));
+}
+
+/** Лентата с основното действие на екрана. */
+function actionBar() {
+  return within(screen.getByRole('group', { name: 'Действия' }));
+}
+
 describe('RecipeForm', () => {
   it('попълване с избор от autocomplete праща POST /api/recipes с правилното тяло', async () => {
     const user = userEvent.setup();
@@ -75,15 +92,18 @@ describe('RecipeForm', () => {
     await user.type(screen.getByRole('textbox', { name: 'Порции' }), '6');
     await user.type(screen.getByRole('textbox', { name: 'Време (мин)' }), '50');
     await user.click(screen.getByRole('button', { name: 'обяд' }));
-    await user.type(
-      screen.getByRole('textbox', { name: 'Стъпка 1' }),
-      'Свари пилето.',
-    );
     await user.click(screen.getByRole('button', { name: 'Добави стъпка' }));
     await user.type(
-      screen.getByRole('textbox', { name: 'Стъпка 2' }),
+      stepSheet().getByRole('textbox', { name: 'Стъпка 1' }),
+      'Свари пилето.',
+    );
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Добави стъпка' }));
+    await user.type(
+      stepSheet().getByRole('textbox', { name: 'Стъпка 2' }),
       'Добави фиде.',
     );
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
 
     await user.click(screen.getByRole('button', { name: 'Добави продукт' }));
     const sheet = lineSheet();
@@ -113,7 +133,7 @@ describe('RecipeForm', () => {
       screen.queryByRole('textbox', { name: 'Количество' }),
     ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    await user.click(actionBar().getByRole('button', { name: 'Запази' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Пилешка супа' }),
@@ -231,10 +251,14 @@ describe('RecipeForm', () => {
     const saved = serveForm();
 
     renderApp('/recipes/new');
+    await user.click(
+      await screen.findByRole('button', { name: 'Добави стъпка' }),
+    );
     await user.type(
-      await screen.findByRole('textbox', { name: 'Стъпка 1' }),
+      stepSheet().getByRole('textbox', { name: 'Стъпка 1' }),
       'Нещо.',
     );
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
     await user.click(screen.getByRole('button', { name: 'Запази' }));
 
     expect(screen.getByRole('textbox', { name: 'Заглавие' })).toHaveAttribute(
@@ -251,15 +275,19 @@ describe('RecipeForm', () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const put: RecipeInput[] = [];
+    // Изгледът след записа може да прочете рецептата наново: тя е със записаното заглавие.
+    const stored = (): Recipe => ({
+      ...chickenWithRice,
+      title: put.at(-1)?.title ?? chickenWithRice.title,
+    });
     server.use(
       http.get(`/api/recipes/${chickenWithRice.id}`, () =>
-        HttpResponse.json({ recipe: chickenWithRice }),
+        HttpResponse.json({ recipe: stored() }),
       ),
       http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
         const body = (await request.json()) as RecipeInput;
         put.push(body);
-        const recipe: Recipe = { ...chickenWithRice, title: body.title };
-        return HttpResponse.json({ recipe });
+        return HttpResponse.json({ recipe: stored() });
       }),
     );
 
@@ -268,7 +296,9 @@ describe('RecipeForm', () => {
     expect(title).toHaveValue('Пиле с ориз');
     await user.clear(title);
     await user.type(title, 'Пиле с ориз на фурна');
-    await user.click(screen.getByRole('button', { name: 'Нагоре: стъпка 2' }));
+    await user.click(screen.getByRole('button', { name: 'Задуши с лука.' }));
+    await user.click(stepSheet().getByRole('button', { name: 'По-нагоре' }));
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
 
     // Продуктите са редове текст, всички свързани.
     expect(ingredientLines().map((line) => line.textContent)).toEqual([
@@ -291,7 +321,7 @@ describe('RecipeForm', () => {
       screen.getByRole('button', { name: 'пилешко филе · 700 г' }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    await user.click(actionBar().getByRole('button', { name: 'Запази' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Пиле с ориз на фурна' }),
@@ -352,5 +382,245 @@ describe('RecipeForm', () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
     expect(scrollIntoView.mock.contexts.at(-1)).toBe(field);
+  });
+
+  it('стъпките са номериран списък; листът редактира, мести и маха стъпка', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const put: RecipeInput[] = [];
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({ recipe: chickenWithRice }),
+      ),
+      http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
+        const body = (await request.json()) as RecipeInput;
+        put.push(body);
+        return HttpResponse.json({ recipe: chickenWithRice });
+      }),
+    );
+
+    renderApp(`/recipes/${chickenWithRice.id}/edit`);
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    expect(stepLines()).toEqual(['Нарежи пилето.', 'Задуши с лука.']);
+    expect(
+      screen.queryByRole('textbox', { name: /Стъпка/ }),
+    ).not.toBeInTheDocument();
+
+    // Редакция на текста.
+    await user.click(screen.getByRole('button', { name: 'Задуши с лука.' }));
+    const text = stepSheet().getByRole('textbox', { name: 'Стъпка 2' });
+    expect(text).toHaveValue('Задуши с лука.');
+    await user.clear(text);
+    await user.type(text, 'Задуши с лука и морков.');
+    expect(
+      stepSheet().getByRole('button', { name: 'По-надолу' }),
+    ).toBeDisabled();
+    // Местене: листът следва стъпката.
+    await user.click(stepSheet().getByRole('button', { name: 'По-нагоре' }));
+    expect(stepSheet().getByRole('textbox', { name: 'Стъпка 1' })).toHaveValue(
+      'Задуши с лука и морков.',
+    );
+    expect(
+      stepSheet().getByRole('button', { name: 'По-нагоре' }),
+    ).toBeDisabled();
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    expect(stepLines()).toEqual(['Задуши с лука и морков.', 'Нарежи пилето.']);
+
+    // Нова стъпка през същия лист.
+    await user.click(screen.getByRole('button', { name: 'Добави стъпка' }));
+    await user.type(
+      stepSheet().getByRole('textbox', { name: 'Стъпка 3' }),
+      'Сервирай.',
+    );
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+
+    // Махане.
+    await user.click(screen.getByRole('button', { name: 'Нарежи пилето.' }));
+    await user.click(
+      stepSheet().getByRole('button', { name: 'Премахни стъпка' }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(stepLines()).toEqual(['Задуши с лука и морков.', 'Сервирай.']);
+
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    await vi.waitFor(() => expect(put).toHaveLength(1));
+    expect(put[0]?.steps).toEqual(['Задуши с лука и морков.', 'Сервирай.']);
+  });
+
+  it('нова стъпка, затворена празна, не остава в списъка; без стъпки записът казва да се добави', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const saved = serveForm();
+
+    renderApp('/recipes/new');
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Заглавие' }),
+      'Супа',
+    );
+    expect(stepLines()).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Добави стъпка' }));
+    expect(stepLines()).toHaveLength(1);
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    expect(stepLines()).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    expect(screen.getByText('Добави поне една стъпка')).toBeInTheDocument();
+    expect(saved).toEqual([]);
+  });
+
+  it('местене и махане на стъпка пазят грешките на другите полета', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const saved = serveForm();
+
+    renderApp('/recipes/new');
+    for (const text of ['Първа.', 'Втора.']) {
+      await user.click(
+        await screen.findByRole('button', { name: 'Добави стъпка' }),
+      );
+      await user.type(
+        stepSheet().getByRole('textbox', { name: /Стъпка/ }),
+        text,
+      );
+      await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    }
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    const title = screen.getByRole('textbox', { name: 'Заглавие' });
+    expect(title).toHaveAccessibleDescription('Въведи заглавие');
+
+    await user.click(screen.getByRole('button', { name: 'Втора.' }));
+    await user.click(stepSheet().getByRole('button', { name: 'По-нагоре' }));
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    expect(stepLines()).toEqual(['Втора.', 'Първа.']);
+    expect(title).toHaveAccessibleDescription('Въведи заглавие');
+    expect(actionBar().getByRole('alert')).toHaveTextContent(
+      'Поправи отбелязаните полета.',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Първа.' }));
+    await user.click(
+      stepSheet().getByRole('button', { name: 'Премахни стъпка' }),
+    );
+    expect(stepLines()).toEqual(['Втора.']);
+    expect(title).toHaveAccessibleDescription('Въведи заглавие');
+    expect(saved).toEqual([]);
+  });
+
+  it('махане на продукт пази грешките на другите полета и редове', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const put: RecipeInput[] = [];
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({ recipe: chickenWithRice }),
+      ),
+      http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
+        put.push((await request.json()) as RecipeInput);
+        return HttpResponse.json({ recipe: chickenWithRice });
+      }),
+    );
+
+    renderApp(`/recipes/${chickenWithRice.id}/edit`);
+    const title = await screen.findByRole('textbox', { name: 'Заглавие' });
+    await user.clear(title);
+    await user.click(screen.getByRole('button', { name: /^лук/ }));
+    const quantity = lineSheet().getByRole('textbox', { name: 'Количество' });
+    await user.clear(quantity);
+    await user.type(quantity, '-1');
+    await user.click(lineSheet().getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    expect(title).toHaveAccessibleDescription('Въведи заглавие');
+    expect(
+      screen.getByRole('button', { name: /^лук/ }),
+    ).toHaveAccessibleDescription('Количеството е положително число');
+
+    await user.click(screen.getByRole('button', { name: /^пилешко филе/ }));
+    await user.click(lineSheet().getByRole('button', { name: 'Премахни ред' }));
+    expect(ingredientLines()).toHaveLength(2);
+    expect(title).toHaveAccessibleDescription('Въведи заглавие');
+    expect(
+      screen.getByRole('button', { name: /^лук/ }),
+    ).toHaveAccessibleDescription('Количеството е положително число');
+    expect(
+      screen.getByRole('button', { name: /^сол/ }),
+    ).not.toHaveAccessibleDescription();
+    expect(put).toEqual([]);
+  });
+
+  it('ръчно разгънатата хранителна стойност остава разгъната, когато грешката ѝ се поправи', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const saved = serveForm();
+
+    renderApp('/recipes/new');
+    const summary = await screen.findByText('+ Хранителна стойност');
+    const details = summary.closest('details');
+    await user.click(summary);
+    const kcal = screen.getByRole('textbox', { name: 'Енергия (kcal)' });
+    await user.type(kcal, '-5');
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    expect(kcal).toHaveAccessibleDescription('Неотрицателно число');
+
+    await user.clear(kcal);
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    // Заглавието още липсва; грешката на енергията я няма.
+    expect(kcal).not.toHaveAccessibleDescription('Неотрицателно число');
+    expect(details).toHaveAttribute('open');
+    expect(saved).toEqual([]);
+  });
+
+  it('грешка в сгънатата хранителна стойност я разгъва', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveForm();
+
+    renderApp('/recipes/new');
+    const summary = await screen.findByText('+ Хранителна стойност');
+    const details = summary.closest('details');
+    await user.click(summary);
+    await user.type(
+      screen.getByRole('textbox', { name: 'Енергия (kcal)' }),
+      '-5',
+    );
+    await user.click(summary);
+    expect(details).not.toHaveAttribute('open');
+
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    expect(details).toHaveAttribute('open');
+  });
+
+  it('хранителната стойност е най-долу и сгъната без стойности, разгъната със стойности', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({ recipe: chickenWithRice }),
+      ),
+    );
+    serveForm();
+
+    const blank = renderApp('/recipes/new');
+    const summary = await screen.findByText('+ Хранителна стойност');
+    const empty = summary.closest('details');
+    expect(empty).not.toHaveAttribute('open');
+    // След „Стъпки“ във формата.
+    expect(
+      screen
+        .getByRole('list', { name: 'Стъпки' })
+        .compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.click(summary);
+    expect(
+      screen.getByRole('textbox', { name: 'Енергия (kcal)' }),
+    ).toBeVisible();
+    blank.unmount();
+
+    renderApp(`/recipes/${chickenWithRice.id}/edit`);
+    expect(
+      (await screen.findByText('+ Хранителна стойност')).closest('details'),
+    ).toHaveAttribute('open');
+    expect(screen.getByRole('textbox', { name: 'Енергия (kcal)' })).toHaveValue(
+      '150',
+    );
   });
 });

@@ -198,7 +198,7 @@ export function GlassScreen() {
 
       <ActionBar
         text={`${TO_LINK - Math.min(linked, TO_LINK)} продукта за свързване`}
-        secondary={{ label: 'Пропусни', onClick: () => setLinked(TO_LINK) }}
+        secondary={[{ label: 'Пропусни', onClick: () => setLinked(TO_LINK) }]}
         primary={{
           label: 'Свържи',
           onClick: () => setLinked((count) => count + 1),

@@ -35,6 +35,30 @@ describe('GET /api/ingredients', () => {
     expect(ingredients[0]).toMatchObject({ unit: 'g', aisle: 'produce' });
   });
 
+  it('orders names starting with q, then with a word starting with q, then the rest containing it', async () => {
+    const names = await searchNames('чу');
+
+    expect(names).toEqual([
+      'чубрица',
+      'чушка',
+      'люта чушка',
+      'замразена зеленчукова смес',
+      'кетчуп',
+    ]);
+  });
+
+  it('finds an ingredient named by one of the words when nothing contains the whole text', async () => {
+    expect(await searchNames('чесън на прах')).toEqual(['чесън']);
+  });
+
+  it('puts the close match with the most matched words first', async () => {
+    expect(await searchNames('пушен червен пипер')).toEqual([
+      'червен пипер',
+      'червено вино',
+      'черен пипер',
+    ]);
+  });
+
   it('puts the exact match first, so the 50-row cap cannot push it out', async () => {
     // 60 names that contain „мед“ and sort before it.
     for (let index = 0; index < 60; index += 1) {
@@ -59,6 +83,17 @@ describe('GET /api/ingredients', () => {
     expect(ingredients[1]?.name).toBe('а00 мед');
   });
 });
+
+async function searchNames(q: string) {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/ingredients?q=${encodeURIComponent(q)}`,
+    headers,
+  });
+  expect(response.statusCode).toBe(200);
+  const { ingredients } = ingredientsResponseSchema.parse(response.json());
+  return ingredients.map((ingredient) => ingredient.name);
+}
 
 function createIngredient(payload: object) {
   return app.inject({

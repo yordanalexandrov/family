@@ -1,5 +1,6 @@
 import type { Ingredient, RecipeInput, Tag } from '@family/shared';
-import { type FormEvent, useCallback, useId, useState } from 'react';
+import { type FormEvent, useCallback, useId, useRef, useState } from 'react';
+import { type Action, ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { IngredientLineSheet } from './IngredientLineSheet';
@@ -14,6 +15,7 @@ import {
   type RecipeFormValues,
   toRecipeInput,
 } from './recipe-form-values';
+import { StepSheet } from './StepSheet';
 import { TagChips } from './TagChips';
 import './recipes.css';
 
@@ -28,10 +30,16 @@ export interface RecipeFormProps {
   submitError?: unknown;
   onCancel?: () => void;
   /**
-   * Одобрение на предложение: редовете без продукт чакат свързване в листа на реда; бутонът не праща, докато ги
-   * има, и казва кои са.
+   * Одобрение на предложение: редовете без продукт чакат свързване в листа на реда; лентата казва колко са, а
+   * основното действие отваря листа на първия, вместо да праща.
    */
   requireResolvedIngredients?: boolean;
+  /** Още тихи действия в лентата преди „Откажи“, напр. „Отхвърли“ при преглед. */
+  extraActions?: readonly Action[];
+}
+
+function isNutritionPath(path: string): boolean {
+  return path.startsWith('nutritionPer100g.');
 }
 
 const INGREDIENT_ID_PATH = /^ingredients\.\d+\.ingredientId$/;
@@ -39,6 +47,11 @@ const INGREDIENT_ID_PATH = /^ingredients\.\d+\.ingredientId$/;
 /** Името на предложения нов продукт на реда, за сравнение без значение от главни букви. */
 function newProductKey(row: IngredientRowValues): string | undefined {
   return row.newProduct?.name.trim().toLocaleLowerCase('bg');
+}
+
+/** „1 продукт за свързване“, „2 продукта за свързване“. */
+function waitingText(count: number): string {
+  return `${count} ${count === 1 ? 'продукт' : 'продукта'} за свързване`;
 }
 
 const NUTRITION_FIELDS = [
@@ -57,6 +70,37 @@ function move<T>(items: readonly T[], from: number, to: number): T[] {
   return next;
 }
 
+/**
+ * Грешките по редове на списък (`steps.<n>`, `ingredients.<n>.<поле>`) са по индекс: след местене или махане минават
+ * под новия индекс на реда си (`undefined` = редът го няма). Другите грешки остават.
+ */
+function reindexErrors(
+  errors: RecipeFormErrors,
+  list: 'steps' | 'ingredients',
+  newIndex: (index: number) => number | undefined,
+): RecipeFormErrors {
+  const pattern = new RegExp(`^${list}\\.(\\d+)(\\..+)?$`);
+  const next: RecipeFormErrors = {};
+  for (const [path, message] of Object.entries(errors)) {
+    const match = pattern.exec(path);
+    if (!match) {
+      next[path] = message;
+      continue;
+    }
+    const index = newIndex(Number(match[1]));
+    if (index !== undefined) {
+      next[`${list}.${index}${match[2] ?? ''}`] = message;
+    }
+  }
+  return next;
+}
+
+/** Новият индекс на ред след махането на `removed`. */
+function afterRemoving(removed: number) {
+  return (index: number) =>
+    index === removed ? undefined : index > removed ? index - 1 : index;
+}
+
 /** Формата за нова рецепта и за редакция; без библиотека, валидация с `recipeInputSchema`. */
 export function RecipeForm({
   initialValues,
@@ -66,6 +110,7 @@ export function RecipeForm({
   submitError,
   onCancel,
   requireResolvedIngredients = false,
+  extraActions = [],
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
@@ -76,7 +121,37 @@ export function RecipeForm({
     key: string;
     added: boolean;
   } | null>(null);
+  /** Стъпката в отворения лист; `added` = нова от „Добави стъпка“, която се маха, ако се затвори празна. */
+  const [editingStep, setEditingStep] = useState<{
+    index: number;
+    added: boolean;
+  } | null>(null);
+  /** Хранителната стойност е разгъната отначало, ако рецептата идва с такава. */
+  const [hasNutrition] = useState(() =>
+    Object.values(values.nutrition).some((value) => value.trim() !== ''),
+  );
+  const nutritionRef = useRef<HTMLDetailsElement>(null);
   const errorIdPrefix = useId();
+  const formId = useId();
+  // Листът мести фокуса на „Готово“ при нов `onClose`; местенето сменя индекса, затова затварянето чете ref.
+  const editingStepRef = useRef(editingStep);
+  editingStepRef.current = editingStep;
+  const stepsRef = useRef(values.steps);
+  stepsRef.current = values.steps;
+  const closeStep = useCallback(() => {
+    const step = editingStepRef.current;
+    if (step?.added && stepsRef.current[step.index]?.trim() === '') {
+      const removed = step.index;
+      setValues((current) => ({
+        ...current,
+        steps: current.steps.filter((_, index) => index !== removed),
+      }));
+      setErrors((current) =>
+        reindexErrors(current, 'steps', afterRemoving(removed)),
+      );
+    }
+    setEditingStep(null);
+  }, []);
   const closeEditing = useCallback(() => {
     if (editing?.added) {
       setValues((current) => ({
@@ -151,13 +226,44 @@ export function RecipeForm({
   }
 
   function removeIngredient(key: string) {
+    const removed = values.ingredients.findIndex((row) => row.key === key);
     set(
       'ingredients',
       values.ingredients.filter((row) => row.key !== key),
     );
-    // Грешките са по индекс на реда; след махане биха паднали под друг ред.
-    setErrors({});
+    setErrors((current) =>
+      reindexErrors(current, 'ingredients', afterRemoving(removed)),
+    );
     setEditing(null);
+  }
+
+  function addStep() {
+    set('steps', [...values.steps, '']);
+    setEditingStep({ index: values.steps.length, added: true });
+  }
+
+  function moveStep(from: number, to: number) {
+    set('steps', move(values.steps, from, to));
+    const order = move(
+      values.steps.map((_, index) => index),
+      from,
+      to,
+    );
+    setErrors((current) =>
+      reindexErrors(current, 'steps', (index) => order.indexOf(index)),
+    );
+    setEditingStep((current) => current && { ...current, index: to });
+  }
+
+  function removeStep(index: number) {
+    set(
+      'steps',
+      values.steps.filter((_, i) => i !== index),
+    );
+    setErrors((current) =>
+      reindexErrors(current, 'steps', afterRemoving(index)),
+    );
+    setEditingStep(null);
   }
 
   function toggleTag(tag: Tag) {
@@ -169,11 +275,24 @@ export function RecipeForm({
     );
   }
 
+  /** „Одобри“/„Запази“ в лентата и Enter в поле: и двете пращат формата. */
   function submit(event: FormEvent) {
     event.preventDefault();
+    const [first] = waiting;
+    if (first) {
+      // Одобрението чака свързване: води към първия ред, който го спира.
+      setEditing({ key: first.key, added: false });
+      return;
+    }
     const result = toRecipeInput(values);
     if (!result.ok) {
       setErrors(result.errors);
+      if (
+        Object.keys(result.errors).some(isNutritionPath) &&
+        nutritionRef.current
+      ) {
+        nutritionRef.current.open = true;
+      }
       return;
     }
     setErrors({});
@@ -186,13 +305,11 @@ export function RecipeForm({
     ...lines.filter(({ row }) => row.ingredient === null),
     ...lines.filter(({ row }) => row.ingredient !== null),
   ];
-  const waiting = values.ingredients.filter((row) => row.ingredient === null);
-  const errorPaths = Object.keys(errors);
-  const waitingAlert =
-    requireResolvedIngredients &&
-    waiting.length > 0 &&
-    errorPaths.some((path) => INGREDIENT_ID_PATH.test(path));
-  const fieldAlert = errorPaths.some(
+  const waiting = requireResolvedIngredients
+    ? values.ingredients.filter((row) => row.ingredient === null)
+    : [];
+  // Несвързаните редове се свързват в листа си; полетата с грешки остават за алармата.
+  const fieldAlert = Object.keys(errors).some(
     (path) => !requireResolvedIngredients || !INGREDIENT_ID_PATH.test(path),
   );
   const editingIndex = editing
@@ -202,7 +319,7 @@ export function RecipeForm({
 
   return (
     <>
-      <form className="recipe-form" noValidate onSubmit={submit}>
+      <form id={formId} className="recipe-form" noValidate onSubmit={submit}>
         <fieldset className="recipe-form__section">
           <legend>Основни</legend>
           <Field label="Заглавие" error={errors.title}>
@@ -256,34 +373,6 @@ export function RecipeForm({
             selected={values.tags}
             onToggle={toggleTag}
           />
-        </fieldset>
-
-        <fieldset className="recipe-form__section">
-          <legend>Хранителна стойност на 100 г (по избор)</legend>
-          <div className="recipe-form__row">
-            {NUTRITION_FIELDS.map(([key, label]) => (
-              <Field
-                key={key}
-                label={label}
-                error={errors[`nutritionPer100g.${key}`]}
-              >
-                {(props) => (
-                  <input
-                    {...props}
-                    className="field__input"
-                    inputMode="decimal"
-                    value={values.nutrition[key]}
-                    onChange={(event) =>
-                      set('nutrition', {
-                        ...values.nutrition,
-                        [key]: event.target.value,
-                      })
-                    }
-                  />
-                )}
-              </Field>
-            ))}
-          </div>
         </fieldset>
 
         <fieldset className="recipe-form__section recipe-form__wide">
@@ -356,106 +445,92 @@ export function RecipeForm({
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Стъпки</legend>
           {errors.steps && <p className="field__error">{errors.steps}</p>}
-          {values.steps.map((step, index) => {
-            const number = index + 1;
-            return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: стъпките са само текст; редът е идентичността им.
-              <div key={index} className="recipe-form__item">
-                <Field
-                  label={`Стъпка ${number}`}
-                  error={errors[`steps.${index}`]}
-                >
-                  {(props) => (
-                    <textarea
-                      {...props}
-                      className="field__input"
-                      value={step}
-                      onChange={(event) =>
-                        set(
-                          'steps',
-                          values.steps.map((s, i) =>
-                            i === index ? event.target.value : s,
-                          ),
-                        )
-                      }
-                    />
+          <ol className="step-lines" aria-label="Стъпки">
+            {values.steps.map((step, index) => {
+              const error = errors[`steps.${index}`];
+              const errorId = `${errorIdPrefix}-step-${index}-error`;
+              return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: стъпките са само текст; редът е идентичността им.
+                <li key={index} className="step-line">
+                  <button
+                    type="button"
+                    className="step-line__open"
+                    aria-describedby={error === undefined ? undefined : errorId}
+                    onClick={() => setEditingStep({ index, added: false })}
+                  >
+                    {step.trim() || 'Празна стъпка'}
+                  </button>
+                  {error !== undefined && (
+                    <p className="field__error step-line__error" id={errorId}>
+                      {error}
+                    </p>
                   )}
-                </Field>
-                <div className="recipe-form__item-tools">
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`Нагоре: стъпка ${number}`}
-                    disabled={index === 0}
-                    onClick={() =>
-                      set('steps', move(values.steps, index, index - 1))
-                    }
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`Надолу: стъпка ${number}`}
-                    disabled={index === values.steps.length - 1}
-                    onClick={() =>
-                      set('steps', move(values.steps, index, index + 1))
-                    }
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={`Премахни стъпка ${number}`}
-                    onClick={() =>
-                      set(
-                        'steps',
-                        values.steps.filter((_, i) => i !== index),
-                      )
-                    }
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                </li>
+              );
+            })}
+          </ol>
           <button
             type="button"
             className="button button--quiet"
-            onClick={() => set('steps', [...values.steps, ''])}
+            onClick={addStep}
           >
             Добави стъпка
           </button>
         </fieldset>
 
-        <div className="recipe-form__footer recipe-form__wide">
-          {(waitingAlert || fieldAlert) && (
-            <p className="field__error" role="alert">
-              {waitingAlert &&
-                `Чака свързване: ${waiting.map(ingredientLineName).join(', ')}.`}
-              {waitingAlert && fieldAlert && ' '}
-              {fieldAlert && 'Поправи отбелязаните полета.'}
-            </p>
-          )}
-          {submitError !== undefined && submitError !== null && (
-            <ErrorBox error={submitError} />
-          )}
-          <button type="submit" className="button" disabled={isSubmitting}>
-            {submitLabel}
-          </button>
-          {onCancel && (
-            <button
-              type="button"
-              className="button button--quiet"
-              onClick={onCancel}
-            >
-              Откажи
-            </button>
-          )}
-        </div>
+        <details
+          className="recipe-form__section recipe-form__wide recipe-form__more"
+          ref={nutritionRef}
+          // Само началното състояние: после е на човека, а запис с грешка тук само разгъва.
+          open={hasNutrition}
+        >
+          <summary className="recipe-form__more-summary">
+            + Хранителна стойност
+          </summary>
+          <p className="recipe-form__hint">На 100 г, по избор.</p>
+          <div className="recipe-form__row">
+            {NUTRITION_FIELDS.map(([key, label]) => (
+              <Field
+                key={key}
+                label={label}
+                error={errors[`nutritionPer100g.${key}`]}
+              >
+                {(props) => (
+                  <input
+                    {...props}
+                    className="field__input"
+                    inputMode="decimal"
+                    value={values.nutrition[key]}
+                    onChange={(event) =>
+                      set('nutrition', {
+                        ...values.nutrition,
+                        [key]: event.target.value,
+                      })
+                    }
+                  />
+                )}
+              </Field>
+            ))}
+          </div>
+        </details>
       </form>
+      <ActionBar
+        text={waiting.length > 0 ? waitingText(waiting.length) : undefined}
+        primary={{ label: submitLabel, form: formId, disabled: isSubmitting }}
+        secondary={[
+          ...extraActions,
+          ...(onCancel ? [{ label: 'Откажи', onClick: onCancel }] : []),
+        ]}
+      >
+        {fieldAlert && (
+          <p className="field__error" role="alert">
+            Поправи отбелязаните полета.
+          </p>
+        )}
+        {submitError !== undefined && submitError !== null && (
+          <ErrorBox error={submitError} />
+        )}
+      </ActionBar>
       {editing && editingRow && (
         <IngredientLineSheet
           row={editingRow}
@@ -469,6 +544,24 @@ export function RecipeForm({
           }
           onRemove={() => removeIngredient(editingRow.key)}
           onClose={closeEditing}
+        />
+      )}
+      {editingStep && editingStep.index < values.steps.length && (
+        <StepSheet
+          number={editingStep.index + 1}
+          count={values.steps.length}
+          text={values.steps[editingStep.index] ?? ''}
+          error={errors[`steps.${editingStep.index}`]}
+          onChange={(text) =>
+            set(
+              'steps',
+              values.steps.map((s, i) => (i === editingStep.index ? text : s)),
+            )
+          }
+          onMoveUp={() => moveStep(editingStep.index, editingStep.index - 1)}
+          onMoveDown={() => moveStep(editingStep.index, editingStep.index + 1)}
+          onRemove={() => removeStep(editingStep.index)}
+          onClose={closeStep}
         />
       )}
     </>

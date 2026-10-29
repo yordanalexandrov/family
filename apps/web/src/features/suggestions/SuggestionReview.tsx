@@ -5,8 +5,12 @@ import {
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { useState } from 'react';
+import { ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
+import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
+import { useObjectUrl } from '../../lib/use-object-url';
 import { ingredientSearchQuery } from '../recipes/queries';
 import { RecipeForm } from '../recipes/RecipeForm';
 import {
@@ -135,10 +139,45 @@ interface ReviewSuggestionProps {
   linked?: readonly Ingredient[];
   /** Внасяне: линкът към източника от заявката (предложението от `recipe.suggest` носи своя). */
   sourceUrl?: string | undefined;
+  /** Внасяне от снимка: снимката, ако още е в паметта на страницата (същото внасяне, без презареждане). */
+  photo?: Blob | undefined;
   onApproved: (recipeId: string) => void;
   onRejected: () => void;
   /** „Откажи“: излиза от прегледа, без решение. */
   onCancel: () => void;
+}
+
+/** Миниатюрата на внасяната снимка; докосване я отваря в цял размер в лист. */
+function SourcePhoto({ photo }: { photo: Blob }) {
+  const url = useObjectUrl(photo);
+  const [open, setOpen] = useState(false);
+  if (!url) {
+    return null;
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className="suggestion-photo"
+        onClick={() => setOpen(true)}
+      >
+        <img
+          className="suggestion-photo__thumb"
+          src={url}
+          alt="Снимката на рецептата"
+        />
+      </button>
+      {open && (
+        <Sheet title="Снимка" onClose={() => setOpen(false)}>
+          <img
+            className="suggestion-photo__full"
+            src={url}
+            alt="Снимката на рецептата"
+          />
+        </Sheet>
+      )}
+    </>
+  );
 }
 
 /**
@@ -149,6 +188,7 @@ export function ReviewSuggestion({
   suggestion,
   linked = [],
   sourceUrl,
+  photo,
   onApproved,
   onRejected,
   onCancel,
@@ -161,37 +201,60 @@ export function ReviewSuggestion({
     ? suggestion.payload.assumptions
     : suggestion.payload.why;
   const source = imported ? sourceUrl : suggestion.payload.sourceUrl;
+  const rejectAction = {
+    label: 'Отхвърли',
+    disabled: reject.isPending,
+    onClick: () => {
+      // В лентата е грешката от последното действие.
+      approve.reset();
+      reject.mutate(suggestion.id, { onSuccess: () => onRejected() });
+    },
+  };
 
   return (
     <>
-      <section className="suggestions__section">
-        {note && <p className="suggestion-card__why">{note}</p>}
-        <div className="recipes__actions">
-          {source && (
-            <a
-              href={source}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="button button--quiet"
+      {(photo || note || source) && (
+        <section className="suggestions__section">
+          {photo && <SourcePhoto photo={photo} />}
+          {note && (
+            <p
+              className={
+                imported
+                  ? 'suggestion-note suggestion-note--warning'
+                  : 'suggestion-note'
+              }
             >
-              Отвори източника
-            </a>
+              <strong className="suggestion-note__label">
+                {imported ? 'AI допусна:' : 'Защо:'}
+              </strong>{' '}
+              {note}
+            </p>
           )}
-          <button
-            type="button"
-            className="button button--quiet"
-            disabled={reject.isPending}
-            onClick={() =>
-              reject.mutate(suggestion.id, { onSuccess: () => onRejected() })
-            }
-          >
-            Отхвърли
-          </button>
-        </div>
-        {reject.isError && <ErrorBox error={reject.error} />}
-      </section>
+          {source && (
+            <div className="recipes__actions">
+              <a
+                href={source}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button button--quiet"
+              >
+                Отвори източника
+              </a>
+            </div>
+          )}
+        </section>
+      )}
       {isPending ? (
-        <Spinner />
+        <>
+          <Spinner />
+          {/* Отхвърлянето не чака продуктите; одобрението чака формата. */}
+          <ActionBar
+            primary={{ label: 'Одобри', onClick: () => {}, disabled: true }}
+            secondary={[rejectAction, { label: 'Откажи', onClick: onCancel }]}
+          >
+            {reject.error !== null && <ErrorBox error={reject.error} />}
+          </ActionBar>
+        </>
       ) : (
         <RecipeForm
           key={suggestion.id}
@@ -203,14 +266,17 @@ export function ReviewSuggestion({
           submitLabel="Одобри"
           requireResolvedIngredients
           isSubmitting={approve.isPending}
-          submitError={approve.error}
-          onSubmit={(input) =>
+          // Грешката от „Одобри“ или „Отхвърли“: и двете са в лентата, а всяко нулира другото.
+          submitError={reject.error ?? approve.error}
+          onSubmit={(input) => {
+            reject.reset();
             approve.mutate(
               { id: suggestion.id, input },
               { onSuccess: ({ recipe }) => onApproved(recipe.id) },
-            )
-          }
+            );
+          }}
           onCancel={onCancel}
+          extraActions={[rejectAction]}
         />
       )}
     </>

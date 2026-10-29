@@ -4,10 +4,16 @@ import type {
   RecipeInput,
   RecipeSuggestion,
 } from '@family/shared';
-import { screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { HttpResponse, http } from 'msw';
+import { delay, HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import {
+  doneImport,
+  importedSuggestion,
+  sumac as importedSumac,
+  importId,
+} from '../../test/imports';
 import { dani, server } from '../../test/msw';
 import { chicken, ingredients, omelette, salt } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -94,6 +100,20 @@ function serveReview(
   return { approved, searches };
 }
 
+/** Отхвърляне на предложението; връща id-тата, стигнали до api. */
+function serveReject() {
+  const rejected: string[] = [];
+  server.use(
+    http.post(`/api/recipe-suggestions/${skewersSuggestion.id}/reject`, () => {
+      rejected.push(skewersSuggestion.id);
+      return HttpResponse.json({
+        suggestion: { ...skewersSuggestion, status: 'rejected' },
+      });
+    }),
+  );
+  return rejected;
+}
+
 /** Редовете в списъка „Продукти“, в реда, в който се виждат. */
 function ingredientLines() {
   return within(screen.getByRole('list', { name: 'Продукти' })).getAllByRole(
@@ -104,6 +124,11 @@ function ingredientLines() {
 /** Листът за един ред продукт. */
 function lineSheet() {
   return within(screen.getByRole('dialog', { name: 'Продукт' }));
+}
+
+/** Лентата с основното действие на екрана. */
+function actionBar() {
+  return within(screen.getByRole('group', { name: 'Действия' }));
 }
 
 describe('SuggestionReview', () => {
@@ -148,7 +173,8 @@ describe('SuggestionReview', () => {
       }),
     ).toBeInTheDocument();
     expect(approved).toEqual([]);
-    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+    expect(actionBar().queryByText(/за свързване/)).not.toBeInTheDocument();
+    await user.click(actionBar().getByRole('button', { name: 'Одобри' }));
 
     // Обратно към заявката: одобреното е отбелязано, другите предложения са там.
     expect(
@@ -237,37 +263,87 @@ describe('SuggestionReview', () => {
     ]);
   });
 
-  it('„Одобри“ с несвързан ред не праща и казва кой ред чака', async () => {
+  it('с несвързан продукт лентата казва колко чакат, а „Одобри“ отваря листа на първия, без да праща', async () => {
     const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const suggestion: RecipeSuggestion = {
+      ...skewersSuggestion,
+      payload: {
+        ...chickenSkewers,
+        ingredients: [
+          { name: 'пилешко филе', isNew: false, quantity: 0.6, unit: 'kg' },
+          { name: 'сумак', isNew: true, quantity: 1, unit: 'tsp' },
+          { name: 'кокосово мляко', isNew: true, quantity: 0.4, unit: 'l' },
+        ],
+      },
+    };
+    const { approved } = serveReview(suggestion);
+
+    renderApp(reviewPath);
+
+    expect(
+      await screen.findByText('2 продукта за свързване'),
+    ).toBeInTheDocument();
+    await user.click(actionBar().getByRole('button', { name: 'Одобри' }));
+
+    const sheet = lineSheet();
+    expect(sheet.getByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'сумак',
+    );
+    // Листът на реда има само своето „Готово“; решението е в лентата.
+    expect(
+      sheet.queryByRole('button', { name: 'Одобри' }),
+    ).not.toBeInTheDocument();
+    expect(approved).toEqual([]);
+
+    await user.click(await sheet.findByRole('button', { name: 'сумак' }));
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+    expect(actionBar().getByText('1 продукт за свързване')).toBeInTheDocument();
+  });
+
+  it('Enter в поле с несвързан продукт отваря листа на първия, като „Одобри“', async () => {
     setUpDevice('phone', dani.id);
     const { approved } = serveReview();
 
     renderApp(reviewPath);
 
-    await user.click(await screen.findByRole('button', { name: 'Одобри' }));
+    const title = await screen.findByRole('textbox', { name: 'Заглавие' });
+    const form = (title as HTMLInputElement).form;
+    // Enter в поле праща формата с бутона ѝ по подразбиране: „Одобри“ в лентата.
+    const approve = actionBar().getByRole('button', { name: 'Одобри' });
+    expect(approve).toHaveAttribute('type', 'submit');
+    expect((approve as HTMLButtonElement).form).toBe(form);
+    expect(form).not.toBeNull();
+    fireEvent.submit(form as HTMLFormElement);
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Чака свързване: сумак.',
+    expect(lineSheet().getByRole('textbox', { name: 'Продукт' })).toHaveValue(
+      'сумак',
     );
-    expect(
-      screen.getByRole('button', { name: 'сумак · 1 ч.л.' }),
-    ).toHaveAccessibleDescription('Избери продукт от списъка или създай нов');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(approved).toEqual([]);
   });
 
-  it('с други грешки „Одобри“ казва и кой ред чака, и да се поправят полетата', async () => {
+  it('с други грешки „Одобри“ казва в лентата да се поправят полетата', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
-    const { approved } = serveReview();
+    const suggestion: RecipeSuggestion = {
+      ...skewersSuggestion,
+      payload: {
+        ...chickenSkewers,
+        ingredients: chickenSkewers.ingredients.map((line) => ({
+          ...line,
+          isNew: false,
+        })),
+      },
+    };
+    const { approved } = serveReview(suggestion);
 
     renderApp(reviewPath);
 
     await user.clear(await screen.findByRole('textbox', { name: 'Заглавие' }));
-    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+    await user.click(actionBar().getByRole('button', { name: 'Одобри' }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Чака свързване: сумак. Поправи отбелязаните полета.',
+    expect(actionBar().getByRole('alert')).toHaveTextContent(
+      'Поправи отбелязаните полета.',
     );
     expect(screen.getByText('Въведи заглавие')).toBeInTheDocument();
     expect(approved).toEqual([]);
@@ -307,25 +383,126 @@ describe('SuggestionReview', () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     serveReview();
-    const rejected: string[] = [];
-    server.use(
-      http.post(
-        `/api/recipe-suggestions/${skewersSuggestion.id}/reject`,
-        () => {
-          rejected.push(skewersSuggestion.id);
-          return HttpResponse.json({
-            suggestion: { ...skewersSuggestion, status: 'rejected' },
-          });
-        },
-      ),
-    );
+    const rejected = serveReject();
 
     renderApp(reviewPath);
-    await user.click(await screen.findByRole('button', { name: 'Отхвърли' }));
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    expect(
+      actionBar()
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['Отхвърли', 'Откажи', 'Одобри']);
+    await user.click(actionBar().getByRole('button', { name: 'Отхвърли' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Предложения' }),
     ).toBeInTheDocument();
     expect(rejected).toEqual([skewersSuggestion.id]);
+  });
+
+  it('„Отхвърли“ е в лентата и докато продуктите се зареждат', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveReview();
+    const rejected = serveReject();
+    server.use(
+      http.get('/api/ingredients', async () => {
+        await delay('infinite');
+        return HttpResponse.json({ ingredients: [] });
+      }),
+    );
+
+    renderApp(reviewPath);
+    await screen.findByRole('heading', { name: 'Пилешки шишчета' });
+    expect(screen.getByText('Зареждане…')).toBeInTheDocument();
+    await user.click(actionBar().getByRole('button', { name: 'Отхвърли' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Предложения' }),
+    ).toBeInTheDocument();
+    expect(rejected).toEqual([skewersSuggestion.id]);
+  });
+
+  it('лентата показва грешката от последното действие', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const suggestion: RecipeSuggestion = {
+      ...skewersSuggestion,
+      payload: {
+        ...chickenSkewers,
+        ingredients: chickenSkewers.ingredients.map((line) => ({
+          ...line,
+          isNew: false,
+        })),
+      },
+    };
+    serveReview(suggestion);
+    const failing = (message: string) => () =>
+      HttpResponse.json({ error: 'conflict', message }, { status: 409 });
+    server.use(
+      http.post(
+        `/api/recipe-suggestions/${suggestion.id}/reject`,
+        failing('Отхвърлянето не мина'),
+      ),
+      http.post(
+        `/api/recipe-suggestions/${suggestion.id}/approve`,
+        failing('Одобрението не мина'),
+      ),
+    );
+
+    renderApp(reviewPath);
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    await user.click(actionBar().getByRole('button', { name: 'Отхвърли' }));
+    expect(
+      await actionBar().findByText('Отхвърлянето не мина'),
+    ).toBeInTheDocument();
+
+    await user.click(actionBar().getByRole('button', { name: 'Одобри' }));
+    expect(
+      await actionBar().findByText('Одобрението не мина'),
+    ).toBeInTheDocument();
+    expect(
+      actionBar().queryByText('Отхвърлянето не мина'),
+    ).not.toBeInTheDocument();
+
+    await user.click(actionBar().getByRole('button', { name: 'Отхвърли' }));
+    expect(
+      await actionBar().findByText('Отхвърлянето не мина'),
+    ).toBeInTheDocument();
+    expect(
+      actionBar().queryByText('Одобрението не мина'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('бележката на агента е с етикет: „Защо:“ при предложение, „AI допусна:“ като предупреждение при внасяне', async () => {
+    setUpDevice('phone', dani.id);
+    serveReview();
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          request: doneImport,
+          suggestion: importedSuggestion,
+          ingredients: [chicken, salt, importedSumac],
+        }),
+      ),
+    );
+
+    const suggested = renderApp(reviewPath);
+    const why = await screen.findByText('Защо:');
+    expect(why.parentElement).toHaveTextContent(`Защо: ${chickenSkewers.why}`);
+    expect(screen.queryByText('AI допусна:')).not.toBeInTheDocument();
+    suggested.unmount();
+
+    renderApp(`/recipes/import/${importId}`);
+    const assumed = await screen.findByText('AI допусна:');
+    expect(assumed.parentElement).toHaveTextContent(
+      'AI допусна: Порциите не са дадени: по количествата са 4.',
+    );
+    expect(assumed.parentElement).toHaveClass('suggestion-note--warning');
+    expect(screen.queryByText('Защо:')).not.toBeInTheDocument();
+    // Внасяне от текст: няма снимка, няма и място за нея.
+    expect(
+      screen.queryByRole('img', { name: 'Снимката на рецептата' }),
+    ).not.toBeInTheDocument();
   });
 });

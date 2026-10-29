@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { useUnseenProposalWeek } from '../features/menu/unseen-proposals';
+import { useKeyboardInset } from './keyboard';
 import './MainNav.css';
 
 // Рецептите остават активни и в подекраните си (рецепта, редакция, предложения).
@@ -17,11 +18,32 @@ const ITEMS = [
 /**
  * Стъклената лента между основните екрани. На телефона е долу: седем равни колони само с икони, с
  * размери в px, за да се събират на 360 px и при по-голям шрифт; надписът е скрит само за окото и
- * остава достъпното име на линка. В браузъра е горе и всеки екран е с надписа си.
+ * остава достъпното име на линка. Докато е отворена клавиатурата, долната лента се скрива, а
+ * --bottom-nav-space става височината на клавиатурата: лентата с действието на екрана слиза точно
+ * над нея. В браузъра е горе и всеки екран е с надписа си.
  */
 export function MainNav({ placement }: { placement: 'bottom' | 'top' }) {
   // Невидяното предложение: точка на „Меню“, а линкът отваря седмицата му.
   const unseenWeek = useUnseenProposalWeek();
+  const inset = useKeyboardInset();
+  // Горната лента в браузъра не се влияе от клавиатурата.
+  const keyboardInset = placement === 'bottom' ? inset : null;
+
+  useEffect(() => {
+    if (keyboardInset === null) {
+      return;
+    }
+    // Мястото на лентата е над клавиатурата: там слиза лентата с действието на екрана.
+    const root = document.documentElement;
+    root.style.setProperty('--bottom-nav-space', `${keyboardInset}px`);
+    return () => {
+      root.style.removeProperty('--bottom-nav-space');
+    };
+  }, [keyboardInset]);
+
+  if (keyboardInset !== null) {
+    return null;
+  }
   return (
     <nav
       className={`main-nav main-nav--${placement}`}

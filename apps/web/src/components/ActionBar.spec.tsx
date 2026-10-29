@@ -21,7 +21,7 @@ describe('ActionBar', () => {
       <ActionBar
         text="3 продукта за свързване"
         primary={{ label: 'Свържи', onClick: vi.fn() }}
-        secondary={{ label: 'Пропусни', onClick: onSkip }}
+        secondary={[{ label: 'Пропусни', onClick: onSkip }]}
       />,
     );
 

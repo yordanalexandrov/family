@@ -4,8 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordForms } from '../../test/form-data';
-import { importId, pendingImport } from '../../test/imports';
+import {
+  importedSuggestion,
+  importId,
+  pendingImport,
+  sumac,
+} from '../../test/imports';
 import { dani, server } from '../../test/msw';
+import { chicken, salt } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 
 const WAITING = 'Чета рецептата… обикновено отнема до минута';
@@ -280,5 +286,51 @@ describe('Неуспешно внасяне от снимка', () => {
       'aria-selected',
       'true',
     );
+  });
+});
+
+describe('Преглед на внасяне от снимка', () => {
+  it('снимката от същото внасяне е миниатюра над рецептата и се отваря в цял размер', async () => {
+    mockCanvas(1200, 1600);
+    servePhotoImport();
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          request: {
+            ...photoImport,
+            status: 'done',
+            suggestionId: importedSuggestion.id,
+          },
+          suggestion: importedSuggestion,
+          ingredients: [chicken, salt, sumac],
+        } satisfies RecipeImportDetail),
+      ),
+    );
+    await openPhotoTab();
+    await userEvent.upload(
+      screen.getByLabelText('Избери от галерията'),
+      new File(['x'], 'IMG_0042.jpg', { type: 'image/jpeg' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Внеси' }));
+
+    const thumb = await screen.findByRole('button', {
+      name: 'Снимката на рецептата',
+    });
+    expect(within(thumb).getByRole('img')).toHaveAttribute(
+      'src',
+      'blob:preview',
+    );
+    // Над рецептата.
+    expect(
+      thumb.compareDocumentPosition(
+        screen.getByRole('textbox', { name: 'Заглавие' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await userEvent.click(thumb);
+    expect(
+      within(screen.getByRole('dialog', { name: 'Снимка' })).getByRole('img', {
+        name: 'Снимката на рецептата',
+      }),
+    ).toHaveAttribute('src', 'blob:preview');
   });
 });
