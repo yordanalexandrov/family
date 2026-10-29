@@ -8,6 +8,7 @@ import { type FormEvent, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
+import { canReadClipboard, readClipboard } from './clipboard';
 
 interface ImportLinkFormProps {
   onSubmit: (params: RecipeImportParams) => void;
@@ -26,10 +27,6 @@ function alreadyImported(error: unknown): AlreadyImported | undefined {
   return body.success ? body.data : undefined;
 }
 
-function canReadClipboard(): boolean {
-  return typeof navigator.clipboard?.readText === 'function';
-}
-
 /**
  * Табът „Линк“: линк към страница с рецепта; api-то я тегли и чете. Линк, който вече е в регистъра, се хваща преди
  * AI заявката: „Отвори“ води към рецептата или чакащото предложение, „Внеси пак“ го внася въпреки това.
@@ -42,27 +39,32 @@ export function ImportLinkForm({
 }: ImportLinkFormProps) {
   const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string>();
-  const duplicate = alreadyImported(submitError);
+  const [submittedUrl, setSubmittedUrl] = useState<string>();
+  const conflict = alreadyImported(submitError);
+  // Докато линкът е този, който се оказа в регистъра, „Внеси“ би дал същия 409: остават „Отвори“ и „Внеси пак“.
+  // Друг линк скрива находката и връща „Внеси“.
+  const duplicate =
+    url.trim() === (submittedUrl ?? initialUrl.trim()) ? conflict : undefined;
 
   function submit(event: FormEvent) {
     event.preventDefault();
     const trimmed = url.trim();
+    if (duplicate) {
+      return;
+    }
     if (!/^https?:\/\//i.test(trimmed) || !URL.canParse(trimmed)) {
       setUrlError('Невалиден линк');
       return;
     }
     setUrlError(undefined);
+    setSubmittedUrl(trimmed);
     onSubmit({ kind: 'url', url: trimmed });
   }
 
   async function paste() {
-    try {
-      const text = (await navigator.clipboard.readText()).trim();
-      if (text) {
-        setUrl(text);
-      }
-    } catch {
-      // No permission or nothing to read: the person pastes by hand.
+    const text = await readClipboard();
+    if (text) {
+      setUrl(text);
     }
   }
 
@@ -109,16 +111,19 @@ export function ImportLinkForm({
           </div>
         </div>
       ) : (
+        !conflict &&
         submitError !== undefined &&
         submitError !== null && <ErrorBox error={submitError} />
       )}
-      <button
-        type="submit"
-        className="button"
-        disabled={url.trim() === '' || isSubmitting}
-      >
-        Внеси
-      </button>
+      {!duplicate && (
+        <button
+          type="submit"
+          className="button"
+          disabled={url.trim() === '' || isSubmitting}
+        >
+          Внеси
+        </button>
+      )}
     </form>
   );
 }

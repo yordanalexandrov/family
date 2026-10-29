@@ -1,7 +1,7 @@
 import {
   type AnyRecipeSuggestion,
+  type ApproveSuggestionInput,
   approvedSuggestionResponseSchema,
-  type RecipeInput,
   type RecipeSuggestParams,
   recipeSuggestionResponseSchema,
   type SuggestionRequest,
@@ -95,7 +95,13 @@ function requestKeyOf(suggestion: AnyRecipeSuggestion) {
 export function useApproveSuggestion() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: RecipeInput }) =>
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: ApproveSuggestionInput;
+    }) =>
       apiFetch(
         `/recipe-suggestions/${id}/approve`,
         approvedSuggestionResponseSchema,
@@ -120,6 +126,24 @@ export function useRejectSuggestion() {
     mutationFn: (id: string) =>
       apiFetch(
         `/recipe-suggestions/${id}/reject`,
+        recipeSuggestionResponseSchema,
+        { method: 'POST' },
+      ).then((body) => body.suggestion),
+    onSuccess(suggestion) {
+      void queryClient.invalidateQueries({
+        queryKey: requestKeyOf(suggestion),
+      });
+    },
+  });
+}
+
+/** „Върни“ след „Отхвърли“: отхвърленото предложение е пак `proposed`. */
+export function useRestoreSuggestion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(
+        `/recipe-suggestions/${id}/restore`,
         recipeSuggestionResponseSchema,
         { method: 'POST' },
       ).then((body) => body.suggestion),

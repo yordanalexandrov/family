@@ -1,23 +1,27 @@
 import {
   type AnyRecipeSuggestion,
+  type DuplicateOf,
   type Ingredient,
   normalizeIngredientName,
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { useObjectUrl } from '../../lib/use-object-url';
+import { ApplianceBadge } from '../recipes/ApplianceBadge';
 import { ingredientSearchQuery } from '../recipes/queries';
 import { RecipeForm } from '../recipes/RecipeForm';
 import {
   useApproveSuggestion,
   useRejectSuggestion,
+  useRestoreSuggestion,
   useSuggestionRequest,
 } from './queries';
+import type { RequestSearch } from './request-search';
 import {
   importToFormValues,
   suggestionToFormValues,
@@ -36,8 +40,12 @@ export function SuggestionReview() {
     (s) => s.id === suggestionId,
   );
 
-  function backToRequest() {
-    void navigate({ to: '/recipes/suggest/$requestId', params: { requestId } });
+  function backToRequest(search: RequestSearch = {}) {
+    void navigate({
+      to: '/recipes/suggest/$requestId',
+      params: { requestId },
+      search,
+    });
   }
 
   return (
@@ -65,18 +73,22 @@ export function SuggestionReview() {
       ) : (
         <ReviewSuggestion
           suggestion={suggestion}
-          // Обратно към заявката: там са и другите предложения, а одобреното води към рецептата.
-          onApproved={backToRequest}
-          onRejected={backToRequest}
-          onCancel={backToRequest}
+          // Обратно към заявката: там са и другите предложения; toast-ът дава „Върни“ или „Отвори“ (към рецептата).
+          onApproved={(recipeId) => backToRequest({ approved: recipeId })}
+          onRejected={() => backToRequest({ rejected: suggestionId })}
+          onCancel={() => backToRequest()}
         />
       )}
     </main>
   );
 }
 
-/** Решено предложение (от заявка или от внасяне): какво е решено и връзка към рецептата. */
+/**
+ * Решено предложение (от заявка или от внасяне): какво е решено и връзка към рецептата; отхвърленото има „Върни“ —
+ * пак е предложение и прегледът се връща на мястото си.
+ */
 export function Decided({ suggestion }: { suggestion: AnyRecipeSuggestion }) {
+  const restore = useRestoreSuggestion();
   return (
     <div className="recipes__empty">
       <p>
@@ -93,6 +105,17 @@ export function Decided({ suggestion }: { suggestion: AnyRecipeSuggestion }) {
           Към рецептата
         </Link>
       )}
+      {suggestion.status === 'rejected' && (
+        <button
+          type="button"
+          className="button"
+          disabled={restore.isPending}
+          onClick={() => restore.mutate(suggestion.id)}
+        >
+          Върни
+        </button>
+      )}
+      {restore.isError && <ErrorBox error={restore.error} />}
     </div>
   );
 }
@@ -180,6 +203,44 @@ function SourcePhoto({ photo }: { photo: Blob }) {
   );
 }
 
+/** Рецепта със същото заглавие вече е в регистъра: „Отвори“ води към нея, „Внеси въпреки това“ връща „Одобри“. */
+function DuplicateWarning({
+  duplicate,
+  onImportAnyway,
+}: {
+  duplicate: DuplicateOf;
+  onImportAnyway: () => void;
+}) {
+  const labelId = useId();
+  return (
+    <section
+      className="suggestion-note suggestion-note--warning suggestion-duplicate"
+      aria-labelledby={labelId}
+    >
+      <p id={labelId} className="suggestion-note__label">
+        Има рецепта със същото заглавие
+      </p>
+      <p className="suggestion-duplicate__title">{duplicate.title}</p>
+      <div className="recipes__actions">
+        <Link
+          to="/recipes/$id"
+          params={{ id: duplicate.id }}
+          className="button"
+        >
+          Отвори
+        </Link>
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={onImportAnyway}
+        >
+          Внеси въпреки това
+        </button>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Преглед, редакция и одобрение на едно предложение за рецепта, от заявка за предложения или от внасяне. На мястото на
  * „защо“ при внасянето са допусканията на агента; новите продукти се свързват или създават в листа на реда, преди „Одобри“.
@@ -201,6 +262,11 @@ export function ReviewSuggestion({
     ? suggestion.payload.assumptions
     : suggestion.payload.why;
   const source = imported ? sourceUrl : suggestion.payload.sourceUrl;
+  const appliance = imported ? undefined : suggestion.payload.appliance;
+  const navigate = useNavigate();
+  // Като при линк, който вече е в регистъра: „Отвори“, докато човекът не избере „Внеси въпреки това“.
+  const [importAnyway, setImportAnyway] = useState(false);
+  const duplicate = importAnyway ? undefined : suggestion.duplicateOf;
   const rejectAction = {
     label: 'Отхвърли',
     disabled: reject.isPending,
@@ -213,9 +279,20 @@ export function ReviewSuggestion({
 
   return (
     <>
-      {(photo || note || source) && (
+      {duplicate && (
+        <DuplicateWarning
+          duplicate={duplicate}
+          onImportAnyway={() => setImportAnyway(true)}
+        />
+      )}
+      {(photo || appliance || note || source) && (
         <section className="suggestions__section">
           {photo && <SourcePhoto photo={photo} />}
+          {appliance && (
+            <p className="suggestion-card__meta">
+              <ApplianceBadge name={appliance} />
+            </p>
+          )}
           {note && (
             <p
               className={
@@ -271,11 +348,25 @@ export function ReviewSuggestion({
           onSubmit={(input) => {
             reject.reset();
             approve.mutate(
-              { id: suggestion.id, input },
+              // „Без уред“ е `null`: без поле API-то би взело уреда на предложението.
+              {
+                id: suggestion.id,
+                input: { ...input, appliance: input.appliance ?? null },
+              },
               { onSuccess: ({ recipe }) => onApproved(recipe.id) },
             );
           }}
           onCancel={onCancel}
+          primaryAction={
+            duplicate && {
+              label: 'Отвори',
+              onClick: () =>
+                void navigate({
+                  to: '/recipes/$id',
+                  params: { id: duplicate.id },
+                }),
+            }
+          }
           extraActions={[rejectAction]}
         />
       )}

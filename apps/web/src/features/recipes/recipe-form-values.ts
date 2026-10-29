@@ -67,6 +67,8 @@ export interface RecipeFormValues {
   prepMinutes: string;
   sourceUrl: string;
   tags: Tag[];
+  /** Името на уреда (GLOSSARY: Уред), както е в Настройки; празно = без уред. */
+  appliance: string;
   steps: string[];
   ingredients: IngredientRowValues[];
   nutrition: NutritionValues;
@@ -124,6 +126,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     prepMinutes: '',
     sourceUrl: '',
     tags: [],
+    appliance: '',
     steps: [],
     ingredients: [],
     nutrition: nutritionToValues(undefined),
@@ -141,6 +144,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     prepMinutes: numberText(recipe.prepMinutes),
     sourceUrl: displaySourceUrl(recipe.sourceUrl ?? ''),
     tags: [...recipe.tags],
+    appliance: recipe.appliance ?? '',
     steps: [...recipe.steps],
     ingredients: recipe.ingredients.map((line) =>
       emptyIngredientRow({
@@ -219,6 +223,7 @@ export function toRecipeInput(
     ...(sourceUrl ? { sourceUrl } : {}),
     ...(prepMinutes === undefined ? {} : { prepMinutes }),
     tags: values.tags,
+    ...(values.appliance === '' ? {} : { appliance: values.appliance }),
     ...(nutritionPer100g ? { nutritionPer100g } : {}),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',

@@ -67,6 +67,8 @@ export const recipe = pgTable(
     prepMinutes: integer('prep_minutes'),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
     nutritionPer100g: jsonb('nutrition_per_100g').$type<Nutrition>(),
+    /** GLOSSARY: Уред. The appliance's name as text, not a reference: removing the appliance keeps it here. */
+    appliance: text('appliance'),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     /** GLOSSARY: Оценка. 1–5 stars, one for the family; `null` = unrated. Not part of `RecipeInput`. */
     rating: smallint('rating'),

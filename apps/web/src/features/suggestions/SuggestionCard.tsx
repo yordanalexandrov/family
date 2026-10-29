@@ -5,18 +5,21 @@ import {
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { useId, useState } from 'react';
+import { ErrorBox } from '../../components/ErrorBox';
 import { formatQuantity } from '../../lib/format';
+import { ApplianceBadge } from '../recipes/ApplianceBadge';
 import {
   formatMinutes,
   MINUTES_PER_HOUR,
   productCount,
   sourceDomain,
 } from '../recipes/format';
+import { useRestoreSuggestion } from './queries';
 
 /** Вечеря, която отнема повече от толкова, не става в същия ден след работа. */
 const DINNER_AHEAD_MINUTES = 6 * MINUTES_PER_HOUR;
 
-/** Едно предложение в резултатите: отхвърлените са избледнели, одобрените водят към рецептата. */
+/** Едно предложение в резултатите: отхвърлените са избледнели с „Върни“, одобрените водят към рецептата. */
 export function SuggestionCard({
   suggestion,
 }: {
@@ -25,6 +28,7 @@ export function SuggestionCard({
   const titleId = useId();
   const previewId = useId();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const restore = useRestoreSuggestion();
   const { payload, status } = suggestion;
   const newCount = payload.ingredients.filter((i) => i.isNew).length;
   const needsDayAhead =
@@ -35,6 +39,12 @@ export function SuggestionCard({
       className={`suggestion-card suggestion-card--${status}`}
       aria-labelledby={titleId}
     >
+      {status === 'rejected' && (
+        // Над заглавието и не избледнял: действието „Върни“ е долу, а реда с бутоните не бива да се пренася.
+        <p className="suggestion-card__status">
+          <span className="badge">Отхвърлено</span>
+        </p>
+      )}
       <h2 className="suggestion-card__title" id={titleId}>
         {payload.title}
       </h2>
@@ -43,6 +53,7 @@ export function SuggestionCard({
         {payload.tags.length > 0 && (
           <span>{payload.tags.map((t) => TAG_LABELS_BG[t]).join(' · ')}</span>
         )}
+        {payload.appliance && <ApplianceBadge name={payload.appliance} />}
       </p>
       {needsDayAhead && (
         <p className="suggestion-card__ahead">иска подготовка от предния ден</p>
@@ -82,7 +93,16 @@ export function SuggestionCard({
             Прегледай
           </Link>
         )}
-        {status === 'rejected' && <span className="badge">Отхвърлено</span>}
+        {status === 'rejected' && (
+          <button
+            type="button"
+            className="button button--quiet"
+            disabled={restore.isPending}
+            onClick={() => restore.mutate(suggestion.id)}
+          >
+            Върни
+          </button>
+        )}
         {status === 'approved' && (
           <>
             <span className="badge badge--done">Одобрено</span>
@@ -98,6 +118,7 @@ export function SuggestionCard({
           </>
         )}
       </div>
+      {restore.isError && <ErrorBox error={restore.error} />}
       <div id={previewId} hidden={!previewOpen}>
         {previewOpen && <SuggestionPreview suggestion={payload} />}
       </div>

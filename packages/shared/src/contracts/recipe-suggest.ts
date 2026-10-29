@@ -31,7 +31,7 @@ export type RecipeSuggestParams = z.infer<typeof recipeSuggestParamsSchema>;
 const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
   existingRecipeTitles: z.array(z.string()),
   ingredientNames: z.array(z.string()),
-  /** The special appliances (GLOSSARY: Уред), a soft preference: `APPLIANCES` from `food/appliances.ts`. */
+  /** The special appliances (GLOSSARY: Уред), a soft preference: the enabled ones of the household, from the `appliance` table. */
   appliances: z.array(z.string()),
 });
 
@@ -61,6 +61,11 @@ export const suggestionSchema = z.object({
   ingredients: z.array(suggestionIngredientSchema).min(2),
   steps: z.array(z.string().trim().min(1)).min(2),
   nutritionPer100g: nutritionSchema.optional(),
+  /**
+   * The household appliance (GLOSSARY: Уред) the recipe is for, exactly as one of the input's `appliances`; absent
+   * when it is for the oven or the hob. Checked against the input by {@link checkAppliances}.
+   */
+  appliance: z.string().trim().min(1).optional(),
 });
 
 export type Suggestion = z.infer<typeof suggestionSchema>;
@@ -118,6 +123,28 @@ function checkDistinctSources(
   });
 }
 
+/** A suggestion's `appliance` is one of the input's, by its exact name. */
+function checkAppliances(
+  input: RecipeSuggestInput,
+  output: RecipeSuggestOutput,
+  ctx: z.RefinementCtx,
+): void {
+  const known = new Set(input.appliances);
+  output.suggestions.forEach((suggestion, index) => {
+    if (suggestion.appliance === undefined || known.has(suggestion.appliance)) {
+      return;
+    }
+    ctx.addIssue({
+      code: 'custom',
+      path: ['suggestions', index, 'appliance'],
+      message:
+        input.appliances.length === 0
+          ? 'appliance е null: семейството няма включени уреди.'
+          : `appliance е точно един от низовете в appliances (${input.appliances.map((name) => `„${name}“`).join(', ')}) или null.`,
+    });
+  });
+}
+
 /** An answer without `noResults` has this many suggestions. */
 const MIN_SUGGESTIONS = 3;
 const MAX_SUGGESTIONS = 5;
@@ -170,6 +197,7 @@ const recipeSuggestWireSchema = z.object({
         // `format: uri` is not supported in strict mode; the URL is still checked by `suggestionSchema`.
         sourceUrl: z.string(),
         nutritionPer100g: nutritionSchema.nullable(),
+        appliance: z.string().nullable(),
       }),
     )
     // 0 for an answer with `noResults`; the 3–5 otherwise is checked by the contract only.
@@ -180,7 +208,7 @@ const recipeSuggestWireSchema = z.object({
 
 /**
  * JSON Schema of the output for `response_format: { type: 'json_schema', strict: true }`: every object closed and
- * every property required, `nutritionPer100g` and `noResults` nullable. Refinements (3–5 suggestions without
+ * every property required, `nutritionPer100g`, `appliance` and `noResults` nullable. Refinements (3–5 suggestions without
  * `noResults`, a pinch has no quantity) are not expressible there; the API still parses with {@link recipeSuggestAgentOutputSchema}.
  */
 const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
@@ -188,19 +216,27 @@ const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
   { io: 'output', unrepresentable: 'any' },
 );
 
-/** `nutritionPer100g: null` (how strict mode says "none") becomes absent; anything else is left for the contract. */
-function withoutNullNutrition(value: unknown): unknown {
+/** The optional fields of a suggestion that strict mode sends as `null`. */
+const NULLABLE_SUGGESTION_FIELDS = ['nutritionPer100g', 'appliance'] as const;
+
+/** `nutritionPer100g: null` and `appliance: null` (how strict mode says "none") become absent; anything else is left for the contract. */
+function withoutNullFields(value: unknown): unknown {
   if (!isRecord(value) || !Array.isArray(value.suggestions)) {
     return value;
   }
   return {
     ...value,
     suggestions: value.suggestions.map((suggestion: unknown) => {
-      if (!isRecord(suggestion) || suggestion.nutritionPer100g !== null) {
+      if (!isRecord(suggestion)) {
         return suggestion;
       }
-      const { nutritionPer100g: _none, ...rest } = suggestion;
-      return rest;
+      return Object.fromEntries(
+        Object.entries(suggestion).filter(
+          ([key, field]) =>
+            field !== null ||
+            !(NULLABLE_SUGGESTION_FIELDS as readonly string[]).includes(key),
+        ),
+      );
     }),
   };
 }
@@ -210,17 +246,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * The agent's answer parsed into {@link RecipeSuggestOutput}: accepts `nutritionPer100g: null` from strict mode as
- * well as the field left out, and otherwise refuses exactly what {@link recipeSuggestOutputSchema} refuses.
+ * The agent's answer parsed into {@link RecipeSuggestOutput}: accepts `nutritionPer100g: null` and `appliance: null`
+ * from strict mode as well as the fields left out, and otherwise refuses exactly what {@link recipeSuggestOutputSchema}
+ * refuses.
  */
 const recipeSuggestAgentOutputSchema = z.preprocess(
-  withoutNullNutrition,
+  withoutNullFields,
   recipeSuggestOutputSchema,
 );
 
 /**
- * `recipe.suggest`. The output does not depend on the input: {@link recipeSuggestAgentOutputSchema} for every request,
- * so `nutritionPer100g: null` from strict mode is read as no nutrition.
+ * `recipe.suggest`. The output for an input is {@link recipeSuggestAgentOutputSchema} with {@link checkAppliances}
+ * against that input on top, so an appliance that is not one of the input goes through the same single retry.
  */
 export const recipeSuggest: AiContract<
   RecipeSuggestInput,
@@ -228,7 +265,10 @@ export const recipeSuggest: AiContract<
 > = {
   id: 'recipe.suggest',
   inputSchema: recipeSuggestInputSchema,
-  outputSchema: () => recipeSuggestAgentOutputSchema,
+  outputSchema: (input) =>
+    recipeSuggestAgentOutputSchema.superRefine((output, ctx) =>
+      checkAppliances(input, output, ctx),
+    ),
   responseFormat: {
     name: 'recipe_suggest',
     schema: RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA,

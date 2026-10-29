@@ -2,6 +2,7 @@ import { IMPORT_TEXT_MAX, type RecipeImportParams } from '@family/shared';
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
+import { canReadClipboard, readClipboard } from './clipboard';
 
 interface ImportTextFormProps {
   onSubmit: (params: RecipeImportParams) => void;
@@ -23,6 +24,13 @@ export function ImportTextForm({
   const [text, setText] = useState(initialText);
   const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string>();
+
+  async function paste() {
+    const pasted = await readClipboard();
+    if (pasted) {
+      setText(pasted);
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -46,6 +54,8 @@ export function ImportTextForm({
           <textarea
             {...props}
             className="field__input import-form__text"
+            // biome-ignore lint/a11y/noAutofocus: табът е само за поставяне на текст; отворен (и след „Постави текста“) е готов за него
+            autoFocus
             maxLength={IMPORT_TEXT_MAX}
             placeholder="Постави рецептата: продукти и начин на приготвяне"
             value={text}
@@ -53,6 +63,15 @@ export function ImportTextForm({
           />
         )}
       </Field>
+      {canReadClipboard() && (
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => void paste()}
+        >
+          Постави от клипборда
+        </button>
+      )}
       <Field label="Линк към източника (по желание)" error={urlError}>
         {(props) => (
           <input

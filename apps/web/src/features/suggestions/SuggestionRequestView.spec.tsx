@@ -299,4 +299,127 @@ describe('SuggestionRequestView', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
   });
+
+  it('предложение за наш уред има значка с краткото име на уреда; другите нямат', async () => {
+    setUpDevice('phone', dani.id);
+    serveDetail({
+      request: doneRequest,
+      suggestions: [
+        {
+          ...skewersSuggestion,
+          payload: {
+            ...skewersSuggestion.payload,
+            appliance: 'air fryer (Cosori CAF-R121-KEU)',
+          },
+        },
+        ...suggestions.slice(1),
+      ],
+    });
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    const card = await screen.findByRole('article', {
+      name: 'Пилешки шишчета',
+    });
+    expect(within(card).getByText('🔌 air fryer')).toHaveAttribute(
+      'title',
+      'air fryer (Cosori CAF-R121-KEU)',
+    );
+    expect(
+      screen.getByRole('article', { name: 'Леща чорба' }),
+    ).not.toHaveTextContent('🔌');
+  });
+
+  it('отхвърлената карта има „Върни“: предложението е пак за преглед', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    let restored = false;
+    server.use(
+      http.get(`/api/recipe-suggestions/requests/${requestId}`, () =>
+        HttpResponse.json({
+          request: doneRequest,
+          suggestions: suggestions.map((s) =>
+            s.id === soupSuggestion.id && restored
+              ? { ...s, status: 'proposed' }
+              : s,
+          ),
+        }),
+      ),
+      http.post(`/api/recipe-suggestions/${soupSuggestion.id}/restore`, () => {
+        restored = true;
+        return HttpResponse.json({
+          suggestion: { ...soupSuggestion, status: 'proposed' },
+        });
+      }),
+    );
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    const card = within(
+      await screen.findByRole('article', { name: 'Леща чорба' }),
+    );
+    expect(
+      within(
+        screen.getByRole('article', { name: 'Пилешки шишчета' }),
+      ).queryByRole('button', { name: 'Върни' }),
+    ).not.toBeInTheDocument();
+    await user.click(card.getByRole('button', { name: 'Върни' }));
+
+    expect(
+      await card.findByRole('link', { name: 'Прегледай' }),
+    ).toHaveAttribute(
+      'href',
+      `/recipes/suggest/${requestId}/${soupSuggestion.id}`,
+    );
+    expect(restored).toBe(true);
+    expect(card.queryByText('Отхвърлено')).not.toBeInTheDocument();
+  });
+
+  it('под заглавието е заявката; „Промени заявката“ отваря формата с нейния слот, време, тагове и подсказка', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveDetail({ request: doneRequest, suggestions });
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    expect(
+      await screen.findByText('Вечеря · „нещо с пиле“'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Промени заявката' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Поискай предложения' }),
+    ).toBeInTheDocument();
+    for (const [name, pressed] of [
+      ['Вечеря', 'true'],
+      ['Обяд', 'false'],
+      ['15–30 мин', 'true'],
+      ['до 15 мин', 'false'],
+      ['бързо', 'true'],
+    ]) {
+      expect(screen.getByRole('button', { name })).toHaveAttribute(
+        'aria-pressed',
+        pressed,
+      );
+    }
+    expect(screen.getByRole('textbox', { name: 'Подсказка' })).toHaveValue(
+      'нещо с пиле',
+    );
+  });
+
+  it('без подсказка редът със заявката е само слотовете', async () => {
+    setUpDevice('phone', dani.id);
+    serveDetail({
+      request: {
+        ...doneRequest,
+        slots: ['breakfast', 'lunch'],
+        hint: undefined,
+      },
+      suggestions,
+    });
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    expect(await screen.findByText('Закуска, Обяд')).toBeInTheDocument();
+  });
 });

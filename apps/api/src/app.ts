@@ -24,6 +24,7 @@ import cloudflareAccess, {
 } from './plugins/cloudflare-access.js';
 import errorHandler from './plugins/error-handler.js';
 import scheduler, { type SchedulerOptions } from './plugins/scheduler.js';
+import { appliancesRoutes } from './routes/appliances.js';
 import { calendarEventsRoutes } from './routes/calendar-events.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { eventsRoutes } from './routes/events.js';
@@ -312,6 +313,7 @@ export function buildApp({
   app.register(mealReplacementsRoutes);
   app.register(shoppingRoutes);
   app.register(pantryRoutes);
+  app.register(appliancesRoutes);
   app.register(eventsRoutes);
   app.register(notificationsRoutes);
 

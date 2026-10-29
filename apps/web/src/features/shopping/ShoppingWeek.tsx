@@ -43,6 +43,7 @@ import { SourcesSheet } from './SourcesSheet';
 import '../recipes/recipes.css';
 import '../menu/menu.css';
 import './shopping.css';
+import { errorMessage } from '../../lib/error-message';
 
 const AISLE_LABELS = Object.fromEntries(
   AISLES.map(({ key, labelBg }) => [key, labelBg]),
@@ -221,11 +222,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
   function onError(error: unknown) {
     setToast({
       message:
-        error instanceof OfflineError
-          ? 'Няма връзка'
-          : error instanceof Error
-            ? error.message
-            : 'Нещо се обърка',
+        error instanceof OfflineError ? 'Няма връзка' : errorMessage(error),
     });
   }
 

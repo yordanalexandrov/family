@@ -101,6 +101,9 @@ describe('ImportScreen: таб „Линк“', () => {
       'href',
       `/recipes/${RECIPE_ID}`,
     );
+    expect(
+      screen.queryByRole('button', { name: 'Внеси' }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Внеси пак' }));
 
     expect(
@@ -109,6 +112,37 @@ describe('ImportScreen: таб „Линк“', () => {
     expect(api.posted).toEqual([
       { kind: 'url', url: LINK },
       { kind: 'url', url: LINK, force: true },
+    ]);
+  });
+
+  it('след „Вече е в регистъра“ друг линк връща „Внеси“', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const api = serveImports(
+      alreadyImported({
+        message: 'Вече е в регистъра: Тиквеник',
+        recipe: { id: RECIPE_ID, title: 'Тиквеник' },
+      }),
+      accepted,
+    );
+
+    renderApp('/recipes/import');
+    await submitLink(user);
+    await screen.findByText('Вече е в регистъра: Тиквеник');
+    const field = screen.getByRole('textbox', { name: 'Линк към рецептата' });
+    await user.clear(field);
+    await user.type(field, `${LINK}-2`);
+
+    expect(
+      screen.queryByText('Вече е в регистъра: Тиквеник'),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Внеси' }));
+    expect(
+      await screen.findByText('Чета рецептата… обикновено отнема до минута'),
+    ).toBeInTheDocument();
+    expect(api.posted).toEqual([
+      { kind: 'url', url: LINK },
+      { kind: 'url', url: `${LINK}-2` },
     ]);
   });
 
@@ -186,6 +220,9 @@ describe('ImportRequestView: страница, която не се чете', (
     expect(
       screen.getByRole('textbox', { name: 'Текст на рецептата' }),
     ).toHaveValue('');
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveFocus();
   });
 
   it('fetch_failed: „Страницата не се отвори — постави текста“', async () => {

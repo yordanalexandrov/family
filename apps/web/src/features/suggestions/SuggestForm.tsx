@@ -7,8 +7,10 @@ import {
   type Tag,
   tagSchema,
 } from '@family/shared';
+import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
+import { applianceShortName, useAppliances } from '../appliances/queries';
 import { TagChips, TimeChips, toggled } from '../recipes/TagChips';
 import { slotLabel } from './messages';
 
@@ -18,6 +20,8 @@ const EXTRA_TAGS = tagSchema.options.filter(
 );
 
 interface SuggestFormProps {
+  /** Входът на предишна заявка („Промени заявката“). */
+  initial?: Partial<RecipeSuggestParams>;
   onSubmit: (params: RecipeSuggestParams) => void;
   isSubmitting?: boolean;
   submitError?: unknown;
@@ -25,14 +29,15 @@ interface SuggestFormProps {
 
 /** Слотове, интервали за време, тагове и подсказка за `recipe.suggest`; навсякъде може да са избрани няколко. */
 export function SuggestForm({
+  initial = {},
   onSubmit,
   isSubmitting = false,
   submitError,
 }: SuggestFormProps) {
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [times, setTimes] = useState<PrepTimeRange[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [hint, setHint] = useState('');
+  const [slots, setSlots] = useState<Slot[]>(initial.slots ?? []);
+  const [times, setTimes] = useState<PrepTimeRange[]>(initial.times ?? []);
+  const [tags, setTags] = useState<Tag[]>(initial.tags ?? []);
+  const [hint, setHint] = useState(initial.hint ?? '');
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -96,6 +101,8 @@ export function SuggestForm({
         </span>
       </div>
 
+      <AppliancesLine />
+
       {submitError !== undefined && submitError !== null && (
         <ErrorBox error={submitError} />
       )}
@@ -107,5 +114,29 @@ export function SuggestForm({
         Поискай предложения
       </button>
     </form>
+  );
+}
+
+/** „Уреди: air fryer, мултикукър… — предпочитани · Промени“: включените уреди, които заявката взема предвид. */
+function AppliancesLine() {
+  const appliances = useAppliances();
+  if (!appliances.data) {
+    return null;
+  }
+  const names = appliances.data
+    .filter((appliance) => appliance.enabled)
+    .map((appliance) => applianceShortName(appliance.name));
+  return (
+    <p className="suggest-form__appliances">
+      <span>
+        {names.length > 0
+          ? `Уреди: ${names.join(', ')} — предпочитани`
+          : 'Уреди: няма включени'}
+      </span>{' '}
+      ·{' '}
+      <Link to="/settings" hash="appliances" aria-label="Промени уредите">
+        Промени
+      </Link>
+    </p>
   );
 }

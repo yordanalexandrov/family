@@ -1,5 +1,4 @@
 import {
-  APPLIANCES,
   approvedSuggestionResponseSchema,
   ingredientsResponseSchema,
   type RecipeInput,
@@ -168,15 +167,36 @@ describe('the recipe.suggest run', () => {
     expect(input.ingredientNames).toContain('сол');
   });
 
-  it('tells the agent the household appliances with every request', async () => {
+  it('tells the agent only the enabled household appliances, in their order', async () => {
+    const appliances = (
+      await app.inject({ method: 'GET', url: '/api/appliances', headers })
+    ).json().appliances as { id: string; name: string }[];
+    const sousVide = appliances.find((a) => a.name === 'sous vide');
+    await app.inject({
+      method: 'PUT',
+      url: `/api/appliances/${sousVide?.id}`,
+      headers,
+      payload: { enabled: false },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/api/appliances',
+      headers,
+      payload: { name: 'хлебопекарна' },
+    });
     const calls = answerInTurn(VALID());
 
     await finished(await requested({ slots: ['dinner'] }));
 
     const body = calls.bodies[0] as { messages: { content: string }[] };
-    expect(JSON.parse(body.messages[0]?.content ?? '').appliances).toEqual(
-      APPLIANCES,
-    );
+    expect(JSON.parse(body.messages[0]?.content ?? '').appliances).toEqual([
+      'air fryer (Cosori CAF-R121-KEU)',
+      'мултикукър (Ninja SmartLid OL750EU) — готвене под налягане, на пара, бавно готвене, air fryer',
+      'вакуум машина — само за сухи продукти, не за течности и маринати с течност',
+      'кухненски робот ×2 (Bosch MUM5, Philips 7778) — месене, разбиване, рендосване, нарязване',
+      'пасатор',
+      'хлебопекарна',
+    ]);
   });
 
   it('puts only recipes that are not archived into existingRecipeTitles', async () => {
@@ -346,7 +366,7 @@ async function editedInput(suggestion: RecipeSuggestion): Promise<RecipeInput> {
       unit: line.unit,
     });
   }
-  const { title, servings, steps, sourceUrl, prepMinutes, tags } =
+  const { title, servings, steps, sourceUrl, prepMinutes, tags, appliance } =
     suggestion.payload;
   return {
     title,
@@ -355,11 +375,16 @@ async function editedInput(suggestion: RecipeSuggestion): Promise<RecipeInput> {
     sourceUrl,
     prepMinutes,
     tags,
+    ...(appliance === undefined ? {} : { appliance }),
     ingredients: lines,
   };
 }
 
-function decide(id: string, action: 'approve' | 'reject', payload?: object) {
+function decide(
+  id: string,
+  action: 'approve' | 'reject' | 'restore',
+  payload?: object,
+) {
   return app.inject({
     method: 'POST',
     url: `/api/recipe-suggestions/${id}/${action}`,
@@ -410,6 +435,102 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
       headers,
     });
     expect(list.json().recipes).toHaveLength(1);
+  });
+
+  it('gives a later proposed suggestion of the same title duplicateOf the approved recipe, not the approved one', async () => {
+    const suggestion = await aSuggestion();
+    const approved = await decide(
+      suggestion.id,
+      'approve',
+      await editedInput(suggestion),
+    );
+    const { recipe } = approvedSuggestionResponseSchema.parse(approved.json());
+
+    const later = await finished(await requested({ slots: ['dinner'] }));
+    const first = (await getRequest(suggestion.requestId)).json();
+
+    expect(later.suggestions[0]?.duplicateOf).toEqual({
+      id: recipe.id,
+      title: recipe.title,
+    });
+    expect(later.suggestions[1]).not.toHaveProperty('duplicateOf');
+    expect(first.suggestions[0]).toMatchObject({ status: 'approved' });
+    expect(first.suggestions[0]).not.toHaveProperty('duplicateOf');
+  });
+
+  it('keeps the appliance of a suggestion for one of our appliances in the recipe', async () => {
+    const airFryer = 'air fryer (Cosori CAF-R121-KEU)';
+    const fixture = suggestFixture();
+    const answer = {
+      ...fixture,
+      suggestions: fixture.suggestions.map((s, index) =>
+        index === 0 ? { ...s, appliance: airFryer } : s,
+      ),
+    };
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () =>
+        HttpResponse.json(completion(JSON.stringify(answer))),
+      ),
+    );
+    const suggestion = await aSuggestion();
+    expect(suggestion.payload.appliance).toBe(airFryer);
+
+    const response = await decide(
+      suggestion.id,
+      'approve',
+      await editedInput(suggestion),
+    );
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe.appliance).toBe(airFryer);
+    const registry = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(registry.json().recipe.appliance).toBe(airFryer);
+  });
+
+  it('takes the appliance from the suggestion when the client sends none, and none when it sends null', async () => {
+    const airFryer = 'air fryer (Cosori CAF-R121-KEU)';
+    const fixture = suggestFixture();
+    const answer = {
+      ...fixture,
+      suggestions: fixture.suggestions.map((s) => ({
+        ...s,
+        appliance: airFryer,
+      })),
+    };
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () =>
+        HttpResponse.json(completion(JSON.stringify(answer))),
+      ),
+    );
+    const [withoutValue, withNull] = (
+      await finished(await requested({ slots: ['dinner'] }))
+    ).suggestions as RecipeSuggestion[];
+    if (!withoutValue || !withNull) {
+      throw new Error('expected the suggestions of the answer');
+    }
+    const { appliance: _client, ...input } = await editedInput(withoutValue);
+
+    const response = await decide(withoutValue.id, 'approve', input);
+
+    expect(response.statusCode).toBe(201);
+    expect(
+      approvedSuggestionResponseSchema.parse(response.json()).recipe.appliance,
+    ).toBe(airFryer);
+
+    const none = await decide(withNull.id, 'approve', {
+      ...(await editedInput(withNull)),
+      appliance: null,
+    });
+
+    expect(none.statusCode).toBe(201);
+    expect(
+      approvedSuggestionResponseSchema.parse(none.json()).recipe,
+    ).not.toHaveProperty('appliance');
   });
 
   it('leaves the suggestion proposed when the recipe points at an unknown ingredient', async () => {
@@ -464,5 +585,52 @@ describe('POST /api/recipe-suggestions/:id/reject', () => {
       (await decide(suggestion.id, 'approve', await editedInput(suggestion)))
         .statusCode,
     ).toBe(409);
+  });
+});
+
+describe('POST /api/recipe-suggestions/:id/restore', () => {
+  it('makes a rejected suggestion proposed again, so it can be decided anew', async () => {
+    const suggestion = await aSuggestion();
+    await decide(suggestion.id, 'reject');
+
+    const response = await decide(suggestion.id, 'restore');
+
+    expect(response.statusCode).toBe(200);
+    const restored = response.json().suggestion;
+    expect(restored).toMatchObject({ id: suggestion.id, status: 'proposed' });
+    expect(restored).not.toHaveProperty('decidedBy');
+    expect(restored).not.toHaveProperty('decidedAt');
+    const detail = await getRequest(suggestion.requestId);
+    expect(
+      detail.json().suggestions.map((s: RecipeSuggestion) => s.status),
+    ).toEqual(['proposed', 'proposed', 'proposed']);
+    expect(
+      (await decide(suggestion.id, 'approve', await editedInput(suggestion)))
+        .statusCode,
+    ).toBe(201);
+  });
+
+  it('refuses a suggestion that is approved or still proposed with 409, and an unknown one with 404', async () => {
+    const suggestion = await aSuggestion();
+
+    const proposed = await decide(suggestion.id, 'restore');
+
+    expect(proposed.statusCode).toBe(409);
+    expect(proposed.json()).toMatchObject({
+      error: 'conflict',
+      suggestion: { id: suggestion.id, status: 'proposed' },
+    });
+    await decide(suggestion.id, 'approve', await editedInput(suggestion));
+
+    const approved = await decide(suggestion.id, 'restore');
+
+    expect(approved.statusCode).toBe(409);
+    expect(approved.json()).toMatchObject({
+      suggestion: { id: suggestion.id, status: 'approved' },
+    });
+    expect(
+      (await decide('00000000-0000-4000-8000-000000000000', 'restore'))
+        .statusCode,
+    ).toBe(404);
   });
 });

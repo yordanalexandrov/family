@@ -66,6 +66,12 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
     return <Decided suggestion={suggestion} />;
   }
   const backToImport = () => void navigate({ to: '/recipes/import' });
+  // „Отхвърли“ води към „Внеси рецепта“ с toast „Отхвърлено · Върни“ (`DecisionToast`).
+  const rejected = () =>
+    void navigate({
+      to: '/recipes/import',
+      search: { rejected: suggestion.id },
+    });
   return (
     <ReviewSuggestion
       suggestion={suggestion}
@@ -75,7 +81,7 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
       onApproved={(recipeId) =>
         void navigate({ to: '/recipes/$id', params: { id: recipeId } })
       }
-      onRejected={backToImport}
+      onRejected={rejected}
       onCancel={backToImport}
     />
   );

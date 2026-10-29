@@ -3,6 +3,7 @@ import { Link, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
+import { ApplianceBadge } from './ApplianceBadge';
 import { formatMinutes } from './format';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
 import { RatingStars } from './Stars';
@@ -61,6 +62,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
               {TAG_LABELS_BG[tag]}
             </span>
           ))}
+          {recipe.appliance && <ApplianceBadge name={recipe.appliance} />}
           {archived && <span className="badge">Архивирана</span>}
         </p>
         <div className="recipes__actions">

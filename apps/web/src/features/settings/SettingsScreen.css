@@ -177,3 +177,35 @@
 .settings__kinds .settings__hint {
   padding-inline: 0.7em;
 }
+
+.settings__appliances {
+  list-style: none;
+}
+
+.settings__appliance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.settings__appliance .settings__switch {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.settings__appliance-remove {
+  flex: none;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
+}
+
+.settings__appliance-add {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+.settings__appliance-add .field__input {
+  flex: 1;
+  min-inline-size: 0;
+}

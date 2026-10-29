@@ -32,6 +32,7 @@ import {
 } from './contract-requests.js';
 import { AlreadyImportedError, NotFoundError } from './errors.js';
 import { readRecipePage } from './recipe-page/index.js';
+import { withDuplicateOf } from './recipe-suggestions.js';
 
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
@@ -173,7 +174,8 @@ export function createRecipeImportsService({
       if (!request) {
         throw new NotFoundError(NO_SUCH_IMPORT);
       }
-      const suggestion = await findImportedSuggestion(db, id);
+      const found = await findImportedSuggestion(db, id);
+      const [suggestion] = found ? await withDuplicateOf(db, [found]) : [];
       const linked = suggestion?.payload.ingredients.flatMap((line) =>
         line.ingredientId ? [line.ingredientId] : [],
       );

@@ -1,6 +1,8 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { requestErrorFor } from '../../lib/ai-requests';
+import { DecisionToast } from '../suggestions/DecisionToast';
+import { searchId } from '../suggestions/request-search';
 import { ImportLinkForm } from './ImportLinkForm';
 import { ImportPhotoForm } from './ImportPhotoForm';
 import { ImportTextForm } from './ImportTextForm';
@@ -33,6 +35,8 @@ export interface ImportSearch {
   url?: string;
   text?: string;
   title?: string;
+  /** Id-то на току-що отхвърленото предложение от внасяне: toast „Отхвърлено · Върни“. */
+  rejected?: string;
 }
 
 /**
@@ -52,6 +56,7 @@ export function parseImportSearch(
     url: text(search.url),
     text: text(search.text),
     title: text(search.title),
+    rejected: searchId(search.rejected),
   };
 }
 
@@ -82,6 +87,15 @@ export function ImportScreen() {
   );
   const requestImport = useRequestImport();
   const navigate = useNavigate();
+  const clearDecision = useCallback(
+    () =>
+      void navigate({
+        to: '/recipes/import',
+        search: (previous) => ({ ...previous, rejected: undefined }),
+        replace: true,
+      }),
+    [navigate],
+  );
 
   const submit = (params: ImportRequestParams, replace = false) =>
     requestImport.mutate(params, {
@@ -192,6 +206,18 @@ export function ImportScreen() {
         )}
       </div>
       <RecentImports />
+      <DecisionToast
+        rejected={search.rejected}
+        onClear={clearDecision}
+        onRestored={(suggestion) => {
+          if (suggestion.origin === 'import') {
+            void navigate({
+              to: '/recipes/import/$requestId',
+              params: { requestId: suggestion.importRequestId },
+            });
+          }
+        }}
+      />
     </main>
   );
 }

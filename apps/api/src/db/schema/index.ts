@@ -1,3 +1,4 @@
+export * from './appliance.js';
 export * from './dashboard.js';
 export * from './food.js';
 export * from './menu.js';

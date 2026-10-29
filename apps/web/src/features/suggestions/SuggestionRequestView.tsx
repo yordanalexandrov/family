@@ -1,9 +1,16 @@
 import type { SuggestionRequestDetail } from '@family/shared';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearch,
+} from '@tanstack/react-router';
+import { useCallback } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
-import { searchedLabel } from './messages';
+import { DecisionToast } from './DecisionToast';
+import { requestLabel, searchedLabel } from './messages';
 import {
   paramsOf,
   useRequestSuggestions,
@@ -13,9 +20,11 @@ import { SuggestionCard } from './SuggestionCard';
 import '../recipes/recipes.css';
 import './suggestions.css';
 
+const ROUTE = '/recipes/suggest/$requestId';
+
 /** `/recipes/suggest/:requestId`: изчакване докато е `pending`, после предложенията или грешката. */
 export function SuggestionRequestView() {
-  const { requestId } = useParams({ from: '/recipes/suggest/$requestId' });
+  const { requestId } = useParams({ from: ROUTE });
   const detail = useSuggestionRequest(requestId);
   return (
     <main className="screen recipes">
@@ -35,6 +44,7 @@ export function SuggestionRequestView() {
       ) : (
         <RequestResult detail={detail.data} />
       )}
+      <RequestDecisionToast />
     </main>
   );
 }
@@ -54,13 +64,25 @@ function RequestResult({ detail }: { detail: SuggestionRequestDetail }) {
     return <RequestFailed detail={detail} />;
   }
   return (
-    <ul className="suggestion-cards">
-      {suggestions.map((suggestion) => (
-        <li key={suggestion.id}>
-          <SuggestionCard suggestion={suggestion} />
-        </li>
-      ))}
-    </ul>
+    <>
+      <p className="suggestions__request">
+        <span>{requestLabel(request)}</span>{' '}
+        <Link
+          to="/recipes/suggest"
+          search={paramsOf(request)}
+          className="suggestions__request-edit"
+        >
+          <span aria-hidden="true">✎ </span>Промени заявката
+        </Link>
+      </p>
+      <ul className="suggestion-cards">
+        {suggestions.map((suggestion) => (
+          <li key={suggestion.id}>
+            <SuggestionCard suggestion={suggestion} />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -95,5 +117,18 @@ function RequestFailed({ detail }: { detail: SuggestionRequestDetail }) {
       </div>
       {retry.isError && <ErrorBox error={requestErrorFor(retry.error)} />}
     </>
+  );
+}
+
+/** Toast-ът след решение в прегледа, по search-а на екрана. */
+function RequestDecisionToast() {
+  const { rejected, approved } = useSearch({ from: ROUTE });
+  const navigate = useNavigate({ from: ROUTE });
+  const clear = useCallback(
+    () => void navigate({ search: {}, replace: true }),
+    [navigate],
+  );
+  return (
+    <DecisionToast rejected={rejected} approved={approved} onClear={clear} />
   );
 }

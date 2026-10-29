@@ -64,6 +64,11 @@ const bodies: Refusal[] = [
   },
   {
     error: 'conflict',
+    code: 'appliance_exists',
+    message: 'Този уред вече е в списъка',
+  },
+  {
+    error: 'conflict',
     code: 'empty_meal',
     message: 'Денят е празен: няма за какво да се гласува',
   },
