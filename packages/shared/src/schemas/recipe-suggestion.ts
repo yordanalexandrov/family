@@ -5,7 +5,7 @@ import { suggestionSchema } from '../contracts/recipe-suggest.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
-import { recipeSchema } from './recipe.js';
+import { recipeInputSchema, recipeSchema } from './recipe.js';
 
 /** One run of `recipe.suggest` by a user (GLOSSARY: Заявка за предложения). */
 export const suggestionRequestSchema = z.object({
@@ -43,9 +43,23 @@ const decisionFields = {
   decidedAt: z.iso.datetime().optional(),
 };
 
+/**
+ * A recipe in the registry (not archived) with the suggestion's title, compared canonically (trimmed, lower case,
+ * single spaces), as reads of a proposed suggestion give it; the review warns before a second recipe of that title.
+ */
+export const duplicateOfSchema = z.object({ id: z.uuid(), title: z.string() });
+
+export type DuplicateOf = z.infer<typeof duplicateOfSchema>;
+
+/** Worked out when a proposed suggestion is read, not stored. */
+const readFields = {
+  duplicateOf: duplicateOfSchema.optional(),
+};
+
 /** One of the 3–5 recipes returned for a suggestion request (GLOSSARY: Предложение за рецепта). */
 export const recipeSuggestionSchema = z.object({
   ...decisionFields,
+  ...readFields,
   origin: z.literal('suggest'),
   requestId: z.uuid(),
   payload: suggestionSchema,
@@ -56,6 +70,7 @@ export type RecipeSuggestion = z.infer<typeof recipeSuggestionSchema>;
 /** The one recipe of an import (GLOSSARY: Внасяне на рецепта, Предложение за рецепта). */
 export const importedSuggestionSchema = z.object({
   ...decisionFields,
+  ...readFields,
   origin: z.literal('import'),
   importRequestId: z.uuid(),
   payload: normalizedRecipeSchema,
@@ -117,6 +132,18 @@ export const recipeSuggestionResponseSchema = z.object({
 
 export type RecipeSuggestionResponse = z.infer<
   typeof recipeSuggestionResponseSchema
+>;
+
+/**
+ * `POST /api/recipe-suggestions/:id/approve`: the (edited) recipe. Without `appliance` the recipe takes the suggestion's,
+ * `null` is none (the user chose „Без уред“).
+ */
+export const approveSuggestionInputSchema = recipeInputSchema.extend({
+  appliance: recipeInputSchema.shape.appliance.unwrap().nullable().optional(),
+});
+
+export type ApproveSuggestionInput = z.infer<
+  typeof approveSuggestionInputSchema
 >;
 
 /** `POST /api/recipe-suggestions/:id/approve` → 201: the new registry recipe and the approved suggestion. */

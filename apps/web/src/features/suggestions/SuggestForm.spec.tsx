@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { seedAppliances, serveAppliances } from '../../test/appliances';
 import { dani, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 import { doneRequest, pendingRequest, requestId } from '../../test/suggestions';
@@ -86,6 +87,40 @@ describe('SuggestForm', () => {
 
     await screen.findByText(/Търся рецепти/);
     expect(sent).toEqual([{ slots: ['breakfast'] }]);
+  });
+
+  it('над бутона е редът с включените уреди и води към тях в Настройки', async () => {
+    setUpDevice('phone', dani.id);
+    serveRequests();
+    serveAppliances(
+      seedAppliances.map((appliance) =>
+        appliance.name === 'sous vide'
+          ? { ...appliance, enabled: false }
+          : appliance,
+      ),
+    );
+
+    renderApp('/recipes/suggest');
+
+    const line = await screen.findByText(/^Уреди:/);
+    expect(line).toHaveTextContent(
+      'Уреди: air fryer, мултикукър, вакуум машина, кухненски робот ×2, пасатор — предпочитани',
+    );
+    expect(
+      screen.getByRole('link', { name: 'Промени уредите' }),
+    ).toHaveAttribute('href', '/settings#appliances');
+  });
+
+  it('без включени уреди редът го казва', async () => {
+    setUpDevice('phone', dani.id);
+    serveRequests();
+    serveAppliances(
+      seedAppliances.map((appliance) => ({ ...appliance, enabled: false })),
+    );
+
+    renderApp('/recipes/suggest');
+
+    expect(await screen.findByText('Уреди: няма включени')).toBeInTheDocument();
   });
 
   it('под формата са последните заявки с линк към тях', async () => {

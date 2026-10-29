@@ -26,6 +26,7 @@ export function suggestionToFormValues(
     prepMinutes: String(suggestion.prepMinutes),
     sourceUrl: displaySourceUrl(suggestion.sourceUrl),
     tags: [...suggestion.tags],
+    appliance: suggestion.appliance ?? '',
     steps: [...suggestion.steps],
     ingredients: suggestion.ingredients.map((line) => {
       const ingredient = line.isNew ? undefined : resolved.get(line.name);

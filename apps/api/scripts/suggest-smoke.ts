@@ -1,10 +1,9 @@
 // Asks the real `family-recipe` agent for suggestions once, through the api's OpenClaw client, and prints a summary.
 // Manual check against the gateway (README → "Smoke тест на recipe.suggest"); not part of `pnpm test`.
 //   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--save out.json]
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
-  APPLIANCES,
   type RecipeSuggestInput,
   recipeSuggest,
   recipeSuggestParamsSchema,
@@ -12,6 +11,7 @@ import {
 import { z } from 'zod';
 import { loadOpenClawConfig } from '../src/config.js';
 import seed from '../src/db/seed/ingredients.json' with { type: 'json' };
+import { migrationPath } from '../src/db/seed/migrations.js';
 import { createOpenClawClient } from '../src/openclaw/client.js';
 
 const { values } = parseArgs({
@@ -55,12 +55,30 @@ if (!client) {
   process.exit(2);
 }
 
+// The household appliances of the data migration (GLOSSARY: Уред), the enabled ones: the second string of each row.
+// Every row has to match: a changed row format stops the smoke instead of asking with fewer appliances.
+const seedRows = (
+  await readFile(migrationPath('0023_seed_appliances'), 'utf8')
+).match(/^\s*\('.*$/gm);
+const parsedRows = (seedRows ?? []).map((row) =>
+  /^\s*\('[^']+', '([^']+)', (true|false),/.exec(row),
+);
+if (parsedRows.length === 0 || parsedRows.some((row) => row === null)) {
+  process.stderr.write(
+    `Cannot read the appliances of 0023_seed_appliances.sql (${parsedRows.length} rows); update the parser in suggest-smoke.ts.\n`,
+  );
+  process.exit(2);
+}
+const appliances = parsedRows
+  .filter((row) => row?.[2] === 'true')
+  .map((row) => row?.[1] as string);
+
 // The context the api would add: the seed ingredients, an empty registry and the household appliances.
 const input: RecipeSuggestInput = {
   ...params.data,
   existingRecipeTitles: [],
   ingredientNames: seed.ingredients.map((ingredient) => ingredient.name),
-  appliances: [...APPLIANCES],
+  appliances,
 };
 
 process.stderr.write(
@@ -79,6 +97,7 @@ try {
       `${index + 1}. ${suggestion.title} (${suggestion.prepMinutes} мин, ${suggestion.servings} порции, ${suggestion.tags.join(', ') || 'без тагове'})`,
       `   ${suggestion.sourceUrl}`,
       `   Защо: ${suggestion.why}`,
+      `   Уред: ${suggestion.appliance ?? '—'}`,
       `   Продукти: ${suggestion.ingredients.length}, нови: ${newOnes.length}${newOnes.length > 0 ? ` (${newOnes.map((i) => i.name).join(', ')})` : ''}`,
       `   Стъпки: ${suggestion.steps.length}`,
       '',

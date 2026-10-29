@@ -693,6 +693,52 @@ describe('a link already in the registry', () => {
   });
 });
 
+describe('a title already in the registry', () => {
+  function createRecipe(title: string) {
+    return app.inject({
+      method: 'POST',
+      url: '/api/recipes',
+      headers,
+      payload: {
+        title,
+        servings: 4,
+        steps: ['Нарежи.', 'Печи.'],
+        tags: ['dinner'],
+        ingredients: [],
+      },
+    });
+  }
+
+  it('gives the suggestion of a text import duplicateOf: the recipe with the same title in other case and spacing', async () => {
+    const created = await createRecipe('  пилешко   ФИЛЕ с ориз на фурна ');
+    expect(created.statusCode).toBe(201);
+    const recipe = created.json().recipe;
+    answerInTurn(normalizeAnswer);
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(body.suggestion?.payload.title).toBe('Пилешко филе с ориз на фурна');
+    expect(body.suggestion?.duplicateOf).toEqual({
+      id: recipe.id,
+      title: recipe.title,
+    });
+  });
+
+  it('leaves duplicateOf out when no recipe has the title', async () => {
+    expect((await createRecipe('Пилешко филе с картофи')).statusCode).toBe(201);
+    answerInTurn(normalizeAnswer);
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(body.suggestion).toBeDefined();
+    expect(body.suggestion).not.toHaveProperty('duplicateOf');
+  });
+});
+
 describe('the recipe.normalize run', () => {
   it('fails with invalid_output after two answers linking a product the registry does not have', async () => {
     const calls = answerInTurn(withForeignId);

@@ -3,6 +3,7 @@ import { type FormEvent, useCallback, useId, useRef, useState } from 'react';
 import { type Action, ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
+import { applianceShortName, useAppliances } from '../appliances/queries';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
   emptyIngredientRow,
@@ -36,6 +37,8 @@ export interface RecipeFormProps {
   requireResolvedIngredients?: boolean;
   /** Още тихи действия в лентата преди „Откажи“, напр. „Отхвърли“ при преглед. */
   extraActions?: readonly Action[];
+  /** Основното действие на лентата на мястото на записа, напр. „Отвори“ при рецепта със същото заглавие. */
+  primaryAction?: Action | undefined;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -111,11 +114,18 @@ export function RecipeForm({
   onCancel,
   requireResolvedIngredients = false,
   extraActions = [],
+  primaryAction,
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
   );
   const [errors, setErrors] = useState<RecipeFormErrors>({});
+  const appliances = useAppliances();
+  // Всички уреди, и изключените; уред, махнат от Настройки, остава избран, докато не се смени.
+  const applianceNames = appliances.data?.map((a) => a.name) ?? [];
+  if (values.appliance !== '' && !applianceNames.includes(values.appliance)) {
+    applianceNames.push(values.appliance);
+  }
   /** Редът в отворения лист; `added` = нов ред от „Добави продукт“, който се маха, ако се затвори празен. */
   const [editing, setEditing] = useState<{
     key: string;
@@ -367,6 +377,23 @@ export function RecipeForm({
               />
             )}
           </Field>
+          <Field label="Уред" error={errors.appliance}>
+            {(props) => (
+              <select
+                {...props}
+                className="field__input"
+                value={values.appliance}
+                onChange={(event) => set('appliance', event.target.value)}
+              >
+                <option value="">Без уред</option>
+                {applianceNames.map((name) => (
+                  <option key={name} value={name}>
+                    {applianceShortName(name)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
           <span className="field__label">Тагове</span>
           <TagChips
             label="Тагове"
@@ -515,8 +542,18 @@ export function RecipeForm({
         </details>
       </form>
       <ActionBar
-        text={waiting.length > 0 ? waitingText(waiting.length) : undefined}
-        primary={{ label: submitLabel, form: formId, disabled: isSubmitting }}
+        text={
+          !primaryAction && waiting.length > 0
+            ? waitingText(waiting.length)
+            : undefined
+        }
+        primary={
+          primaryAction ?? {
+            label: submitLabel,
+            form: formId,
+            disabled: isSubmitting,
+          }
+        }
         secondary={[
           ...extraActions,
           ...(onCancel ? [{ label: 'Откажи', onClick: onCancel }] : []),

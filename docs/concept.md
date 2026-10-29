@@ -129,8 +129,9 @@ MVP-то е с минимален AI: OpenClaw предлага меню и ре
 | `calendar_event` | external_id, title, start, end, all_day, calendar_name | кеш от Google Calendar, презаписва се при синхронизация |
 | `budget_snapshot` | month, limit, spent, remaining, synced_at | кеш от Wallet; по категории по-късно |
 | `ingredient` | id, name, unit, category, aisle | нормализирани продукти (напр. „пилешко филе“, г) |
-| `recipe` | id, title, source_url, servings, steps, tags | tags: закуска/обяд/вечеря, бързо, batch |
+| `recipe` | id, title, source_url, servings, steps, tags, appliance | tags: закуска/обяд/вечеря, бързо, batch |
 | `recipe_ingredient` | recipe_id, ingredient_id, quantity, unit | |
+| `appliance` | id, name, enabled | специалните уреди вкъщи (air fryer, sous vide…); включените са меко предпочитание за `recipe.suggest`, рецептата пази името като текст |
 | `meal_plan` | id, week_start, status | status: draft / final |
 | `meal` | plan_id, date, slot (закуска/обяд/вечеря), recipe_id, cook_user_id, servings_per_user | servings_per_user е JSON {user_id: порции} |
 | `shopping_list` + `shopping_item` | week_start, plan_id; item_key, kind, title, quantity, unit, aisle, hidden, checked_by, checked_at | един на седмица (`week_start` unique); `plan_id` е по избор и при изтрито меню става null, списъкът и ръчните редове остават; редовете се изчисляват от менюто, пазят се само отметки, скрити и ръчни редове |

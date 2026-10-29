@@ -10,6 +10,7 @@ import {
 } from '@family/shared';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
+import { seedAppliances } from './fixtures/appliances';
 import dashboardFixture from './fixtures/dashboard.json';
 
 // Фикстури по seed-а на api (#16): Дани и Поли.
@@ -85,6 +86,10 @@ export const handlers = [
     return HttpResponse.json({ user, accessEmail });
   }),
   http.get('/api/dashboard', () => HttpResponse.json(dashboard)),
+  // Уредите по seed-а; `serveAppliances` ги прави променливи.
+  http.get('/api/appliances', () =>
+    HttpResponse.json({ appliances: seedAppliances }),
+  ),
   // Листът на ястието чете разговора; без `serveThreads` той е празен.
   http.get('/api/menu/meals/:id/comments', () =>
     HttpResponse.json({ comments: [] }),

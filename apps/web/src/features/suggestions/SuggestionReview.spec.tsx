@@ -1,13 +1,14 @@
 import type {
+  ApproveSuggestionInput,
   Ingredient,
   Recipe,
-  RecipeInput,
   RecipeSuggestion,
 } from '@family/shared';
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { seedAppliances } from '../../test/fixtures/appliances';
 import {
   doneImport,
   importedSuggestion,
@@ -46,7 +47,7 @@ function serveReview(
   suggestion: RecipeSuggestion = skewersSuggestion,
   known: Ingredient[] = [...ingredients, sumac],
 ) {
-  const approved: RecipeInput[] = [];
+  const approved: ApproveSuggestionInput[] = [];
   const searches: string[] = [];
   const recipeId = 'bbbbbbbb-0000-4000-8000-000000000010';
   const stored = (): Recipe => ({
@@ -77,7 +78,7 @@ function serveReview(
     http.post(
       `/api/recipe-suggestions/${suggestion.id}/approve`,
       async ({ request }) => {
-        const body = (await request.json()) as RecipeInput;
+        const body = (await request.json()) as ApproveSuggestionInput;
         approved.push(body);
         const recipe = stored();
         return HttpResponse.json(
@@ -126,13 +127,21 @@ function lineSheet() {
   return within(screen.getByRole('dialog', { name: 'Продукт' }));
 }
 
+/** Toast-ът със съобщението `text` (в `document.body` има и други toast-ове). */
+async function findToast(text: string) {
+  const message = await screen.findByText(text, {
+    selector: '.toast__message span',
+  });
+  return within(message.closest<HTMLElement>('.toast') ?? message);
+}
+
 /** Лентата с основното действие на екрана. */
 function actionBar() {
   return within(screen.getByRole('group', { name: 'Действия' }));
 }
 
 describe('SuggestionReview', () => {
-  it('новият продукт е отгоре със „Свържи“; след свързване в листа „Одобри“ праща recipeInput в реда на рецептата и връща към предложенията', async () => {
+  it('новият продукт е отгоре със „Свържи“; след свързване в листа „Одобри“ праща recipeInput в реда на рецептата, връща към предложенията и toast „Отвори“ води към рецептата', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const { approved, searches } = serveReview();
@@ -188,6 +197,15 @@ describe('SuggestionReview', () => {
       'href',
       '/recipes/bbbbbbbb-0000-4000-8000-000000000010',
     );
+    // Toast-ът води направо към новата рецепта.
+    const toast = await findToast('Рецептата е в регистъра');
+    await user.click(toast.getByRole('button', { name: 'Отвори' }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Пилешки шишчета' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Предложения' }),
+    ).not.toBeInTheDocument();
     expect(approved).toEqual([
       {
         title: 'Пилешки шишчета',
@@ -196,6 +214,7 @@ describe('SuggestionReview', () => {
         tags: ['dinner', 'quick'],
         steps: ['Нарежи пилето.', 'Нанижи и изпечи.'],
         sourceUrl: chickenSkewers.sourceUrl,
+        appliance: null,
         ingredients: [
           { ingredientId: chicken.id, quantity: 0.6, unit: 'kg' },
           { ingredientId: sumac.id, quantity: 1, unit: 'tsp' },
@@ -379,11 +398,72 @@ describe('SuggestionReview', () => {
     ]);
   });
 
-  it('„Отхвърли“ праща reject и връща към предложенията', async () => {
+  it('предложение за уред: значката е в прегледа, уредът е избран във формата и „Одобри“ го праща', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const ninja = seedAppliances[1]?.name ?? '';
+    const suggestion: RecipeSuggestion = {
+      ...skewersSuggestion,
+      payload: {
+        ...chickenSkewers,
+        appliance: ninja,
+        ingredients: chickenSkewers.ingredients.map((line) => ({
+          ...line,
+          isNew: false,
+        })),
+      },
+    };
+    const { approved } = serveReview(suggestion);
+
+    renderApp(reviewPath);
+
+    expect(await screen.findByText('🔌 мултикукър')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('combobox', { name: 'Уред' }),
+    ).toHaveDisplayValue('мултикукър');
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Предложения' });
+    expect(approved[0]?.appliance).toBe(ninja);
+  });
+
+  it('„Отхвърли“ праща reject и връща към предложенията с toast „Отхвърлено · Върни“; „Върни“ го прави пак предложение', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     serveReview();
-    const rejected = serveReject();
+    let status: RecipeSuggestion['status'] = 'proposed';
+    const calls: string[] = [];
+    server.use(
+      http.get(`/api/recipe-suggestions/requests/${requestId}`, () =>
+        HttpResponse.json({
+          request: doneRequest,
+          suggestions: [
+            { ...skewersSuggestion, status },
+            ...suggestions.slice(1),
+          ],
+        }),
+      ),
+      http.post(
+        `/api/recipe-suggestions/${skewersSuggestion.id}/reject`,
+        () => {
+          calls.push('reject');
+          status = 'rejected';
+          return HttpResponse.json({
+            suggestion: { ...skewersSuggestion, status },
+          });
+        },
+      ),
+      http.post(
+        `/api/recipe-suggestions/${skewersSuggestion.id}/restore`,
+        () => {
+          calls.push('restore');
+          status = 'proposed';
+          return HttpResponse.json({
+            suggestion: { ...skewersSuggestion, status },
+          });
+        },
+      ),
+    );
 
     renderApp(reviewPath);
     await screen.findByRole('textbox', { name: 'Заглавие' });
@@ -397,7 +477,20 @@ describe('SuggestionReview', () => {
     expect(
       await screen.findByRole('heading', { name: 'Предложения' }),
     ).toBeInTheDocument();
-    expect(rejected).toEqual([skewersSuggestion.id]);
+    expect(calls).toEqual(['reject']);
+    const toast = await findToast('Отхвърлено');
+    const card = within(
+      await screen.findByRole('article', { name: 'Пилешки шишчета' }),
+    );
+    expect(await card.findByText('Отхвърлено')).toBeInTheDocument();
+
+    await user.click(toast.getByRole('button', { name: 'Върни' }));
+
+    expect(calls).toEqual(['reject', 'restore']);
+    expect(
+      await card.findByRole('link', { name: 'Прегледай' }),
+    ).toBeInTheDocument();
+    expect(toast.queryByText('Отхвърлено')).not.toBeInTheDocument();
   });
 
   it('„Отхвърли“ е в лентата и докато продуктите се зареждат', async () => {
@@ -504,5 +597,92 @@ describe('SuggestionReview', () => {
     expect(
       screen.queryByRole('img', { name: 'Снимката на рецептата' }),
     ).not.toBeInTheDocument();
+  });
+  describe('рецепта със същото заглавие в регистъра', () => {
+    const existing: Recipe = {
+      ...omelette,
+      id: 'bbbbbbbb-0000-4000-8000-000000000099',
+      title: 'пилешко филе със СУМАК',
+    };
+
+    it('внасяне: предупреждение с „Отвори“ и „Внеси въпреки това“; основното действие в лентата е „Отвори“ и води към рецептата', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      server.use(
+        http.get(`/api/recipe-imports/${importId}`, () =>
+          HttpResponse.json({
+            request: doneImport,
+            suggestion: {
+              ...importedSuggestion,
+              duplicateOf: { id: existing.id, title: existing.title },
+            },
+            ingredients: [chicken, salt, importedSumac],
+          }),
+        ),
+        http.get(`/api/recipes/${existing.id}`, () =>
+          HttpResponse.json({ recipe: existing }),
+        ),
+      );
+
+      renderApp(`/recipes/import/${importId}`);
+
+      const warning = within(
+        await screen.findByRole('region', {
+          name: 'Има рецепта със същото заглавие',
+        }),
+      );
+      expect(warning.getByRole('link', { name: 'Отвори' })).toHaveAttribute(
+        'href',
+        `/recipes/${existing.id}`,
+      );
+      expect(
+        warning.getByRole('button', { name: 'Внеси въпреки това' }),
+      ).toBeInTheDocument();
+      expect(
+        actionBar()
+          .getAllByRole('button')
+          .map((button) => button.textContent),
+      ).toEqual(['Отхвърли', 'Откажи', 'Отвори']);
+
+      await user.click(actionBar().getByRole('button', { name: 'Отвори' }));
+
+      expect(
+        await screen.findByRole('heading', { name: existing.title }),
+      ).toBeInTheDocument();
+    });
+
+    it('„Внеси въпреки това“ маха предупреждението и връща „Одобри“, което праща одобрението', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      const { approved } = serveReview({
+        ...skewersSuggestion,
+        duplicateOf: { id: existing.id, title: 'ПИЛЕШКИ шишчета' },
+        payload: {
+          ...chickenSkewers,
+          ingredients: chickenSkewers.ingredients.map((line) => ({
+            ...line,
+            isNew: false,
+          })),
+        },
+      });
+
+      renderApp(reviewPath);
+      const warning = await screen.findByRole('region', {
+        name: 'Има рецепта със същото заглавие',
+      });
+      await screen.findByRole('textbox', { name: 'Заглавие' });
+      expect(
+        actionBar().queryByRole('button', { name: 'Одобри' }),
+      ).not.toBeInTheDocument();
+
+      await user.click(
+        within(warning).getByRole('button', { name: 'Внеси въпреки това' }),
+      );
+
+      expect(warning).not.toBeInTheDocument();
+      await user.click(actionBar().getByRole('button', { name: 'Одобри' }));
+      await screen.findByRole('heading', { name: 'Предложения' });
+      expect(approved).toHaveLength(1);
+    });
   });
 });

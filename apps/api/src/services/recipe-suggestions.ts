@@ -1,8 +1,8 @@
 import {
   type AnyRecipeSuggestion,
-  APPLIANCES,
+  type ApproveSuggestionInput,
+  canonicalTitle,
   type Recipe,
-  type RecipeInput,
   type RecipeSuggestInput,
   type RecipeSuggestOutput,
   type RecipeSuggestParams,
@@ -10,6 +10,7 @@ import {
   type SuggestionRequestDetail,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
+import { listEnabledApplianceNames } from '../db/repositories/appliances.js';
 import { listIngredientNames } from '../db/repositories/ingredients.js';
 import {
   decideSuggestion,
@@ -19,8 +20,12 @@ import {
   listSuggestionRequests,
   listSuggestions,
   lockSuggestion,
+  undecideSuggestion,
 } from '../db/repositories/recipe-suggestions.js';
-import { listActiveRecipeTitles } from '../db/repositories/recipes.js';
+import {
+  listActiveRecipesByTitle,
+  listActiveRecipeTitles,
+} from '../db/repositories/recipes.js';
 import { recipeSuggestionRequest } from '../db/schema/food.js';
 import type {
   ContractRequestHandle,
@@ -31,6 +36,8 @@ import { addRecipe } from './recipes.js';
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
 const NO_SUCH_SUGGESTION = 'Няма такова предложение';
+const ALREADY_DECIDED = 'Предложението вече е решено';
+const ONLY_REJECTED_RESTORED = 'Само отхвърлено предложение може да се върне';
 
 export interface RecipeSuggestionsService {
   /** Stores a `pending` request and starts its run in the background; the request is returned at once. */
@@ -40,16 +47,21 @@ export interface RecipeSuggestionsService {
   ): Promise<SuggestionRequest>;
   listRequests(limit: number): Promise<SuggestionRequest[]>;
   getRequest(id: string): Promise<SuggestionRequestDetail>;
-  /** Copies the (edited) suggestion into the registry and marks it approved, in one transaction. */
+  /**
+   * Copies the (edited) suggestion into the registry and marks it approved, in one transaction. Without `appliance` in
+   * the input the recipe takes the suggestion's; `null` is none.
+   */
   approveSuggestion(
     id: string,
-    input: RecipeInput,
+    input: ApproveSuggestionInput,
     actingUserId: string,
   ): Promise<{ recipe: Recipe; suggestion: AnyRecipeSuggestion }>;
   rejectSuggestion(
     id: string,
     actingUserId: string,
   ): Promise<AnyRecipeSuggestion>;
+  /** „Върни“ after „Отхвърли“: a rejected suggestion is `proposed` again. An approved one has its recipe and stays. */
+  restoreSuggestion(id: string): Promise<AnyRecipeSuggestion>;
 }
 
 /** `recipe.suggest` as AI requests (GLOSSARY: Заявка за предложения), registered in `buildApp()`. */
@@ -60,7 +72,7 @@ export type SuggestionRequests = ContractRequestHandle<
 
 /**
  * How `recipe.suggest` requests are stored: the input is the request plus the registry context (active recipe titles,
- * ingredient names) and the household appliances; a valid answer stores the suggestions in the agent's order, or ends
+ * ingredient names) and the enabled household appliances; a valid answer stores the suggestions in the agent's order, or ends
  * `no_results` when the agent found none.
  */
 export const suggestionRequestStore: ContractRequestStore<
@@ -81,7 +93,7 @@ export const suggestionRequestStore: ContractRequestStore<
       hint: request.hint,
       existingRecipeTitles: await listActiveRecipeTitles(db),
       ingredientNames: await listIngredientNames(db),
-      appliances: [...APPLIANCES],
+      appliances: await listEnabledApplianceNames(db),
     };
   },
 
@@ -95,6 +107,34 @@ export const suggestionRequestStore: ContractRequestStore<
 };
 
 /**
+ * The suggestions with `duplicateOf` on each proposed one whose title a recipe in the registry already has (canonically);
+ * a decided suggestion gets none, an approved one would find its own recipe.
+ */
+export async function withDuplicateOf<T extends AnyRecipeSuggestion>(
+  db: DbExecutor,
+  suggestions: T[],
+): Promise<T[]> {
+  if (!suggestions.some((s) => s.status === 'proposed')) {
+    return suggestions;
+  }
+  const byTitle = await listActiveRecipesByTitle(db);
+  return suggestions.map((suggestion) => {
+    const duplicateOf =
+      suggestion.status === 'proposed'
+        ? byTitle.get(canonicalTitle(suggestion.payload.title))
+        : undefined;
+    return duplicateOf ? { ...suggestion, duplicateOf } : suggestion;
+  });
+}
+
+/** The appliance the agent gave the suggestion, `null` for none; a suggestion of an import has none. */
+function applianceOf(suggestion: AnyRecipeSuggestion): string | null {
+  return 'appliance' in suggestion.payload
+    ? (suggestion.payload.appliance ?? null)
+    : null;
+}
+
+/**
  * Suggestion requests and the decisions on their suggestions (GLOSSARY: Заявка за предложения, Предложение за рецепта),
  * also on the one suggestion of an import (`recipe.normalize`): approval and rejection do not depend on the origin. Created once in `buildApp()` as `app.recipeSuggestions`. Requests go through `requests`, registered with
  * {@link suggestionRequestStore}.
@@ -106,16 +146,19 @@ export function createRecipeSuggestionsService({
   db: Db;
   requests: SuggestionRequests;
 }): RecipeSuggestionsService {
-  async function decide(
-    id: string,
+  /** The suggestion, locked, if it has the status `expected`; otherwise 404, or 409 with `conflict` and the suggestion. */
+  async function lockWith(
     tx: DbExecutor,
+    id: string,
+    expected: AnyRecipeSuggestion['status'],
+    conflict: string,
   ): Promise<AnyRecipeSuggestion> {
     const suggestion = await lockSuggestion(tx, id);
     if (!suggestion) {
       throw new NotFoundError(NO_SUCH_SUGGESTION);
     }
-    if (suggestion.status !== 'proposed') {
-      throw new ConflictError('Предложението вече е решено', { suggestion });
+    if (suggestion.status !== expected) {
+      throw new ConflictError(conflict, { suggestion });
     }
     return suggestion;
   }
@@ -134,13 +177,20 @@ export function createRecipeSuggestionsService({
       if (!request) {
         throw new NotFoundError(NO_SUCH_REQUEST);
       }
-      return { request, suggestions: await listSuggestions(db, id) };
+      return {
+        request,
+        suggestions: await withDuplicateOf(db, await listSuggestions(db, id)),
+      };
     },
 
     approveSuggestion(id, input, actingUserId) {
       return db.transaction(async (tx) => {
-        await decide(id, tx);
-        const recipe = await addRecipe(tx, input);
+        const proposed = await lockWith(tx, id, 'proposed', ALREADY_DECIDED);
+        const { appliance = applianceOf(proposed), ...rest } = input;
+        const recipe = await addRecipe(tx, {
+          ...rest,
+          ...(appliance === null ? {} : { appliance }),
+        });
         const suggestion = await decideSuggestion(tx, id, {
           status: 'approved',
           recipeId: recipe.id,
@@ -152,12 +202,19 @@ export function createRecipeSuggestionsService({
 
     rejectSuggestion(id, actingUserId) {
       return db.transaction(async (tx) => {
-        await decide(id, tx);
+        await lockWith(tx, id, 'proposed', ALREADY_DECIDED);
         return decideSuggestion(tx, id, {
           status: 'rejected',
           recipeId: null,
           decidedBy: actingUserId,
         });
+      });
+    },
+
+    restoreSuggestion(id) {
+      return db.transaction(async (tx) => {
+        await lockWith(tx, id, 'rejected', ONLY_REJECTED_RESTORED);
+        return undecideSuggestion(tx, id);
       });
     },
   };

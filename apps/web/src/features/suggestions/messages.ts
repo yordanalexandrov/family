@@ -19,11 +19,17 @@ export const REQUEST_STATUS_LABELS: Record<ContractRequestStatus, string> = {
   failed: 'неуспешна',
 };
 
-/** Какво е търсено, за чакането и грешката: „Търсено: Вечеря · „нещо с пиле““ (дълга подсказка е отрязана). */
-export function searchedLabel({
+/** Заявката накратко: „Вечеря · „нещо с пиле““, „Закуска, Обяд“ (дълга подсказка е отрязана). */
+export function requestLabel({
   slots,
   hint,
 }: Pick<SuggestionRequest, 'slots' | 'hint'>): string {
-  const what = slots.map(slotLabel).join(', ');
-  return withHint(`Търсено: ${what}`, hint && shorten(hint));
+  return withHint(slots.map(slotLabel).join(', '), hint && shorten(hint));
+}
+
+/** Какво е търсено, за чакането и грешката: „Търсено: Вечеря · „нещо с пиле““. */
+export function searchedLabel(
+  request: Pick<SuggestionRequest, 'slots' | 'hint'>,
+): string {
+  return `Търсено: ${requestLabel(request)}`;
 }

@@ -29,13 +29,13 @@ describe('SettingsScreen', () => {
     delete document.documentElement.dataset.effects;
   });
 
-  it('на телефона картите са „Кой си“, „Известия“, „Тема“, „Ефекти“, „Устройство“', async () => {
+  it('на телефона картите са „Кой си“, „Известия“, „Уреди“, „Тема“, „Ефекти“, „Устройство“', async () => {
     renderApp('/settings');
     await screen.findByRole('region', { name: 'Кой си' });
 
     expect(
       screen.getAllByRole('region').map((region) => region.ariaLabel),
-    ).toEqual(['Кой си', 'Известия', 'Тема', 'Ефекти', 'Устройство']);
+    ).toEqual(['Кой си', 'Известия', 'Уреди', 'Тема', 'Ефекти', 'Устройство']);
   });
 
   it('смяна на темата слага data-theme и я пази в family.theme', async () => {

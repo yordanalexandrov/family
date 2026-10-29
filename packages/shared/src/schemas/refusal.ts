@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { applianceExistsSchema } from './appliance.js';
 import { noReplacementSchema } from './meal-replacement.js';
 import {
   emptyMealSchema,
@@ -27,6 +28,7 @@ export const refusalSchemas = {
   cook_taken: cookTakenSchema,
   system_line: systemLineSchema,
   past_meal: pastMealSchema,
+  appliance_exists: applianceExistsSchema,
   empty_meal: emptyMealSchema,
 } as const;
 

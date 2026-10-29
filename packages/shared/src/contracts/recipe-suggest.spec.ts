@@ -4,7 +4,7 @@ import fixture from './fixtures/recipe-suggest.valid.json' with {
 };
 import { type RecipeSuggestInput, recipeSuggest } from './recipe-suggest.js';
 
-/** A hand-written, realistic answer of `family-recipe`; tests clone it before changing anything. */
+/** A real answer of `family-recipe`, recorded by `suggest:smoke` for {@link INPUT}; tests clone it before changing anything. */
 function validOutput() {
   // biome-ignore lint/suspicious/noExplicitAny: tests break the fixture on purpose
   return JSON.parse(JSON.stringify(fixture)) as any;
@@ -12,12 +12,13 @@ function validOutput() {
 
 const INPUT: RecipeSuggestInput = {
   slots: ['dinner'],
+  hint: 'нещо в air fryer',
   existingRecipeTitles: [],
   ingredientNames: ['сол'],
-  appliances: [],
+  appliances: ['air fryer (Cosori CAF-R121-KEU)', 'sous vide'],
 };
 
-/** What the OpenClaw client checks an answer with; `recipe.suggest` asks the same of every input. */
+/** What the OpenClaw client checks an answer with, for the input of the fixture. */
 const outputSchema = recipeSuggest.outputSchema(INPUT);
 
 function issuePaths(output: unknown): string[] {
@@ -166,6 +167,54 @@ describe('recipeSuggest.outputSchema', () => {
 
     expect(issuePaths(output)).toEqual([
       'suggestions.0.ingredients.1.quantity',
+    ]);
+  });
+});
+
+describe('recipeSuggest.outputSchema: appliance', () => {
+  it('accepts a suggestion for one of the appliances of the input, by its exact name', () => {
+    const output = validOutput();
+    output.suggestions[0].appliance = 'air fryer (Cosori CAF-R121-KEU)';
+    delete output.suggestions[1].appliance;
+
+    expect(outputSchema.parse(output)).toEqual(output);
+  });
+
+  it('reads appliance: null, as strict mode sends it, as no appliance', () => {
+    const output = validOutput();
+    output.suggestions[0].appliance = null;
+
+    expect(outputSchema.parse(output).suggestions[0]).not.toHaveProperty(
+      'appliance',
+    );
+  });
+
+  it('rejects an appliance that is not one of the input', () => {
+    const output = validOutput();
+    output.suggestions[2].appliance = 'тенджера под налягане';
+
+    const result = outputSchema.safeParse(output);
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      'suggestions.2.appliance',
+    ]);
+  });
+
+  it('rejects any appliance when the household has none enabled', () => {
+    const output = validOutput();
+    output.suggestions = output.suggestions.map(
+      ({ appliance: _none, ...suggestion }: { appliance?: string }) =>
+        suggestion,
+    );
+    output.suggestions[0].appliance = 'sous vide';
+
+    const result = recipeSuggest
+      .outputSchema({ ...INPUT, appliances: [] })
+      .safeParse(output);
+
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      'suggestions.0.appliance',
     ]);
   });
 });
@@ -326,6 +375,18 @@ describe('recipeSuggest.responseFormat', () => {
 
     expect(schema.required).toContain('noResults');
     expect(schema.properties.noResults).toEqual({ type: ['string', 'null'] });
+  });
+
+  it('asks for appliance as a string or null', () => {
+    const schema = recipeSuggest.responseFormat.schema as unknown as {
+      properties: {
+        suggestions: { items: { properties: { appliance: unknown } } };
+      };
+    };
+
+    expect(schema.properties.suggestions.items.properties.appliance).toEqual({
+      type: ['string', 'null'],
+    });
   });
 
   it('asks for nutritionPer100g as an object or null', () => {

@@ -62,6 +62,25 @@ describe('RecipeView', () => {
     );
   });
 
+  it('рецепта за наш уред показва значка с краткото му име', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe({ ...chickenWithRice, appliance: 'sous vide' });
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    expect(await screen.findByText('🔌 sous vide')).toBeInTheDocument();
+  });
+
+  it('рецепта без уред няма значка', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    await screen.findByRole('heading', { name: 'Пиле с ориз' });
+    expect(screen.queryByText(/🔌/)).not.toBeInTheDocument();
+  });
+
   it('дълго време се чете в часове: 225 мин са „3 ч 45 мин“', async () => {
     setUpDevice('phone', dani.id);
     serveRecipe({ ...chickenWithRice, prepMinutes: 225 });

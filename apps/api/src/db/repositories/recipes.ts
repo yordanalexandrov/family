@@ -1,4 +1,6 @@
 import {
+  canonicalTitle,
+  type DuplicateOf,
   type MenuProposeRecipe,
   PREP_TIME_RANGES,
   type PrepTimeRange,
@@ -48,6 +50,7 @@ function toRecipe(row: RecipeRow, ingredients: RecipeLine[]): Recipe {
     prepMinutes: row.prepMinutes ?? undefined,
     tags: row.tags,
     nutritionPer100g: row.nutritionPer100g ?? undefined,
+    appliance: row.appliance ?? undefined,
     ingredients,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     rating: row.rating,
@@ -66,6 +69,7 @@ function recipeValues(input: RecipeInput) {
     prepMinutes: input.prepMinutes ?? null,
     tags: input.tags,
     nutritionPer100g: input.nutritionPer100g ?? null,
+    appliance: input.appliance ?? null,
   };
 }
 
@@ -279,6 +283,28 @@ export async function listActiveRecipeTitles(
     .where(isNull(recipe.archivedAt))
     .orderBy(asc(recipe.title));
   return rows.map((row) => row.title);
+}
+
+/**
+ * The recipes that are not archived, by canonical title (trimmed, lower case, single spaces, as the names of products),
+ * the oldest of a title first; for the `duplicateOf` of proposed suggestions. Few rows, so compared here, not in SQL.
+ */
+export async function listActiveRecipesByTitle(
+  db: DbExecutor,
+): Promise<Map<string, DuplicateOf>> {
+  const rows = await db
+    .select({ id: recipe.id, title: recipe.title })
+    .from(recipe)
+    .where(isNull(recipe.archivedAt))
+    .orderBy(asc(recipe.createdAt), asc(recipe.id));
+  const byTitle = new Map<string, DuplicateOf>();
+  for (const row of rows) {
+    const key = canonicalTitle(row.title);
+    if (!byTitle.has(key)) {
+      byTitle.set(key, row);
+    }
+  }
+  return byTitle;
 }
 
 /** Whether the recipe exists, is not archived and is tagged with `slot`, i.e. may be picked for a meal of that slot. */

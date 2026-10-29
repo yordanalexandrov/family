@@ -16,6 +16,7 @@ import { Avatar } from '../../components/Avatar';
 import { BackLink } from '../../components/BackLink';
 import { Card } from '../../components/Card';
 import { DEVICE_CHOICES } from '../device/DeviceScreen';
+import { AppliancesSection } from './AppliancesSection';
 import { DeviceModeConfirm, needsConfirmation } from './DeviceModeConfirm';
 import { NotificationsSection } from './NotificationsSection';
 import './SettingsScreen.css';
@@ -36,7 +37,7 @@ const EFFECTS: { value: EffectsSetting; label: string }[] = [
   { value: 'auto', label: 'Автоматично' },
 ];
 
-/** Настройките на устройството: „Кой си“ и „Известия“ (телефон и браузър), тема, ефекти, режим, версия. */
+/** Настройките на устройството: „Кой си“, „Известия“ и уредите на домакинството (телефон и браузър), тема, ефекти, режим, версия. */
 export function SettingsScreen() {
   const { setting: theme, setTheme } = useTheme();
   const { setting: effects, level, setEffects } = useEffectsLevel();
@@ -49,8 +50,8 @@ export function SettingsScreen() {
   const systemLabel = isPersonalDevice(current)
     ? 'Като телефона'
     : 'Като устройството';
-  // „Кой си“ и „Известия“ най-горе на телефона и в браузъра; появата на останалите карти започва след тях.
-  const animationOffset = personal ? 2 : 0;
+  // „Кой си“, „Известия“ и „Уреди“ най-горе на телефона и в браузъра; появата на останалите карти започва след тях.
+  const animationOffset = personal ? 3 : 0;
 
   return (
     <main className={`settings${mode === 'phone' ? '' : ' settings--wide'}`}>
@@ -68,6 +69,12 @@ export function SettingsScreen() {
       {personal && (
         <Section title="Известия" index={1}>
           <NotificationsSection />
+        </Section>
+      )}
+
+      {personal && (
+        <Section title="Уреди" index={2} id="appliances">
+          <AppliancesSection />
         </Section>
       )}
 
@@ -155,14 +162,18 @@ function ActingUser() {
 function Section({
   title,
   index,
+  id,
   children,
 }: {
   title: string;
   index: number;
+  /** Котва за връзка отвън, напр. `/settings#appliances`. */
+  id?: string;
   children: ReactNode;
 }) {
   return (
     <Card
+      id={id}
       title={title}
       aria-label={title}
       style={{ '--card-index': index } as CSSProperties}

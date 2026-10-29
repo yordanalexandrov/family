@@ -1,8 +1,9 @@
 import type {
+  ApproveSuggestionInput,
   RecipeImportDetail,
   RecipeImportParams,
   RecipeImportRequest,
-  RecipeInput,
+  RecipeSuggestion,
 } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -39,7 +40,7 @@ const DONE: RecipeImportDetail = {
 function serveImport(...states: RecipeImportDetail[]) {
   const posted: RecipeImportParams[] = [];
   const created: unknown[] = [];
-  const approved: RecipeInput[] = [];
+  const approved: ApproveSuggestionInput[] = [];
   let detailCalls = 0;
   const recipeId = 'bbbbbbbb-0000-4000-8000-000000000020';
   server.use(
@@ -69,7 +70,7 @@ function serveImport(...states: RecipeImportDetail[]) {
     http.post(
       `/api/recipe-suggestions/${importedSuggestion.id}/approve`,
       async ({ request }) => {
-        const input = (await request.json()) as RecipeInput;
+        const input = (await request.json()) as ApproveSuggestionInput;
         approved.push(input);
         return HttpResponse.json(
           {
@@ -210,6 +211,7 @@ describe('ImportScreen', () => {
         prepMinutes: 40,
         tags: ['dinner'],
         steps: ['Овкусете пилето.', 'Изпечете го 30 минути.'],
+        appliance: null,
         sourceUrl: importUrl,
         ingredients: [
           {
@@ -223,6 +225,91 @@ describe('ImportScreen', () => {
         ],
       },
     ]);
+  });
+
+  it('„Отхвърли“ връща към „Внеси рецепта“ с toast „Отхвърлено · Върни“; „Върни“ отваря пак прегледа', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveImport();
+    let status: RecipeSuggestion['status'] = 'proposed';
+    const calls: string[] = [];
+    const suggestion = () => ({ ...importedSuggestion, status });
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({ ...DONE, suggestion: suggestion() }),
+      ),
+      http.post(
+        `/api/recipe-suggestions/${importedSuggestion.id}/reject`,
+        () => {
+          calls.push('reject');
+          status = 'rejected';
+          return HttpResponse.json({ suggestion: suggestion() });
+        },
+      ),
+      http.post(
+        `/api/recipe-suggestions/${importedSuggestion.id}/restore`,
+        () => {
+          calls.push('restore');
+          status = 'proposed';
+          return HttpResponse.json({ suggestion: suggestion() });
+        },
+      ),
+    );
+
+    renderApp(`/recipes/import/${importId}`);
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    await user.click(screen.getByRole('button', { name: 'Отхвърли' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Внеси рецепта' }),
+    ).toBeInTheDocument();
+    // Toast-ът на решението, не този на аватара (и той е `status`).
+    const message = await screen.findByText('Отхвърлено');
+    const toast = within(
+      message.closest<HTMLElement>('[role="status"]') ?? message,
+    );
+
+    await user.click(toast.getByRole('button', { name: 'Върни' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Заглавие' }),
+    ).toHaveValue(importedSuggestion.payload.title);
+    expect(calls).toEqual(['reject', 'restore']);
+  });
+
+  it('отхвърленото внасяне казва, че е отхвърлено, и има „Върни“ към прегледа', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveImport();
+    let status: RecipeSuggestion['status'] = 'rejected';
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          ...DONE,
+          suggestion: { ...importedSuggestion, status },
+        }),
+      ),
+      http.post(
+        `/api/recipe-suggestions/${importedSuggestion.id}/restore`,
+        () => {
+          status = 'proposed';
+          return HttpResponse.json({
+            suggestion: { ...importedSuggestion, status },
+          });
+        },
+      ),
+    );
+
+    renderApp(`/recipes/import/${importId}`);
+
+    expect(
+      await screen.findByText('Предложението е отхвърлено.'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+    expect(
+      await screen.findByRole('textbox', { name: 'Заглавие' }),
+    ).toHaveValue(importedSuggestion.payload.title);
   });
 
   it('при no_results показва причината на агента, а „Опитай пак“ внася същия текст наново', async () => {
@@ -318,6 +405,43 @@ describe('ImportScreen', () => {
       screen.getByRole('textbox', { name: 'Линк към източника (по желание)' }),
     ).toHaveValue(importUrl);
     expect(api.posted).toEqual([]);
+  });
+
+  it('табът „Текст“ се отваря с фокус в полето за текста', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveImport(DONE);
+
+    renderApp('/recipes/import');
+
+    const text = await screen.findByRole('textbox', {
+      name: 'Текст на рецептата',
+    });
+    expect(text).toHaveFocus();
+    await user.click(screen.getByRole('tab', { name: 'Линк' }));
+    await user.click(screen.getByRole('tab', { name: 'Текст' }));
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveFocus();
+  });
+
+  it('„Постави от клипборда“ слага текста от клипборда в таба „Текст“', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText: () => Promise.resolve(`  ${importText}\n`) },
+    });
+    setUpDevice('phone', dani.id);
+    serveImport(DONE);
+
+    renderApp('/recipes/import');
+    await user.click(
+      await screen.findByRole('button', { name: 'Постави от клипборда' }),
+    );
+
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveValue(importText);
   });
 
   it('под формата са последните внасяния със статус, заглавие и връзка', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalTitle,
   putRatingSchema,
   recipeInputSchema,
   recipeSchema,
@@ -118,5 +119,12 @@ describe('recipeInputSchema', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+});
+
+describe('canonicalTitle', () => {
+  it('makes titles that differ only in case and spacing equal', () => {
+    expect(canonicalTitle('  Пиле   с ориз ')).toBe('пиле с ориз');
+    expect(canonicalTitle('ПИЛЕ С\tОРИЗ')).toBe(canonicalTitle('Пиле с ориз'));
   });
 });

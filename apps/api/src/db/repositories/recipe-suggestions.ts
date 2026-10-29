@@ -188,3 +188,24 @@ export async function decideSuggestion(
   }
   return toAnySuggestion(row);
 }
+
+/** Clears the decision on a suggestion: it is `proposed` again, without who and when; returns it as stored. */
+export async function undecideSuggestion(
+  db: DbExecutor,
+  id: string,
+): Promise<AnyRecipeSuggestion> {
+  const [row] = await db
+    .update(recipeSuggestion)
+    .set({
+      status: 'proposed',
+      recipeId: null,
+      decidedBy: null,
+      decidedAt: null,
+    })
+    .where(eq(recipeSuggestion.id, id))
+    .returning();
+  if (!row) {
+    throw new Error('update of recipe_suggestion returned no row');
+  }
+  return toAnySuggestion(row);
+}

@@ -1,6 +1,6 @@
 import {
   approvedSuggestionResponseSchema,
-  recipeInputSchema,
+  approveSuggestionInputSchema,
   recipeSuggestionResponseSchema,
   recipeSuggestParamsSchema,
   suggestionRequestDetailSchema,
@@ -64,7 +64,7 @@ export const recipeSuggestionsRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         params: idParamsSchema,
-        body: recipeInputSchema,
+        body: approveSuggestionInputSchema,
         response: { 201: approvedSuggestionResponseSchema },
       },
     },
@@ -91,6 +91,19 @@ export const recipeSuggestionsRoutes: FastifyPluginAsyncZod = async (app) => {
         request.params.id,
         request.actor.id,
       ),
+    }),
+  );
+
+  app.post(
+    '/api/recipe-suggestions/:id/restore',
+    {
+      schema: {
+        params: idParamsSchema,
+        response: { 200: recipeSuggestionResponseSchema },
+      },
+    },
+    async (request) => ({
+      suggestion: await service.restoreSuggestion(request.params.id),
     }),
   );
 };

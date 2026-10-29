@@ -6,6 +6,7 @@ import {
   quantitySchema,
   unitSchema,
 } from '../food/units.js';
+import { APPLIANCE_NAME_MAX } from './appliance.js';
 import { ingredientSchema } from './ingredient.js';
 
 /** Approximate nutrition per 100 g, shown with "≈". */
@@ -32,6 +33,14 @@ export const recipeIngredientSchema = z
 
 export type RecipeIngredient = z.infer<typeof recipeIngredientSchema>;
 
+/**
+ * A recipe title as it is compared: trimmed, lower case, single spaces. Recipes and suggestions with the same canonical
+ * title are the same recipe (an approve or import warns about it); the title itself is kept as written.
+ */
+export function canonicalTitle(title: string): string {
+  return title.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 /** What the client sends to create or replace a recipe (GLOSSARY: Рецепта). Titles are not unique. */
 export const recipeInputSchema = z.object({
   title: z.string().trim().min(1),
@@ -41,6 +50,11 @@ export const recipeInputSchema = z.object({
   prepMinutes: z.int().positive().optional(),
   tags: z.array(tagSchema),
   nutritionPer100g: nutritionSchema.optional(),
+  /**
+   * The household appliance (GLOSSARY: Уред) the recipe is for, by its name as in „Настройки“; absent for the oven or
+   * the hob. Text, not a reference: the recipe keeps it when the appliance is removed or renamed.
+   */
+  appliance: z.string().trim().min(1).max(APPLIANCE_NAME_MAX).optional(),
   ingredients: z.array(recipeIngredientSchema),
 });
 

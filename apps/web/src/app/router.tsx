@@ -30,9 +30,13 @@ import { RecipeList } from '../features/recipes/RecipeList';
 import { RecipeView } from '../features/recipes/RecipeView';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { ShoppingWeek } from '../features/shopping/ShoppingWeek';
+import { parseRequestSearch } from '../features/suggestions/request-search';
 import { SuggestionRequestView } from '../features/suggestions/SuggestionRequestView';
 import { SuggestionReview } from '../features/suggestions/SuggestionReview';
-import { SuggestScreen } from '../features/suggestions/SuggestScreen';
+import {
+  parseSuggestSearch,
+  SuggestScreen,
+} from '../features/suggestions/SuggestScreen';
 import { WhoScreen } from '../features/who/WhoScreen';
 import { ActingUserToast } from './ActingUserAvatar';
 import { useActingUser } from './acting-user';
@@ -249,12 +253,14 @@ const suggestRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes/suggest',
   component: SuggestScreen,
+  validateSearch: parseSuggestSearch,
 });
 
 const suggestionRequestRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes/suggest/$requestId',
   component: SuggestionRequestView,
+  validateSearch: parseRequestSearch,
 });
 
 const suggestionReviewRoute = createRoute({

@@ -383,6 +383,31 @@ describe('PUT /api/recipes/:id', () => {
     expect((await getRecipe(created.id)).json()).toEqual({ recipe });
   });
 
+  it('sets, changes and clears the appliance the recipe is for', async () => {
+    const created = await createdRecipe(
+      recipeInput({ appliance: 'air fryer (Cosori CAF-R121-KEU)' }),
+    );
+    expect(created.appliance).toBe('air fryer (Cosori CAF-R121-KEU)');
+
+    const replace = (payload: object) =>
+      app.inject({
+        method: 'PUT',
+        url: `/api/recipes/${created.id}`,
+        headers,
+        payload,
+      });
+
+    const changed = await replace(recipeInput({ appliance: 'sous vide' }));
+    expect(changed.json().recipe.appliance).toBe('sous vide');
+
+    const cleared = await replace(recipeInput());
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().recipe).not.toHaveProperty('appliance');
+    expect((await getRecipe(created.id)).json().recipe).not.toHaveProperty(
+      'appliance',
+    );
+  });
+
   it('answers 400 invalid_reference for an unknown ingredientId and keeps the recipe as it was', async () => {
     const potato = await seedIngredient('картоф');
     const created = await createdRecipe(

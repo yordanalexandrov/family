@@ -1,5 +1,5 @@
 import type { Ingredient, Recipe, RecipeInput } from '@family/shared';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -290,10 +290,16 @@ describe('RecipeForm', () => {
     );
 
     renderApp(`/recipes/${chickenWithRice.id}/edit`);
-    const title = await screen.findByRole('textbox', { name: 'Заглавие' });
-    expect(title).toHaveValue('Пиле с ориз');
-    await user.clear(title);
-    await user.type(title, 'Пиле с ориз на фурна');
+    // Писането започва, след като и последната начална заявка (уредите) е дошла, а полето се търси наново всеки път:
+    // така отговор, дошъл под натоварване, не пререндерира формата насред писането, нито пише в стар елемент.
+    const title = () => screen.getByRole('textbox', { name: 'Заглавие' });
+    expect(
+      await screen.findByRole('option', { name: 'sous vide' }),
+    ).toBeInTheDocument();
+    expect(title()).toHaveValue('Пиле с ориз');
+    await user.clear(title());
+    await user.type(title(), 'Пиле с ориз на фурна');
+    expect(title()).toHaveValue('Пиле с ориз на фурна');
     await user.click(screen.getByRole('button', { name: 'Задуши с лука.' }));
     await user.click(stepSheet().getByRole('button', { name: 'По-нагоре' }));
     await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
@@ -321,6 +327,8 @@ describe('RecipeForm', () => {
 
     await user.click(actionBar().getByRole('button', { name: 'Запази' }));
 
+    // Първо PUT-ът, после изгледът: при грешка се вижда коя от двете стъпки не е станала.
+    await waitFor(() => expect(put).toHaveLength(1));
     expect(
       await screen.findByRole('heading', { name: 'Пиле с ориз на фурна' }),
     ).toBeInTheDocument();
@@ -343,6 +351,49 @@ describe('RecipeForm', () => {
         ],
       },
     ]);
+  });
+
+  it('уредът се избира и маха в редакцията; махнат от Настройки уред остава избран', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const put: RecipeInput[] = [];
+    const removed = 'тенджера под налягане (Tefal)';
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({
+          recipe: { ...chickenWithRice, appliance: removed },
+        }),
+      ),
+      http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
+        const body = (await request.json()) as RecipeInput;
+        put.push(body);
+        const recipe: Recipe = {
+          ...chickenWithRice,
+          appliance: body.appliance,
+        };
+        return HttpResponse.json({ recipe });
+      }),
+    );
+
+    renderApp(`/recipes/${chickenWithRice.id}/edit`);
+    const appliance = await screen.findByRole('combobox', { name: 'Уред' });
+    expect(appliance).toHaveDisplayValue('тенджера под налягане');
+    await screen.findByRole('option', { name: 'air fryer' });
+    await user.selectOptions(appliance, 'air fryer');
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    await screen.findByRole('heading', { name: 'Пиле с ориз' });
+
+    expect(put.at(-1)?.appliance).toBe('air fryer (Cosori CAF-R121-KEU)');
+
+    await user.click(screen.getByRole('link', { name: 'Редактирай' }));
+    await user.selectOptions(
+      await screen.findByRole('combobox', { name: 'Уред' }),
+      'Без уред',
+    );
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+    await screen.findByRole('heading', { name: 'Пиле с ориз' });
+
+    expect(put.at(-1)).not.toHaveProperty('appliance');
   });
 
   it('нов ред, затворен без продукт, не остава в списъка', async () => {
