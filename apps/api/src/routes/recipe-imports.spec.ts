@@ -779,6 +779,33 @@ describe('GET /api/recipe-imports', () => {
     expect(first.request.status).toBe('done');
   });
 
+  it('gives each text import the first line of its text (at most 80 characters), so the list tells them apart', async () => {
+    answerInTurn(normalizeAnswer);
+    await finished(
+      await imported({
+        kind: 'text',
+        text: '\n  Баница с тиква и орехи  \nПродукти:\n- тиква',
+      }),
+    );
+    await finished(await imported({ kind: 'text', text: 'а'.repeat(500) }));
+    await finished(await importedPhoto());
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/recipe-imports?limit=10',
+      headers,
+    });
+
+    const { requests } = response.json() as {
+      requests: RecipeImportRequest[];
+    };
+    expect(requests.map((r) => r.firstLine)).toEqual([
+      undefined,
+      'а'.repeat(80),
+      'Баница с тиква и орехи',
+    ]);
+  });
+
   it('answers 404 for an unknown import', async () => {
     const response = await getImport('00000000-0000-4000-8000-000000000000');
 

@@ -50,6 +50,9 @@ describe('SuggestionRequestView', () => {
     expect(
       await screen.findByText('Търся рецепти… обикновено отнема до минута'),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText('Търсено: Вечеря · „нещо с пиле“'),
+    ).toBeInTheDocument();
     expect(calls()).toBe(1);
 
     await act(() => vi.advanceTimersByTimeAsync(3000));
@@ -76,7 +79,8 @@ describe('SuggestionRequestView', () => {
     expect(rejected).toHaveClass('suggestion-card--rejected');
 
     const approved = screen.getByRole('article', { name: 'Омлет с билки' });
-    expect(approved).toHaveTextContent('www.zakuski.example');
+    expect(approved).toHaveTextContent('zakuski.example');
+    expect(approved).not.toHaveTextContent('www.');
     expect(
       within(approved).getByRole('link', { name: 'Към рецептата' }),
     ).toHaveAttribute(
@@ -172,9 +176,13 @@ describe('SuggestionRequestView', () => {
 
     renderApp(`/recipes/suggest/${requestId}`);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Не успях навреме, опитай пак',
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'AI не отговори за 3 минути. Опитай пак или с друга подсказка.',
     );
+    expect(
+      within(alert).getByText('Търсено: Вечеря · „нещо с пиле“'),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Опитай пак' }));
 
     expect(
@@ -190,14 +198,54 @@ describe('SuggestionRequestView', () => {
     ]);
   });
 
+  it('търсеното изрежда слотовете, а дълга подсказка е отрязана; без подсказка е само слотът', async () => {
+    setUpDevice('phone', dani.id);
+    serveDetail({
+      request: {
+        ...failedRequest('invalid_output'),
+        slots: ['breakfast', 'lunch'],
+        hint: 'нещо леко и бързо с яйца, сирене и много зеленчуци за децата',
+      },
+      suggestions: [],
+    });
+
+    const { unmount } = renderApp(`/recipes/suggest/${requestId}`);
+
+    expect(
+      within(await screen.findByRole('alert')).getByText(
+        'Търсено: Закуска, Обяд · „нещо леко и бързо с яйца, сирене и много…“',
+      ),
+    ).toBeInTheDocument();
+    unmount();
+
+    serveDetail({
+      request: { ...failedRequest('invalid_output'), hint: undefined },
+      suggestions: [],
+    });
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    expect(
+      within(await screen.findByRole('alert')).getByText('Търсено: Вечеря'),
+    ).toBeInTheDocument();
+  });
+
   it.each<[ContractFailure, string]>([
-    ['invalid_output', 'Получих нечетим отговор'],
+    [
+      'invalid_output',
+      'AI върна отговор, който не мога да прочета. Опитай пак или с друга подсказка.',
+    ],
     [
       'no_results',
       'Не намерих подходящи рецепти. Опитай пак или с друга подсказка.',
     ],
-    ['stale', 'Сървърът се рестартира, докато търсех. Опитай пак'],
-    ['http_502', 'AI отговори с грешка 502, опитай пак'],
+    [
+      'stale',
+      'AI не успя да предложи рецепти: сървърът се рестартира междувременно. Опитай пак или с друга подсказка.',
+    ],
+    [
+      'http_502',
+      'AI не е на разположение в момента. Опитай пак или с друга подсказка.',
+    ],
   ])('failed/%s показва „%s“', async (code, message) => {
     setUpDevice('phone', dani.id);
     serveDetail({ request: failedRequest(code), suggestions: [] });

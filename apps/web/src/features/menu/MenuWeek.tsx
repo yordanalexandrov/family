@@ -8,12 +8,14 @@ import {
   isPastMeal,
   type MealOutcome,
   type MealPlan,
+  type MenuProposalRequest,
   mealOutcome,
   menuProposalRequestSchema,
   type Rating,
   type User,
   weekStartOf,
   weekStartSchema,
+  withHint,
 } from '@family/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import {
@@ -47,6 +49,7 @@ import {
   useVote,
   useWeekProposal,
 } from './queries';
+import { useSeeWeek } from './unseen-proposals';
 import { OUTCOME_LABELS } from './Votes';
 import '../recipes/recipes.css';
 import './menu.css';
@@ -83,6 +86,7 @@ export function MenuWeek() {
   const search = useSearch({ from: '/menu' });
   const navigate = useNavigate({ from: '/menu' });
   const weekStart = search.week ?? thisWeek;
+  useSeeWeek(weekStart);
   // Менюто се променя само с действащ потребител (телефон); kiosk го отваря от дашборда за четене.
   const { mode } = useDeviceMode();
   const canEdit = isPersonalDevice(mode);
@@ -179,19 +183,17 @@ function Week({
   const plan = usePlan(weekStart);
   const users = useUsers();
   const proposal = useMenuProposal(proposalId);
-  // Седмица без план може да чака или да е изпуснала предложението на крона (сряда 09:00).
-  const weekProposal = useWeekProposal(
-    weekStart,
-    plan.data === null && proposalId === undefined,
-  );
-  const scheduled =
-    weekProposal.data?.trigger === 'schedule' ? weekProposal.data : null;
+  // Седмица без план може да чака предложение (на когото и да е, и на крона) или да е изпуснала неуспешното;
+  // планът от предложение казва кой го е поискал и с каква подсказка.
+  const weekProposal = useWeekProposal(weekStart, proposalId === undefined);
   const done = proposal.data?.status === 'done';
   useEffect(() => {
     if (done) {
       onProposal(undefined);
     }
   }, [done, onProposal]);
+  const waitingFor = (request: MenuProposalRequest) =>
+    waitingLabel(request, voterId, users.data ?? []);
 
   if (proposalId !== undefined && !done) {
     if (proposal.isError) {
@@ -202,17 +204,20 @@ function Week({
         />
       );
     }
-    if (proposal.data?.status === 'failed') {
-      return (
-        <ProposeForm
-          weekStart={weekStart}
-          failure={failureMessage(proposal.data.error)}
-          initialHint={proposal.data.hint ?? ''}
-          onProposal={onProposal}
-        />
-      );
+    if (!proposal.data) {
+      return <Spinner />;
     }
-    return <Waiting />;
+    return (
+      <ProposeForm
+        key={formKey(proposal.data)}
+        weekStart={weekStart}
+        request={proposal.data}
+        {...(proposal.data.status === 'pending'
+          ? { waiting: waitingFor(proposal.data) }
+          : {})}
+        onProposal={onProposal}
+      />
+    );
   }
   if (plan.isPending || users.isPending) {
     return <Spinner />;
@@ -232,30 +237,40 @@ function Week({
     if (weekProposal.isPending) {
       return <Spinner />;
     }
+    const latest = weekProposal.data ?? undefined;
     // `done`, докато планът му още се чете.
-    if (
-      scheduled?.status === 'pending' ||
-      (scheduled?.status === 'done' && plan.isFetching)
-    ) {
-      return <Waiting scheduled />;
-    }
+    const waiting =
+      latest &&
+      (latest.status === 'pending' ||
+        (latest.status === 'done' && plan.isFetching))
+        ? waitingFor(latest)
+        : undefined;
     if (readOnly) {
-      return <p className="recipes__empty">Няма меню за тази седмица.</p>;
+      return waiting ? (
+        <Waiting label={waiting} scheduled={latest?.trigger === 'schedule'} />
+      ) : (
+        <p className="recipes__empty">Няма меню за тази седмица.</p>
+      );
     }
-    return scheduled?.status === 'failed' ? (
+    return (
       <ProposeForm
+        key={formKey(latest)}
         weekStart={weekStart}
+        request={latest}
+        {...(waiting ? { waiting } : {})}
         onProposal={onProposal}
-        failure={failureMessage(scheduled.error)}
-        scheduled
       />
-    ) : (
-      <ProposeForm weekStart={weekStart} onProposal={onProposal} />
     );
   }
+  const latest = weekProposal.data;
   return (
     <PlanView
       plan={plan.data}
+      proposal={
+        latest?.status === 'done' && latest.planId === plan.data.id
+          ? latest
+          : undefined
+      }
       users={users.data}
       readOnly={readOnly}
       canDelete={canDelete}
@@ -276,13 +291,69 @@ function ScheduledNote() {
   );
 }
 
-/** Заявката за меню още е `pending`. */
-function Waiting({ scheduled = false }: { scheduled?: boolean }) {
+/** „Предложено от Дани · „повече риба““ над плана, направен от предложението на човек. */
+function ProposedBy({
+  proposal,
+  users,
+}: {
+  proposal: MenuProposalRequest;
+  users: User[];
+}) {
+  const name = requesterName(proposal, users);
+  if (name === undefined) {
+    return null;
+  }
+  return (
+    <p className="menu__proposed-by">
+      {withHint(`Предложено от ${name}`, proposal.hint)}
+    </p>
+  );
+}
+
+/** Името на човека, поискал предложението; `undefined` за крона и за непознат. */
+function requesterName(
+  request: MenuProposalRequest,
+  users: User[],
+): string | undefined {
+  return users.find((user) => user.id === request.requestedBy)?.name;
+}
+
+/**
+ * Кой съставя менюто: „Съставям меню…“ за своето предложение, „Дани съставя меню…“ за чуждото (и на kiosk, където
+ * няма действащ потребител), „Съставям меню автоматично…“ за крона.
+ */
+function waitingLabel(
+  request: MenuProposalRequest,
+  actingUserId: string | null,
+  users: User[],
+): string {
+  if (request.trigger === 'schedule') {
+    return 'Съставям меню автоматично…';
+  }
+  const name = requesterName(request, users);
+  return request.requestedBy === actingUserId || name === undefined
+    ? 'Съставям меню…'
+    : `${name} съставя меню…`;
+}
+
+/** Нова заявка или нов статус дава ново поле: при `failed` в него е подсказката на заявката. */
+function formKey(request: MenuProposalRequest | undefined): string {
+  return request ? `${request.id}:${request.status}` : 'none';
+}
+
+/** Предложението за меню още се съставя. */
+function Waiting({
+  label,
+  scheduled = false,
+}: {
+  label: string;
+  scheduled?: boolean;
+}) {
   return (
     <div className="menu__waiting">
       {scheduled && <ScheduledNote />}
       <Spinner label="Изчакване…" />
-      <p>Съставям меню…</p>
+      <p>{label}</p>
     </div>
   );
 }
@@ -290,22 +361,27 @@ function Waiting({ scheduled = false }: { scheduled?: boolean }) {
 interface ProposeFormProps {
   weekStart: DateKey;
   onProposal: (id: string | undefined) => void;
-  /** Съобщението на неуспешното предложение; тогава бутонът е „Опитай пак“, освен ако го е пуснал кронът. */
-  failure?: string;
-  initialHint?: string;
-  /** Неуспешното предложение е на крона: никой още не е пробвал, затова бутонът остава „Предложи меню“. */
-  scheduled?: boolean;
+  /**
+   * Последното предложение на седмицата. `failed` дава съобщението си и подсказката си в полето; бутонът е „Опитай
+   * пак“, освен ако го е пуснал кронът (никой още не е пробвал).
+   */
+  request?: MenuProposalRequest | undefined;
+  /** Докато предложението се съставя: кой го съставя; подсказката и бутоните са изключени. */
+  waiting?: string;
 }
 
 /** Седмица без план: „Предложи меню“ с подсказка или „Започни празно“. */
 function ProposeForm({
   weekStart,
   onProposal,
-  failure,
-  initialHint = '',
-  scheduled = false,
+  request,
+  waiting,
 }: ProposeFormProps) {
-  const [hint, setHint] = useState(initialHint);
+  const failed = request?.status === 'failed' ? request : undefined;
+  const scheduled = request?.trigger === 'schedule';
+  const [hint, setHint] = useState(failed?.hint ?? '');
+  // Докато чака, полето показва подсказката на чакащото предложение.
+  const shownHint = waiting ? (request?.hint ?? '') : hint;
   const propose = useProposeMenu();
   const createPlan = useCreatePlan();
   const missing = refusalOf(propose.error, 'not_enough_recipes');
@@ -321,10 +397,14 @@ function ProposeForm({
 
   return (
     <form className="menu__propose" noValidate onSubmit={submit}>
-      {scheduled && <ScheduledNote />}
-      {failure && (
+      {waiting ? (
+        <Waiting label={waiting} scheduled={scheduled} />
+      ) : (
+        scheduled && failed && <ScheduledNote />
+      )}
+      {failed && (
         <p className="error-box__message" role="alert">
-          {failure}
+          {failureMessage('menu', failed)}
         </p>
       )}
       <div className="field">
@@ -336,11 +416,12 @@ function ProposeForm({
           className="field__input"
           maxLength={HINT_MAX}
           placeholder="напр. повече риба, в петък пица"
-          value={hint}
+          value={shownHint}
+          disabled={waiting !== undefined}
           onChange={(event) => setHint(event.target.value)}
         />
         <span className="menu__counter">
-          {hint.length}/{HINT_MAX}
+          {shownHint.length}/{HINT_MAX}
         </span>
       </div>
       {missing ? (
@@ -353,13 +434,17 @@ function ProposeForm({
       )}
       {createPlan.isError && <ErrorBox error={createPlan.error} />}
       <div className="recipes__actions">
-        <button type="submit" className="button" disabled={propose.isPending}>
-          {failure && !scheduled ? 'Опитай пак' : 'Предложи меню'}
+        <button
+          type="submit"
+          className="button"
+          disabled={propose.isPending || waiting !== undefined}
+        >
+          {failed && !scheduled ? 'Опитай пак' : 'Предложи меню'}
         </button>
         <button
           type="button"
           className="button button--quiet"
-          disabled={createPlan.isPending}
+          disabled={createPlan.isPending || waiting !== undefined}
           onClick={() =>
             createPlan.mutate(weekStart, {
               onSuccess: () => onProposal(undefined),
@@ -375,6 +460,8 @@ function ProposeForm({
 
 interface PlanViewProps {
   plan: MealPlan;
+  /** Предложението, от което е планът (последното на седмицата, с `planId` на плана). */
+  proposal: MenuProposalRequest | undefined;
   users: User[];
   readOnly: boolean;
   canDelete: boolean;
@@ -394,6 +481,7 @@ type Filter = (typeof FILTERS)[number] | 'all';
 
 function PlanView({
   plan,
+  proposal,
   users,
   readOnly,
   canDelete,
@@ -448,7 +536,11 @@ function PlanView({
 
   return (
     <>
-      {plan.createdBy === null && <ScheduledNote />}
+      {plan.createdBy === null ? (
+        <ScheduledNote />
+      ) : (
+        proposal && <ProposedBy proposal={proposal} users={users} />
+      )}
       {agreed && (
         <p className="menu__agreed" role="status">
           <span aria-hidden="true">✓ </span>Менюто е съгласувано

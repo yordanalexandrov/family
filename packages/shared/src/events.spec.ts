@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { SERVER_EVENT_TYPES, serverEventSchema } from './events.js';
 
 describe('serverEventSchema', () => {
-  it('accepts menu.changed and shopping.changed for a week', () => {
-    for (const type of ['menu.changed', 'shopping.changed']) {
+  it('accepts menu.changed, menu.proposal.changed and shopping.changed for a week', () => {
+    for (const type of [
+      'menu.changed',
+      'menu.proposal.changed',
+      'shopping.changed',
+    ]) {
       expect(
         serverEventSchema.parse({ type, weekStart: '2026-11-02' }),
       ).toEqual({ type, weekStart: '2026-11-02' });
@@ -16,10 +20,10 @@ describe('serverEventSchema', () => {
     });
   });
 
-  it('rejects menu.changed without a week', () => {
-    expect(serverEventSchema.safeParse({ type: 'menu.changed' }).success).toBe(
-      false,
-    );
+  it('rejects menu.changed and menu.proposal.changed without a week', () => {
+    for (const type of ['menu.changed', 'menu.proposal.changed']) {
+      expect(serverEventSchema.safeParse({ type }).success).toBe(false);
+    }
   });
 
   it('rejects a weekStart that is not a Monday', () => {
@@ -43,6 +47,10 @@ describe('serverEventSchema', () => {
 
 describe('SERVER_EVENT_TYPES', () => {
   it('lists every signal of the schema, for the client to subscribe to', () => {
-    expect(SERVER_EVENT_TYPES).toEqual(['menu.changed', 'shopping.changed']);
+    expect(SERVER_EVENT_TYPES).toEqual([
+      'menu.changed',
+      'menu.proposal.changed',
+      'shopping.changed',
+    ]);
   });
 });

@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { useUnseenProposalWeek } from '../features/menu/unseen-proposals';
 import './MainNav.css';
 
 // Рецептите остават активни и в подекраните си (рецепта, редакция, предложения).
@@ -19,25 +20,39 @@ const ITEMS = [
  * остава достъпното име на линка. В браузъра е горе и всеки екран е с надписа си.
  */
 export function MainNav({ placement }: { placement: 'bottom' | 'top' }) {
+  // Невидяното предложение: точка на „Меню“, а линкът отваря седмицата му.
+  const unseenWeek = useUnseenProposalWeek();
   return (
     <nav
       className={`main-nav main-nav--${placement}`}
       aria-label="Основна навигация"
     >
       <ul className="main-nav__list">
-        {ITEMS.map(({ to, label, exact, icon }) => (
-          <li key={to}>
-            <Link
-              to={to}
-              className="main-nav__link"
-              activeOptions={{ exact, includeSearch: false }}
-              activeProps={{ 'aria-current': 'page' }}
-            >
-              {icon}
-              <span className="main-nav__label">{label}</span>
-            </Link>
-          </li>
-        ))}
+        {ITEMS.map(({ to, label, exact, icon }) => {
+          const dot = to === '/menu' && unseenWeek !== undefined;
+          return (
+            <li key={to}>
+              <Link
+                to={to}
+                {...(dot
+                  ? {
+                      search: { week: unseenWeek },
+                      'aria-label': `${label}, ново предложение`,
+                    }
+                  : {})}
+                className="main-nav__link"
+                activeOptions={{ exact, includeSearch: false }}
+                activeProps={{ 'aria-current': 'page' }}
+              >
+                <span className="main-nav__icon-box">
+                  {icon}
+                  {dot && <span className="main-nav__dot" aria-hidden="true" />}
+                </span>
+                <span className="main-nav__label">{label}</span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

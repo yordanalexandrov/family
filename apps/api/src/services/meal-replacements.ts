@@ -8,6 +8,7 @@ import {
 } from '@family/shared';
 import type { DbExecutor } from '../db/client.js';
 import {
+  findLatestReplacement,
   findReplacement,
   hasPendingReplacement,
   insertReplacement,
@@ -32,6 +33,7 @@ import { ConflictError, NotFoundError, refuse } from './errors.js';
 import { NO_SUCH_MEAL, refusePastMeal } from './menu.js';
 
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
+const NO_REPLACEMENT = 'Никой не е търсил друго ястие';
 
 /**
  * The registry recipes of the meal's slot other than its own: what `meal.replace` may pick from, each last served
@@ -47,6 +49,21 @@ async function otherRecipes(
 ): Promise<MenuProposeRecipe[]> {
   const recipes = await listMenuRecipes(db, meal.slot, meal.date);
   return recipes.filter((recipe) => recipe.id !== meal.recipeId);
+}
+
+/**
+ * The meal's latest request, whoever asked and whatever its status: the sheet shows it again when it is opened.
+ * 404 `no_replacement` when nobody has asked for the meal (an unknown meal too).
+ */
+export async function getLatestReplacement(
+  db: DbExecutor,
+  mealId: string,
+): Promise<MealReplaceRequest> {
+  const latest = await findLatestReplacement(db, mealId);
+  if (!latest) {
+    throw refuse('no_replacement', NO_REPLACEMENT);
+  }
+  return latest;
 }
 
 /**

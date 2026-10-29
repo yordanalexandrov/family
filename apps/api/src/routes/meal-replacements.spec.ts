@@ -397,6 +397,58 @@ describe('POST /api/menu/meals/:id/replacements', () => {
   });
 });
 
+describe('GET /api/menu/meals/:id/replacements', () => {
+  it('answers the meal’s latest request, whatever its status and whoever asked', async () => {
+    const meal = await fixtureWeek();
+    const first = await finished((await replace(meal.id, DANI.id)).id);
+    let release = () => {};
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json(completion(JSON.stringify(replaceFixture)));
+      }),
+    );
+    const second = await replace(meal.id, POLI.id);
+
+    const pending = await inject(
+      'GET',
+      `/api/menu/meals/${meal.id}/replacements`,
+    );
+    release();
+    const done = await finished(second.id);
+    const latest = await inject(
+      'GET',
+      `/api/menu/meals/${meal.id}/replacements`,
+    );
+
+    expect(first.status).toBe('done');
+    expect(pending.statusCode).toBe(200);
+    expect(pending.json().replacement).toMatchObject({
+      id: second.id,
+      status: 'pending',
+      requestedBy: POLI.id,
+    });
+    expect(latest.json()).toEqual({ replacement: done });
+  });
+
+  it('answers 404 no_replacement for a meal nobody has asked for', async () => {
+    const meals = await createPlan(WEEK);
+
+    const response = await inject(
+      'GET',
+      `/api/menu/meals/${meals[2]?.id}/replacements`,
+    );
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({
+      error: 'not_found',
+      code: 'no_replacement',
+    });
+  });
+});
+
 describe('picking a candidate', () => {
   it('is a PATCH with the recipe and its why: the meal changes, the other’s vote goes and a system line is written', async () => {
     const meal = await fixtureWeek();

@@ -67,8 +67,12 @@ export interface ContractRequestStore<
   images?(params: P): ContractImage[];
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
-  /** After that transaction has committed, e.g. to signal the change (`app.events`). Must not throw. */
+  /** After that transaction has committed, e.g. to signal the change (`app.events`). One that throws is logged. */
   afterDone?(request: R): void;
+  /** After the `pending` request has committed, e.g. to signal that it waits. Must not throw. */
+  afterRequest?(request: R): void;
+  /** After the request has been marked `failed` (not `stale`), e.g. to signal it. One that throws is logged. */
+  afterFailed?(request: R): void;
   /**
    * Why a valid answer has nothing to write, when the agent says so (e.g. `recipe.suggest` found no recipes); the
    * request then ends `failed`/`no_results` without `onDone` or a retry. `null` (or no method) = write the answer.
@@ -134,6 +138,21 @@ export function createContractRequests({
     ): ContractRequestHandle<P, R, A> {
       registered.push({ id: contract.id, table: store.table });
 
+      /**
+       * Calls `afterDone`/`afterFailed`, once the request has ended: one that throws anyway is logged, as a failed write
+       * of the failure is, and never changes how the request ended.
+       */
+      function after(hook: 'afterDone' | 'afterFailed', request: R): void {
+        try {
+          store[hook]?.(request);
+        } catch (error) {
+          log.error(
+            { err: error, requestId: request.id },
+            `${contract.id} ${hook} failed`,
+          );
+        }
+      }
+
       /** Runs one request to its end; records its own failure, never rejects. */
       async function execute(
         gateway: OpenClawClient,
@@ -161,6 +180,7 @@ export function createContractRequests({
                 error: 'no_results',
               });
             });
+            after('afterFailed', request);
             return;
           }
           await db.transaction(async (tx) => {
@@ -169,7 +189,7 @@ export function createContractRequests({
               status: 'done',
             });
           });
-          store.afterDone?.(request);
+          after('afterDone', request);
         } catch (error) {
           const code =
             error instanceof ContractRequestFailure
@@ -192,11 +212,13 @@ export function createContractRequests({
           await finishContractRequest(db, store.table, request.id, {
             status: 'failed',
             error: code,
-          }).catch((writeError: unknown) =>
-            log.error(
-              { err: writeError, ...logContext },
-              `could not mark the ${contract.id} run failed`,
-            ),
+          }).then(
+            () => after('afterFailed', request),
+            (writeError: unknown) =>
+              log.error(
+                { err: writeError, ...logContext },
+                `could not mark the ${contract.id} run failed`,
+              ),
           );
         }
       }
@@ -212,6 +234,7 @@ export function createContractRequests({
           const request = await db.transaction((tx) =>
             store.insert(tx, params, actingUserId),
           );
+          store.afterRequest?.(request);
           const images = store.images?.(params) ?? [];
           // Not awaited: the client polls. `execute` catches and records its own errors.
           const task = new Promise<void>((resolve) =>

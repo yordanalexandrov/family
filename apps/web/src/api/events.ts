@@ -5,7 +5,9 @@ import {
 } from '@family/shared';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { readActingUserId } from '../app/acting-user';
 import { menuKeys } from '../features/menu/queries';
+import { noteProposalChange } from '../features/menu/unseen-proposals';
 import { pantryKeys } from '../features/pantry/queries';
 import { shoppingKeys } from '../features/shopping/queries';
 import { logger } from '../logger';
@@ -19,12 +21,21 @@ function invalidateAll(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: pantryKeys.all });
 }
 
-/** `shopping.changed` без седмица идва от килера: важи за всеки списък и за самия килер. */
+/**
+ * `menu.proposal.changed` презарежда последното предложение на седмицата (чакането на другия телефон) и отбелязва
+ * готовото чуждо като невидяно (точката на „Меню“);
+ * `shopping.changed` без седмица идва от килера: важи за всеки списък и за самия килер.
+ */
 function invalidate(queryClient: QueryClient, event: ServerEvent) {
   if (event.type === 'menu.changed') {
     void queryClient.invalidateQueries({
       queryKey: menuKeys.plan(event.weekStart),
     });
+  } else if (event.type === 'menu.proposal.changed') {
+    void queryClient.invalidateQueries({
+      queryKey: menuKeys.weekProposal(event.weekStart),
+    });
+    void noteProposalChange(queryClient, event.weekStart, readActingUserId());
   } else if (event.weekStart) {
     void queryClient.invalidateQueries({
       queryKey: shoppingKeys.list(event.weekStart),

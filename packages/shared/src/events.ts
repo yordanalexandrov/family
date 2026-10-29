@@ -9,6 +9,14 @@ export const serverEventSchema = z.discriminatedUnion('type', [
   /** The plan of the week, or one of its meals, changed (created, deleted, edited, proposed). */
   z.object({ type: z.literal('menu.changed'), weekStart: weekStartSchema }),
   /**
+   * The newest proposal of the week (GLOSSARY: Предложение за меню) changed: it was asked for (`pending`), or it ended
+   * `done` or `failed`. The other phone sees the waiting without polling a week it has no proposal for.
+   */
+  z.object({
+    type: z.literal('menu.proposal.changed'),
+    weekStart: weekStartSchema,
+  }),
+  /**
    * The shopping list of the week changed: a check, a hidden row, a manual row, or the menu it is computed from.
    * Without `weekStart` every list changed: the pantry (GLOSSARY: Килер) applies to all weeks.
    */

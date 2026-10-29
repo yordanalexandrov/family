@@ -1,11 +1,13 @@
 import type { RecipeImportDetail, RecipeImportParams } from '@family/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { requestErrorFor } from '../../lib/ai-requests';
+import { sourceDomain } from '../recipes/format';
 import { Decided, ReviewSuggestion } from '../suggestions/SuggestionReview';
-import { importFailureMessage } from './messages';
-import { useImport, useRequestImport } from './queries';
+import { importFailureMessage, textLead } from './messages';
+import { useImport, useRequestImport, useSentPhoto } from './queries';
 import '../recipes/recipes.css';
 import '../suggestions/suggestions.css';
 
@@ -44,6 +46,7 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
       <div className="suggestions__waiting">
         <Spinner label="Изчакване…" />
         <p>Чета рецептата… обикновено отнема до минута</p>
+        <ImportSubject detail={detail} />
       </div>
     );
   }
@@ -66,6 +69,52 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
       onCancel={backToImport}
     />
   );
+}
+
+/**
+ * Какво се внася, под изчакването и грешката: първите 2 реда на текста, домейнът на линка или миниатюрата на снимката
+ * (ако още е в паметта; иначе само „Снимка“).
+ */
+function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
+  const { request, text } = detail;
+  const photo = useSentPhoto(request.id);
+  const photoUrl = useObjectUrl(request.source === 'photo' ? photo : undefined);
+  if (request.source === 'photo') {
+    return (
+      <p className="suggestions__searched">
+        Снимка
+        {photoUrl && (
+          <img
+            className="suggestions__searched-photo"
+            src={photoUrl}
+            alt="Внасяната снимка"
+          />
+        )}
+      </p>
+    );
+  }
+  const subject =
+    text !== undefined
+      ? `Текст: ${textLead(text)}`
+      : request.url
+        ? `Линк: ${sourceDomain(request.url)}`
+        : undefined;
+  return subject ? <p className="suggestions__searched">{subject}</p> : null;
+}
+
+/** Адрес за `<img>` на снимката, освободен при смяна или напускане. */
+function useObjectUrl(blob: Blob | undefined): string | undefined {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    if (!blob) {
+      setUrl(undefined);
+      return;
+    }
+    const created = URL.createObjectURL(blob);
+    setUrl(created);
+    return () => URL.revokeObjectURL(created);
+  }, [blob]);
+  return url;
 }
 
 /** Същото внасяне наново: същият текст или същият линк; `undefined`, ако няма какво да се повтори. */
@@ -98,6 +147,7 @@ function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
     <>
       <div className="error-box" role="alert">
         <p className="error-box__message">{importFailureMessage(request)}</p>
+        <ImportSubject detail={detail} />
         {unreadable && (
           <button
             type="button"
@@ -124,6 +174,20 @@ function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
             }
           >
             Нова снимка
+          </button>
+        )}
+        {detail.text !== undefined && (
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={() =>
+              void navigate({
+                to: '/recipes/import',
+                search: { tab: 'text', text: detail.text, url: request.url },
+              })
+            }
+          >
+            Редактирай и опитай пак
           </button>
         )}
         {again && (

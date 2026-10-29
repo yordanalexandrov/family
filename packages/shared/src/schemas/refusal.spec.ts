@@ -19,6 +19,11 @@ const bodies: Refusal[] = [
     message: 'Няма предложение за меню за тази седмица',
   },
   {
+    error: 'not_found',
+    code: 'no_replacement',
+    message: 'Никой не е търсил друго ястие',
+  },
+  {
     error: 'conflict',
     code: 'not_enough_recipes',
     message: 'За предложение трябват поне 7 вечерни рецепти',
@@ -123,6 +128,7 @@ describe('refusalErrorOf', () => {
   it.each([
     ['no_plan', 'not_found'],
     ['no_proposal', 'not_found'],
+    ['no_replacement', 'not_found'],
     ['push_disabled', 'not_found'],
     ['not_enough_recipes', 'conflict'],
     ['already_in_pantry', 'conflict'],

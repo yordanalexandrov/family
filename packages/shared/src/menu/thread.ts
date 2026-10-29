@@ -25,13 +25,16 @@ function weekdayName(key: DateKey): string {
   return WEEKDAYS[weekdayOf(key)] ?? key;
 }
 
+/** How a `moved` line starts; no `replaced` template starts so. */
+const MOVED_LEAD = 'премести ';
+
 /**
  * The body of a system line, without its author: the screen puts the author's name in front („Поли смени „Мусака“ →
  * „Пиле с ориз““). Fixed templates, so the line reads the same wherever it is shown.
  */
 export function systemLine(event: ThreadEvent): string {
   if (event.type === 'moved') {
-    return `премести от ${weekdayName(event.fromDate)} на ${weekdayName(event.toDate)}`;
+    return `${MOVED_LEAD}от ${weekdayName(event.fromDate)} на ${weekdayName(event.toDate)}`;
   }
   if (event.from === null) {
     return `избра „${event.to ?? ''}“`;
@@ -40,4 +43,12 @@ export function systemLine(event: ThreadEvent): string {
     return `махна „${event.from}“`;
   }
   return `смени „${event.from}“ → „${event.to}“`;
+}
+
+/**
+ * Whether a system line's `body` records a `moved` event (the meal only changed days), not a `replaced` one. The
+ * line keeps only its text, so this reads it back from the fixed template.
+ */
+export function isMovedLine(body: string): boolean {
+  return body.startsWith(MOVED_LEAD);
 }

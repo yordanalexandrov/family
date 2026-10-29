@@ -4,7 +4,7 @@ import type {
   RecipeImportParams,
   RecipeImportRequest,
 } from '@family/shared';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -76,6 +76,7 @@ describe('ImportScreen: таб „Линк“', () => {
     expect(
       await screen.findByText('Чета рецептата… обикновено отнема до минута'),
     ).toBeInTheDocument();
+    expect(screen.getByText('Линк: bonapeti.example')).toBeInTheDocument();
     expect(api.posted).toEqual([{ kind: 'url', url: LINK }]);
   });
 
@@ -193,8 +194,10 @@ describe('ImportRequestView: страница, която не се чете', (
 
     renderApp(`/recipes/import/${importId}`);
 
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Страницата не се отвори — постави текста');
     expect(
-      await screen.findByText('Страницата не се отвори — постави текста'),
+      within(alert).getByText('Линк: bonapeti.example'),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Постави текста' }),

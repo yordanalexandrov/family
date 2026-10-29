@@ -267,9 +267,57 @@ describe('ImportScreen', () => {
 
     renderApp(`/recipes/import/${importId}`);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Не успях навреме, опитай пак',
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('AI не отговори за 3 минути. Опитай пак.');
+    expect(
+      within(alert).getByText('Текст: Пилешки гърди със сумак Продукти:'),
+    ).toBeInTheDocument();
+  });
+
+  it('докато чака, под изчакването са първите 2 реда на внесения текст', async () => {
+    setUpDevice('phone', dani.id);
+    serveImport({ request: pendingImport, text: importText, ingredients: [] });
+
+    renderApp(`/recipes/import/${importId}`);
+
+    expect(
+      await screen.findByText('Чета рецептата… обикновено отнема до минута'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Текст: Пилешки гърди със сумак Продукти:'),
+    ).toBeInTheDocument();
+  });
+
+  it('„Редактирай и опитай пак“ отваря таба „Текст“ с поставения текст и линка', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const api = serveImport({
+      request: {
+        ...pendingImport,
+        status: 'failed',
+        error: 'invalid_output',
+        finishedAt: '2026-10-27T18:01:00.000Z',
+      },
+      text: importText,
+      ingredients: [],
+    });
+
+    renderApp(`/recipes/import/${importId}`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Редактирай и опитай пак' }),
     );
+
+    expect(await screen.findByRole('tab', { name: 'Текст' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Текст на рецептата' }),
+    ).toHaveValue(importText);
+    expect(
+      screen.getByRole('textbox', { name: 'Линк към източника (по желание)' }),
+    ).toHaveValue(importUrl);
+    expect(api.posted).toEqual([]);
   });
 
   it('под формата са последните внасяния със статус, заглавие и връзка', async () => {
@@ -306,6 +354,55 @@ describe('ImportScreen', () => {
       'href',
       '/recipes/import/eeeeeeee-0000-4000-8000-000000000002',
     );
+  });
+
+  it('внасяне без заглавие се казва в списъка с първия ред на текста или с домейна на линка', async () => {
+    setUpDevice('phone', dani.id);
+    serveImport(DONE);
+    const failed: RecipeImportRequest = {
+      ...pendingImport,
+      status: 'failed',
+      error: 'timeout',
+    };
+    server.use(
+      http.get('/api/recipe-imports', () =>
+        HttpResponse.json({
+          requests: [
+            {
+              ...failed,
+              id: 'eeeeeeee-0000-4000-8000-000000000002',
+              firstLine: 'Баница с тиква',
+            },
+            {
+              ...failed,
+              id: 'eeeeeeee-0000-4000-8000-000000000003',
+              firstLine:
+                'Пилешки гърди със сумак, печени на фурна с картофи и розмарин',
+            },
+            {
+              ...failed,
+              id: 'eeeeeeee-0000-4000-8000-000000000004',
+              source: 'url',
+              url: 'https://www.kulinar.example/recepti/banitsa',
+            },
+          ] satisfies RecipeImportRequest[],
+        }),
+      ),
+    );
+
+    renderApp('/recipes/import');
+
+    const recent = within(
+      await screen.findByRole('region', { name: 'Последни внасяния' }),
+    );
+    const labels = (await recent.findAllByRole('link')).map(
+      (link) => link.firstElementChild?.textContent,
+    );
+    expect(labels).toEqual([
+      'Баница с тиква',
+      'Пилешки гърди със сумак, печени на фурна…',
+      'kulinar.example',
+    ]);
   });
 
   it('показва линка на източника четимо (кирилица), а одобрението го праща както е запазен', async () => {

@@ -88,6 +88,18 @@
   text-align: center;
 }
 
+/* Чакането в самата форма (подсказката и бутоните под него са изключени): без втора рамка. */
+.menu__propose > .menu__waiting {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+/* В колоната на формата `flex-basis` на съобщението би станал височина. */
+.menu__propose > .error-box__message {
+  flex: none;
+}
+
 .menu__waiting > p,
 .menu__confirm > p,
 .menu__missing {
@@ -489,6 +501,14 @@ button.meal-row__content:hover {
 
 .menu__scheduled {
   margin: 0;
+}
+
+/* „Предложено от Дани · „подсказка““ над плана. */
+.menu__proposed-by {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
 }
 
 .menu__summary {

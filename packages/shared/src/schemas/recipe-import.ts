@@ -12,9 +12,14 @@ export const recipeImportSourceSchema = z.enum(['text', 'url', 'photo']);
 
 export type RecipeImportSource = z.infer<typeof recipeImportSourceSchema>;
 
+/** The longest `firstLine` of an import. */
+export const IMPORT_FIRST_LINE_MAX = 80;
+
 /**
  * One run of `recipe.normalize` by a user (GLOSSARY: Внасяне на рецепта). `url` is the source link, if any; once done,
  * `suggestionId` and `title` are of its one suggestion; failed `no_results`, `noResults` is the agent's reason.
+ * `firstLine` is the first non-empty line of pasted text, trimmed and cut to `IMPORT_FIRST_LINE_MAX` characters, so
+ * the list tells text imports apart (the whole text is only in the detail).
  */
 export const recipeImportRequestSchema = z.object({
   id: z.uuid(),
@@ -28,6 +33,7 @@ export const recipeImportRequestSchema = z.object({
   suggestionId: z.uuid().optional(),
   title: z.string().optional(),
   noResults: z.string().optional(),
+  firstLine: z.string().max(IMPORT_FIRST_LINE_MAX).optional(),
 });
 
 export type RecipeImportRequest = z.infer<typeof recipeImportRequestSchema>;

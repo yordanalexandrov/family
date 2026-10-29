@@ -138,6 +138,7 @@ export function MealSheet({
             <MealReplace
               key={meal.id}
               meal={meal}
+              weekStart={plan.weekStart}
               onPick={({ recipeId, why }) => patch({ recipeId, why })}
             />
           </div>
