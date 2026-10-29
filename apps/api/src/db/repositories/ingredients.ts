@@ -4,9 +4,9 @@ import {
   normalizeIngredientName,
   type UpdateIngredient,
 } from '@family/shared';
-import { desc, eq, ilike, inArray, sql } from 'drizzle-orm';
+import { desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../client.js';
-import { likePattern } from '../like.js';
+import { escapeLike, likePattern } from '../like.js';
 import { ingredient } from '../schema/food.js';
 
 /** API shape of an ingredient: the DB row without `created_at`; also what a recipe line carries. */
@@ -20,19 +20,80 @@ export const ingredientColumns = {
 /** The canonical name as the unique index `ingredient_name_key` compares it. */
 const canonicalName = sql`lower(trim(${ingredient.name}))`;
 
-/** Names containing `q`, ordered by name, but the one equal to `q`'s canonical form first so `limit` never cuts it. */
+/** Shortest word of a multi-word search that close matches look for; shorter ones („на“, „с“) match too much. */
+const MIN_CLOSE_MATCH_WORD = 3;
+
+/**
+ * Names containing `q`, best match first: the one equal to `q`'s canonical form (so `limit` never cuts it),
+ * then names starting with `q`, then names with a word starting with `q`, then the rest; by name within each.
+ * When `q` has several words and no name contains it whole, the close matches instead: names containing
+ * any of its words of 3+ letters, most matched words first („пушен червен пипер“ → „червен пипер“).
+ */
 export async function searchIngredients(
   db: Db,
   { q, limit }: { q?: string; limit: number },
 ): Promise<Ingredient[]> {
+  if (!q) {
+    return db
+      .select(ingredientColumns)
+      .from(ingredient)
+      .orderBy(ingredient.name)
+      .limit(limit);
+  }
+  const text = normalizeIngredientName(q);
+  const matches = await searchByWholeText(db, text, limit);
+  const words = text.split(' ');
+  if (matches.length > 0 || words.length < 2) {
+    return matches;
+  }
+  return searchByWords(
+    db,
+    words.filter((word) => word.length >= MIN_CLOSE_MATCH_WORD),
+    limit,
+  );
+}
+
+function searchByWholeText(
+  db: Db,
+  text: string,
+  limit: number,
+): Promise<Ingredient[]> {
+  const escaped = escapeLike(text);
+  const rank = sql`case
+    when ${canonicalName} = ${text} then 0
+    when ${canonicalName} like ${`${escaped}%`} then 1
+    when ${canonicalName} like ${`% ${escaped}%`} then 2
+    else 3
+  end`;
   return db
     .select(ingredientColumns)
     .from(ingredient)
-    .where(q ? ilike(ingredient.name, likePattern(q)) : undefined)
-    .orderBy(
-      ...(q ? [desc(eq(canonicalName, normalizeIngredientName(q)))] : []),
-      ingredient.name,
-    )
+    .where(ilike(ingredient.name, likePattern(text)))
+    .orderBy(rank, ingredient.name)
+    .limit(limit);
+}
+
+async function searchByWords(
+  db: Db,
+  words: string[],
+  limit: number,
+): Promise<Ingredient[]> {
+  const unique = [...new Set(words)];
+  if (unique.length === 0) {
+    return [];
+  }
+  const matched = unique.map((word) =>
+    ilike(ingredient.name, likePattern(word)),
+  );
+  const matchedCount = sql.join(
+    matched.map((condition) => sql`(${condition})::int`),
+    sql` + `,
+  );
+  return db
+    .select(ingredientColumns)
+    .from(ingredient)
+    .where(or(...matched))
+    .orderBy(desc(matchedCount), ingredient.name)
     .limit(limit);
 }
 

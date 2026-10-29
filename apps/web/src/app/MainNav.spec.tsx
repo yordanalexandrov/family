@@ -47,6 +47,55 @@ describe('MainNav на телефона', () => {
   });
 });
 
+/** `visualViewport` на телефона: височината му пада, докато е отворена клавиатурата. */
+class FakeVisualViewport extends EventTarget {
+  height = window.innerHeight;
+
+  resize(height: number) {
+    this.height = height;
+    this.dispatchEvent(new Event('resize'));
+  }
+}
+
+describe('MainNav и клавиатурата', () => {
+  let viewport: FakeVisualViewport;
+
+  beforeEach(() => {
+    setUpDevice('phone', dani.id);
+    viewport = new FakeVisualViewport();
+    vi.stubGlobal('visualViewport', viewport);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('долната лента се скрива, докато е отворена клавиатурата, и се връща след нея', async () => {
+    renderApp('/settings');
+    await screen.findByRole('navigation', { name: 'Основна навигация' });
+
+    act(() => viewport.resize(window.innerHeight - 300));
+    expect(
+      screen.queryByRole('navigation', { name: 'Основна навигация' }),
+    ).not.toBeInTheDocument();
+
+    act(() => viewport.resize(window.innerHeight));
+    expect(
+      screen.getByRole('navigation', { name: 'Основна навигация' }),
+    ).toBeInTheDocument();
+  });
+
+  it('малка промяна на височината (лентата на адреса) не я скрива', async () => {
+    renderApp('/settings');
+    await screen.findByRole('navigation', { name: 'Основна навигация' });
+
+    act(() => viewport.resize(window.innerHeight - 60));
+    expect(
+      screen.getByRole('navigation', { name: 'Основна навигация' }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('MainNav: точка на „Меню“ за ново предложение', () => {
   const plan = planFor(nextWeek, {}, { summary: 'Седмица с риба.' });
   const doneByDani = {

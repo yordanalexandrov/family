@@ -1,9 +1,9 @@
 import type { RecipeImportDetail, RecipeImportParams } from '@family/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { requestErrorFor } from '../../lib/ai-requests';
+import { useObjectUrl } from '../../lib/use-object-url';
 import { sourceDomain } from '../recipes/format';
 import { Decided, ReviewSuggestion } from '../suggestions/SuggestionReview';
 import { importFailureMessage, textLead } from './messages';
@@ -38,9 +38,18 @@ export function ImportRequestView() {
   );
 }
 
+/** Снимката на внасяне от снимка, ако още е в паметта на страницата; иначе `undefined`. */
+function useImportPhoto(
+  request: RecipeImportDetail['request'],
+): Blob | undefined {
+  const sent = useSentPhoto(request.id);
+  return request.source === 'photo' ? sent : undefined;
+}
+
 function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   const navigate = useNavigate();
   const { request, suggestion } = detail;
+  const photo = useImportPhoto(request);
   if (request.status === 'pending') {
     return (
       <div className="suggestions__waiting">
@@ -60,6 +69,7 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   return (
     <ReviewSuggestion
       suggestion={suggestion}
+      photo={photo}
       linked={detail.ingredients}
       sourceUrl={request.url}
       onApproved={(recipeId) =>
@@ -77,8 +87,7 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
  */
 function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
   const { request, text } = detail;
-  const photo = useSentPhoto(request.id);
-  const photoUrl = useObjectUrl(request.source === 'photo' ? photo : undefined);
+  const photoUrl = useObjectUrl(useImportPhoto(request));
   if (request.source === 'photo') {
     return (
       <p className="suggestions__searched">
@@ -100,21 +109,6 @@ function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
         ? `Линк: ${sourceDomain(request.url)}`
         : undefined;
   return subject ? <p className="suggestions__searched">{subject}</p> : null;
-}
-
-/** Адрес за `<img>` на снимката, освободен при смяна или напускане. */
-function useObjectUrl(blob: Blob | undefined): string | undefined {
-  const [url, setUrl] = useState<string>();
-  useEffect(() => {
-    if (!blob) {
-      setUrl(undefined);
-      return;
-    }
-    const created = URL.createObjectURL(blob);
-    setUrl(created);
-    return () => URL.revokeObjectURL(created);
-  }, [blob]);
-  return url;
 }
 
 /** Същото внасяне наново: същият текст или същият линк; `undefined`, ако няма какво да се повтори. */

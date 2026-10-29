@@ -263,43 +263,6 @@
   gap: var(--space-3);
 }
 
-.recipe-form__item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-block: var(--space-3);
-  border-block-end: 1px solid var(--color-line);
-}
-
-.recipe-form__item-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.icon-button {
-  min-inline-size: var(--touch-target);
-  min-block-size: var(--touch-target);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font: inherit;
-  cursor: pointer;
-}
-
-.icon-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.recipe-form__footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
 /* Autocomplete на продукт */
 .ingredient-picker {
   position: relative;
@@ -411,6 +374,69 @@
 .ingredient-line__error {
   flex-basis: 100%;
   margin: 0 0 var(--space-2);
+}
+
+/* Стъпките като номериран списък: текстът на стъпката; докосването отваря листа ѝ. */
+.step-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding-inline-start: 1.75em;
+}
+
+.step-line {
+  border-block-end: 1px solid var(--color-line);
+}
+
+.step-line::marker {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.step-line__open {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.step-line__error {
+  margin: 0 0 var(--space-2);
+}
+
+.step-sheet__text {
+  min-block-size: 8rem;
+}
+
+/* Сгънатата част най-долу (хранителна стойност): отваря се с „+ …“, разгъната само ако има стойности. */
+.recipe-form__more-summary {
+  min-block-size: var(--touch-target);
+  display: flex;
+  align-items: center;
+  color: var(--color-accent);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.recipe-form__more-summary::-webkit-details-marker {
+  display: none;
+}
+
+.recipe-form__more:not([open]) {
+  padding-block: var(--space-1);
+}
+
+.recipe-form__hint {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 @media (min-width: 48rem) {

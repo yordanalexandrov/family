@@ -124,7 +124,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     prepMinutes: '',
     sourceUrl: '',
     tags: [],
-    steps: [''],
+    steps: [],
     ingredients: [],
     nutrition: nutritionToValues(undefined),
   };
