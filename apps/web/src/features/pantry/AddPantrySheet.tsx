@@ -7,6 +7,7 @@ import {
 import { type FormEvent, useState } from 'react';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
+import { errorMessage } from '../../lib/error-message';
 import { NewIngredientForm } from '../recipes/NewIngredientForm';
 import { useIngredientSearch } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
@@ -81,8 +82,7 @@ export function AddPantrySheet({
     add.mutate(
       { ingredients: selected, kind, note, frozen },
       {
-        onError: (error) =>
-          onError(error instanceof Error ? error.message : 'Нещо се обърка'),
+        onError: (error) => onError(errorMessage(error)),
       },
     );
     onClose();

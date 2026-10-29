@@ -270,3 +270,91 @@ describe('onNotificationClick on a button', () => {
     expect(opened).toEqual(['https://family.test/menu']);
   });
 });
+
+describe('onNotificationClick on „Аз“ (Кой готви довечера)', () => {
+  const POLI = '22222222-2222-4222-8222-222222222222';
+  const cook: PushPayload = {
+    kind: 'cook',
+    title: 'Кой готви довечера?',
+    body: 'Мусака',
+    tag: 'cook-meal-1',
+    url: '/menu?week=2026-11-02',
+    userId: DANI,
+    actions: [
+      {
+        action: 'cook-claim',
+        title: 'Аз',
+        post: '/api/menu/meals/meal-1/cook-claim',
+      },
+    ],
+  };
+
+  it('confirms with a silent notification under the same tag', async () => {
+    const { worker, shown, opened } = fakeWorker();
+
+    await onNotificationClick(worker, notification(cook), 'cook-claim');
+
+    expect(shown).toEqual([
+      {
+        title: 'Записано: готвиш ти',
+        options: expect.objectContaining({
+          body: 'Мусака',
+          tag: 'cook-meal-1',
+          silent: true,
+          actions: [],
+        }),
+      },
+    ]);
+    expect(opened).toEqual([]);
+  });
+
+  it('says who cooks when someone answered first, without opening the app', async () => {
+    const { worker, shown, opened } = fakeWorker({
+      answer: () =>
+        Response.json(
+          {
+            error: 'conflict',
+            code: 'cook_taken',
+            message: 'Някой вече готви',
+            cookUserId: POLI,
+            cookName: 'Поли',
+          },
+          { status: 409 },
+        ),
+    });
+
+    await onNotificationClick(worker, notification(cook), 'cook-claim');
+
+    expect(shown.map(({ title, options }) => [title, options.tag])).toEqual([
+      ['Поли вече готви', 'cook-meal-1'],
+    ]);
+    expect(opened).toEqual([]);
+  });
+
+  it.each([
+    ['the api fails', () => new Response(null, { status: 500 })],
+    ['the Cloudflare Access session expired', () => Response.error()],
+    [
+      'the network is down',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+    ],
+  ])(
+    'asks to open the menu when %s, and a tap on that opens the meal’s day',
+    async (_, failure) => {
+      const { worker, shown, opened } = fakeWorker({ answer: failure });
+
+      await onNotificationClick(worker, notification(cook), 'cook-claim');
+
+      expect(opened).toEqual([]);
+      expect(shown.map(({ title }) => title)).toEqual([
+        'Не успях да запиша. Отвори менюто',
+      ]);
+      const [failed] = shown;
+      expect(failed?.options.actions).toEqual([]);
+
+      await onNotificationClick(worker, notification(failed?.options.data), '');
+
+      expect(opened).toEqual(['https://family.test/menu?week=2026-11-02']);
+    },
+  );
+});

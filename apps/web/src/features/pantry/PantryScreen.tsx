@@ -5,6 +5,7 @@ import {
   type PantryItem,
 } from '@family/shared';
 import { useState } from 'react';
+import { ScreenHeader } from '../../app/ScreenHeader';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
@@ -19,6 +20,7 @@ import {
 import '../recipes/recipes.css';
 import '../menu/menu.css';
 import './pantry.css';
+import { errorMessage } from '../../lib/error-message';
 
 /** „от днес“, „от 1 ден“, „от 12 дни“: колко дни (по календара в София) продуктът е в килера. */
 export function formatPantryAge(createdAt: string, today: DateKey): string {
@@ -45,17 +47,19 @@ export function PantryScreen() {
 
   return (
     <main className="screen recipes menu pantry">
-      <header className="recipes__header">
-        <h1 className="recipes__title">Килер</h1>
-        <button
-          type="button"
-          className="button"
-          disabled={!pantry.data}
-          onClick={() => setAdding(true)}
-        >
-          Добави
-        </button>
-      </header>
+      <ScreenHeader
+        title="Килер"
+        actions={
+          <button
+            type="button"
+            className="button"
+            disabled={!pantry.data}
+            onClick={() => setAdding(true)}
+          >
+            Добави
+          </button>
+        }
+      />
       {pantry.isPending ? (
         <Spinner />
       ) : pantry.isError ? (
@@ -115,10 +119,6 @@ function FrozenToggle({
   );
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : 'Нещо се обърка';
-}
-
 function Groups({
   items,
   onError,
@@ -130,7 +130,7 @@ function Groups({
   const setKind = useSetPantryKind();
   const setFrozen = useSetPantryFrozen();
   const remove = useRemovePantryItem();
-  const options = { onError: (error: unknown) => onError(messageOf(error)) };
+  const options = { onError: (error: unknown) => onError(errorMessage(error)) };
   const toggleFrozen = (item: PantryItem) => () =>
     setFrozen.mutate({ item, frozen: !item.frozen }, options);
   const staples = items

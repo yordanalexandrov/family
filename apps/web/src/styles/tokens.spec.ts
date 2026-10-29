@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { THEME_BACKGROUNDS } from '../app/theme';
 // Като текст: jsdom не изчислява custom properties от CSS файлове.
 import css from './tokens.css?raw';
 
@@ -126,6 +127,13 @@ describe('tokens.css', () => {
 
   it('тъмната тема по системата е същата като изричната тъмна', () => {
     expect(Object.fromEntries(systemDark)).toEqual(Object.fromEntries(dark));
+  });
+
+  it('theme-color на браузъра е --color-bg на темата', () => {
+    expect(THEME_BACKGROUNDS).toEqual({
+      light: light.get('--color-bg'),
+      dark: dark.get('--color-bg'),
+    });
   });
 
   it('тъмната тема не въвежда токени, които светлата няма', () => {

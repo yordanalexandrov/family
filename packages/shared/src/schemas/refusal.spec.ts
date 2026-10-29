@@ -50,6 +50,7 @@ const bodies: Refusal[] = [
     code: 'cook_taken',
     message: 'Някой вече готви',
     cookUserId: '00000000-0000-4000-8000-000000000001',
+    cookName: 'Поли',
   },
   {
     error: 'conflict',

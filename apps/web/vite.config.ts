@@ -26,7 +26,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Регистрацията и новата версия са в src/app/app-update.ts: новият worker чака „Обнови“.
+      registerType: 'prompt',
+      injectRegister: false,
       // Иконите (public/icons/*.png) са рендерирани еднократно от неоновия рисунък
       // върху черен фон; maskable е с поле, за да не реже маската триъгълника. badge-96.png (иконата
       // на известията в лентата на Android) е само най-ярките линии на рисунъка, бели върху прозрачно.

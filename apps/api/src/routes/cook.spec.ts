@@ -279,7 +279,7 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     ).toEqual(['Довечера готви Дани']);
   });
 
-  it('answers 409 cook_taken with the cook to the second', async () => {
+  it('answers 409 cook_taken with the cook and their name to the second', async () => {
     await runAt(AFTERNOON);
     await claim(mealId, DANI.id);
     const before = push.delivered.length;
@@ -290,6 +290,7 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     expect(cookTakenSchema.parse(response.json())).toMatchObject({
       code: 'cook_taken',
       cookUserId: DANI.id,
+      cookName: 'Дани',
     });
     expect(await cookOf(mealId)).toBe(DANI.id);
     expect(cookSince(before)).toEqual([]);

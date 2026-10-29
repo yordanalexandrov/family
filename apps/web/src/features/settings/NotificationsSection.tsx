@@ -1,12 +1,13 @@
 import type { NotificationKind, NotificationSettings } from '@family/shared';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
+import { errorMessage } from '../../lib/error-message';
+import { EnablePushButton } from './EnablePushButton';
 import {
   type PushDevice,
   useDisablePush,
-  useEnablePush,
   useNotificationSettings,
   usePushDevice,
   useSaveNotificationSettings,
@@ -31,10 +32,6 @@ const KINDS: { kind: NotificationKind; label: string; description: string }[] =
       description: 'Промени на другия по менюто и ново предложение.',
     },
   ];
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : 'Нещо се обърка';
-}
 
 /** „Известия“ в „Настройки“, само на телефона: абонамент на устройството и видовете за човека. */
 export function NotificationsSection() {
@@ -62,7 +59,6 @@ function Device({
   device: PushDevice;
   onMessage: (message: string) => void;
 }) {
-  const enable = useEnablePush();
   const disable = useDisablePush();
   const sendTest = useSendTestNotification();
 
@@ -85,7 +81,7 @@ function Device({
             Известията са забранени в браузъра. Разреши ги от настройките на
             Android: Настройки → Приложения → Семейство → Известия.
           </p>
-          <Kinds onMessage={onMessage} />
+          <Kinds onMessage={onMessage} muted />
         </>
       );
     case 'off':
@@ -95,20 +91,13 @@ function Device({
             Това устройство не получава известия.
           </p>
           <div className="settings__actions">
-            <button
-              type="button"
-              className="button"
-              disabled={enable.isPending}
-              onClick={() =>
-                enable.mutate(device.publicKey, {
-                  onError: (error) => onMessage(messageOf(error)),
-                })
-              }
-            >
-              Включи известия на това устройство
-            </button>
+            <EnablePushButton
+              publicKey={device.publicKey}
+              onEnabled={() => onMessage('Известията са включени')}
+              onError={(error) => onMessage(errorMessage(error))}
+            />
           </div>
-          <Kinds onMessage={onMessage} />
+          <Kinds onMessage={onMessage} muted />
         </>
       );
     case 'on':
@@ -128,7 +117,7 @@ function Device({
                         ? 'Пробното известие тръгна'
                         : 'Нито едно устройство не прие пробното известие',
                     ),
-                  onError: (error) => onMessage(messageOf(error)),
+                  onError: (error) => onMessage(errorMessage(error)),
                 })
               }
             >
@@ -140,7 +129,7 @@ function Device({
               disabled={disable.isPending}
               onClick={() =>
                 disable.mutate(device.subscription, {
-                  onError: (error) => onMessage(messageOf(error)),
+                  onError: (error) => onMessage(errorMessage(error)),
                 })
               }
             >
@@ -153,9 +142,19 @@ function Device({
   }
 }
 
-/** Трите вида като превключватели: важат за човека на всичките му устройства. */
-function Kinds({ onMessage }: { onMessage: (message: string) => void }) {
+/**
+ * Трите вида като превключватели: важат за човека на всичките му устройства. `muted` — това устройство не е абонирано:
+ * видовете се пазят и сменят, но са приглушени и казват, че тук важат едва след включване.
+ */
+function Kinds({
+  onMessage,
+  muted = false,
+}: {
+  onMessage: (message: string) => void;
+  muted?: boolean;
+}) {
   const settings = useNotificationSettings();
+  const mutedNoteId = useId();
   const save = useSaveNotificationSettings();
 
   if (settings.isPending) {
@@ -172,13 +171,21 @@ function Kinds({ onMessage }: { onMessage: (message: string) => void }) {
   const toggle = (kind: NotificationKind, enabled: boolean) => {
     const next: NotificationSettings = { ...settings.data, [kind]: enabled };
     save.mutate(next, {
-      onError: (error) => onMessage(messageOf(error)),
+      onError: (error) => onMessage(errorMessage(error)),
     });
   };
 
   return (
-    <fieldset className="settings__choices">
+    <fieldset
+      className={`settings__choices settings__kinds${muted ? ' settings__kinds--muted' : ''}`}
+      aria-describedby={muted ? mutedNoteId : undefined}
+    >
       <legend className="visually-hidden">Видове известия</legend>
+      {muted && (
+        <p id={mutedNoteId} className="settings__kinds-note">
+          Важат, когато включиш известията на това устройство.
+        </p>
+      )}
       {KINDS.map(({ kind, label, description }) => (
         <label key={kind} className="settings__choice settings__switch">
           <span className="settings__choice-text">
@@ -195,6 +202,9 @@ function Kinds({ onMessage }: { onMessage: (message: string) => void }) {
           />
         </label>
       ))}
+      <p className="settings__hint">
+        Видовете са за теб и важат на всичките ти устройства.
+      </p>
     </fieldset>
   );
 }

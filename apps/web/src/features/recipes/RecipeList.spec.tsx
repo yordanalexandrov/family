@@ -19,6 +19,18 @@ function serveRecipes(recipes = [chickenWithRice, omelette]) {
 }
 
 describe('RecipeList', () => {
+  it('е основен екран: заглавие без „← Начало“', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipes();
+
+    renderApp('/recipes');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Рецепти' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Начало/ })).toBeNull();
+  });
+
   it('показва рецептите от регистъра с време и тагове', async () => {
     setUpDevice('phone', dani.id);
     serveRecipes();

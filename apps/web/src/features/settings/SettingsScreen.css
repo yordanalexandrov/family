@@ -92,6 +92,15 @@
   padding-block-end: var(--space-5);
 }
 
+.settings__confirm-text {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.settings__nowrap {
+  white-space: nowrap;
+}
+
 .settings__actions {
   display: flex;
   flex-wrap: wrap;
@@ -148,4 +157,23 @@
 .settings__switch input:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* Видовете на неабонирано устройство: приглушени, но се сменят; бележката над тях казва защо. */
+.settings__kinds-note {
+  margin: 0;
+  padding: 0.55em 0.7em;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.settings__kinds--muted .settings__switch {
+  opacity: 0.55;
+}
+
+.settings__kinds .settings__hint {
+  padding-inline: 0.7em;
 }

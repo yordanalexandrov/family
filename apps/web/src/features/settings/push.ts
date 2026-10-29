@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { useActingUser } from '../../app/acting-user';
 import { isPersonalDevice, readDeviceMode } from '../../app/device-mode';
+import { storedSetting } from '../../app/stored-setting';
 import { logger } from '../../logger';
 
 /**
@@ -22,6 +23,19 @@ export type PushDevice =
   | { status: 'denied' }
   | { status: 'off'; publicKey: string }
   | { status: 'on'; publicKey: string; subscription: PushSubscription };
+
+/** „По-късно“ на „Искаш ли напомняния?“: помни се на устройството и стъпката след „Кой си?“ не се показва повече. */
+const pushPromptDismissed = storedSetting<boolean>({
+  key: 'family.pushPromptDismissed',
+  parse: (raw) => raw === 'true',
+  unset: false,
+});
+
+export const readPushPromptDismissed = pushPromptDismissed.read;
+
+export function dismissPushPrompt(): void {
+  pushPromptDismissed.write(true);
+}
 
 export const pushKeys = {
   device: ['push-device'] as const,
@@ -94,16 +108,23 @@ export function usePushDevice() {
 
 /**
  * „Включи известия на това устройство“: разрешение от браузъра, абонамент с ключа на api-то и `PUT`. Отказ или
- * затворен въпрос не е грешка — устройството остава без абонамент. Ако api-то не приеме абонамента, той се маха и от
- * браузъра, за да не останат двете различни.
+ * затворен въпрос не е грешка — устройството остава без абонамент и `onEnabled` не се вика. Ако api-то не приеме
+ * абонамента, той се маха и от браузъра, за да не останат двете различни. Callback-ите са на hook-а, не на `mutate`:
+ * при успех бутонът изчезва (устройството става `on`) преди callback-ите на `mutate` да дойдат.
  */
-export function useEnablePush() {
+export function useEnablePush({
+  onEnabled,
+  onError,
+}: {
+  onEnabled?: () => void;
+  onError?: (error: unknown) => void;
+} = {}) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (publicKey: string) => {
+    mutationFn: async (publicKey: string): Promise<boolean> => {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        return;
+        return false;
       }
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.subscribe({
@@ -116,7 +137,14 @@ export function useEnablePush() {
         await subscription.unsubscribe().catch(() => false);
         throw error;
       }
+      return true;
     },
+    onSuccess: (enabled) => {
+      if (enabled) {
+        onEnabled?.();
+      }
+    },
+    onError: (error) => onError?.(error),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: pushKeys.device }),
   });

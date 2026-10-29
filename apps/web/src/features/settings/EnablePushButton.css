@@ -1,0 +1,30 @@
+.enable-push {
+  gap: var(--space-2);
+}
+
+.enable-push__spinner {
+  flex: none;
+  inline-size: 1em;
+  block-size: 1em;
+  border-radius: 50%;
+  border: 0.15em solid currentcolor;
+  border-top-color: transparent;
+  animation: enable-push-turn 0.8s linear infinite;
+}
+
+/* Докато чака, бутонът не избледнява: текстът и спинерът казват какво става. */
+.enable-push[aria-busy="true"] {
+  opacity: 1;
+}
+
+@keyframes enable-push-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enable-push__spinner {
+    animation-duration: 2s;
+  }
+}

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { ApiError } from '../../api/client';
 import { queryKeys } from '../../api/queries';
+import { ActingUserAvatar } from '../../app/ActingUserAvatar';
 import { useDeviceMode } from '../../app/device-mode';
 import { ErrorBox } from '../../components/ErrorBox';
 import { SessionExpired } from '../../components/SessionExpired';
@@ -91,7 +92,7 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
   const { today, nextDays } = splitDays(data.days, dateKeyInSofia(now));
   return (
     <main className="dashboard">
-      <TopBar now={now} />
+      <TopBar now={now} avatar={<ActingUserAvatar />} />
       {state.status === 'offline' && (
         <p className="dashboard__offline" role="status">
           Няма връзка със сървъра · данни {formatDataAge(state.fetchedAt, now)}
