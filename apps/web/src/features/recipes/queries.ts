@@ -39,7 +39,8 @@ export interface RecipesParams {
 export const recipeKeys = {
   all: ['recipes'] as const,
   lists: ['recipes', 'list'] as const,
-  list: (params: RecipesParams) => ['recipes', 'list', params] as const,
+  /** По query низа: еднаквите филтри (празни или пропуснати) дават едно query. */
+  list: (search: string) => ['recipes', 'list', search] as const,
   detail: (id: string) => ['recipes', 'detail', id] as const,
   ingredientSearch: (q: string) => ['ingredients', 'search', q] as const,
 };
@@ -73,10 +74,11 @@ export function storeRecipe(queryClient: QueryClient, recipe: Recipe): void {
 }
 
 export function useRecipes(params: RecipesParams) {
+  const search = recipesSearch(params);
   return useQuery({
-    queryKey: recipeKeys.list(params),
+    queryKey: recipeKeys.list(search),
     queryFn: () =>
-      apiFetch(`/recipes${recipesSearch(params)}`, recipesResponseSchema).then(
+      apiFetch(`/recipes${search}`, recipesResponseSchema).then(
         (body) => body.recipes,
       ),
     // Докато се пише в търсенето, старият списък остава на екрана.

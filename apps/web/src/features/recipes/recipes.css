@@ -44,6 +44,29 @@
   gap: var(--space-3);
 }
 
+/* Търсене, „Филтри (N)“ и „Изчисти“ на един ред; на тесен екран бутоните минават отдолу. */
+.recipes__search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.recipes__search > .field__input {
+  flex: 1 1 8rem;
+  min-inline-size: 0;
+}
+
+.recipes__count {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.recipes__clear {
+  align-self: flex-start;
+}
+
 .recipes__empty {
   display: flex;
   flex-direction: column;
@@ -65,6 +88,15 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* Редът над списъка: пренесен бутон запълва реда, вместо да виси сам вляво. */
+.recipes__actions--fill > .button {
+  flex: 1 1 auto;
+}
+
+.recipes__empty .recipes__actions {
+  justify-content: center;
 }
 
 .checkbox {
@@ -169,6 +201,11 @@
 .recipe-view {
   display: grid;
   gap: var(--space-5);
+}
+
+/* В изгледа хедърът е колона: `flex: 1 1 12rem` от реда в списъка би станал 12rem височина под заглавието. */
+.recipe-view__title {
+  flex: none;
 }
 
 .recipe-view__meta {

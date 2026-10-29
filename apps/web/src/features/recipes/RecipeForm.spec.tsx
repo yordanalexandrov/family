@@ -275,19 +275,17 @@ describe('RecipeForm', () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const put: RecipeInput[] = [];
-    // Изгледът след записа може да прочете рецептата наново: тя е със записаното заглавие.
-    const stored = (): Recipe => ({
-      ...chickenWithRice,
-      title: put.at(-1)?.title ?? chickenWithRice.title,
-    });
+    // Сървърът пази записаното: презареждането на изгледа след PUT вижда новото заглавие.
+    let stored: Recipe = chickenWithRice;
     server.use(
       http.get(`/api/recipes/${chickenWithRice.id}`, () =>
-        HttpResponse.json({ recipe: stored() }),
+        HttpResponse.json({ recipe: stored }),
       ),
       http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
         const body = (await request.json()) as RecipeInput;
         put.push(body);
-        return HttpResponse.json({ recipe: stored() });
+        stored = { ...chickenWithRice, title: body.title };
+        return HttpResponse.json({ recipe: stored });
       }),
     );
 

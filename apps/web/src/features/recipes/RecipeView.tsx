@@ -45,7 +45,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   return (
     <article className="recipe-view">
       <header className="recipe-view__wide recipes__filters">
-        <h1 className="recipes__title">{recipe.title}</h1>
+        <h1 className="recipes__title recipe-view__title">{recipe.title}</h1>
         <RatingStars
           rating={recipe.rating}
           onRate={(rating) => rate.mutate({ id: recipe.id, rating })}
