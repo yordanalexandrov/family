@@ -2,12 +2,24 @@ import { describe, expect, it } from 'vitest';
 import type { CalendarEvent, DayEvents } from '../schemas/calendar.js';
 import {
   addDays,
+  atHourInSofia,
   dateKeyInSofia,
   daysBetween,
   groupEventsByDay,
   startOfDayInSofia,
   themeForHour,
 } from './time.js';
+
+describe('atHourInSofia', () => {
+  it('is the hour in Sofia on the day the clocks change', () => {
+    expect(new Date(atHourInSofia('2026-03-29', 20)).toISOString()).toBe(
+      '2026-03-29T17:00:00.000Z',
+    );
+    expect(new Date(atHourInSofia('2026-10-25', 8)).toISOString()).toBe(
+      '2026-10-25T06:00:00.000Z',
+    );
+  });
+});
 
 describe('startOfDayInSofia', () => {
   it('is midnight in Sofia, in winter time (UTC+2)', () => {

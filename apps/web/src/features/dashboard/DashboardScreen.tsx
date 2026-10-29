@@ -1,4 +1,4 @@
-import { dateKeyInSofia, formatAge } from '@family/shared';
+import { dateKeyInSofia, formatDataAge } from '@family/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { ApiError } from '../../api/client';
@@ -14,12 +14,13 @@ import { Core } from './Core';
 import { splitDays } from './days';
 import { KioskLayout } from './KioskLayout';
 import { NextDaysPanel } from './NextDaysPanel';
+import { ThawCard } from './ThawCard';
 import { TodayList, todayItemId } from './TodayList';
 import { type DashboardData, useDashboardData } from './use-dashboard-data';
 import './DashboardScreen.css';
 
 /**
- * Минутата стига за пръстена и „преди N мин“ (и за смяната на датата); часовникът
+ * Минутата стига за пръстена и „данни от N мин“ (и за смяната на датата); часовникът
  * си има свой таймер.
  */
 const NOW_INTERVAL_MS = 30_000;
@@ -90,10 +91,10 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
   const { today, nextDays } = splitDays(data.days, dateKeyInSofia(now));
   return (
     <main className="dashboard">
-      <TopBar now={now} sync={data.sync} />
+      <TopBar now={now} />
       {state.status === 'offline' && (
         <p className="dashboard__offline" role="status">
-          Няма връзка със сървъра · данни от {formatAge(state.fetchedAt, now)}
+          Няма връзка със сървъра · данни {formatDataAge(state.fetchedAt, now)}
         </p>
       )}
       <div className="dashboard__column">
@@ -106,10 +107,21 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
           opensMenu
           opensRecipe
         />
-        <TodayList today={today} now={now} sync={data.sync.calendar} />
+        <ThawCard thaw={data.thaw ?? []} today={data.today} />
+        <TodayList
+          today={today}
+          now={now}
+          sync={data.sync.calendar}
+          refreshable
+        />
       </div>
       <div className="dashboard__column">
-        <BudgetPanel budget={data.budget} now={now} sync={data.sync.budget} />
+        <BudgetPanel
+          budget={data.budget}
+          now={now}
+          sync={data.sync.budget}
+          refreshable
+        />
         <NextDaysPanel days={nextDays} now={now} sync={data.sync.calendar} />
       </div>
     </main>

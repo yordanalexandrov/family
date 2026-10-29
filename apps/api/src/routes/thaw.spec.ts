@@ -1,7 +1,9 @@
 import {
+  dashboardResponseSchema,
   ingredientsResponseSchema,
   mealPlanResponseSchema,
   recipeResponseSchema,
+  type ServerEvent,
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -194,7 +196,7 @@ describe('„Извади месото“ through the reminders cron', () => {
       title: 'Извади месото за утре',
       body: 'Мусака: смесена кайма, свински врат',
       tag: `thaw-${musakaMealId}`,
-      url: `/menu?week=${WEEK}`,
+      url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
       actions: [
         {
           action: 'thawed',
@@ -273,11 +275,64 @@ describe('POST /api/menu/meals/:id/thawed', () => {
     expect(await runAt(new Date('2026-11-06T06:00:00Z'))).toEqual([]);
   });
 
+  it('signals menu.changed for the week, so the other phone drops „Извадих“ at once', async () => {
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await thawed(musakaMealId, POLI.id);
+    unsubscribe();
+
+    expect(signals).toEqual([{ type: 'menu.changed', weekStart: WEEK }]);
+  });
+
   it('answers 404 for a meal that does not exist', async () => {
     const response = await thawed(
       '00000000-0000-4000-8000-000000000000',
       DANI.id,
     );
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('thaw in GET /api/dashboard', () => {
+  async function thaw(at: Date) {
+    clock = at;
+    const response = await app.inject({ method: 'GET', url: '/api/dashboard' });
+    expect(response.statusCode).toBe(200);
+    return dashboardResponseSchema.parse(response.json()).thaw;
+  }
+
+  it('shows tomorrow’s frozen products from the evening reminder’s hour on, not before', async () => {
+    expect(await thaw(new Date('2026-11-04T17:59:00Z'))).toEqual([]);
+
+    expect(await thaw(EVENING)).toEqual([
+      {
+        mealId: musakaMealId,
+        date: THURSDAY,
+        products: ['смесена кайма', 'свински врат'],
+        thawedAt: null,
+      },
+    ]);
+  });
+
+  it('shows today’s all day, with when someone answered „Извадих“', async () => {
+    clock = new Date('2026-11-05T07:00:00Z');
+    expect((await thawed(musakaMealId, POLI.id)).statusCode).toBe(204);
+
+    expect(await thaw(new Date('2026-11-05T19:00:00Z'))).toEqual([
+      {
+        mealId: musakaMealId,
+        date: THURSDAY,
+        products: ['смесена кайма', 'свински врат'],
+        thawedAt: '2026-11-05T07:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('leaves out a dinner without frozen products', async () => {
+    const salad = await createRecipe('Салата', ['лук']);
+    await patchMeal(musakaMealId, { recipeId: salad });
+
+    expect(await thaw(MORNING)).toEqual([]);
   });
 });

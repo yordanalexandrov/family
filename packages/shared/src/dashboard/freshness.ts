@@ -1,4 +1,5 @@
 import type { Freshness, LastRunStatus, SyncSource } from '../schemas/sync.js';
+import { dateKeyInSofia, daysBetween } from './time.js';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -47,4 +48,21 @@ export function formatAge(from: Date | string, now: Date): string {
     return `преди ${Math.floor(age / HOUR_MS)} ч`;
   }
   return `преди ${Math.floor(age / DAY_MS)} д`;
+}
+
+/**
+ * How old a source's data is, in words, after „данни“: „от 25 мин“, „от 3 ч“ (same day in Sofia),
+ * „от вчера“, „от 2 дни“ (by calendar day in Sofia).
+ */
+export function formatDataAge(from: Date | string, now: Date): string {
+  const at = new Date(from);
+  const age = now.getTime() - at.getTime();
+  const days = daysBetween(dateKeyInSofia(at), dateKeyInSofia(now));
+  if (age < HOUR_MS) {
+    return `от ${Math.max(1, Math.floor(age / MINUTE_MS))} мин`;
+  }
+  if (days < 1) {
+    return `от ${Math.floor(age / HOUR_MS)} ч`;
+  }
+  return days === 1 ? 'от вчера' : `от ${days} дни`;
 }

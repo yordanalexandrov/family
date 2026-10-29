@@ -65,7 +65,7 @@ export function useCalendarEvents(from: DateKey, to: DateKey) {
 }
 
 /** Ръчна синхронизация (`POST /api/sync/:source`, с действащ потребител); после данните се презареждат. */
-function useSync(source: SyncSource) {
+export function useSync(source: SyncSource) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () =>
@@ -77,12 +77,4 @@ function useSync(source: SyncSource) {
       }
     },
   });
-}
-
-export function useSyncCalendar() {
-  return useSync('calendar');
-}
-
-export function useSyncBudget() {
-  return useSync('budget');
 }

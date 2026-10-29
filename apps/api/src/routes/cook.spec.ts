@@ -156,7 +156,7 @@ describe('„Кой готви довечера“ through the reminders cron', 
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${mealId}`,
-      url: `/menu?week=${WEEK}`,
+      url: `/menu?week=${WEEK}&meal=${mealId}`,
     });
     expect(await runAt(new Date('2026-11-05T14:05:00Z'))).toEqual([]);
   });
@@ -228,7 +228,7 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
       title: 'Довечера готви Дани',
       body: 'Мусака',
       tag: `cook-${mealId}`,
-      url: `/menu?week=${WEEK}`,
+      url: `/menu?week=${WEEK}&meal=${mealId}`,
     });
   });
 
@@ -254,7 +254,7 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${mealId}`,
-      url: `/menu?week=${WEEK}`,
+      url: `/menu?week=${WEEK}&meal=${mealId}`,
     });
   });
 

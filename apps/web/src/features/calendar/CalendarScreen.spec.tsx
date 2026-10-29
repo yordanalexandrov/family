@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dani, fixtureNow, server } from '../../test/msw';
+import { goOffline } from '../../test/network';
 import { renderApp, setUpDevice } from '../../test/render';
 
 describe('CalendarScreen', () => {
@@ -81,5 +82,78 @@ describe('CalendarScreen', () => {
     expect(
       screen.queryByRole('button', { name: 'Обнови' }),
     ).not.toBeInTheDocument();
+  });
+
+  describe('без връзка', () => {
+    let reconnect: (() => void) | undefined;
+
+    afterEach(() => {
+      reconnect?.();
+      reconnect = undefined;
+    });
+
+    /** Едно отваряне с връзка (събитията влизат в кеша), после сървърът не се достига. */
+    async function openedOnceThenUnreachable() {
+      const first = renderApp('/calendar');
+      await screen.findByText('Родителска среща');
+      first.unmount();
+      server.use(
+        http.get('/api/calendar/events', () => HttpResponse.error()),
+        http.get('/api/dashboard', () => HttpResponse.error()),
+      );
+    }
+
+    it('офлайн отваряне показва последните заредени дни с „остарели данни“', async () => {
+      setUpDevice('phone', dani.id);
+      await openedOnceThenUnreachable();
+      vi.setSystemTime(new Date(fixtureNow.getTime() + 12 * 60_000));
+      reconnect = goOffline();
+
+      renderApp('/calendar');
+
+      expect(
+        await screen.findByText('остарели данни · от 12 мин'),
+      ).toBeInTheDocument();
+      const today = screen.getByRole('region', { name: 'сряда, 4 ноември' });
+      expect(within(today).getByText('Родителска среща')).toBeInTheDocument();
+      expect(
+        screen.queryByText('Няма връзка със сървъра'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('мрежова грешка без събитие offline също показва кеша', async () => {
+      setUpDevice('phone', dani.id);
+      await openedOnceThenUnreachable();
+
+      renderApp('/calendar');
+
+      expect(
+        await screen.findByText('остарели данни · от 1 мин'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Родителска среща')).toBeInTheDocument();
+    });
+
+    it('без кеш и без мрежа казва „Няма връзка със сървъра“, а не чака без край', async () => {
+      setUpDevice('phone', dani.id);
+      reconnect = goOffline();
+
+      renderApp('/calendar');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Няма връзка със сървъра',
+      );
+    });
+
+    it('„Обнови“ е изключено с „Иска връзка“', async () => {
+      setUpDevice('phone', dani.id);
+      renderApp('/calendar');
+      await screen.findByText('Родителска среща');
+
+      reconnect = goOffline();
+
+      expect(
+        await screen.findByRole('button', { name: 'Иска връзка' }),
+      ).toBeDisabled();
+    });
   });
 });

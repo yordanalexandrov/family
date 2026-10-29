@@ -126,6 +126,42 @@
   border-block-start: 1px solid var(--color-line);
 }
 
+.core__cooking-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6cqi;
+  max-inline-size: 100%;
+}
+
+/* Под ястието: кой готви, с „Аз“ на телефона. */
+.core__cooking-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em 0.5em;
+  max-inline-size: 100%;
+  margin: 0;
+  font-size: max(12px, 3.6cqi);
+  font-weight: 600;
+}
+
+.core__cooking-line .avatar {
+  flex: none;
+}
+
+.core__cooking-muted {
+  color: var(--color-text-muted);
+}
+
+.button.core__cooking-action {
+  min-height: 2.75rem;
+  padding-inline: var(--space-4);
+  font-size: max(13px, 3.8cqi);
+  pointer-events: auto;
+}
+
 .core__cooking small {
   color: var(--color-accent);
   font-size: max(10px, 2.8cqi);

@@ -128,7 +128,7 @@ export interface MenuService {
   ): Promise<MealPlan>;
   /**
    * „Извадих“ for a meal (GLOSSARY), from either person: the morning „Извади месото“ is not sent to anyone. Pressed
-   * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it.
+   * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it. Signals only `menu.changed`.
    */
   markThawed(id: string): Promise<void>;
   /**
@@ -185,7 +185,7 @@ function signalWeek(events: EventBus, weekStart: string): void {
   }
 }
 
-/** Signals a vote or a thread line once it has committed: the shopping list is not computed from them. */
+/** Signals a vote, a thread line or „Извадих“ once it has committed: the shopping list is not computed from them. */
 function signalAgreement(events: EventBus, weekStart: string): void {
   events.publish({ type: 'menu.changed', weekStart });
 }
@@ -464,8 +464,14 @@ export function createMenuService({
     },
 
     async markThawed(id) {
-      if (!(await markMealThawed(db, id, now()))) {
+      const thawed = await markMealThawed(db, id, now());
+      if (!thawed) {
         throw new NotFoundError(NO_SUCH_MEAL);
+      }
+      const plan = await findPlanSummary(db, thawed.planId);
+      if (plan) {
+        // „Извади месото“ is on the dashboard of every phone: the other one drops „Извадих“ at once.
+        signalAgreement(events, plan.weekStart);
       }
     },
 
@@ -580,6 +586,7 @@ export async function readCooking(
     dinner:
       dinner && title
         ? {
+            mealId: dinner.id,
             title,
             recipeId: dinner.recipeId,
             cookUserId: dinner.cookUserId,

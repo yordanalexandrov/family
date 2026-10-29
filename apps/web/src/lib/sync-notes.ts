@@ -1,4 +1,4 @@
-import { formatAge, type SyncStatus } from '@family/shared';
+import { formatDataAge, type SyncStatus } from '@family/shared';
 
 /** Името на външната система в надписите на картите. */
 export const SYSTEM_NAMES = {
@@ -8,17 +8,17 @@ export const SYSTEM_NAMES = {
 
 /**
  * Жълтият надпис на карта с остарели данни: „Google Calendar не отговаря · данни от
- * преди 25 мин“. `undefined`, когато данните са актуални или няма конфигурация.
+ * вчера“, без успешна синхронизация „Wallet не отговаря — още няма данни“.
+ * `undefined`, когато данните са актуални или няма конфигурация.
  */
 function staleNote(sync: SyncStatus, now: Date): string | undefined {
   if (sync.status !== 'stale' && sync.status !== 'failed') {
     return undefined;
   }
   const name = SYSTEM_NAMES[sync.source];
-  const age = sync.lastSuccessAt
-    ? `данни от ${formatAge(sync.lastSuccessAt, now)}`
-    : 'още няма данни';
-  return `${name} не отговаря · ${age}`;
+  return sync.lastSuccessAt
+    ? `${name} не отговаря · данни ${formatDataAge(sync.lastSuccessAt, now)}`
+    : `${name} не отговаря — още няма данни`;
 }
 
 function unconfiguredNote(sync: SyncStatus): string | undefined {

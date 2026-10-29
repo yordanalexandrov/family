@@ -52,7 +52,7 @@ function evening(userId: string): DueReminder {
       title: 'Извади месото за утре',
       body: 'Мусака: кайма, свинско',
       tag: `thaw-${MUSAKA.id}`,
-      url: '/menu?week=2026-11-02',
+      url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
       actions: [
         {
           action: 'thawed',
@@ -183,7 +183,7 @@ function youCook(userId: string): DueReminder {
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${MUSAKA.id}`,
-      url: '/menu?week=2026-11-02',
+      url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
     },
   };
 }
@@ -198,7 +198,7 @@ function whoCooks(userId: string, body = 'Мусака'): DueReminder {
       title: 'Кой готви довечера?',
       body,
       tag: `cook-${MUSAKA.id}`,
-      url: '/menu?week=2026-11-02',
+      url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
       actions: [
         {
           action: 'cook-claim',

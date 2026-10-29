@@ -3,6 +3,7 @@
 # on free loopback ports, nothing shared with `pnpm dev`, the compose stack or the test database.
 #
 #   verify.sh up                 start a new run, print its id, ports and dirs
+#                                (WEB_MODE=preview: production build + vite preview, service worker on)
 #   verify.sh doctor [run]       read-only: is this run's instance worth driving?
 #   verify.sh env [run]          print RUN_ID, WEB_URL, API_URL, ... as shell assignments
 #   verify.sh psql [run] -c SQL  query the run's database (read side effects)
@@ -119,10 +120,20 @@ EOF
     ./node_modules/.bin/tsx src/server.ts >"$RUN_DIR/logs/api.log" 2>&1 < /dev/null) &
   echo "API_PID=$!" >> "$RUN_DIR/run.env"
 
-  log "web on 127.0.0.1:$web_port (log: $RUN_DIR/logs/web.log)"
+  # WEB_MODE=preview: production build + `vite preview` (same /api proxy), so the service worker
+  # registers and the app shell opens offline. Default `dev`: Vite dev server with hot reload.
+  local vite_cmd=(./node_modules/.bin/vite --host 127.0.0.1 --port "$web_port" --strictPort --clearScreen false)
+  if [[ "${WEB_MODE:-dev}" == preview ]]; then
+    log "web build for preview (log: $RUN_DIR/logs/web-build.log)"
+    (cd "$REPO/apps/web" && env PATH="$NODE_BIN:$PATH" ./node_modules/.bin/vite build \
+      --outDir "$RUN_DIR/web-dist" --emptyOutDir >"$RUN_DIR/logs/web-build.log" 2>&1) \
+      || die "web build failed (see $RUN_DIR/logs/web-build.log); run: verify.sh down $RUN_ID"
+    vite_cmd=(./node_modules/.bin/vite preview --outDir "$RUN_DIR/web-dist" --host 127.0.0.1 \
+      --port "$web_port" --strictPort)
+  fi
+  log "web (${WEB_MODE:-dev}) on 127.0.0.1:$web_port (log: $RUN_DIR/logs/web.log)"
   (cd "$REPO/apps/web" && exec setsid env PATH="$NODE_BIN:$PATH" API_PORT="$api_port" \
-    ./node_modules/.bin/vite --host 127.0.0.1 --port "$web_port" --strictPort --clearScreen false \
-    >"$RUN_DIR/logs/web.log" 2>&1 < /dev/null) &
+    "${vite_cmd[@]}" >"$RUN_DIR/logs/web.log" 2>&1 < /dev/null) &
   echo "WEB_PID=$!" >> "$RUN_DIR/run.env"
 
   load_run "$RUN_ID"

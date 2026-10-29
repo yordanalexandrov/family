@@ -1,8 +1,15 @@
 import type { CalendarEvent } from '@family/shared';
 import type { CSSProperties, MouseEvent } from 'react';
+import { useUsers } from '../../api/queries';
 import { formatTime } from '../../lib/format';
-import { eventColor, useSourceAvatars } from '../calendar/SourceAvatars';
-import { dayRingSegments, type RingSegment, ringAngle } from './day-ring';
+import { eventColor, sourceAvatar } from '../calendar/SourceAvatars';
+import {
+  dayRingMarkers,
+  dayRingSegments,
+  type RingMarker,
+  type RingSegment,
+  ringAngle,
+} from './day-ring';
 import './DayRing.css';
 
 /*
@@ -23,8 +30,14 @@ const LANE_R = [
   TRACK_R - (LANE_GAP + LANE_WIDTH) / 2,
 ] as const;
 const AVATAR_R = 10;
-/** Ъгълът между два аватара на една покана. */
-const AVATAR_STEP = 8;
+/** Маркер с брой („Д ×3“) е хапче: ширината му във viewBox-а. */
+const COUNT_MARKER_WIDTH = 40;
+/** Радиусът на маркерите по писти: на външната писта, после навътре с по един аватар. */
+const MARKER_R = [
+  LANE_R[0],
+  LANE_R[0] - 2 * AVATAR_R - 2,
+  LANE_R[0] - 4 * AVATAR_R - 4,
+] as const;
 
 function point(radius: number, angle: number): [number, number] {
   const rad = ((angle - 90) * Math.PI) / 180;
@@ -53,6 +66,7 @@ interface DayRingProps {
 
 export function DayRing({ events, now, onSelect }: DayRingProps) {
   const segments = dayRingSegments(events, now);
+  const markers = dayRingMarkers(events, now);
   const byId = new Map(events.map((event) => [event.id, event]));
   const nowAngle = ringAngle(now);
   const [nowX0, nowY0] = point(TRACK_R - TRACK_WIDTH / 2 - 6, nowAngle);
@@ -120,6 +134,21 @@ export function DayRing({ events, now, onSelect }: DayRingProps) {
           />
         );
       })}
+      {/* Маркерите не са цели за докосване: събитието се избира от дъгата или списъка „Днес“. */}
+      <g className="day-ring__markers">
+        {markers.map((marker) => (
+          <Marker
+            key={`${marker.source.id}-${marker.eventIds[0]}`}
+            marker={marker}
+            past={marker.eventIds.every((id) => {
+              const event = byId.get(id);
+              return (
+                event !== undefined && Date.parse(event.end) <= now.getTime()
+              );
+            })}
+          />
+        ))}
+      </g>
       <g className="day-ring__now">
         <line x1={nowX0} y1={nowY0} x2={nowX1} y2={nowY1} />
         <circle cx={nowX1} cy={nowY1} r={4} />
@@ -139,40 +168,16 @@ function Segment({
   past: boolean;
   onSelect?: (eventId: string) => void;
 }) {
-  const avatars = useSourceAvatars(segment.sources);
   const style = {
     '--segment-color': `var(--color-${eventColor(segment.sources)})`,
   } as CSSProperties;
   const radius = segment.thin ? TRACK_R : LANE_R[segment.lane];
   const body = (
-    <>
-      <path
-        className={`day-ring__segment${segment.thin ? ' day-ring__segment--thin' : ''}`}
-        d={arc(radius, segment.startAngle, segment.endAngle)}
-        strokeWidth={segment.thin ? 2.5 : LANE_WIDTH}
-      />
-      {!segment.thin &&
-        avatars.map(({ id, initial, color }, index) => {
-          const [x, y] = point(
-            radius,
-            segment.startAngle + index * AVATAR_STEP,
-          );
-          return (
-            <g
-              key={id}
-              className="day-ring__avatar"
-              style={
-                { '--avatar-color': `var(--color-${color})` } as CSSProperties
-              }
-            >
-              <circle cx={x} cy={y} r={AVATAR_R} />
-              <text x={x} y={y}>
-                {initial}
-              </text>
-            </g>
-          );
-        })}
-    </>
+    <path
+      className={`day-ring__segment${segment.thin ? ' day-ring__segment--thin' : ''}`}
+      d={arc(radius, segment.startAngle, segment.endAngle)}
+      strokeWidth={segment.thin ? 2.5 : LANE_WIDTH}
+    />
   );
   const label = eventLabel(event);
   const className = `day-ring__event${past ? ' day-ring__event--past' : ''}`;
@@ -201,5 +206,31 @@ function Segment({
       <title>{label}</title>
       {body}
     </a>
+  );
+}
+
+function Marker({ marker, past }: { marker: RingMarker; past: boolean }) {
+  const users = useUsers();
+  const { initial, color } = sourceAvatar(marker.source, users.data);
+  const radius = MARKER_R[marker.level] ?? MARKER_R[2];
+  const [x, y] = point(radius, marker.angle);
+  const counted = marker.count > 1;
+  const width = counted ? COUNT_MARKER_WIDTH : AVATAR_R * 2;
+  return (
+    <g
+      className={`day-ring__avatar${past ? ' day-ring__avatar--past' : ''}`}
+      style={{ '--avatar-color': `var(--color-${color})` } as CSSProperties}
+    >
+      <rect
+        x={x - width / 2}
+        y={y - AVATAR_R}
+        width={width}
+        height={AVATAR_R * 2}
+        rx={AVATAR_R}
+      />
+      <text x={x} y={y}>
+        {counted ? `${initial} ×${marker.count}` : initial}
+      </text>
+    </g>
   );
 }

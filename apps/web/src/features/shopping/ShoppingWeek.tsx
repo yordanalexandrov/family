@@ -22,7 +22,7 @@ import { Spinner } from '../../components/Spinner';
 import { Toast } from '../../components/Toast';
 import { formatDate, formatNumber, formatQuantity } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
-import { useOnline } from '../../lib/use-online';
+import { NEEDS_CONNECTION, useOnline } from '../../lib/use-online';
 import { usePlan } from '../menu/queries';
 import { useMakeStaple, useMarkRanOut } from '../pantry/queries';
 import { AddItemSheet } from './AddItemSheet';
@@ -348,7 +348,7 @@ function ListView({ list, weekStart, users }: ListViewProps) {
                   </li>
                 ))}
               </ul>
-              {!online && <p className="shopping__hint">Иска връзка</p>}
+              {!online && <p className="shopping__hint">{NEEDS_CONNECTION}</p>}
             </>
           )}
           <Link to="/pantry" className="shopping__pantry-link">

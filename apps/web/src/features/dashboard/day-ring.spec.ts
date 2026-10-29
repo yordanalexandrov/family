@@ -1,6 +1,6 @@
 import type { CalendarEvent, CalendarSource } from '@family/shared';
 import { describe, expect, it } from 'vitest';
-import { dayRingSegments } from './day-ring';
+import { dayRingMarkers, dayRingSegments } from './day-ring';
 
 // Сряда, 4 ноември 2026, 10:00 в София (UTC+2).
 const now = new Date('2026-11-04T08:00:00Z');
@@ -84,6 +84,34 @@ describe('dayRingSegments', () => {
     ]);
   });
 
+  it('събитие, което започва точно когато свършва предишното, е на другата писта', () => {
+    const two = event('2026-11-04 14:00', '2026-11-04 15:00');
+    const three = event('2026-11-04 15:00', '2026-11-04 16:00');
+    const four = event('2026-11-04 16:00', '2026-11-04 17:00');
+
+    const segments = dayRingSegments([two, three, four], now);
+
+    expect(segments.map(({ lane, thin }) => ({ lane, thin }))).toEqual([
+      { lane: 0, thin: false },
+      { lane: 1, thin: false },
+      { lane: 0, thin: false },
+    ]);
+  });
+
+  it('при допиращи се събития на двете писти следващото не е thin', () => {
+    const outer = event('2026-11-04 10:00', '2026-11-04 11:00');
+    const inner = event('2026-11-04 10:30', '2026-11-04 11:00');
+    const next = event('2026-11-04 11:00', '2026-11-04 12:00');
+
+    const segments = dayRingSegments([outer, inner, next], now);
+
+    expect(segments.map(({ lane, thin }) => ({ lane, thin }))).toEqual([
+      { lane: 0, thin: false },
+      { lane: 1, thin: false },
+      { lane: 0, thin: false },
+    ]);
+  });
+
   it('събитие 23:00–01:00 се реже до 24:00', () => {
     const late = event('2026-11-04 23:00', '2026-11-05 01:00');
 
@@ -139,5 +167,45 @@ describe('dayRingSegments', () => {
     const tomorrow = event('2026-11-05 09:00', '2026-11-05 10:00');
 
     expect(dayRingSegments([tomorrow], now)).toEqual([]);
+  });
+});
+
+describe('dayRingMarkers', () => {
+  it('10:00, 11:00 и 11:15 на един човек са един маркер с брой 3', () => {
+    const ten = event('2026-11-04 10:00', '2026-11-04 11:00');
+    const eleven = event('2026-11-04 11:00', '2026-11-04 12:00');
+    const quarter = event('2026-11-04 11:15', '2026-11-04 11:45');
+
+    const markers = dayRingMarkers([ten, eleven, quarter], now);
+
+    expect(markers).toEqual([
+      {
+        source: daniSource,
+        angle: 150,
+        count: 3,
+        eventIds: [ten.id, eleven.id, quarter.id],
+        level: 0,
+      },
+    ]);
+  });
+
+  it('две събития на различни хора в един час са два маркера на различен радиус', () => {
+    const dani = event('2026-11-04 15:00', '2026-11-04 16:00');
+    const poli = event('2026-11-04 15:30', '2026-11-04 16:30', {
+      sources: [poliSource],
+    });
+
+    const markers = dayRingMarkers([dani, poli], now);
+
+    expect(
+      markers.map(({ source, angle, level }) => ({
+        sourceId: source.id,
+        angle,
+        level,
+      })),
+    ).toEqual([
+      { sourceId: daniSource.id, angle: 225, level: 0 },
+      { sourceId: poliSource.id, angle: 232.5, level: 1 },
+    ]);
   });
 });

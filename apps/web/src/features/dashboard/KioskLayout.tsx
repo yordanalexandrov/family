@@ -1,4 +1,4 @@
-import { dateKeyInSofia, formatAge } from '@family/shared';
+import { dateKeyInSofia, formatDataAge } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import type { CSSProperties, ReactNode } from 'react';
 import { TopBar } from '../../components/TopBar';
@@ -79,7 +79,7 @@ export function KioskLayout({ state, now, interactive }: KioskLayoutProps) {
       <TopBar now={now} sync={data.sync} />
       {state.status === 'offline' && (
         <p className="dashboard__offline" role="status">
-          Няма връзка със сървъра · данни от {formatAge(state.fetchedAt, now)}
+          Няма връзка със сървъра · данни {formatDataAge(state.fetchedAt, now)}
         </p>
       )}
       <div

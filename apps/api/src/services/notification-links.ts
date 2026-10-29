@@ -10,12 +10,21 @@ export const notificationTag = {
   menu: (weekStart: DateKey) => `menu-${weekStart}`,
 };
 
-/** Where a notification about the menu of a week opens. */
-export function menuWeekUrl(weekStart: DateKey): string {
-  return `/menu?week=${weekStart}`;
+/** The menu of a week, with the sheet of a meal open when `mealId` is given. */
+function menuUrl(weekStart: DateKey, mealId?: string): string {
+  const query = new URLSearchParams({ week: weekStart });
+  if (mealId) {
+    query.set('meal', mealId);
+  }
+  return `/menu?${query}`;
 }
 
-/** Where a notification about a meal on `date` opens: the menu of its week, as the web has no parameter for a day. */
-export function mealDayUrl(date: DateKey): string {
-  return menuWeekUrl(weekStartOf(startOfDayInSofia(date)));
+/** Where a notification about the menu of a week opens. */
+export function menuWeekUrl(weekStart: DateKey): string {
+  return menuUrl(weekStart);
+}
+
+/** Where a notification about a meal opens: the menu of its week, with the sheet of that meal open. */
+export function mealUrl(meal: { id: string; date: DateKey }): string {
+  return menuUrl(weekStartOf(startOfDayInSofia(meal.date)), meal.id);
 }

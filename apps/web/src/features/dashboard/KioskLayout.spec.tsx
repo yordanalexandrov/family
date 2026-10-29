@@ -224,7 +224,7 @@ describe('KioskLayout', () => {
 
     await vi.waitFor(() => expect(requests).toBe(2));
   });
-  it('остарял календар → ядрото носи жълтия надпис като на телефона', async () => {
+  it('остарял календар → ядрото носи жълтия надпис веднъж, като на телефона', async () => {
     respondWith(
       dashboardWith({
         sync: {
@@ -245,9 +245,10 @@ describe('KioskLayout', () => {
 
     expect(
       (await region('Днес накратко')).getByText(
-        'Google Calendar не отговаря · данни от преди 25 мин',
+        'Google Calendar не отговаря · данни от 25 мин',
       ),
     ).toBeInTheDocument();
+    expect(screen.getAllByText(/Google Calendar не отговаря/)).toHaveLength(1);
   });
 
   it('без конфигурация на календара ядрото не показва кешираните събития', async () => {

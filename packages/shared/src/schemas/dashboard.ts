@@ -6,11 +6,12 @@ import { servingsSchema } from './menu.js';
 import { syncStatusSchema } from './sync.js';
 
 /**
- * „Днес се готви“ for one slot: the recipe title (or the note of the meal), the recipe (`null` for a note), who cooks it
- * (`null` when nobody is set) and the servings per user. `recipeId` and `servings` are optional so a client keeps
- * reading an older server.
+ * „Днес се готви“ for one slot: the meal (for „Аз“ and its links), the recipe title (or the note of the meal), the
+ * recipe (`null` for a note), who cooks it (`null` when nobody is set) and the servings per user. `mealId`, `recipeId`
+ * and `servings` are optional so a client keeps reading an older server (and its offline cache).
  */
 export const cookingMealSchema = z.object({
+  mealId: z.uuid().optional(),
   title: z.string(),
   recipeId: z.uuid().nullable().optional(),
   cookUserId: z.uuid().nullable(),
@@ -27,6 +28,20 @@ export const cookingSchema = z.object({
 
 export type Cooking = z.infer<typeof cookingSchema>;
 
+/**
+ * „Извади месото“ on the dashboard (GLOSSARY: Напомняне): a dinner whose recipe needs products „Във фризера“, found as
+ * the reminder finds them: today's all day, tomorrow's from the evening reminder's hour. `thawedAt` is when someone
+ * answered „Извадих“, `null` before.
+ */
+export const dashboardThawSchema = z.object({
+  mealId: z.uuid(),
+  date: dateKeySchema,
+  products: z.array(z.string()).min(1),
+  thawedAt: instantSchema.nullable(),
+});
+
+export type DashboardThaw = z.infer<typeof dashboardThawSchema>;
+
 /** `GET /api/dashboard`: everything the kiosk, TV and phone screens show. */
 export const dashboardResponseSchema = z.object({
   /** Today in Sofia. */
@@ -38,6 +53,8 @@ export const dashboardResponseSchema = z.object({
   /** Latest budget snapshot; `null` when none has been synced yet. */
   budget: budgetSnapshotSchema.nullable(),
   cooking: cookingSchema,
+  /** Optional so a client keeps reading an older server (and its offline cache). */
+  thaw: z.array(dashboardThawSchema).optional(),
   sync: z.object({
     calendar: syncStatusSchema,
     budget: syncStatusSchema,

@@ -1442,6 +1442,7 @@ describe('cooking.dinner in GET /api/dashboard', () => {
     expect(await cooking()).toEqual({
       lunch: null,
       dinner: {
+        mealId: plan.meals[1].id,
         title: 'Леща яхния',
         recipeId: recipeId(2),
         cookUserId: POLI.id,
@@ -1470,6 +1471,7 @@ describe('cooking.dinner in GET /api/dashboard', () => {
     expect(await cooking()).toEqual({
       lunch: null,
       dinner: {
+        mealId: plan.meals[1].id,
         title: 'ядем навън',
         recipeId: null,
         cookUserId: null,

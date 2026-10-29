@@ -81,46 +81,117 @@ function spanToday(
   return { event, start: from, end: to };
 }
 
+/** Днешните събития с час, подредени по начало (по-дългото първо). */
+function spansToday(events: CalendarEvent[], now: Date): Span[] {
+  const today = dateKeyInSofia(now);
+  const dayStart = startOfDayInSofia(today).getTime();
+  const dayEnd = startOfDayInSofia(addDays(today, 1)).getTime();
+  return events
+    .filter((event) => !event.allDay)
+    .map((event) => spanToday(event, dayStart, dayEnd))
+    .filter((span): span is Span => span !== null)
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+}
+
 /**
  * Сегментите на пръстена за деня на `now`. Целодневните не са на него. Събитие през
  * полунощ се реже до деня; минималната дължина е 15 мин. Застъпените заемат
  * външната, после вътрешната писта; трето и следващо едновременно е `thin`.
+ * Събитие, което започва точно в края на предишното, е на другата писта, ако е свободна.
  * Покана от няколко източника е едно събитие (api я е слял) и един сегмент.
  */
 export function dayRingSegments(
   events: CalendarEvent[],
   now: Date,
 ): RingSegment[] {
-  const today = dateKeyInSofia(now);
-  const dayStart = startOfDayInSofia(today).getTime();
-  const dayEnd = startOfDayInSofia(addDays(today, 1)).getTime();
-
-  const spans = events
-    .filter((event) => !event.allDay)
-    .map((event) => spanToday(event, dayStart, dayEnd))
-    .filter((span): span is Span => span !== null)
-    .sort((a, b) => a.start - b.start || b.end - a.end);
+  const spans = spansToday(events, now);
 
   // Докъде е заета всяка писта.
   const laneEnds: [number, number] = [0, 0];
   return spans.map(({ event, start, end }) => {
-    let lane: 0 | 1 = 1;
-    let thin = false;
-    if (laneEnds[0] <= start) {
-      lane = 0;
-      laneEnds[0] = end;
-    } else if (laneEnds[1] <= start) {
-      laneEnds[1] = end;
-    } else {
-      thin = true;
+    // Първо писта, свободна преди началото: заоблените краища на две
+    // допиращи се дъги на една писта се застъпват и те изглеждат като една.
+    const lanes: (0 | 1)[] = [0, 1];
+    const lane =
+      lanes.find((index) => laneEnds[index] < start) ??
+      lanes.find((index) => laneEnds[index] <= start);
+    const thin = lane === undefined;
+    if (lane !== undefined) {
+      laneEnds[lane] = end;
     }
     return {
       eventId: event.id,
       startAngle: start * DEGREES_PER_MINUTE,
       endAngle: end * DEGREES_PER_MINUTE,
-      lane,
+      lane: lane ?? 1,
       sources: event.sources,
       thin,
     };
   });
+}
+
+/**
+ * Маркер на пръстена: аватарът на един източник (човек или семейството) при
+ * началото на едно или няколко негови събития.
+ */
+export interface RingMarker {
+  source: CalendarSource;
+  /** Ъгълът на първото събитие в маркера. */
+  angle: number;
+  /** Колко събития събира („Д ×3“). */
+  count: number;
+  eventIds: string[];
+  /** Писта по радиус: 0 = външната; маркерите на различни хора на едно място са на различни писти. */
+  level: number;
+}
+
+/**
+ * Прагът по ъгъл: събитията на един източник, започнали по-малко от 80 мин
+ * след първото в маркера, влизат в него. 20° е повече от ширината на маркер
+ * с брой, затова съседните маркери на един човек не се застъпват.
+ */
+const MARKER_MERGE_DEGREES = 20;
+
+/**
+ * Маркерите на пръстена за деня на `now`: по един за всеки източник на
+ * събитието; близките събития на един източник се събират в един маркер, а
+ * маркерите на различни източници на едно място се разминават по радиус.
+ */
+export function dayRingMarkers(
+  events: CalendarEvent[],
+  now: Date,
+): RingMarker[] {
+  const markers: RingMarker[] = [];
+  const open = new Map<string, RingMarker>();
+  for (const { event, start } of spansToday(events, now)) {
+    const angle = start * DEGREES_PER_MINUTE;
+    for (const source of event.sources) {
+      const current = open.get(source.id);
+      if (current && angle - current.angle < MARKER_MERGE_DEGREES) {
+        current.count += 1;
+        current.eventIds.push(event.id);
+        continue;
+      }
+      // Най-външната писта, която не е заета от близък маркер на друг източник.
+      const taken = new Set(
+        markers
+          .filter((other) => angle - other.angle < MARKER_MERGE_DEGREES)
+          .map((other) => other.level),
+      );
+      let level = 0;
+      while (taken.has(level)) {
+        level += 1;
+      }
+      const marker = {
+        source,
+        angle,
+        count: 1,
+        eventIds: [event.id],
+        level,
+      };
+      open.set(source.id, marker);
+      markers.push(marker);
+    }
+  }
+  return markers;
 }

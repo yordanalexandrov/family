@@ -34,6 +34,8 @@ API_URL=http://127.0.0.1:37393
 EVIDENCE_DIR=/tmp/family-verify/20261026-144003-352625/evidence
 ```
 
+For offline checks start with `WEB_MODE=preview ./verify.sh up`: the web is a production build served by `vite preview` (same `/api` proxy, ~20 s longer), so the PWA service worker exists, and drive with `--service-workers` (blocked by default). Go offline in the scenario with `context.setOffline(true)` after `await page.evaluate(() => navigator.serviceWorker.ready)` and a reload, so the worker controls the page.
+
 The api runs with a clean environment: no repo `.env`, `AUTH_MODE=dev` as `verify@example.test`, migrations applied at start (seed users Дани and Поли, seed ingredients, nothing else), OpenClaw pointed at a dead port. Takes ~5 s. Teardown is `./verify.sh down` (see Cleanup).
 
 Runs are isolated from each other and from `pnpm dev` (5173/18091/5432), the compose stack and the test database (5433), so parallel worktrees can each run one. With more than one run alive (several agents, or two branches), always pass the run id (`verify.sh doctor|psql|down <run>`, `drive.mjs --run <run>`): without it every command takes `latest`, which is whichever run started last, possibly another agent's. Two runs from the same checkout started in the same second were driven side by side without interference. Never drive a `WEB_URL` you did not get from `verify.sh up`/`env`; in particular never drive `localhost:5173` — it is the user's dev server and database.

@@ -12,6 +12,7 @@ import {
   poli,
   server,
 } from '../../test/msw';
+import { goOffline } from '../../test/network';
 import { renderApp, setUpDevice } from '../../test/render';
 
 const CACHE_KEY = 'family.dashboardCache';
@@ -165,6 +166,158 @@ describe('DashboardScreen', () => {
       expect(router.state.location.pathname).toBe('/menu');
     });
 
+    it('без готвач: „няма готвач“ и „Аз“ праща cook-claim и показва „готвиш ти“', async () => {
+      const mealId = 'cccccccc-0000-4000-8000-000000000001';
+      let body = dashboardWith({
+        cooking: {
+          lunch: null,
+          dinner: { mealId, title: 'Мусака', cookUserId: null },
+        },
+      });
+      const claims: { mealId: unknown; actingUser: string | null }[] = [];
+      server.use(
+        http.get('/api/dashboard', () => HttpResponse.json(body)),
+        http.post('/api/menu/meals/:id/cook-claim', ({ params, request }) => {
+          claims.push({
+            mealId: params.id,
+            actingUser: request.headers.get('X-Acting-User'),
+          });
+          body = dashboardWith({
+            cooking: {
+              lunch: null,
+              dinner: { mealId, title: 'Мусака', cookUserId: dani.id },
+            },
+          });
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const user = userEvent.setup();
+      renderApp('/');
+
+      const row = cookingRow(await core());
+      expect(await row.findByText('няма готвач')).toBeInTheDocument();
+      await user.click(row.getByRole('button', { name: 'Аз' }));
+
+      expect(await row.findByText('готвиш ти')).toBeInTheDocument();
+      expect(claims).toEqual([{ mealId, actingUser: dani.id }]);
+      expect(row.queryByRole('button', { name: 'Аз' })).not.toBeInTheDocument();
+    });
+
+    it('„Извади месото: …“ с „Извадих“ праща thawed и показва отметка „извадено“', async () => {
+      const mealId = 'cccccccc-0000-4000-8000-000000000002';
+      const thaw = {
+        mealId,
+        date: dashboard.today,
+        products: ['смесена кайма'],
+        thawedAt: null as string | null,
+      };
+      let body = dashboardWith({
+        cooking: {
+          lunch: null,
+          dinner: { mealId, title: 'Мусака', cookUserId: poli.id },
+        },
+        thaw: [thaw],
+      });
+      const thawed: unknown[] = [];
+      server.use(
+        http.get('/api/dashboard', () => HttpResponse.json(body)),
+        http.post('/api/menu/meals/:id/thawed', ({ params }) => {
+          thawed.push(params.id);
+          body = {
+            ...body,
+            thaw: [{ ...thaw, thawedAt: fixtureNow.toISOString() }],
+          };
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const user = userEvent.setup();
+      renderApp('/');
+
+      const row = await card('Извади месото');
+      expect(
+        await row.findByText('Извади месото: смесена кайма'),
+      ).toBeInTheDocument();
+      await user.click(row.getByRole('button', { name: 'Извадих' }));
+
+      expect(await row.findByText('извадено')).toBeInTheDocument();
+      expect(thawed).toEqual([mealId]);
+      expect(
+        row.queryByRole('button', { name: 'Извадих' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('докато едно „Извадих“ чака отговор, изключено е само то', async () => {
+      const today = {
+        mealId: 'cccccccc-0000-4000-8000-000000000002',
+        date: dashboard.today,
+        products: ['смесена кайма'],
+        thawedAt: null,
+      };
+      const tomorrow = {
+        mealId: 'cccccccc-0000-4000-8000-000000000003',
+        date: '2026-11-05',
+        products: ['свински врат'],
+        thawedAt: null,
+      };
+      let answer: (() => void) | undefined;
+      server.use(
+        http.get('/api/dashboard', () =>
+          HttpResponse.json(dashboardWith({ thaw: [today, tomorrow] })),
+        ),
+        http.post(
+          '/api/menu/meals/:id/thawed',
+          () =>
+            new Promise<Response>((resolve) => {
+              answer = () => resolve(new HttpResponse(null, { status: 204 }));
+            }),
+        ),
+      );
+      const user = userEvent.setup();
+      renderApp('/');
+
+      const thawCard = await card('Извади месото');
+      await thawCard.findByText('Извади месото: смесена кайма');
+      const [first, second] = thawCard.getAllByRole('button', {
+        name: 'Извадих',
+      });
+      await user.click(first as HTMLElement);
+
+      await vi.waitFor(() => expect(first).toBeDisabled());
+      expect(second).toBeEnabled();
+      answer?.();
+    });
+
+    it('утрешната вечеря: „Извади месото за утре: …“', async () => {
+      respondWith(
+        dashboardWith({
+          thaw: [
+            {
+              mealId: 'cccccccc-0000-4000-8000-000000000003',
+              date: '2026-11-05',
+              products: ['свински врат', 'пилешко филе'],
+              thawedAt: null,
+            },
+          ],
+        }),
+      );
+      renderApp('/');
+
+      expect(
+        await (await card('Извади месото')).findByText(
+          'Извади месото за утре: свински врат, пилешко филе',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('без продукти за размразяване няма карта „Извади месото“', async () => {
+      renderApp('/');
+
+      await core();
+      expect(
+        screen.queryByRole('region', { name: 'Извади месото' }),
+      ).not.toBeInTheDocument();
+    });
+
     it('бележка без готвач → бележката, без аватар', async () => {
       respondWith(
         dashboardWith({
@@ -257,16 +410,83 @@ describe('DashboardScreen', () => {
     );
   });
 
-  it('stale календар → жълт надпис „… не отговаря · данни от преди 25 мин“', async () => {
+  describe('иконата за обновяване', () => {
+    it('на бюджета праща POST /api/sync/budget и за кратко показва „Обновено 10:00“', async () => {
+      const user = userEvent.setup();
+      const sync = vi.fn();
+      server.use(
+        http.post('/api/sync/budget', () => {
+          sync();
+          return HttpResponse.json({ source: 'budget', status: 'ok' });
+        }),
+      );
+      renderApp('/');
+
+      const budget = await card('Бюджет');
+      await user.click(budget.getByRole('button', { name: 'Обнови бюджета' }));
+
+      expect(await budget.findByText('Обновено 10:00')).toBeInTheDocument();
+      expect(sync).toHaveBeenCalledTimes(1);
+    });
+
+    it('при неуспешна синхронизация показва грешката до иконата', async () => {
+      const user = userEvent.setup();
+      server.use(
+        http.post('/api/sync/budget', () =>
+          HttpResponse.json({
+            source: 'budget',
+            status: 'failed',
+            error: 'timeout',
+          }),
+        ),
+      );
+      renderApp('/');
+
+      const budget = await card('Бюджет');
+      await user.click(budget.getByRole('button', { name: 'Обнови бюджета' }));
+
+      expect(await budget.findByRole('status')).toHaveTextContent(
+        'Wallet не отговаря',
+      );
+    });
+
+    it('на „Днес“ обновява календара; второ докосване по време на синхронизацията не пуска втора', async () => {
+      const user = userEvent.setup();
+      const sync = vi.fn();
+      let finish = () => {};
+      server.use(
+        http.post('/api/sync/calendar', async () => {
+          sync();
+          await new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+          return HttpResponse.json({ source: 'calendar', status: 'ok' });
+        }),
+      );
+      renderApp('/');
+
+      const today = await card('Днес');
+      const button = today.getByRole('button', { name: 'Обнови календара' });
+      await user.click(button);
+      await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+      await user.click(button);
+      finish();
+
+      expect(await today.findByText('Обновено 10:00')).toBeInTheDocument();
+      expect(sync).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('остарял календар се казва веднъж, на „Днес“, с възрастта с думи: „данни от вчера“', async () => {
     respondWith(
       dashboardWith({
         sync: {
           ...dashboard.sync,
           calendar: {
             source: 'calendar',
-            status: 'stale',
-            lastSuccessAt: minutesBefore(25),
-            lastError: null,
+            status: 'failed',
+            lastSuccessAt: minutesBefore(20 * 60),
+            lastError: 'timeout',
           },
         },
       }),
@@ -276,42 +496,80 @@ describe('DashboardScreen', () => {
 
     const today = await card('Днес');
     expect(
-      today.getByText('Google Calendar не отговаря · данни от преди 25 мин'),
+      today.getByText('Google Calendar не отговаря · данни от вчера'),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('img', { name: 'Календар: остарели данни' }),
-    ).toBeInTheDocument();
+    expect(screen.getAllByText(/Google Calendar не отговаря/)).toHaveLength(1);
   });
 
-  it('превишен бюджет → числото и лентата в цвета за опасност, „превишен с 50 €“ вместо темпото', async () => {
+  it('точките за синхронизация горе вдясно ги няма: състоянието е до иконата на картата', async () => {
+    renderApp('/');
+
+    await card('Днес');
+    expect(
+      screen.queryByRole('list', { name: 'Синхронизация' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('превишен бюджет → едро „превишен с 184 €“ и „до края на месеца: 27 дни“, без „остават“', async () => {
     const budget = dashboard.budget;
     if (!budget) throw new Error('фикстурата има бюджет');
     respondWith(
       dashboardWith({
-        budget: { ...budget, spent: 1250, remaining: -50 },
+        budget: { ...budget, spent: 1384, remaining: -184 },
       }),
     );
 
     renderApp('/');
 
     const panel = await card('Бюджет');
-    const amount = panel.getByText(/^-50\s€$/);
+    const amount = panel.getByText(/превишен/);
+    expect(amount).toHaveTextContent(/^превишен с 184\s€$/);
     expect(amount).toHaveClass('budget__amount--danger');
+    expect(panel.getByText('до края на месеца: 27 дни')).toBeInTheDocument();
     expect(panel.getByRole('meter').closest('.budget__bar')).toHaveClass(
       'budget__bar--danger',
     );
-    expect(panel.getByText(/превишен/)).toHaveTextContent(/^превишен с 50\s€$/);
-    expect(panel.queryByText(/до края/)).not.toBeInTheDocument();
+    expect(panel.queryByText(/остават/)).not.toBeInTheDocument();
+    expect(panel.queryByText(/-184/)).not.toBeInTheDocument();
+    expect(panel.queryByText(/до края$/)).not.toBeInTheDocument();
   });
 
-  it('budget: null → „—“ и „няма данни от Wallet“', async () => {
+  it('Wallet не отговаря и още няма данни → един ред „Wallet не отговаря — още няма данни“', async () => {
+    respondWith(
+      dashboardWith({
+        budget: null,
+        sync: {
+          ...dashboard.sync,
+          budget: {
+            source: 'budget',
+            status: 'failed',
+            lastSuccessAt: null,
+            lastError: 'Wallet отговори с 503',
+          },
+        },
+      }),
+    );
+
+    renderApp('/');
+
+    const panel = await card('Бюджет');
+    expect(
+      panel.getByText('Wallet не отговаря — още няма данни'),
+    ).toBeInTheDocument();
+    expect(panel.queryByText('—')).not.toBeInTheDocument();
+    expect(panel.queryByText(/няма данни/)).toBe(
+      panel.getByText('Wallet не отговаря — още няма данни'),
+    );
+  });
+
+  it('budget: null без грешка → един ред „Още няма данни от Wallet“', async () => {
     respondWith(dashboardWith({ budget: null }));
 
     renderApp('/');
 
     const panel = await card('Бюджет');
-    expect(panel.getByText('—')).toBeInTheDocument();
-    expect(panel.getByText('няма данни от Wallet')).toBeInTheDocument();
+    expect(panel.getByText('Още няма данни от Wallet')).toBeInTheDocument();
+    expect(panel.queryByText('—')).not.toBeInTheDocument();
   });
 
   it('без конфигурация трите карти казват „… не е конфигуриран“', async () => {
@@ -380,11 +638,60 @@ describe('DashboardScreen', () => {
     renderApp('/');
 
     expect(
-      await screen.findByText(
-        'Няма връзка със сървъра · данни от преди 12 мин',
-      ),
+      await screen.findByText('Няма връзка със сървъра · данни от 12 мин'),
     ).toBeInTheDocument();
     expect(screen.getByText('Родителска среща')).toBeInTheDocument();
+  });
+
+  describe('без връзка', () => {
+    let reconnect: (() => void) | undefined;
+
+    afterEach(() => {
+      reconnect?.();
+      reconnect = undefined;
+    });
+
+    it('при събитие offline банерът е веднага, без да чака грешка от заявката', async () => {
+      renderApp('/');
+      await screen.findByText('Родителска среща');
+
+      reconnect = goOffline();
+
+      expect(
+        await screen.findByText('Няма връзка със сървъра · данни от 1 мин'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Родителска среща')).toBeInTheDocument();
+    });
+
+    it('без кеш и без мрежа казва „Няма връзка със сървъра“, а не чака без край', async () => {
+      reconnect = goOffline();
+
+      renderApp('/');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Няма връзка със сървъра',
+      );
+    });
+
+    it('иконата за обновяване е изключена с „Иска връзка“', async () => {
+      const user = userEvent.setup();
+      const sync = vi.fn();
+      server.use(
+        http.post('/api/sync/calendar', () => {
+          sync();
+          return HttpResponse.json({ source: 'calendar', status: 'ok' });
+        }),
+      );
+      renderApp('/');
+      const today = await card('Днес');
+      reconnect = goOffline();
+
+      const button = today.getByRole('button', { name: 'Обнови календара' });
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      expect(today.getByText('Иска връзка')).toBeInTheDocument();
+      await user.click(button);
+      expect(sync).not.toHaveBeenCalled();
+    });
   });
 
   it('при 5xx без кеш показва грешка, „Опитай пак“ зарежда наново', async () => {

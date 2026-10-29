@@ -1,4 +1,5 @@
 import { act, screen } from '@testing-library/react';
+import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockEventSource, source } from '../test/events';
 import {
@@ -9,7 +10,7 @@ import {
   serveWeekProposal,
   thisWeek,
 } from '../test/menu';
-import { dani, fixtureNow, poli } from '../test/msw';
+import { dani, dashboard, fixtureNow, poli, server } from '../test/msw';
 import { renderApp, setUpDevice } from '../test/render';
 import { serveShopping, shoppingList } from '../test/shopping';
 
@@ -52,6 +53,24 @@ describe('useServerEvents', () => {
     act(() => source().send({ type: 'menu.changed', weekStart: thisWeek }));
 
     await vi.waitFor(() => expect(since(asked, before)).toEqual([thisWeek]));
+  });
+
+  it('menu.changed презарежда и дашборда (готвачът на другия телефон)', async () => {
+    let gets = 0;
+    server.use(
+      http.get('/api/dashboard', () => {
+        gets += 1;
+        return HttpResponse.json(dashboard);
+      }),
+    );
+    renderApp('/');
+    await screen.findByText('Днес се готви');
+    source().open();
+    const before = gets;
+
+    act(() => source().send({ type: 'menu.changed', weekStart: thisWeek }));
+
+    await vi.waitFor(() => expect(gets).toBe(before + 1));
   });
 
   it('menu.proposal.changed показва чакащото предложение на другия, без да се чака следващо питане', async () => {

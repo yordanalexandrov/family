@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatAge, freshness, STALE_AFTER_MS } from './freshness.js';
+import {
+  formatAge,
+  formatDataAge,
+  freshness,
+  STALE_AFTER_MS,
+} from './freshness.js';
 
 const now = new Date('2026-10-25T12:00:00.000Z');
 
@@ -71,5 +76,21 @@ describe('formatAge', () => {
     [3 * 24 * 60 + 5, 'преди 3 д'],
   ])('%s minutes ago is „%s“', (minutes, text) => {
     expect(formatAge(minutesAgo(minutes), now)).toBe(text);
+  });
+});
+
+describe('formatDataAge', () => {
+  // now е 14:00 в София (EET, часовете по-рано са още EEST).
+  it.each([
+    [0.5, 'от 1 мин'],
+    [25, 'от 25 мин'],
+    [3 * 60, 'от 3 ч'],
+    [13 * 60 + 59, 'от 13 ч'],
+    [16 * 60, 'от вчера'],
+    [38 * 60, 'от вчера'],
+    [41 * 60, 'от 2 дни'],
+    [5 * 24 * 60, 'от 5 дни'],
+  ])('%s minutes ago is „%s“', (minutes, text) => {
+    expect(formatDataAge(minutesAgo(minutes), now)).toBe(text);
   });
 });
