@@ -42,7 +42,7 @@ import { useNow } from '../../lib/use-now';
 import { useRateRecipe } from '../recipes/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
 import { MealRow, mealRowId } from './MealRow';
-import { MealSheet } from './MealSheet';
+import { MealSheet, type RemovedRecipe, RemovedRecipeToast } from './MealSheet';
 import {
   useCreatePlan,
   useDeletePlan,
@@ -496,11 +496,11 @@ interface PlanViewProps {
   onOpenMeal: (id: string | null) => void;
 }
 
-/** Филтрите по изход на ястие; „Остава“ няма свой, защото е целта. */
+/** Филтрите по изход на ястие, по реда в лентата; „Остава“ няма свой, защото е целта. */
 const FILTERS = [
+  'pending',
   'discuss',
   'replace',
-  'pending',
 ] as const satisfies readonly MealOutcome[];
 
 type Filter = (typeof FILTERS)[number] | 'all';
@@ -516,8 +516,10 @@ function PlanView({
   openMealId,
   onOpenMeal,
 }: PlanViewProps) {
-  const [filter, setFilter] = useState<Filter>('all');
+  const [chosen, setChosen] = useState<Filter>('all');
   const [pastOpen, setPastOpen] = useState(false);
+  const [removed, setRemoved] = useState<RemovedRecipe | null>(null);
+  const hideRemoved = useCallback(() => setRemoved(null), []);
   const mealsId = useId();
   const vote = useVote(plan.weekStart);
   const rate = useRateRecipe();
@@ -535,11 +537,24 @@ function PlanView({
   }, [openMealFound, openMealId]);
   const userIds = users.map((user) => user.id);
   const outcomeOf = (meal: MealPlan['meals'][number]) =>
-    mealOutcome(meal.votes, userIds);
+    mealOutcome(meal, userIds);
   const coming = plan.meals.filter((meal) => !isPastMeal(meal, today));
   // Съгласуване има, докато в седмицата има ден от днес нататък.
   const agreement = voterId !== null && coming.length > 0;
   const agreed = agreement && isAgreed(plan.meals, userIds, today);
+  const counts = new Map(
+    FILTERS.map((key) => [
+      key,
+      coming.filter((meal) => outcomeOf(meal) === key).length,
+    ]),
+  );
+  // Лентата показва само филтри с ястия; при скрита лента или изпразнен филтър се вижда „Всички“, за да не остане
+  // седмицата празна. Изборът не се пренаписва: изгледът винаги се извежда от него и от броя.
+  const shownFilters = FILTERS.filter((key) => (counts.get(key) ?? 0) > 0);
+  const filter: Filter =
+    agreement && !agreed && chosen !== 'all' && shownFilters.includes(chosen)
+      ? chosen
+      : 'all';
   // Минали дни на текущата седмица: сгънати в един ред, за да не избутват днешния надолу.
   const past = plan.meals.filter((meal) => isPastMeal(meal, today));
   // Само на телефона с действащ потребител; kiosk и TV показват цялата седмица.
@@ -586,23 +601,21 @@ function PlanView({
       )}
       {agreement && !agreed && (
         <div className="menu__filters" role="tablist" aria-label="Филтър">
-          {(['all', ...FILTERS] as const).map((key) => (
+          {(['all', ...shownFilters] as const).map((key) => (
             <button
               key={key}
               type="button"
               role="tab"
               className="chip menu__filter"
               aria-selected={filter === key}
-              onClick={() => setFilter(key)}
+              onClick={() => setChosen(key)}
             >
               {key === 'all' ? (
                 'Всички'
               ) : (
                 <>
                   {OUTCOME_LABELS[key]}{' '}
-                  <span className="menu__filter-count">
-                    {coming.filter((meal) => outcomeOf(meal) === key).length}
-                  </span>
+                  <span className="menu__filter-count">{counts.get(key)}</span>
                 </>
               )}
             </button>
@@ -666,9 +679,15 @@ function PlanView({
           today={today}
           readOnly={readOnly}
           {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
+          onRecipeRemoved={setRemoved}
           onClose={() => onOpenMeal(null)}
         />
       )}
+      <RemovedRecipeToast
+        removed={removed}
+        weekStart={plan.weekStart}
+        onDone={hideRemoved}
+      />
     </>
   );
 }

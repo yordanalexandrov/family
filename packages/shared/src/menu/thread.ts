@@ -1,40 +1,33 @@
 import type { DateKey } from '../dashboard/time.js';
-import { weekdayOf } from './week.js';
+import { weekdayName } from './week.js';
 
 /**
  * What a system line of a meal's thread (GLOSSARY: Разговор) records. `replaced`: the recipe or the note changed;
- * `from` and `to` are the meal's titles (`mealTitle`), `null` for an empty meal. `moved`: the meal swapped days with
- * another of its week.
+ * `from` and `to` are the meal's titles (`mealTitle`), `null` for an empty meal. `swapped`: the meal swapped days with
+ * another of its week; `date` is its day before the swap, `otherDate` the other meal's. Never stored: only the line's
+ * text (`systemLine`) is.
  */
 export type ThreadEvent =
   | { type: 'replaced'; from: string | null; to: string | null }
-  | { type: 'moved'; fromDate: DateKey; toDate: DateKey };
+  | { type: 'swapped'; date: DateKey; otherDate: DateKey };
 
-/** Weekday names, Monday first, in the form „от вторник на сряда“ takes. */
-const WEEKDAYS = [
-  'понеделник',
-  'вторник',
-  'сряда',
-  'четвъртък',
-  'петък',
-  'събота',
-  'неделя',
-] as const;
+/** How a `swapped` line starts; no `replaced` template starts so. */
+const SWAP_LEAD = 'размени ';
 
-function weekdayName(key: DateKey): string {
-  return WEEKDAYS[weekdayOf(key)] ?? key;
-}
-
-/** How a `moved` line starts; no `replaced` template starts so. */
-const MOVED_LEAD = 'премести ';
+/** How a line of the former one-way move, written before „Размени с“ (#157), starts; such lines stay in older threads. */
+const MOVE_LEAD = 'премести ';
 
 /**
  * The body of a system line, without its author: the screen puts the author's name in front („Поли смени „Мусака“ →
- * „Пиле с ориз““). Fixed templates, so the line reads the same wherever it is shown.
+ * „Пиле с ориз““, „Дани размени понеделник и неделя“). Fixed templates, so the line reads the same wherever it is
+ * shown; a swap names the earlier day first, so both meals' threads get the same line.
  */
 export function systemLine(event: ThreadEvent): string {
-  if (event.type === 'moved') {
-    return `${MOVED_LEAD}от ${weekdayName(event.fromDate)} на ${weekdayName(event.toDate)}`;
+  if (event.type === 'swapped') {
+    const { date, otherDate } = event;
+    const [first, second] =
+      date < otherDate ? [date, otherDate] : [otherDate, date];
+    return `${SWAP_LEAD}${weekdayName(first)} и ${weekdayName(second)}`;
   }
   if (event.from === null) {
     return `избра „${event.to ?? ''}“`;
@@ -46,9 +39,9 @@ export function systemLine(event: ThreadEvent): string {
 }
 
 /**
- * Whether a system line's `body` records a `moved` event (the meal only changed days), not a `replaced` one. The
- * line keeps only its text, so this reads it back from the fixed template.
+ * Whether a system line's `body` records that the meal only changed days (a `swapped` event, or a move from before
+ * #157), not a `replaced` one. The line keeps only its text, so this reads it back from the fixed template.
  */
 export function isMovedLine(body: string): boolean {
-  return body.startsWith(MOVED_LEAD);
+  return body.startsWith(SWAP_LEAD) || body.startsWith(MOVE_LEAD);
 }

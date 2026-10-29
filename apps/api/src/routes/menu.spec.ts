@@ -152,6 +152,15 @@ async function finished(id: string, target = app, timeoutMs = 5_000) {
 }
 
 /** A plan for the fixture's week the way the agent made it. */
+/**
+ * Gives `meal` a note, so it is not an empty day (GLOSSARY: Ястие) and can be voted on, and takes back the up vote of
+ * the one who wrote it, so the meal starts without votes.
+ */
+async function withNote(meal: { id: string }, note = 'остатъци') {
+  expect((await patchMeal(meal.id, { note })).statusCode).toBe(200);
+  expect((await vote(meal.id, null)).statusCode).toBe(200);
+}
+
 async function proposedPlan() {
   const proposal = await propose({ weekStart: WEEK });
   expect(await finished(proposal.id)).toMatchObject({ status: 'done' });
@@ -514,7 +523,7 @@ describe('votes', () => {
   it('puts, changes and takes back the acting user’s vote, and returns the meal with all votes', async () => {
     const plan = await createPlan(WEEK);
     const [monday] = plan.meals;
-    expect(monday.votes).toEqual([]);
+    await withNote(monday);
 
     const up = await vote(monday.id, 'up');
     const poli = await vote(monday.id, 'down', POLI.id);
@@ -584,6 +593,8 @@ describe('votes', () => {
     clock = new Date('2026-10-27T08:00:00Z');
     const plan = await createPlan(THIS_WEEK);
     const [monday, tuesday, wednesday] = plan.meals;
+    await withNote(tuesday);
+    await withNote(wednesday);
     await vote(tuesday.id, 'up');
     // Wednesday 28 October, 00:30 in Sofia: Tuesday is now past.
     clock = new Date('2026-10-27T22:30:00Z');
@@ -603,6 +614,7 @@ describe('votes', () => {
 
   it('signals only menu.changed for the week of the meal: a vote does not change the shopping list', async () => {
     const plan = await createPlan(WEEK);
+    await withNote(plan.meals[0]);
     const signals: ServerEvent[] = [];
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
 
@@ -683,10 +695,43 @@ describe('votes', () => {
     });
   });
 
+  it('answers 409 empty_meal for a vote on a day without a recipe and a note, and stores no vote', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+
+    const put = await vote(monday.id, 'up');
+    const back = await vote(monday.id, null);
+
+    expect(put.statusCode).toBe(409);
+    expect(put.json()).toMatchObject({ error: 'conflict', code: 'empty_meal' });
+    expect(back.statusCode).toBe(200);
+    expect(await testDb().select().from(mealVote)).toEqual([]);
+  });
+
+  it('a meal made empty drops all its votes, the remover’s too', async () => {
+    const plan = await proposedPlan();
+    const [monday] = plan.meals;
+    await vote(monday.id, 'up');
+    await vote(monday.id, 'up', POLI.id);
+
+    const removed = await patchMeal(monday.id, { recipeId: null }, POLI.id);
+
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().meal).toMatchObject({
+      recipeId: null,
+      note: null,
+      votes: [],
+    });
+    expect((await getPlan(WEEK)).json().plan.meals[0].votes).toEqual([]);
+  });
+
   it('go with the plan when it is deleted', async () => {
     const plan = await createPlan(WEEK);
+    await withNote(plan.meals[0]);
+    await withNote(plan.meals[1]);
     await vote(plan.meals[0].id, 'up');
     await vote(plan.meals[1].id, 'down', POLI.id);
+    expect(await testDb().select().from(mealVote)).toHaveLength(2);
 
     const response = await inject('DELETE', `/api/menu/plans/${plan.id}`);
 
@@ -949,14 +994,14 @@ describe('POST /api/menu/meals/:id/swap', () => {
       expect.objectContaining({
         kind: 'system',
         authorUserId: POLI.id,
-        body: 'премести от понеделник на вторник',
+        body: 'размени понеделник и вторник',
       }),
     ]);
     expect((await thread(tuesday.id)).json().comments).toEqual([
       expect.objectContaining({
         kind: 'system',
         authorUserId: POLI.id,
-        body: 'премести от вторник на понеделник',
+        body: 'размени понеделник и вторник',
       }),
     ]);
   });

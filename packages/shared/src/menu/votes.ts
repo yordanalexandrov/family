@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { DateKey } from '../dashboard/time.js';
+import { isEmptyMeal, type MealContent } from './meal.js';
 
 /** GLOSSARY: Глас. „за“ (`up`, the meal stays) or „против“ (`down`, it is to be replaced). */
 export const voteValueSchema = z.enum(['up', 'down']);
@@ -22,11 +23,22 @@ export const MEAL_OUTCOMES = ['keep', 'replace', 'discuss', 'pending'] as const;
 
 export type MealOutcome = (typeof MEAL_OUTCOMES)[number];
 
-/** The outcome of the votes of `userIds`: both up → keep, both down → replace, one of each → discuss, else pending. */
+/** What the outcome of a meal is computed from: its content (an empty day is never `keep`) and its votes. */
+export interface VotedMeal extends MealContent {
+  votes: readonly Vote[];
+}
+
+/**
+ * The outcome of the votes of `userIds`: both up → keep, both down → replace, one of each → discuss, else pending. An
+ * empty day (GLOSSARY: Ястие, without a recipe and a note) is pending whatever its votes: there is nothing to keep.
+ */
 export function mealOutcome(
-  votes: readonly Vote[],
+  { votes, ...content }: VotedMeal,
   userIds: readonly string[],
 ): MealOutcome {
+  if (isEmptyMeal(content)) {
+    return 'pending';
+  }
   const values = userIds.map(
     (id) => votes.find((vote) => vote.userId === id)?.value,
   );
@@ -48,18 +60,22 @@ export function isPastMeal(meal: { date: DateKey }, today: DateKey): boolean {
 }
 
 /** The meals from `today` on whose outcome is not `keep` yet, in the order given. */
-export function mealsToAgree<
-  T extends { date: DateKey; votes: readonly Vote[] },
->(meals: readonly T[], userIds: readonly string[], today: DateKey): T[] {
+export function mealsToAgree<T extends VotedMeal & { date: DateKey }>(
+  meals: readonly T[],
+  userIds: readonly string[],
+  today: DateKey,
+): T[] {
   return meals.filter(
-    (meal) =>
-      !isPastMeal(meal, today) && mealOutcome(meal.votes, userIds) !== 'keep',
+    (meal) => !isPastMeal(meal, today) && mealOutcome(meal, userIds) !== 'keep',
   );
 }
 
-/** GLOSSARY: Съгласувано меню. Every meal from `today` on is `keep`; past days take no part. Computed, never stored. */
+/**
+ * GLOSSARY: Съгласувано меню. Every meal from `today` on is `keep`, so none of them is empty; past days take no part.
+ * Computed, never stored.
+ */
 export function isAgreed(
-  meals: readonly { date: DateKey; votes: readonly Vote[] }[],
+  meals: readonly (VotedMeal & { date: DateKey })[],
   userIds: readonly string[],
   today: DateKey,
 ): boolean {

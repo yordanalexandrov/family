@@ -239,9 +239,15 @@ describe('scheduler', () => {
         weekStart: '2026-11-02',
       });
       const [first] = plan.json().plan.meals;
-      await act(POLI.id, 'PUT', `/api/menu/meals/${first.id}/vote`, {
-        value: 'up',
-      });
+      // A note, so the day can be voted on (an empty one cannot), without anyone's activity.
+      await testDb().update(meal).set({ note: 'остатъци' });
+      const voted = await act(
+        POLI.id,
+        'PUT',
+        `/api/menu/meals/${first.id}/vote`,
+        { value: 'up' },
+      );
+      expect(voted.statusCode).toBe(200);
     } finally {
       await before.close();
     }

@@ -4,8 +4,16 @@ import {
   hasWeekStarted,
   isWeekStart,
   MENU_SLOTS,
+  weekdayName,
   weekStartOf,
 } from './week.js';
+
+describe('weekdayName', () => {
+  it('names Thursday and Sunday in Bulgarian', () => {
+    expect(weekdayName('2026-11-05')).toBe('четвъртък');
+    expect(weekdayName('2026-11-08')).toBe('неделя');
+  });
+});
 
 describe('weekStartOf', () => {
   it('is the Monday of a midweek day', () => {

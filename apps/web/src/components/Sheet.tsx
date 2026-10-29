@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import './Sheet.css';
+import { useSheetDrag } from './sheet-drag';
 import { useSheetHistory } from './sheet-history';
 
 interface SheetProps {
@@ -13,8 +14,9 @@ interface SheetProps {
 }
 
 /**
- * Лист отдолу на телефона, прозорец на таблета: заглавие, „Готово“, Escape и фонът го затварят. Съдържанието е в
- * `.sheet__section` (и `.sheet__row` за ред от полета). Отвореният лист е запис в историята: „назад“ го затваря.
+ * Лист отдолу на телефона, прозорец на таблета: „Готово“ в лепкавото заглавие, Escape и фонът го затварят, а на телефона
+ * и плъзгане надолу за дръжката (или съдържанието, превъртяно до горе). Съдържанието е в `.sheet__section` (и
+ * `.sheet__row` за ред от полета). Отвореният лист е запис в историята: „назад“ го затваря.
  */
 export function Sheet({
   title,
@@ -24,7 +26,9 @@ export function Sheet({
   closeLabel = 'Готово',
 }: SheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   useSheetHistory(onClose);
+  useSheetDrag(panelRef, onClose);
   useEffect(() => {
     closeRef.current?.focus();
     function onKey(event: KeyboardEvent) {
@@ -46,12 +50,14 @@ export function Sheet({
         onClick={onClose}
       />
       <section
+        ref={panelRef}
         className="sheet__panel"
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
         <header className="sheet__header">
+          <span className="sheet__handle" aria-hidden="true" />
           <h2 className="sheet__title">{title}</h2>
           {!hideClose && (
             <button

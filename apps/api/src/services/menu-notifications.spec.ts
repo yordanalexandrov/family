@@ -14,7 +14,9 @@ import {
   it,
   vi,
 } from 'vitest';
+import { meal } from '../db/schema/menu.js';
 import { buildTestApp } from '../test/app.js';
+import { testDb } from '../test/db.js';
 import { seedFixtureRecipes } from '../test/menu.js';
 import {
   CHAT_COMPLETIONS_URL,
@@ -81,8 +83,11 @@ async function subscribe(user: User) {
   expect(response.statusCode).toBe(204);
 }
 
-/** An empty plan for `WEEK`; answers the ids of its meals, Monday first. */
-async function emptyPlan(): Promise<string[]> {
+/**
+ * A plan for `WEEK` with a note on every day, so each can be voted on (an empty day cannot), and no activity yet: the
+ * notes are written to the database, not by anyone. Answers the ids of its meals, Monday first.
+ */
+async function notedPlan(): Promise<string[]> {
   const response = await app.inject({
     method: 'POST',
     url: '/api/menu/plans',
@@ -90,7 +95,8 @@ async function emptyPlan(): Promise<string[]> {
     payload: { weekStart: WEEK },
   });
   expect(response.statusCode).toBe(201);
-  return response.json().plan.meals.map((meal: { id: string }) => meal.id);
+  await testDb().update(meal).set({ note: 'остатъци' });
+  return response.json().plan.meals.map((row: { id: string }) => row.id);
 }
 
 async function vote(user: User, mealId: string) {
@@ -139,7 +145,7 @@ function received() {
 
 describe('menu activity (GLOSSARY: Известие от Съгласуването)', () => {
   it('gathers the other’s actions into one notification, 10 minutes after the last one', async () => {
-    const [monday = '', tuesday = '', wednesday = ''] = await emptyPlan();
+    const [monday = '', tuesday = '', wednesday = ''] = await notedPlan();
     await vote(POLI, monday);
     await vote(POLI, tuesday);
     later(1);
@@ -173,7 +179,7 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
   });
 
   it('waits again when the other acts before the 10 minutes are over', async () => {
-    const [monday = ''] = await emptyPlan();
+    const [monday = ''] = await notedPlan();
     await vote(POLI, monday);
     later(8);
     await comment(POLI, monday);
@@ -193,7 +199,7 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
   });
 
   it('never tells the one who acted, only the other', async () => {
-    const [monday = '', tuesday = ''] = await emptyPlan();
+    const [monday = '', tuesday = ''] = await notedPlan();
     await vote(DANI, monday);
     await comment(DANI, monday);
     await change(DANI, monday);
@@ -215,7 +221,7 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
   });
 
   it('counts a swap of two days as one change', async () => {
-    const [monday = '', tuesday = ''] = await emptyPlan();
+    const [monday = '', tuesday = ''] = await notedPlan();
     const response = await app.inject({
       method: 'POST',
       url: `/api/menu/meals/${monday}/swap`,
@@ -236,7 +242,7 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
   });
 
   it('does not count a vote taken back, nor a new cook', async () => {
-    const [monday = ''] = await emptyPlan();
+    const [monday = ''] = await notedPlan();
     for (const request of [
       { method: 'DELETE' as const, url: `/api/menu/meals/${monday}/vote` },
       {
@@ -263,7 +269,7 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
       payload: { settings: { thaw: true, cook: true, menu: false } },
     });
     expect(off.statusCode).toBe(200);
-    const [monday = ''] = await emptyPlan();
+    const [monday = ''] = await notedPlan();
     await vote(POLI, monday);
 
     later(10);

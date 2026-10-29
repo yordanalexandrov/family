@@ -1,14 +1,17 @@
 import {
   addDays,
   type DateKey,
+  isEmptyMeal,
   isPastMeal,
   MEAL_NOTE_MAX,
   type Meal,
   type MealPlan,
   mealOutcome,
+  mealTitle,
   type UpdateMeal,
   type User,
   type VoteValue,
+  weekdayName,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
@@ -16,6 +19,7 @@ import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
+import { Toast } from '../../components/Toast';
 import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
@@ -37,13 +41,16 @@ interface MealSheetProps {
   /** Действащият потребител, който гласува; без него листът е без гласове. */
   voterId?: string;
   onVote?: (meal: Meal, value: VoteValue | null) => void;
+  /** „Махни ястието от деня“ е минало: екранът показва toast-а с „Върни“, който остава и след затварянето на листа. */
+  onRecipeRemoved: (removed: RemovedRecipe) => void;
   onClose: () => void;
 }
 
 /**
- * Листът на едно ястие: отгоре гласовете на двамата и разговорът, после връзка към рецептата, „Избери сам“ (изборът
- * от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
+ * Листът на едно ястие: отгоре цялото заглавие и „защо“ (редът ги съкращава), гласовете на двамата и разговорът, после
+ * връзка към рецептата, „Избери сам“ (изборът от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
  * готвачът и порциите се сменят; разговорът му се чете, но не се пише. В минала седмица (`readOnly`) не се сменят и те.
+ * Празен ден (без рецепта и бележка) е без гласове: чака ястие. Махнатата рецепта отива в `onRecipeRemoved`, за „Върни“.
  */
 export function MealSheet({
   meal,
@@ -53,37 +60,65 @@ export function MealSheet({
   readOnly = false,
   voterId,
   onVote,
+  onRecipeRemoved,
   onClose,
 }: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
   const day = formatDayLong(meal.date);
+  const title = mealTitle(meal);
   const past = readOnly || isPastMeal(meal, today);
+  // Празен ден чака ястие, не глас: без чиповете на гласовете и без моите 👎/👍.
+  const empty = isEmptyMeal(meal);
   const [picking, setPicking] = useState(false);
 
   function patch(change: UpdateMeal) {
     update.mutate({ id: meal.id, patch: change });
   }
 
+  function removeRecipe() {
+    if (meal.recipeId === null) {
+      return;
+    }
+    const before: RemovedRecipe = {
+      mealId: meal.id,
+      date: meal.date,
+      recipeId: meal.recipeId,
+      why: meal.why,
+      title: title ?? '',
+    };
+    update.mutate(
+      { id: meal.id, patch: { recipeId: null } },
+      { onSuccess: () => onRecipeRemoved(before) },
+    );
+  }
+
   return (
     <Sheet title={day} onClose={onClose}>
       {update.isError && <ErrorBox error={update.error} />}
-      {voterId && (
+      {(title || meal.why) && (
+        <div className="sheet__section meal-sheet__head">
+          {title && <h3 className="meal-sheet__title">{title}</h3>}
+          {meal.why && <p className="meal-sheet__why">{meal.why}</p>}
+        </div>
+      )}
+      {voterId && !(past && empty) && (
         <fieldset className="sheet__section meal-votes" aria-label="Гласове">
           <legend className="field__label">Гласове</legend>
           <div className="meal-votes__people">
-            {users.map((user) => (
-              <PersonVote key={user.id} meal={meal} user={user} showName />
-            ))}
+            {!empty &&
+              users.map((user) => (
+                <PersonVote key={user.id} meal={meal} user={user} />
+              ))}
             {!past && (
               <OutcomeLabel
                 outcome={mealOutcome(
-                  meal.votes,
+                  meal,
                   users.map((user) => user.id),
                 )}
               />
             )}
           </div>
-          {!past && onVote && (
+          {!past && !empty && onVote && (
             <MyVote
               meal={meal}
               userId={voterId}
@@ -122,7 +157,12 @@ export function MealSheet({
       ) : (
         <>
           {picking ? (
-            <RecipePicker meal={meal} plan={plan} onPick={patch} />
+            <RecipePicker
+              meal={meal}
+              plan={plan}
+              onPick={patch}
+              onRemove={removeRecipe}
+            />
           ) : (
             <div className="sheet__section">
               <button
@@ -156,14 +196,68 @@ export function MealSheet({
   );
 }
 
+/** Рецептата, която „Махни ястието от деня“ е махнало, за „Върни“: с „защо“-то ѝ, ако е имала. */
+export interface RemovedRecipe {
+  mealId: string;
+  date: DateKey;
+  recipeId: string;
+  why: string | null;
+  title: string;
+}
+
+/**
+ * „„Мусака“ е махнато от четвъртък“ с „Върни“, което връща рецептата (и „защо“-то ѝ). Живее в екрана, не в листа:
+ * затварянето на листа веднага след махането не губи „Върни“.
+ */
+export function RemovedRecipeToast({
+  removed,
+  weekStart,
+  onDone,
+}: {
+  removed: RemovedRecipe | null;
+  weekStart: DateKey;
+  onDone: () => void;
+}) {
+  const update = useUpdateMeal(weekStart);
+  return (
+    <>
+      {update.isError && <ErrorBox error={update.error} />}
+      <Toast
+        message={
+          removed &&
+          `„${removed.title}“ е махнато от ${weekdayName(removed.date)}`
+        }
+        onDone={onDone}
+        undo={
+          removed
+            ? () =>
+                update.mutate({
+                  id: removed.mealId,
+                  patch: {
+                    recipeId: removed.recipeId,
+                    ...(removed.why ? { why: removed.why } : {}),
+                  },
+                })
+            : undefined
+        }
+      />
+    </>
+  );
+}
+
 interface PickerProps {
   meal: Meal;
   plan: MealPlan;
   onPick: (change: UpdateMeal) => void;
+  /** „Махни ястието от деня“: рецептата отпада, денят остава с бележката си или празен. */
+  onRemove: () => void;
 }
 
-/** Търсене сред вечерните рецепти с маркери „в тази седмица“ и „последните 2 седмици“. */
-function RecipePicker({ meal, plan, onPick }: PickerProps) {
+/**
+ * Търсене сред вечерните рецепти с маркери „в тази седмица“ и „последните 2 седмици“; под резултатите, отделно от
+ * тях, „Махни ястието от деня“, за да не се маха ястие случайно с един допир по списъка.
+ */
+function RecipePicker({ meal, plan, onPick, onRemove }: PickerProps) {
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
   const recipes = useRecipes({ tags: ['dinner'], ...(q ? { q } : {}) });
@@ -194,17 +288,6 @@ function RecipePicker({ meal, plan, onPick }: PickerProps) {
         />
       ) : (
         <ul className="recipe-picker" aria-label="Вечерни рецепти">
-          {meal.recipeId !== null && (
-            <li>
-              <button
-                type="button"
-                className="recipe-picker__option"
-                onClick={() => onPick({ recipeId: null })}
-              >
-                Без рецепта
-              </button>
-            </li>
-          )}
           {recipes.data.map((recipe) => (
             <li key={recipe.id}>
               <button
@@ -229,6 +312,15 @@ function RecipePicker({ meal, plan, onPick }: PickerProps) {
             <li className="recipe-picker__empty">Няма такава рецепта.</li>
           )}
         </ul>
+      )}
+      {meal.recipeId !== null && (
+        <button
+          type="button"
+          className="button button--quiet recipe-picker__remove"
+          onClick={onRemove}
+        >
+          Махни ястието от деня
+        </button>
       )}
     </fieldset>
   );

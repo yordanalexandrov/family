@@ -15,9 +15,12 @@ import { renderApp, setUpDevice } from '../../test/render';
 
 const [chicken, , moussaka] = dinnerRecipes;
 
-/** Мусака в четвъртък и пиле в петък; понеделник и вторник са минали (`fixtureNow` е сряда). */
+/**
+ * Мусака в четвъртък, пиле в петък и бележка в събота; понеделник и вторник са минали (`fixtureNow` е сряда).
+ */
 function planWithMoussaka() {
   return planFor(thisWeek, {
+    5: { note: 'на гости у Иванови' },
     3: {
       recipeId: moussaka.id,
       recipe: { title: moussaka.title, archivedAt: null, rating: null },
@@ -66,7 +69,7 @@ function rowNames() {
     .map((item) => item.textContent ?? '');
 }
 
-describe('MealSheet: „Премести на…“', () => {
+describe('MealSheet: „Размени с…“', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(fixtureNow);
@@ -77,7 +80,7 @@ describe('MealSheet: „Премести на…“', () => {
     vi.useRealTimers();
   });
 
-  it('предлага само дните от днес нататък без текущия и разменя ястието с избрания ден', async () => {
+  it('предлага само дните от днес нататък без текущия, всеки с ястието си, и разменя ястието с избрания ден', async () => {
     const plan = planWithMoussaka();
     const [, , , thursday, friday] = plan.meals;
     servePlans({ [thisWeek]: plan });
@@ -89,19 +92,17 @@ describe('MealSheet: „Премести на…“', () => {
 
     await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
-    await user.click(
-      within(sheet).getByRole('button', { name: 'Премести на…' }),
-    );
-    const days = within(sheet).getByRole('group', { name: 'Премести на' });
+    await user.click(within(sheet).getByRole('button', { name: 'Размени с…' }));
+    const days = within(sheet).getByRole('group', { name: 'Размени с' });
     expect(
       within(days)
         .getAllByRole('button')
         .map((button) => button.textContent),
     ).toEqual([
-      expect.stringMatching(/^сряда/),
-      expect.stringMatching(/^петък/),
-      expect.stringMatching(/^събота/),
-      expect.stringMatching(/^неделя/),
+      'сряда, 4 ноември празно',
+      'петък, 6 ноември Пиле с ориз',
+      'събота, 7 ноември на гости у Иванови',
+      'неделя, 8 ноември празно',
     ]);
     await user.click(within(days).getByRole('button', { name: /петък/ }));
 
@@ -137,19 +138,17 @@ describe('MealSheet: „Премести на…“', () => {
 
     await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
-    await user.click(
-      within(sheet).getByRole('button', { name: 'Премести на…' }),
-    );
-    await user.click(within(sheet).getByRole('button', { name: /събота/ }));
+    await user.click(within(sheet).getByRole('button', { name: 'Размени с…' }));
+    await user.click(within(sheet).getByRole('button', { name: /неделя/ }));
 
     expect(await within(sheet).findByRole('alert')).toHaveTextContent(
       'Денят е минал',
     );
     expect(rowNames()[3]).toMatch(/Мусака/);
-    expect(rowNames()[5]).not.toMatch(/Мусака/);
+    expect(rowNames()[6]).not.toMatch(/Мусака/);
   });
 
-  it('минал ден няма „Премести на…“', async () => {
+  it('минал ден няма „Размени с…“', async () => {
     const plan = planFor(thisWeek, {
       0: {
         recipeId: chicken.id,
@@ -166,7 +165,7 @@ describe('MealSheet: „Премести на…“', () => {
     const sheet = screen.getByRole('dialog', { name: /понеделник/ });
 
     expect(
-      within(sheet).queryByRole('button', { name: 'Премести на…' }),
+      within(sheet).queryByRole('button', { name: 'Размени с…' }),
     ).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import {
   dateKeyInSofia,
   daysOfWeek,
   hasWeekStarted,
+  isEmptyMeal,
   isPastMeal,
   MENU_PROPOSE_MIN_RECIPES,
   MENU_SLOTS,
@@ -87,6 +88,8 @@ const WEEK_HAS_PLAN = 'Седмицата вече има меню';
 const WEEK_HAS_PENDING = 'За седмицата вече се подготвя предложение';
 const PAST_MEAL = 'Денят е минал: ястието вече не се гласува и не се сменя';
 const NO_SUCH_COMMENT = 'Няма такъв коментар';
+const EMPTY_MEAL = 'Денят е празен: първо избери ястие, после се гласува';
+
 const PAST_MEAL_THREAD = 'Денят е минал: в разговора вече не се пише';
 const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
 const SYSTEM_LINE = 'Редовете за промените не се трият';
@@ -406,6 +409,9 @@ export function createMenuService({
           throw new NotFoundError(NO_SUCH_MEAL);
         }
         refusePastMeal(current, now());
+        if (value !== null && isEmptyMeal(current)) {
+          throw refuse('empty_meal', EMPTY_MEAL);
+        }
         if (value === null) {
           await deleteVote(tx, id, actingUserId);
         } else {
@@ -441,16 +447,16 @@ export function createMenuService({
         refusePastMeal(b, now());
         const at = now();
         await swapMealDates(tx, a, b, at);
-        const moved = (from: Meal, to: Meal) =>
+        const swapped = (meal: Meal, other: Meal) =>
           writeSystemLine(
             tx,
-            from.id,
+            meal.id,
             actingUserId,
-            { type: 'moved', fromDate: from.date, toDate: to.date },
+            { type: 'swapped', date: meal.date, otherDate: other.date },
             at,
           );
-        await moved(a, b);
-        await moved(b, a);
+        await swapped(a, b);
+        await swapped(b, a);
         const weekStart = await weekOf(tx, a.planId);
         await addMenuActivity(tx, weekStart, actingUserId, 'swaps', at);
         const plan = await findPlanByWeek(tx, weekStart);
@@ -645,7 +651,8 @@ export function writeSystemLine(
 /**
  * What follows a new recipe or note of a meal, in the transaction that wrote it (GLOSSARY: Глас, Разговор): the
  * others' votes are dropped, `actingUserId` votes up, and the thread gets a `replaced` line from `before`'s title to
- * the meal's title now. The caller has refused a past meal and written the new content.
+ * the meal's title now. A meal made empty keeps no vote at all, not even the remover's: there is nothing to vote on.
+ * The caller has refused a past meal and written the new content.
  */
 export async function recordContentChange(
   tx: DbExecutor,
@@ -658,7 +665,11 @@ export async function recordContentChange(
     throw new Error('meal vanished in its own transaction');
   }
   await deleteOtherVotes(tx, before.id, actingUserId);
-  await upsertVote(tx, before.id, actingUserId, 'up', at);
+  if (isEmptyMeal(after)) {
+    await deleteVote(tx, before.id, actingUserId);
+  } else {
+    await upsertVote(tx, before.id, actingUserId, 'up', at);
+  }
   await writeSystemLine(
     tx,
     before.id,

@@ -3,11 +3,13 @@ import {
   isPastMeal,
   type Meal,
   type MealPlan,
+  mealTitle,
 } from '@family/shared';
 import { useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { formatDayLong } from '../../lib/format';
 import { useSwapMeals } from './queries';
+import './MoveMeal.css';
 
 interface MoveMealProps {
   meal: Meal;
@@ -16,8 +18,9 @@ interface MoveMealProps {
 }
 
 /**
- * „Премести на…“ в листа на ястието: избор на ден от днес нататък (без текущия), с чието ястие това разменя дните си.
- * Пътят с клавиатура и екранен четец за влаченето на редовете.
+ * „Размени с…“ в листа на ястието: избор на ден от днес нататък (без текущия), с чието ястие това разменя дните си.
+ * Всеки чип показва датата и под нея ястието на деня (или „празно“), за да се види с какво е размяната. Пътят с
+ * клавиатура и екранен четец за влаченето на редовете.
  */
 export function MoveMeal({ meal, plan, today }: MoveMealProps) {
   const [choosing, setChoosing] = useState(false);
@@ -33,14 +36,14 @@ export function MoveMeal({ meal, plan, today }: MoveMealProps) {
     <>
       {swap.isError && <ErrorBox error={swap.error} />}
       {choosing ? (
-        <fieldset className="sheet__section" aria-label="Премести на">
-          <legend className="field__label">Премести на</legend>
+        <fieldset className="sheet__section" aria-label="Размени с">
+          <legend className="field__label">Размени с</legend>
           <div className="chips">
             {targets.map((target) => (
               <button
                 key={target.id}
                 type="button"
-                className="chip"
+                className="chip move-meal__chip"
                 disabled={swap.isPending}
                 onClick={() =>
                   swap.mutate(
@@ -49,7 +52,10 @@ export function MoveMeal({ meal, plan, today }: MoveMealProps) {
                   )
                 }
               >
-                {formatDayLong(target.date)}
+                <span>{formatDayLong(target.date)}</span>{' '}
+                <span className="move-meal__dish">
+                  {mealTitle(target) ?? 'празно'}
+                </span>
               </button>
             ))}
           </div>
@@ -61,7 +67,7 @@ export function MoveMeal({ meal, plan, today }: MoveMealProps) {
             className="button button--quiet"
             onClick={() => setChoosing(true)}
           >
-            Премести на…
+            Размени с…
           </button>
         </div>
       )}
