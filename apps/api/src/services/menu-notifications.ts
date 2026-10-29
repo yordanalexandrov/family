@@ -2,6 +2,7 @@ import {
   addDays,
   type DateKey,
   type MenuProposalRequest,
+  withHint,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
@@ -70,9 +71,12 @@ export interface MenuNotifications {
    * one notification per week, and forgets them. Run by the cron's `reminders` job.
    */
   sendQuietActivity(): Promise<void>;
-  /** „Ново предложение за меню“ to everyone but the one who asked for it (all of them for the cron's). Never rejects. */
+  /**
+   * „Ново предложение за меню“ to everyone but the one who asked for it (all of them for the cron's): „Дани предложи
+   * меню за 2–8 ноември · „<подсказка>““, or „Ново меню за 2–8 ноември“ for the cron's. Never rejects.
+   */
   proposed(
-    proposal: Pick<MenuProposalRequest, 'weekStart' | 'requestedBy'>,
+    proposal: Pick<MenuProposalRequest, 'weekStart' | 'requestedBy' | 'hint'>,
   ): Promise<void>;
 }
 
@@ -111,14 +115,19 @@ export function createMenuNotifications({
       }
     },
 
-    async proposed({ weekStart, requestedBy }) {
+    async proposed({ weekStart, requestedBy, hint }) {
       try {
+        const users = await listUsers(db);
+        const requester = users.find((user) => user.id === requestedBy);
+        const what = requester
+          ? `${requester.name} предложи меню за ${weekRange(weekStart)}`
+          : `Ново меню за ${weekRange(weekStart)}`;
         const message: PushMessage = {
           title: 'Ново предложение за меню',
-          body: `За ${weekRange(weekStart)}`,
+          body: withHint(what, hint),
           ...ofWeek(weekStart),
         };
-        for (const user of await listUsers(db)) {
+        for (const user of users) {
           if (user.id !== requestedBy) {
             await push.send(user.id, 'menu', message);
           }

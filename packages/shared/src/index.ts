@@ -42,3 +42,5 @@ export * from './schemas/sync.js';
 export * from './schemas/user.js';
 export * from './shopping/build.js';
 export * from './shopping/item-key.js';
+export * from './text/hint.js';
+export * from './text/lines.js';

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
+import { searchedLabel } from './messages';
 import {
   paramsOf,
   useRequestSuggestions,
@@ -45,6 +46,7 @@ function RequestResult({ detail }: { detail: SuggestionRequestDetail }) {
       <div className="suggestions__waiting">
         <Spinner label="Изчакване…" />
         <p>Търся рецепти… обикновено отнема до минута</p>
+        <p className="suggestions__searched">{searchedLabel(request)}</p>
       </div>
     );
   }
@@ -70,8 +72,9 @@ function RequestFailed({ detail }: { detail: SuggestionRequestDetail }) {
     <>
       <div className="error-box" role="alert">
         <p className="error-box__message">
-          {failureMessage(detail.request.error)}
+          {failureMessage('suggest', detail.request)}
         </p>
+        <p className="suggestions__searched">{searchedLabel(detail.request)}</p>
         <button
           type="button"
           className="button"

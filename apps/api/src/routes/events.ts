@@ -10,7 +10,7 @@ function message(event: ServerEvent): string {
 }
 
 /**
- * `GET /api/events`: Server-Sent Events with change signals only (`menu.changed`, `shopping.changed`); the client
+ * `GET /api/events`: Server-Sent Events with change signals only (`menu.changed`, `menu.proposal.changed`, `shopping.changed`); the client
  * reloads the data through the REST routes. No acting user, since `EventSource` sends no headers and the signals carry
  * no personal data; Cloudflare Access applies as everywhere. A `: ping` comment every 25 s keeps the connection open.
  */

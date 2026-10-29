@@ -1116,21 +1116,56 @@ describe('POST /api/menu/proposals', () => {
     }
   });
 
-  it('signals menu.changed and shopping.changed for the week once the proposed plan is made', async () => {
+  it('signals the proposal of the week when it is asked for, and the plan with it once it is made', async () => {
     const signals: ServerEvent[] = [];
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
 
     const proposal = await propose({ weekStart: WEEK });
-    expect(signals).toEqual([]);
+    expect(signals).toEqual([
+      { type: 'menu.proposal.changed', weekStart: WEEK },
+    ]);
     await finished(proposal.id);
 
     await vi.waitFor(() =>
       expect(signals).toEqual([
+        { type: 'menu.proposal.changed', weekStart: WEEK },
+        { type: 'menu.proposal.changed', weekStart: WEEK },
         { type: 'menu.changed', weekStart: WEEK },
         { type: 'shopping.changed', weekStart: WEEK },
       ]),
     );
     unsubscribe();
+  });
+
+  it('signals only the proposal of the week when it fails: there is no plan', async () => {
+    answerInTurn('not json', 'not json');
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const proposal = await propose({ weekStart: WEEK });
+    expect(await finished(proposal.id)).toMatchObject({ status: 'failed' });
+
+    await vi.waitFor(() =>
+      expect(signals).toEqual([
+        { type: 'menu.proposal.changed', weekStart: WEEK },
+        { type: 'menu.proposal.changed', weekStart: WEEK },
+      ]),
+    );
+    unsubscribe();
+  });
+
+  it('signals nothing when the proposal is refused', async () => {
+    await createPlan(WEEK);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const response = await inject('POST', '/api/menu/proposals', {
+      weekStart: WEEK,
+    });
+    unsubscribe();
+
+    expect(response.statusCode).toBe(409);
+    expect(signals).toEqual([]);
   });
 
   it('sends the agent the dinner registry with ratings and last served dates, and the use-up products', async () => {

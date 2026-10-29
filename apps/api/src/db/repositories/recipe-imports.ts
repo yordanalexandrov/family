@@ -1,7 +1,9 @@
 import {
   type AlreadyImported,
+  IMPORT_FIRST_LINE_MAX,
   type ImportedSuggestion,
   type NormalizedRecipe,
+  nonEmptyLines,
   normalizeSourceUrl,
   type RecipeImportParams,
   type RecipeImportRequest,
@@ -37,7 +39,18 @@ type RequestWithSuggestion = RequestRow & {
   title: string | null;
 };
 
-/** API shape of an import: DB nulls of optional fields become absent, dates ISO strings; the source text stays here. */
+/** The first non-empty line of pasted text, trimmed and cut to `IMPORT_FIRST_LINE_MAX`; none for empty text. */
+function firstLineOf(text: string | null): string | undefined {
+  const line = text === null ? undefined : nonEmptyLines(text)[0];
+  return line === undefined
+    ? undefined
+    : [...line].slice(0, IMPORT_FIRST_LINE_MAX).join('');
+}
+
+/**
+ * API shape of an import: DB nulls of optional fields become absent, dates ISO strings; of the source text only its
+ * first line goes out.
+ */
 function toRequest(row: RequestWithSuggestion): RecipeImportRequest {
   return {
     id: row.id,
@@ -51,6 +64,7 @@ function toRequest(row: RequestWithSuggestion): RecipeImportRequest {
     suggestionId: row.suggestionId ?? undefined,
     title: row.title ?? undefined,
     noResults: row.noResults ?? undefined,
+    firstLine: firstLineOf(row.text),
   };
 }
 

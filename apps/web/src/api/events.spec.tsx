@@ -1,48 +1,17 @@
-import type { ServerEvent } from '@family/shared';
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { nextWeek, planFor, servePlans, thisWeek } from '../test/menu';
-import { dani, fixtureNow } from '../test/msw';
+import { MockEventSource, source } from '../test/events';
+import {
+  nextWeek,
+  pendingProposal,
+  planFor,
+  servePlans,
+  serveWeekProposal,
+  thisWeek,
+} from '../test/menu';
+import { dani, fixtureNow, poli } from '../test/msw';
 import { renderApp, setUpDevice } from '../test/render';
 import { serveShopping, shoppingList } from '../test/shopping';
-
-/** `EventSource` без мрежа: тестът отваря връзката и праща събития като api-то. */
-class MockEventSource extends EventTarget {
-  static instances: MockEventSource[] = [];
-  readonly url: string;
-  closed = false;
-
-  constructor(url: string) {
-    super();
-    this.url = url;
-    MockEventSource.instances.push(this);
-  }
-
-  close() {
-    this.closed = true;
-  }
-
-  open() {
-    this.dispatchEvent(new Event('open'));
-  }
-
-  error() {
-    this.dispatchEvent(new Event('error'));
-  }
-
-  send(event: ServerEvent) {
-    this.dispatchEvent(
-      new MessageEvent(event.type, { data: JSON.stringify(event) }),
-    );
-  }
-}
-
-/** Единствената отворена връзка на приложението. */
-function source(): MockEventSource {
-  const open = MockEventSource.instances.filter((s) => !s.closed);
-  expect(open).toHaveLength(1);
-  return open[0] as MockEventSource;
-}
 
 /** Заявките, получени след `from`. */
 function since<T>(requests: T[], from: number): T[] {
@@ -83,6 +52,21 @@ describe('useServerEvents', () => {
     act(() => source().send({ type: 'menu.changed', weekStart: thisWeek }));
 
     await vi.waitFor(() => expect(since(asked, before)).toEqual([thisWeek]));
+  });
+
+  it('menu.proposal.changed показва чакащото предложение на другия, без да се чака следващо питане', async () => {
+    setUpDevice('phone', poli.id);
+    servePlans();
+    renderApp('/menu');
+    await screen.findByRole('button', { name: 'Предложи меню' });
+    source().open();
+    serveWeekProposal(pendingProposal);
+
+    act(() =>
+      source().send({ type: 'menu.proposal.changed', weekStart: thisWeek }),
+    );
+
+    expect(await screen.findByText('Дани съставя меню…')).toBeInTheDocument();
   });
 
   it('shopping.changed презарежда списъка на своята седмица', async () => {

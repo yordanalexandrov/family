@@ -6,6 +6,8 @@ interface StoredSettingOptions<T> {
   parse: (raw: string | null) => T;
   /** Стойността, при която ключът се маха, вместо да се пише (`auto`, няма потребител). */
   unset: T;
+  /** Стойността → низа в localStorage; по подразбиране `String`. */
+  format?: (value: T) => string;
   /** След всяка промяна, преди абонатите: напр. атрибут на <html>. */
   onChange?: () => void;
 }
@@ -20,6 +22,7 @@ export function storedSetting<T>({
   key,
   parse,
   unset,
+  format = String,
   onChange,
 }: StoredSettingOptions<T>) {
   const listeners = new Set<() => void>();
@@ -45,7 +48,7 @@ export function storedSetting<T>({
       if (value === unset) {
         localStorage.removeItem(key);
       } else {
-        localStorage.setItem(key, String(value));
+        localStorage.setItem(key, format(value));
       }
     } catch (error) {
       logger.warn('localStorage недостъпен', error);

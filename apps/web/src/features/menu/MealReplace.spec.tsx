@@ -1,4 +1,4 @@
-import type { MealReplaceRequest } from '@family/shared';
+import { type MealReplaceRequest, systemLine } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -9,8 +9,10 @@ import {
   serveDinnerRecipes,
   serveMealUpdates,
   servePlans,
+  serveThreads,
   showPastDays,
   thisWeek,
+  threadLine,
 } from '../../test/menu';
 import { dani, fixtureNow, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -65,31 +67,49 @@ function done(mealId: string): MealReplaceRequest {
 }
 
 /**
- * `POST /api/menu/meals/:id/replacements` → 202 и `GET /api/menu/replacements/:id` с поредните състояния (последното
- * се повтаря). Връща броя на `POST`-овете.
+ * `POST /api/menu/meals/:id/replacements` → 202, а `GET /api/menu/replacements/:id` и последната заявка на ястието
+ * (`GET /api/menu/meals/:id/replacements`) с поредните състояния (последното се повтаря). Последната заявка е 404
+ * преди първия `POST`, освен ако `asked` казва, че вече е поискана. Връща броя на `POST`-овете.
  */
-function serveReplacement(...states: MealReplaceRequest[]) {
+function serveReplacement(
+  states: MealReplaceRequest[],
+  { asked = false }: { asked?: boolean } = {},
+) {
   let posts = 0;
   let gets = 0;
+  const next = () => {
+    const replacement = states[Math.min(gets, states.length - 1)];
+    gets += 1;
+    return HttpResponse.json({ replacement });
+  };
   server.use(
     http.post('/api/menu/meals/:id/replacements', () => {
       posts += 1;
       gets = 0;
       return HttpResponse.json({ replacement: states[0] }, { status: 202 });
     }),
-    http.get(`/api/menu/replacements/${replacementId}`, () => {
-      const replacement = states[Math.min(gets, states.length - 1)];
-      gets += 1;
-      return HttpResponse.json({ replacement });
-    }),
+    http.get(`/api/menu/replacements/${replacementId}`, next),
+    http.get('/api/menu/meals/:id/replacements', () =>
+      asked || posts > 0
+        ? next()
+        : HttpResponse.json(
+            {
+              error: 'not_found',
+              code: 'no_replacement',
+              message: 'Никой не е търсил друго ястие',
+            },
+            { status: 404 },
+          ),
+    ),
   );
   return () => posts;
 }
 
-async function openSheet(title: RegExp, name: string) {
+/** `reopen`: the past days are already unfolded from the first opening. */
+async function openSheet(title: RegExp, name: string, { reopen = false } = {}) {
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   await screen.findByRole('list', { name: 'Вечери' });
-  await showPastDays(user);
+  if (!reopen) await showPastDays(user);
   await user.click(await screen.findByRole('button', { name: title }));
   return { user, sheet: screen.getByRole('dialog', { name }) };
 }
@@ -110,7 +130,7 @@ describe('MealSheet: „✨ Предложи друго“', () => {
     const thursday = week.meals[3]?.id ?? '';
     servePlans({ [thisWeek]: week });
     serveDinnerRecipes();
-    serveReplacement(pending(thursday), pending(thursday), done(thursday));
+    serveReplacement([pending(thursday), pending(thursday), done(thursday)]);
     const patches = serveMealUpdates(week);
 
     renderApp('/menu');
@@ -122,6 +142,8 @@ describe('MealSheet: „✨ Предложи друго“', () => {
     expect(await within(sheet).findByText('Мисля…')).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(3000));
     expect(within(sheet).getByText('Мисля…')).toBeInTheDocument();
+    // `done` идва с третото питане; дали има и едно веднага след `POST`, зависи от реда на рендерите.
+    await act(() => vi.advanceTimersByTimeAsync(3000));
     await act(() => vi.advanceTimersByTimeAsync(3000));
 
     const list = await within(sheet).findByRole('list', {
@@ -161,12 +183,15 @@ describe('MealSheet: „✨ Предложи друго“', () => {
     const thursday = week.meals[3]?.id ?? '';
     servePlans({ [thisWeek]: week });
     serveDinnerRecipes();
-    const posts = serveReplacement(pending(thursday), {
-      ...pending(thursday),
-      status: 'failed',
-      error: 'timeout',
-      finishedAt: '2026-11-04T08:03:00.000Z',
-    });
+    const posts = serveReplacement([
+      pending(thursday),
+      {
+        ...pending(thursday),
+        status: 'failed',
+        error: 'timeout',
+        finishedAt: '2026-11-04T08:03:00.000Z',
+      },
+    ]);
 
     renderApp('/menu');
     const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
@@ -174,14 +199,147 @@ describe('MealSheet: „✨ Предложи друго“', () => {
       within(sheet).getByRole('button', { name: '✨ Предложи друго' }),
     );
     await act(() => vi.advanceTimersByTimeAsync(3000));
+    await act(() => vi.advanceTimersByTimeAsync(3000));
 
     expect(await within(sheet).findByRole('alert')).toHaveTextContent(
-      'Не успях навреме, опитай пак',
+      'AI не отговори за 3 минути. Опитай пак или избери сам.',
     );
     await user.click(within(sheet).getByRole('button', { name: 'Опитай пак' }));
 
     expect(await within(sheet).findByText('Мисля…')).toBeInTheDocument();
     expect(posts()).toBe(2);
+  });
+
+  it('затворен и отворен пак по време на pending, листът пак мисли, а после показва кандидатите', async () => {
+    const week = plan();
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    serveReplacement([pending(thursday), pending(thursday), done(thursday)]);
+
+    renderApp('/menu');
+    const first = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+    await first.user.click(
+      within(first.sheet).getByRole('button', { name: '✨ Предложи друго' }),
+    );
+    expect(await within(first.sheet).findByText('Мисля…')).toBeInTheDocument();
+    await first.user.click(
+      within(first.sheet).getByRole('button', { name: 'Готово' }),
+    );
+    await expect.poll(() => screen.queryByRole('dialog')).toBeNull();
+
+    const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември', {
+      reopen: true,
+    });
+
+    expect(await within(sheet).findByText('Мисля…')).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('button', { name: '✨ Предложи друго' }),
+    ).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+    expect(
+      await within(sheet).findByRole('list', { name: 'Предложения' }),
+    ).toBeInTheDocument();
+  });
+
+  it('при отваряне показва кандидатите на по-ранна заявка, докато ястието не е сменено след нея', async () => {
+    const week = plan();
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    serveReplacement([done(thursday)], { asked: true });
+
+    renderApp('/menu');
+    const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+
+    const list = await within(sheet).findByRole('list', {
+      name: 'Предложения',
+    });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+    expect(
+      within(sheet).queryByRole('button', { name: '✨ Предложи друго' }),
+    ).toBeNull();
+  });
+
+  it('ястие, сменено след заявката, не показва старите ѝ кандидати', async () => {
+    const week = plan();
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    serveThreads(week, {
+      [thursday]: [
+        threadLine(thursday, 1, {
+          kind: 'system',
+          body: 'смени „Леща чорба“ → „Мусака“',
+        }),
+      ],
+    });
+    serveReplacement([done(thursday)], { asked: true });
+
+    renderApp('/menu');
+    const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+
+    expect(
+      await within(sheet).findByRole('button', { name: '✨ Предложи друго' }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('list', { name: 'Предложения' }),
+    ).toBeNull();
+  });
+
+  it('ястие, преместено на друг ден след заявката, пак показва кандидатите ѝ', async () => {
+    const week = plan();
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    serveThreads(week, {
+      [thursday]: [
+        threadLine(thursday, 1, {
+          kind: 'system',
+          body: systemLine({
+            type: 'moved',
+            fromDate: '2026-11-04',
+            toDate: '2026-11-05',
+          }),
+        }),
+      ],
+    });
+    serveReplacement([done(thursday)], { asked: true });
+
+    renderApp('/menu');
+    const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+
+    const list = await within(sheet).findByRole('list', {
+      name: 'Предложения',
+    });
+    expect(within(list).getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('при отваряне показва грешката на последната заявка и „Опитай пак“', async () => {
+    const week = plan();
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    serveReplacement(
+      [
+        {
+          ...pending(thursday),
+          status: 'failed',
+          error: 'timeout',
+          finishedAt: '2026-11-04T08:03:00.000Z',
+        },
+      ],
+      { asked: true },
+    );
+
+    renderApp('/menu');
+    const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+
+    expect(await within(sheet).findByRole('alert')).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole('button', { name: 'Опитай пак' }),
+    ).toBeInTheDocument();
   });
 
   it('при 409 от api показва съобщението му', async () => {

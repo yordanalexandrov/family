@@ -299,12 +299,11 @@ describe('new menu proposal', () => {
   const PROPOSED = {
     kind: 'menu',
     title: 'Ново предложение за меню',
-    body: 'За 2–8 ноември',
     tag: `menu-${WEEK}`,
     url: `/menu?week=${WEEK}`,
   };
 
-  it('tells everyone of the cron’s proposal once its plan is made', async () => {
+  it('tells everyone of the cron’s proposal once its plan is made, without a name', async () => {
     const { menuSchedule } = app;
     if (!menuSchedule) {
       throw new Error('the test app has no menu schedule');
@@ -315,13 +314,27 @@ describe('new menu proposal', () => {
     await vi.waitFor(() => expect(received()).toHaveLength(2));
     expect(received()).toEqual(
       expect.arrayContaining([
-        { to: DANI.name, payload: { ...PROPOSED, userId: DANI.id } },
-        { to: POLI.name, payload: { ...PROPOSED, userId: POLI.id } },
+        {
+          to: DANI.name,
+          payload: {
+            ...PROPOSED,
+            body: 'Ново меню за 2–8 ноември',
+            userId: DANI.id,
+          },
+        },
+        {
+          to: POLI.name,
+          payload: {
+            ...PROPOSED,
+            body: 'Ново меню за 2–8 ноември',
+            userId: POLI.id,
+          },
+        },
       ]),
     );
   });
 
-  it('tells only the other of a proposal someone asked for', async () => {
+  it('tells only the other of a proposal someone asked for, and who asked', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/menu/proposals',
@@ -332,7 +345,34 @@ describe('new menu proposal', () => {
 
     await vi.waitFor(() => expect(received()).toHaveLength(1));
     expect(received()).toEqual([
-      { to: POLI.name, payload: { ...PROPOSED, userId: POLI.id } },
+      {
+        to: POLI.name,
+        payload: {
+          ...PROPOSED,
+          body: 'Дани предложи меню за 2–8 ноември',
+          userId: POLI.id,
+        },
+      },
+    ]);
+  });
+
+  it('carries the hint the proposal was asked with', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/menu/proposals',
+      headers: as(POLI),
+      payload: { weekStart: WEEK, hint: 'Нещо леко' },
+    });
+    expect(response.statusCode).toBe(202);
+
+    await vi.waitFor(() => expect(received()).toHaveLength(1));
+    expect(received()).toEqual([
+      {
+        to: DANI.name,
+        payload: expect.objectContaining({
+          body: 'Поли предложи меню за 2–8 ноември · „Нещо леко“',
+        }),
+      },
     ]);
   });
 

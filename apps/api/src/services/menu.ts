@@ -190,10 +190,15 @@ function signalAgreement(events: EventBus, weekStart: string): void {
   events.publish({ type: 'menu.changed', weekStart });
 }
 
+/** Signals that the newest proposal of the week was asked for or has ended, once that has committed. */
+function signalProposal(events: EventBus, weekStart: string): void {
+  events.publish({ type: 'menu.proposal.changed', weekStart });
+}
+
 /**
  * How `menu.propose` requests are stored: refused without enough dinner recipes or for a taken week; the input is the
  * dinner registry (with ratings and the last serving before the week) and the use-up products; a valid answer becomes
- * the week's plan, signalled on `events`.
+ * the week's plan, signalled on `events` (and the proposal itself when it is asked for and when it ends).
  * A request without a user (`null`) is the cron's (`services/menu-schedule.ts`), and so is the plan it makes.
  */
 export function createMenuProposalStore(
@@ -254,7 +259,16 @@ export function createMenuProposalStore(
       await setProposalPlan(tx, proposal.id, plan.id);
     },
 
+    afterRequest(proposal) {
+      signalProposal(events, proposal.weekStart);
+    },
+
+    afterFailed(proposal) {
+      signalProposal(events, proposal.weekStart);
+    },
+
     afterDone(proposal) {
+      signalProposal(events, proposal.weekStart);
       signalWeek(events, proposal.weekStart);
       void notifications.proposed(proposal);
     },

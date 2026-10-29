@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { noReplacementSchema } from './meal-replacement.js';
 import {
   noPlanSchema,
   noProposalSchema,
@@ -17,6 +18,7 @@ import { alreadyInPantrySchema, notStapleSchema } from './pantry.js';
 export const refusalSchemas = {
   no_plan: noPlanSchema,
   no_proposal: noProposalSchema,
+  no_replacement: noReplacementSchema,
   not_enough_recipes: notEnoughRecipesSchema,
   already_in_pantry: alreadyInPantrySchema,
   not_staple: notStapleSchema,

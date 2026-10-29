@@ -89,6 +89,15 @@ export const handlers = [
   http.get('/api/menu/meals/:id/comments', () =>
     HttpResponse.json({ comments: [] }),
   ),
+  // Ястие, за което никой не е търсил „✨ Предложи друго“.
+  http.get('/api/menu/meals/:id/replacements', () =>
+    apiError(
+      404,
+      'not_found',
+      'Никой не е търсил друго ястие',
+      'no_replacement',
+    ),
+  ),
   // Седмица без `serveWeekProposal` няма предложение (нито ръчно, нито от крона).
   http.get('/api/menu/proposals', () =>
     apiError(

@@ -580,13 +580,183 @@ describe('MenuWeek: предложение', () => {
     renderApp(`/menu?proposal=${proposalId}`);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Не успях навреме, опитай пак',
+      'AI не отговори за 3 минути. Опитай пак или започни празно.',
     );
     expect(screen.getByRole('textbox', { name: 'Подсказка' })).toHaveValue(
       'повече риба',
     );
     await user.click(screen.getByRole('button', { name: 'Опитай пак' }));
     expect(await screen.findByText('Съставям меню…')).toBeInTheDocument();
+  });
+});
+
+describe('MenuWeek: чакащото предложение на седмицата', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('предложение, поискано от другия, се вижда като „Дани съставя меню…“ с изключени подсказка и бутони', async () => {
+    setUpDevice('phone', poli.id);
+    servePlans();
+    serveWeekProposal(pendingProposal);
+
+    renderApp('/menu');
+
+    expect(await screen.findByText('Дани съставя меню…')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Предложи меню' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Започни празно' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Подсказка' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Подсказка' })).toHaveValue(
+      'повече риба',
+    );
+  });
+
+  it('своето предложение се намира и без ?proposal= (след връщане в „Меню“); при done показва плана', async () => {
+    setUpDevice('phone', dani.id);
+    const plans: Record<string, ReturnType<typeof planFor>> = {};
+    servePlans(plans);
+    serveWeekProposal(pendingProposal, {
+      ...pendingProposal,
+      status: 'done',
+      planId: planFor(thisWeek).id,
+      finishedAt: '2026-11-04T08:01:00.000Z',
+    });
+
+    renderApp('/menu');
+
+    expect(await screen.findByText('Съставям меню…')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Предложи меню' }),
+    ).toBeDisabled();
+    plans[thisWeek] = planFor(thisWeek, {}, { summary: 'Седмица без месо.' });
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+
+    expect(await screen.findByText('Седмица без месо.')).toBeInTheDocument();
+    expect(screen.queryByText('Съставям меню…')).not.toBeInTheDocument();
+  });
+
+  it('чакащото предложение, което се провали, оставя подсказката си в полето за „Опитай пак“', async () => {
+    setUpDevice('phone', poli.id);
+    servePlans();
+    serveWeekProposal(pendingProposal, {
+      ...pendingProposal,
+      status: 'failed',
+      error: 'timeout',
+      finishedAt: '2026-11-04T08:03:00.000Z',
+    });
+
+    renderApp('/menu');
+    expect(await screen.findByText('Дани съставя меню…')).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+
+    expect(
+      await screen.findByRole('button', { name: 'Опитай пак' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('textbox', { name: 'Подсказка' })).toHaveValue(
+      'повече риба',
+    );
+  });
+
+  it('при failed без ?proposal= показва грешката и „Опитай пак“ с подсказката на заявката', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', poli.id);
+    servePlans();
+    serveWeekProposal({
+      ...pendingProposal,
+      status: 'failed',
+      error: 'timeout',
+      finishedAt: '2026-11-04T08:03:00.000Z',
+    });
+    const bodies: unknown[] = [];
+    server.use(
+      http.post('/api/menu/proposals', async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(
+          { proposal: { ...pendingProposal, requestedBy: poli.id } },
+          { status: 202 },
+        );
+      }),
+    );
+
+    renderApp('/menu');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'AI не отговори за 3 минути. Опитай пак или започни празно.',
+    );
+    expect(screen.getByRole('textbox', { name: 'Подсказка' })).toHaveValue(
+      'повече риба',
+    );
+    await user.click(screen.getByRole('button', { name: 'Опитай пак' }));
+    expect(bodies).toEqual([{ weekStart: thisWeek, hint: 'повече риба' }]);
+  });
+});
+
+describe('MenuWeek: кой е предложил менюто', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', poli.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const plan = planFor(thisWeek, {}, { summary: 'Седмица с риба.' });
+
+  it('над седмицата е „Предложено от Дани“ с подсказката на предложението', async () => {
+    servePlans({ [thisWeek]: plan });
+    serveWeekProposal({
+      ...pendingProposal,
+      status: 'done',
+      planId: plan.id,
+      finishedAt: '2026-11-04T08:01:00.000Z',
+    });
+
+    renderApp('/menu');
+
+    expect(
+      await screen.findByText('Предложено от Дани · „повече риба“'),
+    ).toBeInTheDocument();
+  });
+
+  it('без подсказка е само „Предложено от Дани“', async () => {
+    servePlans({ [thisWeek]: plan });
+    const { hint: _, ...withoutHint } = pendingProposal;
+    serveWeekProposal({
+      ...withoutHint,
+      status: 'done',
+      planId: plan.id,
+      finishedAt: '2026-11-04T08:01:00.000Z',
+    });
+
+    renderApp('/menu');
+
+    expect(await screen.findByText('Предложено от Дани')).toBeInTheDocument();
+  });
+
+  it('план, който не е от последното предложение (напр. „Започни празно“ след изтрит), е без реда', async () => {
+    servePlans({ [thisWeek]: plan });
+    serveWeekProposal({
+      ...pendingProposal,
+      status: 'done',
+      planId: 'ffffffff-0000-4000-8000-0000000000aa',
+      finishedAt: '2026-11-04T08:01:00.000Z',
+    });
+
+    renderApp('/menu');
+
+    expect(await screen.findByText('Седмица с риба.')).toBeInTheDocument();
+    expect(screen.queryByText(/Предложено от/)).not.toBeInTheDocument();
   });
 });
 
@@ -629,7 +799,9 @@ describe('MenuWeek: предложение от крона в сряда', () =>
 
     renderApp(`/menu?week=${nextWeek}`);
 
-    expect(await screen.findByText('Съставям меню…')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Съставям меню автоматично…'),
+    ).toBeInTheDocument();
     expect(screen.getByText(AUTO)).toBeInTheDocument();
     plans[nextWeek] = planFor(
       nextWeek,
@@ -664,7 +836,7 @@ describe('MenuWeek: предложение от крона в сряда', () =>
     renderApp(`/menu?week=${nextWeek}`);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Не успях навреме, опитай пак',
+      'AI не отговори за 3 минути. Опитай пак или започни празно.',
     );
     expect(screen.getByText(AUTO)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Предложи меню' }));

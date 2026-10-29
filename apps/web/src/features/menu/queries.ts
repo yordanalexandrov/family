@@ -349,13 +349,9 @@ export function useMenuProposal(id: string | undefined) {
   });
 }
 
-/**
- * Последното предложение на седмицата или `null` (api връща 404 `no_proposal`); пита отново на 3 s, докато е `pending`, а при
- * `done` презарежда плана. Така седмица без план вижда и предложението на крона, което никой не е пуснал от екрана.
- */
-export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
-  const queryClient = useQueryClient();
-  const query = useQuery({
+/** `GET /api/menu/proposals?weekStart=`: последното предложение на седмицата или `null` (404 `no_proposal`). */
+export function weekProposalQuery(weekStart: DateKey) {
+  return {
     queryKey: menuKeys.weekProposal(weekStart),
     queryFn: async (): Promise<MenuProposalRequest | null> => {
       try {
@@ -371,19 +367,35 @@ export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
         throw error;
       }
     },
+  };
+}
+
+/**
+ * Последното предложение на седмицата или `null` (api връща 404 `no_proposal`); пита отново на 3 s, докато е `pending`, а при
+ * `done` презарежда плана. Така седмица без план вижда и предложението на крона, което никой не е пуснал от екрана.
+ */
+export function useWeekProposal(weekStart: DateKey, enabled: boolean) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    ...weekProposalQuery(weekStart),
     enabled,
     refetchInterval: (query) =>
       query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
   });
   // Веднъж на предложение: следващите четения на същото `done` не презареждат плана пак.
   const doneId = query.data?.status === 'done' ? query.data.id : undefined;
+  const donePlanId = query.data?.planId;
   useEffect(() => {
-    if (doneId !== undefined) {
+    // Планът, който вече е тук, не се чете пак (седмица с план също чете предложението си).
+    const cached = queryClient.getQueryData<MealPlan | null>(
+      menuKeys.plan(weekStart),
+    );
+    if (doneId !== undefined && cached?.id !== donePlanId) {
       void queryClient.invalidateQueries({
         queryKey: menuKeys.plan(weekStart),
         exact: true,
       });
     }
-  }, [doneId, weekStart, queryClient]);
+  }, [doneId, donePlanId, weekStart, queryClient]);
   return query;
 }

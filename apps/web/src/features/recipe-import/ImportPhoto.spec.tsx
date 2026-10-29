@@ -1,5 +1,5 @@
 import type { RecipeImportDetail, RecipeImportRequest } from '@family/shared';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -98,6 +98,9 @@ describe('Внеси рецепта → таб „Снимка“', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Внеси' }));
 
     expect(await screen.findByText(WAITING)).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Внасяната снимка' }),
+    ).toHaveAttribute('src', 'blob:preview');
     expect(api.forms).toEqual([
       {
         url: expect.stringMatching(/\/api\/recipe-imports$/),
@@ -262,9 +265,13 @@ describe('Неуспешно внасяне от снимка', () => {
 
     renderApp(`/recipes/import/${importId}`);
 
-    expect(
-      await screen.findByText('Не намерих рецепта: На снимката няма рецепта.'),
-    ).toBeInTheDocument();
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'Не намерих рецепта: На снимката няма рецепта.',
+    );
+    // Отворено наново: снимката вече не е в паметта, остава само видът.
+    expect(within(alert).getByText('Снимка')).toBeInTheDocument();
+    expect(within(alert).queryByRole('img')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Опитай пак' }),
     ).not.toBeInTheDocument();

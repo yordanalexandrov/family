@@ -106,6 +106,25 @@
   text-align: center;
 }
 
+/* Какво е търсено или внесено: под чакането и под съобщението за грешка, на свой ред. */
+.suggestions__searched {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.suggestions__searched-photo {
+  display: block;
+  max-inline-size: 6rem;
+  max-block-size: 6rem;
+  margin-block-start: var(--space-2);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
 .suggestion-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));

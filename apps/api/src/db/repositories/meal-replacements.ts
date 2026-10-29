@@ -1,5 +1,5 @@
 import type { MealReplaceCandidate, MealReplaceRequest } from '@family/shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe } from '../schema/food.js';
 import { meal, mealReplaceRequest } from '../schema/menu.js';
@@ -73,6 +73,20 @@ export async function findReplacement(
     .select()
     .from(mealReplaceRequest)
     .where(eq(mealReplaceRequest.id, id))
+    .limit(1);
+  return row && toReplacement(row);
+}
+
+/** The meal's newest request, of any status. */
+export async function findLatestReplacement(
+  db: DbExecutor,
+  mealId: string,
+): Promise<MealReplaceRequest | undefined> {
+  const [row] = await db
+    .select()
+    .from(mealReplaceRequest)
+    .where(eq(mealReplaceRequest.mealId, mealId))
+    .orderBy(desc(mealReplaceRequest.createdAt), desc(mealReplaceRequest.id))
     .limit(1);
   return row && toReplacement(row);
 }

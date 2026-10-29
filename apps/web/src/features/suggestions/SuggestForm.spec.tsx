@@ -130,7 +130,7 @@ describe('SuggestForm', () => {
     );
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'AI не е наличен в момента',
+      'AI не е на разположение в момента',
     );
   });
 

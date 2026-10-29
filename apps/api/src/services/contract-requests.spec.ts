@@ -10,6 +10,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import { z } from 'zod';
 import { recipeSuggestionRequest } from '../db/schema/food.js';
@@ -135,9 +136,10 @@ let requests: ContractRequests;
 function create(
   client = createOpenClawClient(TEST_OPENCLAW, silent),
   log: Pick<FastifyBaseLogger, 'warn' | 'error'> = silent,
+  withStore: typeof store = store,
 ) {
   requests = createContractRequests({ db: testDb(), client, log });
-  return requests.register(echo, store, 'family-test');
+  return requests.register(echo, withStore, 'family-test');
 }
 
 type Content =
@@ -320,6 +322,52 @@ describe('AI requests (contract-requests)', () => {
       error: 'error',
       tags: [],
     });
+  });
+
+  it('logs a throwing afterDone or afterFailed and leaves the request as it ended', async () => {
+    const errors: string[] = [];
+    const handle = create(
+      undefined,
+      {
+        ...silent,
+        error: ((_details: object, message: string) => {
+          errors.push(message);
+        }) as FastifyBaseLogger['error'],
+      },
+      {
+        ...store,
+        afterDone() {
+          throw new Error('afterDone failed');
+        },
+        afterFailed() {
+          throw new Error('afterFailed failed');
+        },
+      },
+    );
+
+    const done = await handle.request({ word: 'супа' }, DANI.id);
+    const empty = await handle.request({ word: 'нищо' }, DANI.id);
+    const broken = await handle.request({ word: 'boom' }, DANI.id);
+
+    await vi.waitFor(() => expect(errors).toHaveLength(4));
+    await requests.close();
+    expect(await handle.get(done.id)).toMatchObject({ status: 'done' });
+    expect(await handle.get(empty.id)).toMatchObject({
+      status: 'failed',
+      error: 'no_results',
+    });
+    expect(await handle.get(broken.id)).toMatchObject({
+      status: 'failed',
+      error: 'error',
+    });
+    expect(errors.sort()).toEqual(
+      [
+        'test.echo afterDone failed',
+        'test.echo afterFailed failed',
+        'test.echo afterFailed failed',
+        'test.echo failed',
+      ].sort(),
+    );
   });
 
   it('refuses with 503 and stores nothing when OpenClaw is not configured', async () => {
