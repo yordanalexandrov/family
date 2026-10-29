@@ -1,5 +1,6 @@
 import {
   type DateKey,
+  isEmptyMeal,
   isPastMeal,
   type Meal,
   type MealComment,
@@ -48,7 +49,7 @@ interface MealRowProps {
 
 /**
  * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода и последният
- * ред от разговора. Минал ден е приглушен, без бутони за глас и без изход. Под минало ястие с неоценена рецепта
+ * ред от разговора. Заглавието е до 3 реда, а „защо“ на 1 ред (с „…“): целите са в листа на ястието. Минал ден е приглушен, без бутони за глас и без изход; празен ден е без гласове и чака. Под минало ястие с неоценена рецепта
  * телефонът пита „Как беше?“: оценката е на рецептата, не на ястието, затова денят остава само за четене.
  */
 export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
@@ -57,9 +58,11 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
   const servings = totalServings(meal.servings);
   const past = voting ? isPastMeal(meal, voting.today) : false;
   const outcome = mealOutcome(
-    meal.votes,
+    meal,
     users.map((user) => user.id),
   );
+  // Празен ден чака ястие, не глас (GLOSSARY: Изход на ястие): без гласове, нито моите 👎/👍, нито чиповете.
+  const empty = isEmptyMeal(meal);
   const content = (
     <>
       <span className="meal-row__day">
@@ -94,8 +97,9 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
             <span className="visually-hidden">Готви {cook.name}</span>
           </span>
         ) : (
-          <span className="meal-row__no-cook" title="Без готвач">
-            <span className="visually-hidden">Без готвач</span>
+          <span className="meal-row__no-cook">
+            <NoCookIcon />
+            Без готвач
           </span>
         )}
         <span className="meal-row__servings">{formatServings(servings)}</span>
@@ -132,20 +136,22 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
           ) : (
             !past && <OutcomeLabel outcome={outcome} />
           )}
-          <span className="meal-row__people">
-            {others.map((user) => (
-              <PersonVote key={user.id} meal={meal} user={user} />
-            ))}
-            {past ? (
-              me && <PersonVote meal={meal} user={me} />
-            ) : (
-              <MyVote
-                meal={meal}
-                userId={voting.userId}
-                onVote={(value) => voting.onVote(meal, value)}
-              />
-            )}
-          </span>
+          {!empty && (
+            <span className="meal-row__people">
+              {others.map((user) => (
+                <PersonVote key={user.id} meal={meal} user={user} />
+              ))}
+              {past ? (
+                me && <PersonVote meal={meal} user={me} />
+              ) : (
+                <MyVote
+                  meal={meal}
+                  userId={voting.userId}
+                  onVote={(value) => voting.onVote(meal, value)}
+                />
+              )}
+            </span>
+          )}
         </div>
       )}
       {voting && rateRecipeId !== null && (
@@ -188,5 +194,19 @@ function LastComment({
         <span className="visually-hidden"> в разговора</span>
       </span>
     </span>
+  );
+}
+
+/** Силует на човек: „Без готвач“ (празен пунктиран кръг не се разбира). */
+function NoCookIcon() {
+  return (
+    <svg
+      className="meal-row__no-cook-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" />
+    </svg>
   );
 }

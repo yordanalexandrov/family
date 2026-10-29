@@ -7,11 +7,19 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sheet } from './Sheet';
+import { SHEET_WINDOW_QUERY } from './sheet-drag';
 
 /** Екранът държи отворения лист в state и го маха в `onClose`, както MenuWeek. */
 function Screen({ onClose = () => {} }: { onClose?: () => void }) {
@@ -31,6 +39,9 @@ function Screen({ onClose = () => {} }: { onClose?: () => void }) {
           }}
         >
           <p>Боб чорба</p>
+          <ul aria-label="Списък">
+            <li>Леща</li>
+          </ul>
         </Sheet>
       )}
     </main>
@@ -255,5 +266,127 @@ describe('Sheet и „назад“', () => {
       ).toBeInTheDocument();
       await expectPath('/recipes/7');
     });
+  });
+});
+
+/** Плъзгане с пръст по листа: от `fromY` до `toY` за `ms` милисекунди. */
+function drag(target: Element, fromY: number, toY: number, ms = 400) {
+  const now = vi.spyOn(performance, 'now');
+  now.mockReturnValue(1000);
+  fireEvent.touchStart(target, { touches: [{ clientX: 100, clientY: fromY }] });
+  now.mockReturnValue(1000 + ms / 2);
+  fireEvent.touchMove(target, {
+    touches: [{ clientX: 100, clientY: (fromY + toY) / 2 }],
+  });
+  now.mockReturnValue(1000 + ms);
+  fireEvent.touchMove(target, { touches: [{ clientX: 100, clientY: toY }] });
+  fireEvent.touchEnd(target, {
+    touches: [],
+    changedTouches: [{ clientX: 100, clientY: toY }],
+  });
+  now.mockRestore();
+}
+
+/** Листът на телефона е висок 400 px; `scrollTop` е колко е превъртяно съдържанието му. */
+async function openTallSheet(onClose: () => void, scrollTop = 0) {
+  const user = userEvent.setup();
+  render(<Screen onClose={onClose} />);
+  await user.click(screen.getByRole('button', { name: 'Отвори' }));
+  const panel = screen.getByRole('dialog', { name: 'Ястие' });
+  Object.defineProperty(panel, 'clientHeight', { value: 400 });
+  Object.defineProperty(panel, 'offsetHeight', { value: 400 });
+  panel.scrollTop = scrollTop;
+  return panel;
+}
+
+describe('Sheet: затваряне', () => {
+  beforeEach(() => {
+    enterMenu();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    cleanup();
+    await waitFor(() =>
+      expect(window.history.pushState).toBe(History.prototype.pushState),
+    );
+  });
+
+  it('„Готово“ е в заглавието на листа и го затваря', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Screen onClose={onClose} />);
+    await user.click(screen.getByRole('button', { name: 'Отвори' }));
+    const header = within(
+      screen.getByRole('dialog', { name: 'Ястие' }),
+    ).getByRole('banner');
+
+    await user.click(within(header).getByRole('button', { name: 'Готово' }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('плъзгане надолу с над четвърт от височината затваря листа', async () => {
+    const onClose = vi.fn();
+    const panel = await openTallSheet(onClose);
+
+    drag(screen.getByText('Боб чорба'), 100, 220);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(panel).not.toBeInTheDocument();
+  });
+
+  it('късо бавно плъзгане връща листа на мястото му', async () => {
+    const onClose = vi.fn();
+    const panel = await openTallSheet(onClose);
+
+    drag(screen.getByText('Боб чорба'), 100, 160);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(panel.style.transform).toBe('');
+  });
+
+  it('бързото късо плъзгане надолу затваря листа', async () => {
+    const onClose = vi.fn();
+    await openTallSheet(onClose);
+
+    drag(screen.getByText('Боб чорба'), 100, 160, 80);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('превъртяно съдържание: плъзгането надолу превърта, не затваря', async () => {
+    const onClose = vi.fn();
+    await openTallSheet(onClose, 120);
+
+    drag(screen.getByText('Боб чорба'), 100, 300);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('превъртян вложен списък (напр. изборът на рецепта): плъзгането надолу го превърта, не затваря листа', async () => {
+    const onClose = vi.fn();
+    await openTallSheet(onClose);
+    screen.getByRole('list', { name: 'Списък' }).scrollTop = 80;
+
+    drag(screen.getByText('Леща'), 100, 300);
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('на таблета (прозорец) плъзгането не затваря листа', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === SHEET_WINDOW_QUERY,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const onClose = vi.fn();
+    await openTallSheet(onClose);
+
+    drag(screen.getByText('Боб чорба'), 100, 300);
+
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

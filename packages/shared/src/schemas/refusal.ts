@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { noReplacementSchema } from './meal-replacement.js';
 import {
+  emptyMealSchema,
   noPlanSchema,
   noProposalSchema,
   notEnoughRecipesSchema,
@@ -26,6 +27,7 @@ export const refusalSchemas = {
   cook_taken: cookTakenSchema,
   system_line: systemLineSchema,
   past_meal: pastMealSchema,
+  empty_meal: emptyMealSchema,
 } as const;
 
 export const refusalSchema = z.discriminatedUnion(

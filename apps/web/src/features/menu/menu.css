@@ -199,9 +199,8 @@ button.meal-row__content:hover {
   color: var(--color-text-faded);
 }
 
-/* Аватарите на минал ден и на човек без глас: контур в цвета на човека, инициалът в приглушения цвят. */
-.meal-row--past > :not(.meal-row__rate) .avatar,
-.person-vote--none .person-vote__avatar .avatar {
+/* Аватарът на минал ден: контур в цвета на човека, инициалът в приглушения цвят. */
+.meal-row--past > :not(.meal-row__rate) .avatar {
   background: transparent;
   box-shadow: inset 0 0 0 2px var(--avatar-color, var(--color-accent));
   color: var(--color-text-faded);
@@ -218,12 +217,14 @@ button.meal-row__content:hover {
   font-weight: 600;
 }
 
+/* На тесен екран или с голям шрифт гласовете минават на втори ред, вместо да излязат от реда. */
 .meal-row__votes {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: 0 var(--space-3) var(--space-2);
+  padding: 0 var(--space-2) var(--space-2) var(--space-3);
 }
 
 .meal-row--past .meal-row__votes {
@@ -233,7 +234,8 @@ button.meal-row__content:hover {
 .meal-row__people {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
+  margin-inline-start: auto;
 }
 
 /* Влачене (MealDrag): дръжка в реда с гласовете; на телефон се хваща със задържане. */
@@ -306,45 +308,34 @@ button.meal-row__content:hover {
   white-space: nowrap;
 }
 
+/* Гласът на другия: „Поли: ✗“ в рамка с цвета на гласа; „Поли: ?“ (чака) с пунктир. */
 .person-vote {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  padding: 2px 0.4em;
+  border: 1px solid var(--person-vote-color, var(--color-line));
+  border-radius: var(--radius-pill);
+  background: color-mix(
+    in srgb,
+    var(--person-vote-color, transparent) 18%,
+    transparent
+  );
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.person-vote__avatar {
-  position: relative;
-  display: inline-flex;
+.person-vote--up {
+  --person-vote-color: var(--color-success);
 }
 
-.person-vote__mark {
-  position: absolute;
-  inset-block-end: -4px;
-  inset-inline-end: -6px;
-  display: grid;
-  place-items: center;
-  inline-size: 1.1rem;
-  block-size: 1.1rem;
-  border-radius: 50%;
-  background: var(--color-surface);
+.person-vote--down {
+  --person-vote-color: var(--color-danger);
+}
+
+.person-vote--none {
+  border-style: dashed;
   color: var(--color-text-muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  box-shadow: 0 0 0 1px var(--color-line);
-}
-
-.person-vote--up .person-vote__mark {
-  background: var(--color-success);
-  color: var(--color-accent-ink);
-}
-
-.person-vote--down .person-vote__mark {
-  background: var(--color-danger);
-  color: var(--color-accent-ink);
-}
-
-.person-vote__name {
-  font-size: var(--font-size-sm);
 }
 
 .my-vote {
@@ -352,30 +343,46 @@ button.meal-row__content:hover {
   gap: var(--space-1);
 }
 
+/* Моят глас: знак и надпис „Не“/„Да“ под него; неактивният е в цвят (не сив като изключен), активният е запълнен. */
 .my-vote__button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
   min-inline-size: var(--touch-target);
   min-block-size: var(--touch-target);
+  padding: 2px var(--space-2);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
+  line-height: 1.1;
   cursor: pointer;
 }
 
-/* Неактивният глас: сиво емоджи с ≥ 3:1 (филтърът е върху иконата, не върху фона на бутона). */
-.my-vote__button[aria-pressed="false"] > span {
-  filter: var(--icon-faded-filter);
+.my-vote__text {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
-.my-vote__button--up[aria-pressed="true"] {
-  border-color: var(--color-success);
-  box-shadow: inset 0 0 0 2px var(--color-success);
+.my-vote__button--up {
+  --my-vote-color: var(--color-success);
 }
 
-.my-vote__button--down[aria-pressed="true"] {
-  border-color: var(--color-danger);
-  box-shadow: inset 0 0 0 2px var(--color-danger);
+.my-vote__button--down {
+  --my-vote-color: var(--color-danger);
+}
+
+.my-vote__button[aria-pressed="true"] {
+  border-color: var(--my-vote-color);
+  background: color-mix(
+    in srgb,
+    var(--my-vote-color) 28%,
+    var(--color-surface)
+  );
+  box-shadow: inset 0 0 0 2px var(--my-vote-color);
 }
 
 .my-vote--big {
@@ -383,8 +390,14 @@ button.meal-row__content:hover {
   gap: var(--space-3);
 }
 
+.my-vote--big .my-vote__text {
+  font-size: inherit;
+}
+
 .my-vote--big .my-vote__button {
   flex: 1;
+  flex-direction: row;
+  gap: var(--space-2);
   min-block-size: 3.25rem;
   font-size: var(--font-size-lg);
   font-weight: 600;
@@ -413,8 +426,8 @@ button.meal-row__content:hover {
 
 .menu__filters {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
-  overflow-x: auto;
 }
 
 .menu__filter {
@@ -478,8 +491,21 @@ button.meal-row__content:hover {
 }
 
 /* Флекс елемент с min-width 0: иначе дълга дума („манастирски“) не се пренася и излиза в колоната на готвача. */
+/* До 3 реда с „…“: цялото заглавие е в листа на ястието. */
 .meal-row__title-text {
+  display: -webkit-box;
   min-inline-size: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* „Защо“ на 1 ред с „…“: целият текст е в листа на ястието. */
+.meal-row__why {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meal-row__title--empty {
@@ -491,12 +517,40 @@ button.meal-row__content:hover {
   align-items: center;
 }
 
+/* Колоната на готвача е в xs, за да остави ширината на заглавието. */
+.meal-row__side .meal-row__servings,
 .meal-row__no-cook {
-  display: inline-block;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  border: 2px dashed var(--color-line);
-  border-radius: 50%;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.meal-row__no-cook {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.meal-row__no-cook-icon {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+/* Листът на ястието: цялото заглавие и „защо“, които редът съкращава. */
+.meal-sheet__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.meal-sheet__why {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 .menu__scheduled {

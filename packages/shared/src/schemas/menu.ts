@@ -270,3 +270,11 @@ export type SystemLine = z.infer<typeof systemLineSchema>;
 export const pastMealSchema = refusalBody('conflict', 'past_meal');
 
 export type PastMeal = z.infer<typeof pastMealSchema>;
+
+/**
+ * 409 of `PUT /api/menu/meals/:id/vote` for an empty day (GLOSSARY: Ястие, without a recipe and a note): there is
+ * nothing to keep or replace, so the day waits for a meal, not for a vote.
+ */
+export const emptyMealSchema = refusalBody('conflict', 'empty_meal');
+
+export type EmptyMeal = z.infer<typeof emptyMealSchema>;

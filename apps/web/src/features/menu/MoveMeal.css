@@ -1,0 +1,21 @@
+/* „Размени с“: чип с два реда — датата и под нея ястието на деня. */
+.move-meal__chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-inline-size: 100%;
+  border-radius: var(--radius-md);
+  text-align: start;
+}
+
+.move-meal__chip > span {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-meal__dish {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

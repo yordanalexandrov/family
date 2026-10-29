@@ -16,6 +16,22 @@ export function weekdayOf(key: DateKey): number {
   return (new Date(`${key}T00:00:00Z`).getUTCDay() + 6) % 7;
 }
 
+/** Weekday names, Monday first, lower case as in „от вторник“ or „махнато от четвъртък“. */
+const WEEKDAY_NAMES = [
+  'понеделник',
+  'вторник',
+  'сряда',
+  'четвъртък',
+  'петък',
+  'събота',
+  'неделя',
+] as const;
+
+/** The Bulgarian name of the weekday of a date key: `2026-11-05` → „четвъртък“. */
+export function weekdayName(key: DateKey): string {
+  return WEEKDAY_NAMES[weekdayOf(key)] ?? key;
+}
+
 /** Whether `key` is a Monday, i.e. a valid `weekStart`. */
 export function isWeekStart(key: DateKey): boolean {
   return weekdayOf(key) === 0;

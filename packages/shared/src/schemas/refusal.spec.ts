@@ -62,6 +62,11 @@ const bodies: Refusal[] = [
     code: 'past_meal',
     message: 'Миналото ястие не се променя',
   },
+  {
+    error: 'conflict',
+    code: 'empty_meal',
+    message: 'Денят е празен: няма за какво да се гласува',
+  },
 ];
 
 describe('refusalSchema', () => {
@@ -137,6 +142,7 @@ describe('refusalErrorOf', () => {
     ['cook_taken', 'conflict'],
     ['system_line', 'conflict'],
     ['past_meal', 'conflict'],
+    ['empty_meal', 'conflict'],
   ] as const)('answers %s with %s', (code, error) => {
     expect(refusalErrorOf(code)).toBe(error);
   });

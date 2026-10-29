@@ -8,6 +8,17 @@ export function mealTitle(meal: {
   return meal.recipe?.title ?? meal.note;
 }
 
+/** What a meal cooks (GLOSSARY: Ястие): a recipe, a note, both or neither. */
+export interface MealContent {
+  recipeId: string | null;
+  note: string | null;
+}
+
+/** GLOSSARY: Ястие. A day with neither a recipe nor a note: nothing is cooked, so there is nothing to vote on. */
+export function isEmptyMeal(meal: MealContent): boolean {
+  return meal.recipeId === null && meal.note === null;
+}
+
 /** The servings of a new meal: 1 for each user (GLOSSARY: Порции). */
 export function oneServingEach(userIds: readonly string[]): Servings {
   return Object.fromEntries(userIds.map((id) => [id, 1]));

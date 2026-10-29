@@ -25,7 +25,9 @@
   max-inline-size: 40rem;
   max-block-size: 90dvh;
   overflow-y: auto;
-  padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right))
+  overscroll-behavior: contain;
+  /* Горе без отстъп: лепкавото заглавие носи своя, иначе съдържанието се вижда над него при превъртане. */
+  padding: 0 max(var(--space-4), env(safe-area-inset-right))
     max(var(--space-4), env(safe-area-inset-bottom))
     max(var(--space-4), env(safe-area-inset-left));
   border: 1px solid var(--glass-border);
@@ -35,6 +37,43 @@
   text-align: start;
 }
 
+/* Плъзгане надолу (sheet-drag.ts): панелът следва пръста, а пуснат под прага се връща. */
+.sheet__panel--dragging {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheet__panel:not(.sheet__panel--dragging) {
+    transition: transform var(--motion-base) var(--motion-spring);
+  }
+}
+
+/* Лепкаво заглавие: „Готово“ остава видимо, докато се превърта дълъг лист. */
+.sheet__header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-5) var(--space-2);
+  background: var(--color-bg);
+}
+
+/* Дръжката за плъзгане: само на телефона, където листът е отдолу. */
+.sheet__handle {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-start: 50%;
+  inline-size: 2.5rem;
+  block-size: 0.25rem;
+  translate: -50% 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-text) 25%, transparent);
+}
+
+/* Същата ширина като `SHEET_WINDOW_QUERY` в sheet-drag.ts: от нея листът е прозорец и не се плъзга. */
 @media (min-width: 48rem) {
   .sheet {
     align-items: center;
@@ -43,13 +82,14 @@
   .sheet__panel {
     border-radius: var(--radius-lg);
   }
-}
 
-.sheet__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  .sheet__header {
+    padding-block-start: var(--space-4);
+  }
+
+  .sheet__handle {
+    display: none;
+  }
 }
 
 .sheet__title {

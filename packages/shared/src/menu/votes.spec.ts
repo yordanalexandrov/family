@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { MealContent } from './meal.js';
 import {
   isAgreed,
   isPastMeal,
@@ -19,9 +20,21 @@ function votes(dani?: 'up' | 'down', poli?: 'up' | 'down'): Vote[] {
   ];
 }
 
-function meal(date: string, mealVotes: Vote[]) {
-  return { date, votes: mealVotes };
+const RISOTTO = '00000000-0000-4000-8000-0000000000a1';
+
+/** A meal with a recipe unless `content` says otherwise (`{ recipeId: null, note: null }` is an empty day). */
+function meal(
+  date: string,
+  mealVotes: Vote[],
+  content: MealContent = {
+    recipeId: RISOTTO,
+    note: null,
+  },
+) {
+  return { date, votes: mealVotes, ...content };
 }
+
+const EMPTY: MealContent = { recipeId: null, note: null };
 
 describe('mealOutcome', () => {
   it.each([
@@ -33,14 +46,32 @@ describe('mealOutcome', () => {
     [undefined, 'down', 'pending'],
     [undefined, undefined, 'pending'],
   ] as const)('Дани %s, Поли %s → %s', (dani, poli, outcome) => {
-    expect(mealOutcome(votes(dani, poli), USERS)).toBe(outcome);
+    expect(mealOutcome(meal(TODAY, votes(dani, poli)), USERS)).toBe(outcome);
+  });
+
+  it('an empty day (no recipe, no note) is pending even with two up votes', () => {
+    expect(mealOutcome(meal(TODAY, votes('up', 'up'), EMPTY), USERS)).toBe(
+      'pending',
+    );
+  });
+
+  it('a note without a recipe is a meal: two up votes keep it', () => {
+    expect(
+      mealOutcome(
+        meal(TODAY, votes('up', 'up'), { recipeId: null, note: 'навън' }),
+        USERS,
+      ),
+    ).toBe('keep');
   });
 
   it('ignores the vote of someone who is not a user any more', () => {
     const stranger = '00000000-0000-4000-8000-000000000009';
     expect(
       mealOutcome(
-        [...votes('up', undefined), { userId: stranger, value: 'up' }],
+        meal(TODAY, [
+          ...votes('up', undefined),
+          { userId: stranger, value: 'up' },
+        ]),
         USERS,
       ),
     ).toBe('pending');
@@ -80,6 +111,21 @@ describe('isAgreed and mealsToAgree', () => {
     const meals = [meal(TODAY, votes('up', 'up')), pending, discuss];
     expect(isAgreed(meals, USERS, TODAY)).toBe(false);
     expect(mealsToAgree(meals, USERS, TODAY)).toEqual([pending, discuss]);
+  });
+
+  it('a week with an empty day from today on is not agreed', () => {
+    const empty = meal('2026-11-06', votes('up', 'up'), EMPTY);
+    const meals = [meal(TODAY, votes('up', 'up')), empty];
+    expect(isAgreed(meals, USERS, TODAY)).toBe(false);
+    expect(mealsToAgree(meals, USERS, TODAY)).toEqual([empty]);
+  });
+
+  it('an empty past day takes no part', () => {
+    const meals = [
+      meal('2026-11-03', votes(), EMPTY),
+      meal(TODAY, votes('up', 'up')),
+    ];
+    expect(isAgreed(meals, USERS, TODAY)).toBe(true);
   });
 
   it('an empty plan has nothing to agree on', () => {

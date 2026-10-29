@@ -1,5 +1,4 @@
 import type { Meal, MealOutcome, User, VoteValue } from '@family/shared';
-import { Avatar } from '../../components/Avatar';
 
 /** GLOSSARY: Изход на ястие. */
 export const OUTCOME_LABELS: Record<MealOutcome, string> = {
@@ -24,34 +23,30 @@ export function OutcomeLabel({ outcome }: { outcome: MealOutcome }) {
   );
 }
 
-/** Гласът на един човек: аватарът с ✓ / ✗ / … и името с гласа за екранния четец. */
-export function PersonVote({
-  meal,
-  user,
-  showName = false,
-}: {
-  meal: Meal;
-  user: User;
-  showName?: boolean;
-}) {
+const VOTE_MARKS: Record<VoteValue, string> = { up: '✓', down: '✗' };
+
+/**
+ * Гласът на един човек с името му: „Поли: ✓“, „Поли: ✗“, „Поли: ?“ (още чака). Видимият знак е за окото, а екранният
+ * четец чете „Поли: против“.
+ */
+export function PersonVote({ meal, user }: { meal: Meal; user: User }) {
   const vote = voteOf(meal, user.id);
   const label = `${user.name}: ${vote ? VOTE_LABELS[vote] : 'няма глас'}`;
   return (
-    <span className={`person-vote person-vote--${vote ?? 'none'}`}>
-      <span className="person-vote__avatar" title={label}>
-        <Avatar initial={user.initial} color={user.color} size="sm" />
-        <span className="person-vote__mark" aria-hidden="true">
-          {vote === 'up' ? '✓' : vote === 'down' ? '✗' : '…'}
-        </span>
-      </span>
-      <span className={showName ? 'person-vote__name' : 'visually-hidden'}>
-        {label}
-      </span>
+    <span
+      className={`person-vote person-vote--${vote ?? 'none'}`}
+      title={label}
+    >
+      <span aria-hidden="true">{`${user.name}: ${vote ? VOTE_MARKS[vote] : '?'}`}</span>
+      <span className="visually-hidden">{label}</span>
     </span>
   );
 }
 
-/** Моите 👎/👍: натиснатият е активен, втори натиск на същия го маха (`null`). */
+/**
+ * Моите 👎/👍 с надпис „Не“/„Да“: натиснатият е оцветен, втори натиск на същия го маха (`null`). На реда надписът е
+ * под знака, за да остане бутонът тесен.
+ */
 export function MyVote({
   meal,
   userId,
@@ -74,7 +69,10 @@ export function MyVote({
         aria-pressed={mine === 'down'}
         onClick={() => press('down')}
       >
-        <span aria-hidden="true">👎{big && ' Не'}</span>
+        <span aria-hidden="true">👎</span>
+        <span className="my-vote__text" aria-hidden="true">
+          Не
+        </span>
       </button>
       <button
         type="button"
@@ -83,7 +81,10 @@ export function MyVote({
         aria-pressed={mine === 'up'}
         onClick={() => press('up')}
       >
-        <span aria-hidden="true">👍{big && ' Да'}</span>
+        <span aria-hidden="true">👍</span>
+        <span className="my-vote__text" aria-hidden="true">
+          Да
+        </span>
       </button>
     </span>
   );

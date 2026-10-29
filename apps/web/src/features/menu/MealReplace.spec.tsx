@@ -298,9 +298,9 @@ describe('MealSheet: „✨ Предложи друго“', () => {
         threadLine(thursday, 1, {
           kind: 'system',
           body: systemLine({
-            type: 'moved',
-            fromDate: '2026-11-04',
-            toDate: '2026-11-05',
+            type: 'swapped',
+            date: '2026-11-04',
+            otherDate: '2026-11-05',
           }),
         }),
       ],
@@ -381,6 +381,113 @@ describe('MealSheet: „✨ Предложи друго“', () => {
 
     expect(
       within(sheet).queryByRole('button', { name: '✨ Предложи друго' }),
+    ).toBeNull();
+  });
+});
+
+describe('MealSheet: „Махни ястието от деня“', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('„Без рецепта“ не е сред резултатите, а отделен бутон под тях; махането показва toast с „Върни“, което връща рецептата', async () => {
+    const week = planFor(thisWeek, {
+      3: {
+        recipeId: moussaka.id,
+        recipe: { title: moussaka.title, archivedAt: null, rating: null },
+        why: 'Мусака за четвъртък.',
+      },
+    });
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    const patches = serveMealUpdates(week);
+
+    renderApp('/menu');
+    const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    const results = await within(sheet).findByRole('list', {
+      name: 'Вечерни рецепти',
+    });
+    await within(results).findByRole('button', { name: /Мусака/ });
+    expect(
+      within(results).queryByRole('button', { name: /Без рецепта|Махни/ }),
+    ).toBeNull();
+
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Махни ястието от деня' }),
+    );
+
+    await expect
+      .poll(() => patches)
+      .toEqual([{ id: thursday, body: { recipeId: null } }]);
+    expect(
+      await screen.findByText('„Мусака“ е махнато от четвъртък'),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('button', { name: 'Махни ястието от деня' }),
+    ).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+    await expect
+      .poll(() => patches.at(-1))
+      .toEqual({
+        id: thursday,
+        body: { recipeId: moussaka.id, why: 'Мусака за четвъртък.' },
+      });
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(
+      await screen.findByRole('button', { name: /Мусака/ }),
+    ).toHaveTextContent('чт');
+  });
+
+  it('„Върни“ остава и след затварянето на листа', async () => {
+    const week = planFor(thisWeek, {
+      3: {
+        recipeId: moussaka.id,
+        recipe: { title: moussaka.title, archivedAt: null, rating: null },
+      },
+    });
+    const thursday = week.meals[3]?.id ?? '';
+    servePlans({ [thisWeek]: week });
+    serveDinnerRecipes();
+    const patches = serveMealUpdates(week);
+
+    renderApp('/menu');
+    const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Махни ястието от деня' }),
+    );
+    await screen.findByText('„Мусака“ е махнато от четвъртък');
+
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Върни' }));
+
+    await expect
+      .poll(() => patches.at(-1))
+      .toEqual({ id: thursday, body: { recipeId: moussaka.id } });
+  });
+
+  it('празен ден е без „Махни ястието от деня“', async () => {
+    servePlans({ [thisWeek]: plan() });
+    serveDinnerRecipes();
+
+    renderApp('/menu');
+    const { user, sheet } = await openSheet(/пт/, 'петък, 6 ноември');
+    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    await within(sheet).findByRole('list', { name: 'Вечерни рецепти' });
+
+    expect(
+      within(sheet).queryByRole('button', { name: 'Махни ястието от деня' }),
     ).toBeNull();
   });
 });
