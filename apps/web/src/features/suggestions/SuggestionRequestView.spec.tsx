@@ -16,6 +16,7 @@ import {
   pendingRequest,
   requestId,
   skewersSuggestion,
+  soupSuggestion,
   suggestions,
 } from '../../test/suggestions';
 
@@ -93,7 +94,7 @@ describe('SuggestionRequestView', () => {
     expect(calls()).toBe(2);
   });
 
-  it('„Съставки и стъпки“ разгъва бърз преглед само на своята карта и го прибира', async () => {
+  it('„Продукти и стъпки“ разгъва бърз преглед само на своята карта и го прибира', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     serveDetail({ request: doneRequest, suggestions });
@@ -105,9 +106,10 @@ describe('SuggestionRequestView', () => {
     });
     const other = screen.getByRole('article', { name: 'Леща чорба' });
     const toggle = within(card).getByRole('button', {
-      name: 'Съставки и стъпки',
+      name: 'Продукти и стъпки',
     });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent('▾');
     expect(
       within(card).queryByRole('list', { name: 'Продукти' }),
     ).not.toBeInTheDocument();
@@ -118,6 +120,7 @@ describe('SuggestionRequestView', () => {
     await user.click(toggle);
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveTextContent('▴');
     const preview = document.getElementById(
       toggle.getAttribute('aria-controls') ?? '',
     );
@@ -138,7 +141,7 @@ describe('SuggestionRequestView', () => {
       within(other).queryByRole('list', { name: 'Продукти' }),
     ).not.toBeInTheDocument();
     expect(
-      within(other).getByRole('button', { name: 'Съставки и стъпки' }),
+      within(other).getByRole('button', { name: 'Продукти и стъпки' }),
     ).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(toggle);
@@ -150,6 +153,48 @@ describe('SuggestionRequestView', () => {
     expect(
       within(card).queryByRole('list', { name: 'Стъпки' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('вечеря над 6 ч се чете в часове и иска подготовка от предния ден', async () => {
+    setUpDevice('phone', dani.id);
+    const marinated = {
+      ...skewersSuggestion,
+      id: 'dddddddd-0000-4000-8000-000000000004',
+      payload: {
+        ...skewersSuggestion.payload,
+        title: 'Мариновано свинско',
+        prepMinutes: 1020,
+        tags: ['dinner' as const],
+      },
+    };
+    const lunch = {
+      ...soupSuggestion,
+      id: 'dddddddd-0000-4000-8000-000000000005',
+      payload: {
+        ...soupSuggestion.payload,
+        title: 'Бавно готвен боб',
+        prepMinutes: 480,
+        tags: ['lunch' as const],
+      },
+    };
+    serveDetail({
+      request: doneRequest,
+      suggestions: [skewersSuggestion, marinated, lunch],
+    });
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    const card = await screen.findByRole('article', {
+      name: 'Мариновано свинско',
+    });
+    expect(card).toHaveTextContent('17 ч');
+    expect(card).toHaveTextContent('иска подготовка от предния ден');
+    expect(
+      screen.getByRole('article', { name: 'Пилешки шишчета' }),
+    ).not.toHaveTextContent('иска подготовка');
+    const slowLunch = screen.getByRole('article', { name: 'Бавно готвен боб' });
+    expect(slowLunch).toHaveTextContent('8 ч');
+    expect(slowLunch).not.toHaveTextContent('иска подготовка');
   });
 
   it('failed/timeout показва съобщението; „Опитай пак“ пуска нова заявка със същия вход', async () => {

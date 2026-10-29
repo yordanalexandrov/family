@@ -44,21 +44,30 @@ describe('RecipeList', () => {
     expect(screen.getByRole('link', { name: /Омлет/ })).toBeInTheDocument();
   });
 
-  it('филтър по таг праща tag в query-то', async () => {
+  it('„Филтри“ отваря лист с групите; изборът брои в „Филтри (N)“ и филтрира веднага', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const queries = serveRecipes();
 
     renderApp('/recipes');
     await screen.findByRole('link', { name: /Омлет/ });
-    await user.click(screen.getByRole('button', { name: 'закуска' }));
+    expect(screen.queryByRole('group', { name: 'Етикет' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
 
-    expect(screen.getByRole('button', { name: 'закуска' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    const sheet = screen.getByRole('dialog', { name: 'Филтри' });
+    for (const group of ['Етикет', 'Време', 'Подреди']) {
+      expect(
+        within(sheet).getByRole('group', { name: group }),
+      ).toBeInTheDocument();
+    }
+    await user.click(within(sheet).getByRole('button', { name: 'закуска' }));
     await expect.poll(() => queries.at(-1)?.get('tag')).toBe('breakfast');
-    expect(queries[0]?.has('tag')).toBe(false);
+    await user.click(within(sheet).getByRole('button', { name: 'до 15 мин' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(
+      screen.getByRole('button', { name: 'Филтри (2)' }),
+    ).toBeInTheDocument();
   });
 
   it('няколко тага и интервала за време влизат в query-то; второ натискане маха избора', async () => {
@@ -68,6 +77,7 @@ describe('RecipeList', () => {
 
     renderApp('/recipes');
     await screen.findByRole('link', { name: /Омлет/ });
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
     for (const name of [
       'обяд',
       'вечеря',
@@ -90,6 +100,57 @@ describe('RecipeList', () => {
     );
   });
 
+  it('„Изчисти“ се появява при избор и маха филтрите — в листа и над списъка', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const queries = serveRecipes();
+
+    renderApp('/recipes');
+    await screen.findByRole('link', { name: /Омлет/ });
+    expect(screen.queryByRole('button', { name: 'Изчисти' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
+    const sheet = screen.getByRole('dialog', { name: 'Филтри' });
+    expect(within(sheet).queryByRole('button', { name: 'Изчисти' })).toBeNull();
+
+    await user.click(within(sheet).getByRole('button', { name: 'вечеря' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Изчисти' }));
+    expect(
+      within(sheet).getByRole('button', { name: 'вечеря' }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    await user.click(within(sheet).getByRole('button', { name: 'над 60 мин' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    await expect.poll(() => queries.at(-1)?.get('time')).toBe('60+');
+
+    await user.click(screen.getByRole('button', { name: 'Изчисти' }));
+    expect(screen.getByRole('button', { name: 'Филтри' })).toBeInTheDocument();
+    await expect.poll(() => queries.at(-1)?.has('time')).toBe(false);
+  });
+
+  it('над списъка е броят: „2 рецепти“ без филтри, „1 от 2“ при търсене или филтър', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    server.use(
+      http.get('/api/recipes', ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        const narrowed = params.has('q') || params.has('tag');
+        const recipes = narrowed ? [omelette] : [chickenWithRice, omelette];
+        return HttpResponse.json({ recipes: recipes.map(toSummary) });
+      }),
+    );
+
+    renderApp('/recipes');
+    expect(await screen.findByText('2 рецепти')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('searchbox', { name: 'Търси' }), 'омлет');
+    expect(await screen.findByText('1 от 2')).toBeInTheDocument();
+    await user.clear(screen.getByRole('searchbox', { name: 'Търси' }));
+    expect(await screen.findByText('2 рецепти')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
+    await user.click(screen.getByRole('button', { name: 'закуска' }));
+    expect(await screen.findByText('1 от 2')).toBeInTheDocument();
+  });
+
   it('търсенето праща q, а „покажи архивираните“ праща includeArchived', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
@@ -99,6 +160,7 @@ describe('RecipeList', () => {
     await screen.findByRole('link', { name: /Омлет/ });
     await user.type(screen.getByRole('searchbox', { name: 'Търси' }), 'пиле');
     await expect.poll(() => queries.at(-1)?.get('q')).toBe('пиле');
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
     await user.click(
       screen.getByRole('checkbox', { name: 'Покажи архивираните' }),
     );
@@ -129,6 +191,7 @@ describe('RecipeList', () => {
 
     renderApp('/recipes');
     await screen.findByRole('link', { name: /Омлет/ });
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
     const sort = screen.getByRole('group', { name: 'Подреди' });
     expect(within(sort).getByRole('radio', { name: 'по име' })).toBeChecked();
 
@@ -139,21 +202,85 @@ describe('RecipeList', () => {
     await expect.poll(() => queries.at(-1)?.has('sort')).toBe(false);
   });
 
-  it('без рецепти показва празно състояние', async () => {
+  it('празен регистър: без търсене и „Филтри“, празното състояние е горе с бутоните', async () => {
     setUpDevice('phone', dani.id);
     serveRecipes([]);
 
     renderApp('/recipes');
 
+    const empty = await screen.findByText(
+      'Няма рецепти. Добави първата или поискай предложения.',
+    );
+    expect(screen.queryByRole('searchbox', { name: 'Търси' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Филтри/ })).toBeNull();
+    expect(screen.queryByText(/рецепти$/)).toBeNull();
+    const box = empty.parentElement as HTMLElement;
     expect(
-      await screen.findByText(
-        'Няма рецепти. Добави първата или поискай предложение.',
-      ),
-    ).toBeInTheDocument();
+      within(box).getByRole('link', { name: 'Добави рецепта' }),
+    ).toHaveAttribute('href', '/recipes/new');
+    expect(
+      within(box).getByRole('link', { name: 'Поискай предложения' }),
+    ).toHaveAttribute('href', '/recipes/suggest');
     expect(screen.getByRole('link', { name: 'Нова рецепта' })).toHaveAttribute(
       'href',
       '/recipes/new',
     );
+  });
+
+  it('само архивирани рецепти: „Филтри“ остава и „Покажи архивираните“ ги показва', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const archived = { ...omelette, archivedAt: '2026-10-01T00:00:00.000Z' };
+    server.use(
+      http.get('/api/recipes', ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        const recipes = params.has('includeArchived') ? [archived] : [];
+        return HttpResponse.json({ recipes: recipes.map(toSummary) });
+      }),
+    );
+
+    renderApp('/recipes');
+    expect(
+      await screen.findByText('Няма рецепти по този избор.'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Покажи архивираните' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+
+    const card = await screen.findByRole('link', { name: /Омлет/ });
+    expect(card).toHaveTextContent('архивирана');
+    expect(
+      screen.queryByText(
+        'Няма рецепти. Добави първата или поискай предложения.',
+      ),
+    ).toBeNull();
+  });
+
+  it('филтър без резултати оставя търсенето и „Изчисти“, с „0 от 2“', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    server.use(
+      http.get('/api/recipes', ({ request }) => {
+        const narrowed = new URL(request.url).searchParams.has('time');
+        const recipes = narrowed ? [] : [chickenWithRice, omelette];
+        return HttpResponse.json({ recipes: recipes.map(toSummary) });
+      }),
+    );
+
+    renderApp('/recipes');
+    await screen.findByRole('link', { name: /Омлет/ });
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
+    await user.click(screen.getByRole('button', { name: 'над 60 мин' }));
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+
+    expect(await screen.findByText('0 от 2')).toBeInTheDocument();
+    expect(screen.getByText('Няма рецепти по този избор.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('searchbox', { name: 'Търси' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Изчисти' })).toBeInTheDocument();
   });
 
   it('от долната навигация на телефона води към „Рецепти“ и я държи активна', async () => {

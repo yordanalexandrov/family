@@ -170,6 +170,18 @@
   margin: 0;
 }
 
+/* ▾/▴ на „Продукти и стъпки“: бутонът е flex и интервалът в текста се губи. */
+.suggestion-card__arrow {
+  margin-inline-start: var(--space-2);
+}
+
+/* Бележка за дълга вечеря: в цвета на „нов продукт“, за да се забележи преди „Прегледай“. */
+.suggestion-card__ahead {
+  margin: 0;
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
 /* Бележката на агента в прегледа: „Защо:“ при предложение, „AI допусна:“ като предупреждение при внасяне. */
 .suggestion-note {
   margin: 0;
@@ -223,7 +235,7 @@
   margin-block-start: auto;
 }
 
-/* „Съставки и стъпки“ и „Прегледай“ се събират на един ред на телефон. */
+/* „Продукти и стъпки“ и „Прегледай“ се събират на един ред на телефон. */
 .suggestion-card .recipes__actions .button {
   padding-inline: var(--space-4);
 }

@@ -62,6 +62,15 @@ describe('RecipeView', () => {
     );
   });
 
+  it('дълго време се чете в часове: 225 мин са „3 ч 45 мин“', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe({ ...chickenWithRice, prepMinutes: 225 });
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    expect(await screen.findByText('3 ч 45 мин')).toBeInTheDocument();
+  });
+
   it('„Архивирай“ праща заявката и предлага „Върни“', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);

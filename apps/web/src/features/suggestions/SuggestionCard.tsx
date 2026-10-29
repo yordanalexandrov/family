@@ -6,7 +6,15 @@ import {
 import { Link } from '@tanstack/react-router';
 import { useId, useState } from 'react';
 import { formatQuantity } from '../../lib/format';
-import { formatMinutes, productCount, sourceDomain } from '../recipes/format';
+import {
+  formatMinutes,
+  MINUTES_PER_HOUR,
+  productCount,
+  sourceDomain,
+} from '../recipes/format';
+
+/** Вечеря, която отнема повече от толкова, не става в същия ден след работа. */
+const DINNER_AHEAD_MINUTES = 6 * MINUTES_PER_HOUR;
 
 /** Едно предложение в резултатите: отхвърлените са избледнели, одобрените водят към рецептата. */
 export function SuggestionCard({
@@ -19,6 +27,9 @@ export function SuggestionCard({
   const [previewOpen, setPreviewOpen] = useState(false);
   const { payload, status } = suggestion;
   const newCount = payload.ingredients.filter((i) => i.isNew).length;
+  const needsDayAhead =
+    payload.tags.includes('dinner') &&
+    payload.prepMinutes > DINNER_AHEAD_MINUTES;
   return (
     <article
       className={`suggestion-card suggestion-card--${status}`}
@@ -33,6 +44,9 @@ export function SuggestionCard({
           <span>{payload.tags.map((t) => TAG_LABELS_BG[t]).join(' · ')}</span>
         )}
       </p>
+      {needsDayAhead && (
+        <p className="suggestion-card__ahead">иска подготовка от предния ден</p>
+      )}
       <p className="suggestion-card__why">{payload.why}</p>
       <p className="suggestion-card__meta">
         <span>{sourceDomain(payload.sourceUrl)}</span>
@@ -51,7 +65,10 @@ export function SuggestionCard({
           aria-controls={previewId}
           onClick={() => setPreviewOpen((open) => !open)}
         >
-          Съставки и стъпки
+          Продукти и стъпки
+          <span className="suggestion-card__arrow" aria-hidden="true">
+            {previewOpen ? '▴' : '▾'}
+          </span>
         </button>
         {status === 'proposed' && (
           <Link

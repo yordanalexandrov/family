@@ -134,7 +134,7 @@ describe('SuggestForm', () => {
     );
   });
 
-  it('регистърът има бутон „Поискай предложение“', async () => {
+  it('регистърът има бутон „Поискай предложения“', async () => {
     setUpDevice('phone', dani.id);
     server.use(
       http.get('/api/recipes', () => HttpResponse.json({ recipes: [] })),
@@ -143,7 +143,7 @@ describe('SuggestForm', () => {
     renderApp('/recipes');
 
     expect(
-      await screen.findByRole('link', { name: 'Поискай предложение' }),
+      await screen.findByRole('link', { name: 'Поискай предложения' }),
     ).toHaveAttribute('href', '/recipes/suggest');
   });
 });
