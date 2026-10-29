@@ -1,7 +1,18 @@
-import { act, screen, within } from '@testing-library/react';
+import { createBrowserHistory } from '@tanstack/react-router';
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from '../../app/App';
+import { createQueryClient } from '../../app/query-client';
+import { createAppRouter } from '../../app/router';
 import {
   dinnerRecipes,
   lastWeek,
@@ -17,7 +28,14 @@ import {
   showPastDays,
   thisWeek,
 } from '../../test/menu';
-import { dani, dashboardWith, fixtureNow, poli, server } from '../../test/msw';
+import {
+  apiError,
+  dani,
+  dashboardWith,
+  fixtureNow,
+  poli,
+  server,
+} from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 
 describe('MenuWeek', () => {
@@ -117,6 +135,85 @@ describe('MenuWeek', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(router.state.location.search).toEqual({ week: thisWeek });
+  });
+
+  describe('листът на ястието и „назад“', () => {
+    let destroy = () => {};
+
+    afterEach(async () => {
+      destroy();
+      destroy = () => {};
+      cleanup();
+      await waitFor(() =>
+        expect(window.history.pushState).toBe(History.prototype.pushState),
+      );
+      window.history.replaceState(null, '', '/');
+    });
+
+    /** Приложението върху истинската история на прозореца: Дашборд, после `path`. */
+    function renderInBrowser(path: string) {
+      window.history.replaceState(null, '', '/');
+      window.history.pushState(null, '', path);
+      const history = createBrowserHistory();
+      destroy = history.destroy;
+      render(
+        <App
+          router={createAppRouter(history)}
+          queryClient={createQueryClient({ retry: false })}
+        />,
+      );
+    }
+
+    async function back() {
+      const popped = new Promise((resolve) =>
+        window.addEventListener('popstate', resolve, { once: true }),
+      );
+      window.history.back();
+      await popped;
+    }
+
+    it('затворен лист от адрес с week и meal: „назад“ не го отваря пак, а води на Дашборда', async () => {
+      const user = userEvent.setup();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(
+        () => {},
+      );
+      const plan = planFor(thisWeek, { 3: { note: 'мусака' } });
+      servePlans({ [thisWeek]: plan });
+      renderInBrowser(`/menu?week=${thisWeek}&meal=${plan.meals[3]?.id}`);
+      const sheet = await screen.findByRole('dialog', {
+        name: 'четвъртък, 5 ноември',
+      });
+
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      await back();
+
+      await waitFor(() => expect(window.location.pathname).toBe('/'));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('лист, отворен с докосване: след „Готово“ „назад“ напуска менюто', async () => {
+      const user = userEvent.setup();
+      const plan = planFor(thisWeek, { 3: { note: 'мусака' } });
+      servePlans({ [thisWeek]: plan });
+      renderInBrowser('/menu');
+      const row = await screen.findByRole('button', { name: /мусака/ });
+
+      await user.click(row);
+      const sheet = await screen.findByRole('dialog', {
+        name: 'четвъртък, 5 ноември',
+      });
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      await back();
+
+      await waitFor(() => expect(window.location.pathname).toBe('/'));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
   });
 
   it('при < 7 вечерни рецепти казва колко още трябват и води към предложенията', async () => {
@@ -409,7 +506,7 @@ describe('MenuWeek', () => {
 
     const meals = await screen.findByRole('list', { name: 'Вечери' });
     expect(within(meals).getAllByRole('listitem')).toHaveLength(7);
-    expect(within(meals).queryByRole('button', { name: 'За' })).toBeNull();
+    expect(within(meals).queryByRole('button', { name: 'Да' })).toBeNull();
     expect(meals).not.toHaveTextContent('Избери ястие');
     await user.click(within(meals).getAllByRole('button')[0] as HTMLElement);
     const sheet = screen.getByRole('dialog', {
@@ -695,6 +792,68 @@ describe('MenuWeek: чакащото предложение на седмица�
     expect(screen.getByRole('textbox', { name: 'Подсказка' })).toHaveValue(
       'повече риба',
     );
+  });
+
+  it('неуспешното предложение в адреса не скрива по-новото чуждо: след презареждане се вижда чакането', async () => {
+    setUpDevice('phone', dani.id);
+    servePlans();
+    server.use(
+      http.get(`/api/menu/proposals/${proposalId}`, () =>
+        HttpResponse.json({
+          proposal: {
+            ...pendingProposal,
+            status: 'failed',
+            error: 'http_500',
+            finishedAt: '2026-11-04T08:00:05.000Z',
+          },
+        }),
+      ),
+    );
+    serveWeekProposal({
+      ...pendingProposal,
+      id: 'ffffffff-0000-4000-8000-0000000000a1',
+      requestedBy: poli.id,
+      createdAt: '2026-11-04T08:01:00.000Z',
+    });
+
+    renderApp(`/menu?proposal=${proposalId}`);
+
+    expect(await screen.findByText('Поли съставя меню…')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Предложи меню' }),
+    ).toBeDisabled();
+  });
+
+  it('„Опитай пак“, докато другият вече иска меню (409), показва неговото чакане вместо отказа', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', dani.id);
+    servePlans();
+    serveWeekProposal(
+      {
+        ...pendingProposal,
+        status: 'failed',
+        error: 'http_500',
+        finishedAt: '2026-11-04T08:00:05.000Z',
+      },
+      {
+        ...pendingProposal,
+        id: 'ffffffff-0000-4000-8000-0000000000a1',
+        requestedBy: poli.id,
+        createdAt: '2026-11-04T08:01:00.000Z',
+      },
+    );
+    server.use(
+      http.post('/api/menu/proposals', () =>
+        apiError(409, 'conflict', 'За седмицата вече се подготвя предложение'),
+      ),
+    );
+
+    renderApp('/menu');
+    await user.click(await screen.findByRole('button', { name: 'Опитай пак' }));
+
+    expect(await screen.findByText('Поли съставя меню…')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('при failed без ?proposal= показва грешката и „Опитай пак“ с подсказката на заявката', async () => {

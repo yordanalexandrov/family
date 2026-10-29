@@ -260,6 +260,23 @@ button.meal-row__content:hover {
   touch-action: manipulation;
 }
 
+/* Празен ден (без гласове) е един ред: съдържанието и дръжката в края му. */
+.meal-row--one-line {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* Дръжката е в полето на съдържанието, за да остави ширината на заглавието и при шрифт 1.3 („Избери ястие“). */
+.meal-row--one-line > .meal-row__content {
+  flex: 1;
+  min-inline-size: 0;
+  padding-inline-end: 0;
+}
+
+.meal-row--one-line > .meal-drag__handle {
+  margin-inline: calc(-1 * var(--space-2)) 0;
+}
+
 .meal-drag--dragging {
   position: relative;
   z-index: 1;

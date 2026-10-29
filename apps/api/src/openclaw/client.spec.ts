@@ -204,6 +204,24 @@ describe('OpenClaw client: complete(contract, input)', () => {
     );
   });
 
+  it('does not double the full stop when the last issue already ends with one', async () => {
+    const dotted: AiContract<EchoInput, EchoOutput> = {
+      ...echo,
+      outputSchema: () =>
+        z.object({
+          words: z.array(z.string(), { error: 'масив от думи или null.' }),
+        }),
+    };
+    const calls = answerInTurn(JSON.stringify({ words: 5 }), VALID);
+
+    await client.complete(dotted, INPUT, { agent: AGENT });
+
+    const retry = calls.bodies[1] as SentBody;
+    expect(retry.messages[2]?.content).toBe(
+      'Отговорът не мина валидация: words: масив от думи или null. Върни само валиден JSON.',
+    );
+  });
+
   it('sends images as image_url parts of the input message, after the JSON input as text', async () => {
     const calls = answerInTurn(VALID);
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);

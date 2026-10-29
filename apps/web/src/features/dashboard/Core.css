@@ -31,6 +31,7 @@
   gap: 1.5cqi;
   inline-size: 62%;
   text-align: center;
+  scale: var(--core-fit, 1);
 }
 
 .core__chips {
@@ -155,11 +156,27 @@
   color: var(--color-text-muted);
 }
 
+/*
+ * „Аз“ е малко хапче в реда, за да се побере в кръга и при по-голям шрифт;
+ * полето за докосване е ≥ 48 px и след смаляването на съдържанието (`--core-fit`).
+ */
 .button.core__cooking-action {
-  min-height: 2.75rem;
-  padding-inline: var(--space-4);
+  position: relative;
+  min-height: 0;
+  padding: 0.3em 0.9em;
   font-size: max(13px, 3.8cqi);
+  line-height: 1.2;
   pointer-events: auto;
+}
+
+.button.core__cooking-action::before {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  translate: -50% -50%;
+  inline-size: max(100%, calc(var(--touch-target) / var(--core-fit, 1)));
+  block-size: calc(var(--touch-target) / var(--core-fit, 1));
+  content: "";
 }
 
 .core__cooking small {
@@ -217,19 +234,21 @@
   font-weight: 600;
 }
 
-/* Надписите за остарели или липсващи данни: в долната част на кръга, вътре в пръстена. */
+/* Надписите за остарели или липсващи данни: в съдържанието, затова се побират в кръга с него. */
 .core__note {
   margin: 0;
   color: var(--color-text-muted);
   font-size: max(11px, 3.4cqi);
 }
 
-.core > .card__stale {
-  position: absolute;
-  inset-inline: 22%;
-  inset-block-end: 13%;
+.core__stale {
+  position: relative;
+  margin: 0;
+  max-inline-size: 80%;
+  color: var(--color-stale);
+  font-weight: 600;
   font-size: max(11px, 3.2cqi);
-  text-align: center;
+  line-height: 1.2;
 }
 
 /*

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { poli } from '../../test/msw';
 import { servePushApi, stubPushBrowser } from '../../test/push';
 import { renderApp, setUpDevice } from '../../test/render';
+import { SERVICE_WORKER_TIMEOUT_MS } from '../settings/push';
 
 describe('WhoScreen', () => {
   beforeEach(() => {
@@ -72,6 +73,45 @@ describe('„Искаш ли напомняния?“ след „Кой си?�
 
     expect(
       await screen.findByRole('heading', { name: 'Искаш ли напомняния?' }),
+    ).toBeInTheDocument();
+  });
+
+  it('в браузъра говори за браузъра, не за телефона и Android', async () => {
+    setUpDevice('browser');
+    stubPushBrowser();
+    servePushApi();
+    const user = userEvent.setup();
+    renderApp('/who');
+
+    await user.click(await screen.findByRole('button', { name: 'Поли' }));
+    await screen.findByRole('heading', { name: 'Искаш ли напомняния?' });
+
+    expect(screen.getByText(/като известия в този браузър\.$/)).toBeVisible();
+    expect(screen.queryByText(/на този телефон/)).toBeNull();
+    expect(screen.queryByText(/На Android/)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Инсталиране' })).toBeNull();
+  });
+
+  it('без активен service worker не чака безкрайно: стъпката дава „По-късно“', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    stubPushBrowser({ noActiveWorker: true });
+    servePushApi();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderApp('/who');
+
+    await user.click(await screen.findByRole('button', { name: 'Поли' }));
+    await act(() => vi.advanceTimersByTimeAsync(SERVICE_WORKER_TIMEOUT_MS));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Искаш ли напомняния?' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Включи' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'По-късно' }));
+    expect(
+      await screen.findByRole('region', { name: 'Днес накратко' }),
     ).toBeInTheDocument();
   });
 

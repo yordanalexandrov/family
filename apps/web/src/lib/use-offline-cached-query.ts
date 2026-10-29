@@ -34,6 +34,18 @@ export function useOfflineCachedQuery<T>(
   }, [cache, data, dataUpdatedAt]);
 
   const offline = !online || (query.isError && isConnectionError(error));
+
+  // Връзката се върна: заявката тръгва наново веднага, а започнатата без връзка се прекъсва.
+  // Сам react-query не би го направил, ако сървърът е бил недостъпен при `navigator.onLine`
+  // (няма смяна на връзката за него) или ако данните още не са остарели по `staleTime`.
+  useEffect(() => {
+    if (!offline) {
+      return;
+    }
+    const retry = () => void refetch({ cancelRefetch: true });
+    window.addEventListener('online', retry);
+    return () => window.removeEventListener('online', retry);
+  }, [offline, refetch]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: при всяка нова грешка или нов отговор кешът се чете наново
   const entry = useMemo(
     () => (offline ? cache.read() : null),

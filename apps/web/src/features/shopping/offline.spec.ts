@@ -80,7 +80,7 @@ describe('ShoppingWeek офлайн', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
 
     expect(
-      await screen.findByText('1 отметка чака връзка'),
+      await screen.findByRole('button', { name: /1 отметка чака връзка$/ }),
     ).toBeInTheDocument();
     expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
@@ -101,12 +101,84 @@ describe('ShoppingWeek офлайн', () => {
         },
       ]),
     );
-    await vi.waitFor(() =>
-      expect(screen.queryByText(/чака връзка/)).not.toBeInTheDocument(),
-    );
-    expect(screen.queryByText(/остарели данни/)).not.toBeInTheDocument();
+    // Опашката се изпразва преди списъкът да е прочетен наново: „чака“ и „остарели данни“ изчезват поотделно.
+    await vi.waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/остарели данни/)).not.toBeInTheDocument();
+    });
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
     expect(screen.getByText('4 от 6')).toBeInTheDocument();
+  });
+
+  it('иконата за синхронизация стои в реда с брояча: без връзка зачертан облак с броя, докосването обяснява', async () => {
+    const user = userEvent.setup();
+    serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    renderApp('/shopping');
+    const count = (await screen.findByText('5 от 6')).closest('p');
+    if (!count) throw new Error('редът с брояча липсва');
+    const sent = within(count).getByRole('button', {
+      name: 'Всички отметки са изпратени',
+    });
+    expect(sent).toHaveTextContent('');
+
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Лук' }));
+
+    const icon = await within(count).findByRole('button', {
+      name: 'Няма връзка · 2 отметки чакат връзка',
+    });
+    expect(icon).toHaveTextContent('2');
+    expect(screen.queryByText(/отметки чакат връзка/)).not.toBeInTheDocument();
+
+    await user.click(icon);
+    expect(
+      screen.getByText('2 отметки чакат връзка, ще се изпратят сами.'),
+    ).toBeInTheDocument();
+  });
+
+  it('с връзка докосването на иконата праща чакащите отметки веднага', async () => {
+    const user = userEvent.setup();
+    const shopping = serveShopping({ [thisWeek]: shoppingList() });
+    let refuse = true;
+    server.use(
+      http.put(
+        `/api/shopping-lists/:weekStart/items/${tomatoes.key}/checked`,
+        () => (refuse ? apiError(400, 'invalid_action', 'Не може') : undefined),
+      ),
+    );
+
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+    const icon = await screen.findByRole(
+      'button',
+      { name: '1 отметка чака връзка' },
+      { timeout: 3000 },
+    );
+    expect(icon).toHaveTextContent('1');
+    expect(shopping.requests).toEqual([]);
+
+    refuse = false;
+    await user.click(icon);
+
+    expect(
+      screen.getByText('1 отметка чака връзка, ще се изпрати сама.'),
+    ).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(shopping.requests.map((r) => r.path)).toEqual([
+        `${thisWeek}/items/${tomatoes.key}/checked`,
+      ]),
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: 'Всички отметки са изпратени',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('опашката оцелява презареждане без връзка и тръгва по реда си при отваряне на екрана', async () => {
@@ -119,7 +191,7 @@ describe('ShoppingWeek офлайн', () => {
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Лук' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Мляко' }));
-    await screen.findByText('2 отметки чакат връзка');
+    await screen.findByRole('button', { name: /2 отметки чакат връзка$/ });
     first.unmount();
 
     // Ново отваряне без връзка: последният списък от кеша, с отметките от опашката.
@@ -127,7 +199,9 @@ describe('ShoppingWeek офлайн', () => {
     expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Мляко' })).toBeChecked();
-    expect(screen.getByText('2 отметки чакат връзка')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /2 отметки чакат връзка$/ }),
+    ).toBeInTheDocument();
     second.unmount();
 
     net.online();
@@ -140,7 +214,9 @@ describe('ShoppingWeek офлайн', () => {
       ]),
     );
     expect(await screen.findByText('3 от 6')).toBeInTheDocument();
-    expect(screen.queryByText(/чака/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+    ).toBeInTheDocument();
   });
 
   it('404 за ключ (редът вече не е в менюто) се маха от опашката тихо, следващите се изпращат', async () => {
@@ -153,7 +229,7 @@ describe('ShoppingWeek офлайн', () => {
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Лук' }));
-    await screen.findByText('2 отметки чакат връзка');
+    await screen.findByRole('button', { name: /2 отметки чакат връзка$/ });
     // Докато телефонът е без връзка, доматите са махнати от менюто.
     const list = shoppingList();
     shopping.lists[thisWeek] = {
@@ -174,13 +250,15 @@ describe('ShoppingWeek офлайн', () => {
         `${thisWeek}/items/${onions.key}/checked`,
       ]),
     );
+    expect(await screen.findByText('3 от 5')).toBeInTheDocument();
     await vi.waitFor(() =>
-      expect(screen.queryByText(/чака/)).not.toBeInTheDocument(),
+      expect(
+        screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+      ).toBeInTheDocument(),
     );
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'Домати' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeChecked();
-    expect(screen.getByText('3 от 5')).toBeInTheDocument();
   });
 
   it('404 (менюто на седмицата е изтрито) маха всички отметки за седмицата и показва списъка без меню', async () => {
@@ -193,7 +271,7 @@ describe('ShoppingWeek офлайн', () => {
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Лук' }));
-    await screen.findByText('2 отметки чакат връзка');
+    await screen.findByRole('button', { name: /2 отметки чакат връзка$/ });
     // Докато телефонът е без връзка, менюто на седмицата е изтрито.
     delete shopping.lists[thisWeek];
 
@@ -213,7 +291,9 @@ describe('ShoppingWeek офлайн', () => {
     shopping.lists[thisWeek] = shoppingList();
     renderApp('/shopping');
     expect(await screen.findByText('5 от 6')).toBeInTheDocument();
-    expect(screen.queryByText(/чака/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+    ).toBeInTheDocument();
     expect(shopping.requests).toHaveLength(2);
   });
 
@@ -226,11 +306,11 @@ describe('ShoppingWeek офлайн', () => {
     await screen.findByText('5 от 6');
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
-    await screen.findByText('1 отметка чака връзка');
+    await screen.findByRole('button', { name: /1 отметка чака връзка$/ });
     // Поли взима телефона, без да е имало връзка.
     localStorage.setItem(ACTING_USER_KEY, poli.id);
     await user.click(screen.getByRole('checkbox', { name: 'Лук' }));
-    await screen.findByText('2 отметки чакат връзка');
+    await screen.findByRole('button', { name: /2 отметки чакат връзка$/ });
 
     net.online();
 
@@ -267,7 +347,7 @@ describe('ShoppingWeek офлайн', () => {
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Лук' }));
-    await screen.findByText('2 отметки чакат връзка');
+    await screen.findByRole('button', { name: /2 отметки чакат връзка$/ });
 
     net.online();
 
@@ -277,7 +357,7 @@ describe('ShoppingWeek офлайн', () => {
       ]),
     );
     expect(
-      await screen.findByText('1 отметка чака връзка'),
+      await screen.findByRole('button', { name: /1 отметка чака връзка$/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
 
@@ -291,7 +371,9 @@ describe('ShoppingWeek офлайн', () => {
       ]),
     );
     await vi.waitFor(() =>
-      expect(screen.queryByText(/чака/)).not.toBeInTheDocument(),
+      expect(
+        screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -304,7 +386,7 @@ describe('ShoppingWeek офлайн', () => {
     await screen.findByText('5 от 6');
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
-    await screen.findByText('1 отметка чака връзка');
+    await screen.findByRole('button', { name: /1 отметка чака връзка$/ });
     first.unmount();
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
       throw new DOMException('Диск', 'UnknownError');
@@ -385,7 +467,7 @@ describe('ShoppingWeek офлайн', () => {
     await screen.findByText('5 от 6');
     net.offline();
     await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
-    await screen.findByText('1 отметка чака връзка');
+    await screen.findByRole('button', { name: /1 отметка чака връзка$/ });
     first.unmount();
 
     // Презареждане без връзка: списъкът е от кеша, но кой е отметнал не се знае.
@@ -424,7 +506,7 @@ describe('ShoppingWeek офлайн', () => {
     net.offline();
     renderApp('/shopping');
     await user.click(await screen.findByRole('checkbox', { name: 'Домати' }));
-    await screen.findByText('1 отметка чака връзка');
+    await screen.findByRole('button', { name: /1 отметка чака връзка$/ });
     expect(await screen.findAllByTitle('Отметнато от Дани')).toHaveLength(2);
   });
 });

@@ -17,6 +17,8 @@ interface PushBrowserOptions {
   subscribed?: boolean;
   /** `pushManager.subscribe()` виси до `finishSubscribe()`, за да се види „Включване…“ (FCM отнема до 26 s). */
   slowSubscribe?: boolean;
+  /** Няма активен service worker (dev, неуспешна регистрация): `navigator.serviceWorker.ready` не се изпълнява никога. */
+  noActiveWorker?: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export function stubPushBrowser({
   answer = 'granted',
   subscribed = false,
   slowSubscribe = false,
+  noActiveWorker = false,
 }: PushBrowserOptions = {}) {
   let current: PushSubscription | null = null;
   let finishSubscribe = () => {};
@@ -76,7 +79,11 @@ export function stubPushBrowser({
   vi.stubGlobal('PushManager', class {});
   Object.defineProperty(navigator, 'serviceWorker', {
     configurable: true,
-    value: { ready: Promise.resolve({ pushManager }) },
+    value: {
+      ready: noActiveWorker
+        ? new Promise(() => {})
+        : Promise.resolve({ pushManager }),
+    },
   });
   onTestFinished(() => {
     vi.unstubAllGlobals();

@@ -5,7 +5,7 @@ import { DecisionToast } from '../suggestions/DecisionToast';
 import { searchId } from '../suggestions/request-search';
 import { ImportLinkForm } from './ImportLinkForm';
 import { ImportPhotoForm } from './ImportPhotoForm';
-import { ImportTextForm } from './ImportTextForm';
+import { type ImportTextDraft, ImportTextForm } from './ImportTextForm';
 import { type ImportRequestParams, useRequestImport } from './queries';
 import { RecentImports } from './RecentImports';
 import { resizePhoto } from './resize-photo';
@@ -76,6 +76,11 @@ export function ImportScreen() {
     search.tab === undefined && !sharingPhoto ? importFromShare(search) : null,
   );
   const [sharedPhoto, setSharedPhoto] = useState<Blob[]>();
+  // Табът „Текст“ се демонтира при друг таб: поставеното остава тук, за да е там при връщане.
+  const [textDraft, setTextDraft] = useState<ImportTextDraft>(() => ({
+    text: (shared?.kind === 'text' ? shared.text : search.text) ?? '',
+    url: (shared ? undefined : search.url) ?? '',
+  }));
   const [tab, setTab] = useState<ImportTab>(
     sharingPhoto
       ? 'photo'
@@ -85,6 +90,8 @@ export function ImportScreen() {
           : 'text'
         : (search.tab ?? 'text'),
   );
+  // След „Отхвърли“ (toast-ът „Отхвърлено · Върни“) полето „Текст“ не взима фокус; избран таб пак го дава.
+  const [focusText, setFocusText] = useState(search.rejected === undefined);
   const requestImport = useRequestImport();
   const navigate = useNavigate();
   const clearDecision = useCallback(
@@ -174,6 +181,7 @@ export function ImportScreen() {
             className="import-tabs__tab"
             onClick={() => {
               setTab(id);
+              setFocusText(true);
               requestImport.reset();
             }}
           >
@@ -195,8 +203,10 @@ export function ImportScreen() {
         ) : tab === 'text' ? (
           <ImportTextForm
             {...formProps}
-            initialText={shared?.kind === 'text' ? shared.text : search.text}
-            initialUrl={shared ? undefined : search.url}
+            initialText={textDraft.text}
+            initialUrl={textDraft.url}
+            onDraftChange={setTextDraft}
+            autoFocus={focusText}
           />
         ) : (
           <ImportLinkForm

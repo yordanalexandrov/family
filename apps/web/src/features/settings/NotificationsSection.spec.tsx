@@ -1,7 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { apiError, dani, poli, server } from '../../test/msw';
 import {
   servePushApi,
@@ -10,6 +10,7 @@ import {
   TEST_VAPID_KEY,
 } from '../../test/push';
 import { renderApp, setUpDevice } from '../../test/render';
+import { SERVICE_WORKER_TIMEOUT_MS } from './push';
 
 async function findSection() {
   return screen.findByRole('region', { name: 'Известия' });
@@ -119,6 +120,42 @@ describe('Настройки → Известия', () => {
     expect(
       screen.queryByText('Известията са включени'),
     ).not.toBeInTheDocument();
+  });
+
+  it('без активен service worker картата не чака безкрайно: „Опитай пак“ проверява отново', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    stubPushBrowser({ noActiveWorker: true });
+    servePushApi();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderApp('/settings');
+
+    const section = await findSection();
+    await act(() => vi.advanceTimersByTimeAsync(SERVICE_WORKER_TIMEOUT_MS));
+
+    expect(
+      await within(section).findByText(
+        'Известията още не са готови на това устройство. Опитай пак по-късно.',
+      ),
+    ).toBeVisible();
+    expect(
+      within(section).queryByRole('button', {
+        name: 'Включи известия на това устройство',
+      }),
+    ).toBeNull();
+
+    stubPushBrowser();
+    await user.click(
+      within(section).getByRole('button', { name: 'Опитай пак' }),
+    );
+
+    expect(
+      await within(section).findByRole('button', {
+        name: 'Включи известия на това устройство',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('без абонамент видовете са приглушени и казват, че важат след включване на устройството', async () => {

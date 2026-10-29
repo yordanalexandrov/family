@@ -330,6 +330,25 @@ describe('GET /api/recipes/:id', () => {
       message: 'Няма такава рецепта',
     });
   });
+
+  it('opens a recipe without an acting user (kiosk), but refuses to change it', async () => {
+    const recipe = await createdRecipe(recipeInput({ title: 'Мусака' }));
+
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+    });
+    const change = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      payload: recipeInput({ title: 'Мусака с тиквички' }),
+    });
+
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toEqual({ recipe });
+    expect(change.statusCode).toBe(400);
+    expect(change.json()).toMatchObject({ error: 'missing_acting_user' });
+  });
 });
 
 describe('PUT /api/recipes/:id', () => {

@@ -268,7 +268,7 @@ export function createOpenClawClient(
         { role: 'user', content: inputText },
         { role: 'assistant', content: first },
         userMessage(
-          `Отговорът не мина валидация: ${firstResult.issues}. Върни само валиден JSON.`,
+          `Отговорът не мина валидация: ${sentence(firstResult.issues)} Върни само валиден JSON.`,
           images,
         ),
       ];
@@ -309,6 +309,11 @@ function stripFences(content: string): string {
   const trimmed = content.trim();
   const fenced = /^```[a-zA-Z]*\s*\n([\s\S]*?)\n?```$/.exec(trimmed);
   return fenced?.[1] ?? trimmed;
+}
+
+/** `text` as a sentence: with a full stop at the end, unless it already ends with one (`… или null.`). */
+function sentence(text: string): string {
+  return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
 /** `path: message; …` of the first few issues, short enough to go back to the agent. */

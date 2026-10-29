@@ -6,7 +6,7 @@
 
 - `pantry-list` regions „Постоянни“ and „Временни“, each with its own empty text („Няма временни продукти.“).
 - `pantry-add` „Добави“ → dialog „Добави в килера“: searchbox „Търси продукт“, list „Продукти“ of checkboxes, group „Вид“ (radios „Постоянен“/„Временен“), checkbox „❄️ Във фризера“, textbox „Бележка“, submit „Добави N продукт(а)“.
-- `pantry-row` per item: „Във фризера: X“, „Направи временен: X“ / „Направи постоянен: X“, and „Махни: X“ (staple) or „Използвано: X“ (temporary).
+- `pantry-row` per item: checkbox „❄️ Във фризера“ (staples too, #209), „Направи временен: X“ / „Направи постоянен: X“, and „Махни: X“ (staple) or „Използвано: X“ (temporary).
 
 ## How to get to it (user POV)
 

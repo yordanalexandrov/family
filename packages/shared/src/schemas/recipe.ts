@@ -126,6 +126,29 @@ export const recipesSortSchema = z.enum(['title', 'rating']);
 
 export type RecipesSort = z.infer<typeof recipesSortSchema>;
 
+/** The items of `item` in an array; anything else (not an array, a value no longer known) drops out. */
+function knownItems<T extends z.ZodType>(item: T) {
+  return z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) =>
+      items.filter(
+        (value): value is z.output<T> => item.safeParse(value).success,
+      ),
+    );
+}
+
+/**
+ * The filters of the recipe registry a screen keeps between visits (web: `family.recipeFilters`). Lenient by field: a
+ * value an older version wrote or someone edited drops out, the rest stays.
+ */
+export const recipeFiltersSchema = z.object({
+  tags: knownItems(tagSchema),
+  times: knownItems(prepTimeRangeSchema),
+  includeArchived: z.boolean().catch(false),
+  sort: recipesSortSchema.catch('title'),
+});
+
 /**
  * `GET /api/recipes`: `q` matches anywhere in the title ignoring case. `tag` repeats: slot tags match any of them
  * (обяд или вечеря), the other tags all of them. `time` repeats: recipes whose prep time is in any of the intervals

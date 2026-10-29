@@ -169,6 +169,50 @@ describe('RecipeView', () => {
     ).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it.each(['kiosk', 'tv'] as const)(
+    'на %s без избран потребител рецептата няма бутони за писане, а оценката е само за четене',
+    async (mode) => {
+      setUpDevice(mode);
+      serveRecipe({ ...chickenWithRice, rating: 4 });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      expect(
+        await screen.findByRole('heading', { name: 'Пиле с ориз' }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Оценка 4 от 5' })).toBeVisible();
+      expect(screen.queryByRole('group', { name: 'Оценка' })).toBeNull();
+      expect(screen.queryByRole('link', { name: 'Редактирай' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Архивирай' })).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
+    },
+  );
+
+  it('kiosk не предлага писане и когато телефонът е оставил потребител в паметта', async () => {
+    setUpDevice('kiosk', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    await screen.findByRole('heading', { name: 'Пиле с ориз' });
+    expect(screen.queryByRole('group', { name: 'Оценка' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Редактирай' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Архивирай' })).toBeNull();
+  });
+
+  it('с избран потребител рецептата предлага оценка, „Редактирай“ и „Архивирай“', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    expect(
+      await screen.findByRole('group', { name: 'Оценка' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Редактирай' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Архивирай' })).toBeVisible();
+  });
+
   it('за непозната рецепта показва съобщението от api', async () => {
     setUpDevice('phone', dani.id);
     server.use(

@@ -21,7 +21,7 @@ import {
 } from '@family/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
+import { ApiError, apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { queryKeys } from '../../api/queries';
 import { POLL_INTERVAL_MS } from '../../lib/ai-requests';
 
@@ -115,6 +115,27 @@ export function useUpdateMeal(weekStart: DateKey) {
     onSuccess(meal: Meal) {
       setMeal(queryClient, weekStart, meal);
       // Нова рецепта или бележка добавя системен ред в разговора.
+      void queryClient.invalidateQueries({
+        queryKey: menuKeys.thread(weekStart, meal.id),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+    },
+  });
+}
+
+/**
+ * „Върни“ след „Махни ястието от деня“: api-то връща рецептата, „защо“-то и гласовете, които махането е взело, а редът
+ * за махането изчезва от разговора. Без тяло: какво се връща пази сървърът.
+ */
+export function useRestoreMeal(weekStart: DateKey) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/menu/meals/${id}/restore`, mealResponseSchema, {
+        method: 'POST',
+      }).then((body) => body.meal),
+    onSuccess(meal: Meal) {
+      setMeal(queryClient, weekStart, meal);
       void queryClient.invalidateQueries({
         queryKey: menuKeys.thread(weekStart, meal.id),
       });
@@ -320,6 +341,22 @@ export function useProposeMenu() {
       }).then((body) => body.proposal),
     onSuccess(proposal) {
       queryClient.setQueryData(menuKeys.proposal(proposal.id), proposal);
+    },
+    // 409 без под-код: другият вече е поискал меню или планът е готов. Седмицата се чете пак и показва тях.
+    onError(error, { weekStart }) {
+      if (
+        error instanceof ApiError &&
+        error.code === 'conflict' &&
+        !refusalOf(error, 'not_enough_recipes')
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: menuKeys.weekProposal(weekStart),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: menuKeys.plan(weekStart),
+          exact: true,
+        });
+      }
     },
   });
 }

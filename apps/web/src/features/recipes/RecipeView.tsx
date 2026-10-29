@@ -1,12 +1,13 @@
 import { AISLES, type Recipe, TAG_LABELS_BG } from '@family/shared';
 import { Link, useParams } from '@tanstack/react-router';
+import { useWritingUserId } from '../../app/acting-user';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
 import { ApplianceBadge } from './ApplianceBadge';
 import { formatMinutes } from './format';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
-import { RatingStars } from './Stars';
+import { RatingStars, StarsBadge } from './Stars';
 import './recipes.css';
 
 export function RecipeView() {
@@ -42,15 +43,21 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const rate = useRateRecipe();
   const archived = recipe.archivedAt !== null;
   const nutrition = recipe.nutritionPer100g;
+  // Оценката, редакцията и архивът пишат от името на потребител; kiosk и TV нямат такъв.
+  const canWrite = useWritingUserId() !== null;
 
   return (
     <article className="recipe-view">
       <header className="recipe-view__wide recipes__filters">
         <h1 className="recipes__title recipe-view__title">{recipe.title}</h1>
-        <RatingStars
-          rating={recipe.rating}
-          onRate={(rating) => rate.mutate({ id: recipe.id, rating })}
-        />
+        {canWrite ? (
+          <RatingStars
+            rating={recipe.rating}
+            onRate={(rating) => rate.mutate({ id: recipe.id, rating })}
+          />
+        ) : (
+          <StarsBadge rating={recipe.rating} />
+        )}
         {rate.isError && <ErrorBox error={rate.error} />}
         <p className="recipe-view__meta">
           <span>{recipe.servings} порции</span>
@@ -65,25 +72,27 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
           {recipe.appliance && <ApplianceBadge name={recipe.appliance} />}
           {archived && <span className="badge">Архивирана</span>}
         </p>
-        <div className="recipes__actions">
-          <Link
-            to="/recipes/$id/edit"
-            params={{ id: recipe.id }}
-            className="button"
-          >
-            Редактирай
-          </Link>
-          <button
-            type="button"
-            className="button button--quiet"
-            disabled={archive.isPending}
-            onClick={() =>
-              archive.mutate({ id: recipe.id, archived: !archived })
-            }
-          >
-            {archived ? 'Върни' : 'Архивирай'}
-          </button>
-        </div>
+        {canWrite && (
+          <div className="recipes__actions">
+            <Link
+              to="/recipes/$id/edit"
+              params={{ id: recipe.id }}
+              className="button"
+            >
+              Редактирай
+            </Link>
+            <button
+              type="button"
+              className="button button--quiet"
+              disabled={archive.isPending}
+              onClick={() =>
+                archive.mutate({ id: recipe.id, archived: !archived })
+              }
+            >
+              {archived ? 'Върни' : 'Архивирай'}
+            </button>
+          </div>
+        )}
         {archive.isError && <ErrorBox error={archive.error} />}
       </header>
 

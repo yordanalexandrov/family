@@ -202,6 +202,39 @@ export function serveMealUpdates(plan: MealPlan) {
   return patches;
 }
 
+/**
+ * `POST /api/menu/meals/:id/restore` („Върни“) срещу `plan`: като api-то, ястието получава рецептата, „защо“-то и
+ * гласовете, които е имало при извикването (преди махането). Връща id-тата на ястията по ред.
+ */
+export function serveMealRestores(plan: MealPlan) {
+  const kept = new Map(plan.meals.map((m) => [m.id, m]));
+  const restores: string[] = [];
+  server.use(
+    http.post('/api/menu/meals/:id/restore', ({ params }) => {
+      const id = String(params.id);
+      restores.push(id);
+      const current = plan.meals.find((m) => m.id === id);
+      const before = kept.get(id);
+      if (!current || !before) {
+        return HttpResponse.json(
+          { error: 'not_found', message: 'Няма такова ястие' },
+          { status: 404 },
+        );
+      }
+      const next: Meal = {
+        ...current,
+        recipeId: before.recipeId,
+        recipe: before.recipe,
+        why: before.why,
+        votes: before.votes,
+      };
+      plan.meals = plan.meals.map((m) => (m.id === id ? next : m));
+      return HttpResponse.json({ meal: next });
+    }),
+  );
+  return restores;
+}
+
 /** Гласовете на `dani` и `poli` за ястие; `undefined` е липсващ глас. */
 export function votesOf(
   daniVote?: 'up' | 'down',

@@ -45,7 +45,11 @@ export function NotificationsSection() {
       ) : device.isError ? (
         <ErrorBox error={device.error} onRetry={() => void device.refetch()} />
       ) : (
-        <Device device={device.data} onMessage={setToast} />
+        <Device
+          device={device.data}
+          onMessage={setToast}
+          onRetry={() => void device.refetch()}
+        />
       )}
       <Toast message={toast} onDone={() => setToast(null)} />
     </>
@@ -55,9 +59,11 @@ export function NotificationsSection() {
 function Device({
   device,
   onMessage,
+  onRetry,
 }: {
   device: PushDevice;
   onMessage: (message: string) => void;
+  onRetry: () => void;
 }) {
   const disable = useDisablePush();
   const sendTest = useSendTestNotification();
@@ -69,6 +75,19 @@ function Device({
           Този браузър не поддържа известия. На Android ги има в инсталираното
           приложение от Chrome.
         </p>
+      );
+    case 'unready':
+      return (
+        <>
+          <p className="settings__hint">
+            Известията още не са готови на това устройство. Опитай пак по-късно.
+          </p>
+          <div className="settings__actions">
+            <button type="button" className="button" onClick={onRetry}>
+              Опитай пак
+            </button>
+          </div>
+        </>
       );
     case 'disabled':
       return (

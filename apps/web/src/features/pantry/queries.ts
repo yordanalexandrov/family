@@ -177,7 +177,8 @@ export function useRemovePantryItem() {
       apiFetch(
         `/pantry/${item.id}`,
         { parse: () => undefined },
-        { method: 'DELETE' },
+        // `keepalive`: заявката стига до api-то и когато страницата се затваря (#209).
+        { method: 'DELETE', keepalive: true },
       ),
     onMutate: (item) =>
       applyOptimistic(queryClient, (items) =>

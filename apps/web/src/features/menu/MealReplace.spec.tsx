@@ -7,12 +7,14 @@ import {
   dinnerRecipes,
   planFor,
   serveDinnerRecipes,
+  serveMealRestores,
   serveMealUpdates,
   servePlans,
   serveThreads,
   showPastDays,
   thisWeek,
   threadLine,
+  votesOf,
 } from '../../test/menu';
 import { dani, fixtureNow, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -396,18 +398,20 @@ describe('MealSheet: „Махни ястието от деня“', () => {
     vi.useRealTimers();
   });
 
-  it('„Без рецепта“ не е сред резултатите, а отделен бутон под тях; махането показва toast с „Върни“, което връща рецептата', async () => {
+  it('„Без рецепта“ не е сред резултатите, а отделен бутон под тях; махането показва toast с „Върни“, което връща рецептата и гласовете', async () => {
     const week = planFor(thisWeek, {
       3: {
         recipeId: moussaka.id,
         recipe: { title: moussaka.title, archivedAt: null, rating: null },
         why: 'Мусака за четвъртък.',
+        votes: votesOf('up', 'up'),
       },
     });
     const thursday = week.meals[3]?.id ?? '';
     servePlans({ [thisWeek]: week });
     serveDinnerRecipes();
     const patches = serveMealUpdates(week);
+    const restores = serveMealRestores(week);
 
     renderApp('/menu');
     const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
@@ -436,16 +440,14 @@ describe('MealSheet: „Махни ястието от деня“', () => {
 
     await user.click(screen.getByRole('button', { name: 'Върни' }));
 
-    await expect
-      .poll(() => patches.at(-1))
-      .toEqual({
-        id: thursday,
-        body: { recipeId: moussaka.id, why: 'Мусака за четвъртък.' },
-      });
+    await expect.poll(() => restores).toEqual([thursday]);
+    // „Върни“ не е нова смяна: без PATCH след махането.
+    expect(patches).toHaveLength(1);
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
     expect(
       await screen.findByRole('button', { name: /Мусака/ }),
     ).toHaveTextContent('чт');
+    expect(await screen.findByText('Менюто е съгласувано')).toBeVisible();
   });
 
   it('„Върни“ остава и след затварянето на листа', async () => {
@@ -458,7 +460,8 @@ describe('MealSheet: „Махни ястието от деня“', () => {
     const thursday = week.meals[3]?.id ?? '';
     servePlans({ [thisWeek]: week });
     serveDinnerRecipes();
-    const patches = serveMealUpdates(week);
+    serveMealUpdates(week);
+    const restores = serveMealRestores(week);
 
     renderApp('/menu');
     const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
@@ -472,9 +475,7 @@ describe('MealSheet: „Махни ястието от деня“', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Върни' }));
 
-    await expect
-      .poll(() => patches.at(-1))
-      .toEqual({ id: thursday, body: { recipeId: moussaka.id } });
+    await expect.poll(() => restores).toEqual([thursday]);
   });
 
   it('празен ден е без „Махни ястието от деня“', async () => {

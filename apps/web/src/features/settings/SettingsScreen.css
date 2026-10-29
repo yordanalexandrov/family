@@ -209,3 +209,8 @@
   flex: 1;
   min-inline-size: 0;
 }
+
+/* Котва за връзка отвън (`/settings#appliances`): малко въздух над картата. */
+.settings > [id] {
+  scroll-margin-block-start: var(--space-4);
+}

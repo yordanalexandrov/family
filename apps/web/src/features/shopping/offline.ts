@@ -75,6 +75,22 @@ export async function readCachedList(
  */
 let queueWrites: Promise<unknown> = Promise.resolve();
 
+const queueListeners = new Set<() => void>();
+
+/** Вика `listener` след всяка промяна на опашката (добавена или махната отметка); връща отписване. */
+export function onQueueChange(listener: () => void): () => void {
+  queueListeners.add(listener);
+  return () => {
+    queueListeners.delete(listener);
+  };
+}
+
+function notifyQueueChange() {
+  for (const listener of queueListeners) {
+    listener();
+  }
+}
+
 async function readQueue(): Promise<QueuedCheck[]> {
   await queueWrites;
   try {
@@ -98,7 +114,7 @@ export function enqueueCheck(entry: Omit<QueuedCheck, 'id'>): Promise<void> {
     queued,
   ]);
   queueWrites = Promise.allSettled([queueWrites, write]);
-  return write;
+  return write.then(notifyQueueChange);
 }
 
 /** Чакащите отметки върху списъка, по реда им, всяка от името на този, който я е направил. */
@@ -162,6 +178,7 @@ async function sendAll(
     await update<QueuedCheck[]>(QUEUE_KEY, (queue = []) =>
       queue.filter((e) => e.id !== entry.id),
     );
+    notifyQueueChange();
     removed += 1;
   }
 }

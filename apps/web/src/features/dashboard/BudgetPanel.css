@@ -18,10 +18,6 @@
   color: var(--color-danger);
 }
 
-.budget__side {
-  text-align: start;
-}
-
 .budget__amount--over {
   font-size: calc(var(--font-size-display) * 0.62);
   line-height: 1.05;
@@ -49,7 +45,11 @@
   align-items: flex-start;
 }
 
-.budget__top--over .budget__bar {
+.budget__top--over .budget__side {
+  text-align: start;
+}
+
+.budget__bar {
   position: relative;
   block-size: 12px;
   margin-block: 0.5em 1.5em;

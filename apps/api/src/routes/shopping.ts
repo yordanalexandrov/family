@@ -25,6 +25,8 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/api/shopping-lists/:weekStart',
     {
+      // The tablet and the TV read the list without a user; every change to it still needs one.
+      config: { actingUser: false },
       schema: {
         params: shoppingListParamsSchema,
         response: { 200: shoppingListResponseSchema },

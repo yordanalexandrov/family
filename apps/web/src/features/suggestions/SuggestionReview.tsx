@@ -1,8 +1,10 @@
 import {
   type AnyRecipeSuggestion,
+  canonicalTitle,
   type DuplicateOf,
   type Ingredient,
   normalizeIngredientName,
+  type RecipeSummary,
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
@@ -13,7 +15,7 @@ import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { useObjectUrl } from '../../lib/use-object-url';
 import { ApplianceBadge } from '../recipes/ApplianceBadge';
-import { ingredientSearchQuery } from '../recipes/queries';
+import { ingredientSearchQuery, useRecipes } from '../recipes/queries';
 import { RecipeForm } from '../recipes/RecipeForm';
 import {
   useApproveSuggestion,
@@ -72,6 +74,8 @@ export function SuggestionReview() {
         <Decided suggestion={suggestion} />
       ) : (
         <ReviewSuggestion
+          // Изборът в прегледа (уред, „… въпреки това“) е за това предложение.
+          key={suggestion.id}
           suggestion={suggestion}
           // Обратно към заявката: там са и другите предложения; toast-ът дава „Върни“ или „Отвори“ (към рецептата).
           onApproved={(recipeId) => backToRequest({ approved: recipeId })}
@@ -203,13 +207,18 @@ function SourcePhoto({ photo }: { photo: Blob }) {
   );
 }
 
-/** Рецепта със същото заглавие вече е в регистъра: „Отвори“ води към нея, „Внеси въпреки това“ връща „Одобри“. */
+/**
+ * Рецепта със същото заглавие вече е в регистъра: „Отвори“ води към нея, „Внеси въпреки това“ (при внасяне) или
+ * „Одобри въпреки това“ (при предложение от заявка) връща „Одобри“.
+ */
 function DuplicateWarning({
   duplicate,
-  onImportAnyway,
+  anywayLabel,
+  onAnyway,
 }: {
   duplicate: DuplicateOf;
-  onImportAnyway: () => void;
+  anywayLabel: string;
+  onAnyway: () => void;
 }) {
   const labelId = useId();
   return (
@@ -232,13 +241,33 @@ function DuplicateWarning({
         <button
           type="button"
           className="button button--quiet"
-          onClick={onImportAnyway}
+          onClick={onAnyway}
         >
-          Внеси въпреки това
+          {anywayLabel}
         </button>
       </div>
     </section>
   );
+}
+
+/**
+ * Рецептата в регистъра със заглавието от формата (канонично). Докато то е това на агента, отговорът е `duplicateOf`
+ * от api-то; иначе се търси в списъка на рецептите (без архивираните).
+ */
+function duplicateOf(
+  title: string,
+  suggestion: AnyRecipeSuggestion,
+  registry: readonly RecipeSummary[] | undefined,
+): DuplicateOf | undefined {
+  const key = canonicalTitle(title);
+  if (key === canonicalTitle(suggestion.payload.title)) {
+    return suggestion.duplicateOf;
+  }
+  const recipe =
+    key === ''
+      ? undefined
+      : registry?.find((r) => canonicalTitle(r.title) === key);
+  return recipe && { id: recipe.id, title: recipe.title };
 }
 
 /**
@@ -262,11 +291,20 @@ export function ReviewSuggestion({
     ? suggestion.payload.assumptions
     : suggestion.payload.why;
   const source = imported ? sourceUrl : suggestion.payload.sourceUrl;
-  const appliance = imported ? undefined : suggestion.payload.appliance;
+  // Значката следва избора в „Уред“ във формата; до първата смяна е уредът на предложението.
+  const [chosenAppliance, setChosenAppliance] = useState<string>();
+  const appliance = imported
+    ? undefined
+    : chosenAppliance === undefined
+      ? suggestion.payload.appliance
+      : chosenAppliance || undefined;
   const navigate = useNavigate();
-  // Като при линк, който вече е в регистъра: „Отвори“, докато човекът не избере „Внеси въпреки това“.
-  const [importAnyway, setImportAnyway] = useState(false);
-  const duplicate = importAnyway ? undefined : suggestion.duplicateOf;
+  // Като при линк, който вече е в регистъра: „Отвори“, докато човекът не избере „… въпреки това“ за тази рецепта.
+  const [title, setTitle] = useState(suggestion.payload.title);
+  const registry = useRecipes({});
+  const [importedAnyway, setImportedAnyway] = useState<string>();
+  const sameTitle = duplicateOf(title, suggestion, registry.data);
+  const duplicate = sameTitle?.id === importedAnyway ? undefined : sameTitle;
   const rejectAction = {
     label: 'Отхвърли',
     disabled: reject.isPending,
@@ -282,7 +320,8 @@ export function ReviewSuggestion({
       {duplicate && (
         <DuplicateWarning
           duplicate={duplicate}
-          onImportAnyway={() => setImportAnyway(true)}
+          anywayLabel={imported ? 'Внеси въпреки това' : 'Одобри въпреки това'}
+          onAnyway={() => setImportedAnyway(duplicate.id)}
         />
       )}
       {(photo || appliance || note || source) && (
@@ -368,6 +407,8 @@ export function ReviewSuggestion({
             }
           }
           extraActions={[rejectAction]}
+          onTitleChange={setTitle}
+          onApplianceChange={setChosenAppliance}
         />
       )}
     </>

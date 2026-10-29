@@ -1,9 +1,11 @@
 import { act, screen } from '@testing-library/react';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { logger } from '../logger';
 import { MockEventSource, source } from '../test/events';
 import {
   nextWeek,
+  noProposal,
   pendingProposal,
   planFor,
   servePlans,
@@ -86,6 +88,92 @@ describe('useServerEvents', () => {
     );
 
     expect(await screen.findByText('Дани съставя меню…')).toBeInTheDocument();
+  });
+
+  it('Дани стои на неуспешното си предложение, Поли иска ново: Дани вижда чакането, после готовия план', async () => {
+    const failed = {
+      ...pendingProposal,
+      status: 'failed' as const,
+      error: 'http_500' as const,
+      finishedAt: '2026-11-04T08:00:05.000Z',
+    };
+    const polis = {
+      ...pendingProposal,
+      id: 'ffffffff-0000-4000-8000-0000000000a1',
+      requestedBy: poli.id,
+      hint: 'без риба',
+      createdAt: '2026-11-04T08:01:00.000Z',
+    };
+    let latest: typeof pendingProposal = failed;
+    const plans: Record<string, ReturnType<typeof planFor>> = {};
+    servePlans(plans);
+    server.use(
+      http.get(`/api/menu/proposals/${pendingProposal.id}`, () =>
+        HttpResponse.json({ proposal: failed }),
+      ),
+      http.get('/api/menu/proposals', () =>
+        HttpResponse.json({ proposal: latest }),
+      ),
+    );
+    renderApp(`/menu?proposal=${pendingProposal.id}`);
+    expect(
+      await screen.findByRole('button', { name: 'Опитай пак' }),
+    ).toBeEnabled();
+    source().open();
+
+    latest = polis;
+    act(() =>
+      source().send({ type: 'menu.proposal.changed', weekStart: thisWeek }),
+    );
+    expect(await screen.findByText('Поли съставя меню…')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Предложи меню' }),
+    ).toBeDisabled();
+
+    plans[thisWeek] = planFor(thisWeek, {}, { summary: 'Седмица без риба.' });
+    latest = {
+      ...polis,
+      status: 'done',
+      planId: plans[thisWeek].id,
+      finishedAt: '2026-11-04T08:02:00.000Z',
+    };
+    act(() =>
+      source().send({ type: 'menu.proposal.changed', weekStart: thisWeek }),
+    );
+    act(() => source().send({ type: 'menu.changed', weekStart: thisWeek }));
+
+    expect(await screen.findByText('Седмица без риба.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('бързо следващ menu.proposal.changed (предложението падна веднага) не оставя CancelledError в конзолата', async () => {
+    const warn = vi.spyOn(logger, 'warn');
+    servePlans();
+    let latest: typeof pendingProposal | undefined;
+    server.use(
+      http.get('/api/menu/proposals', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return latest ? HttpResponse.json({ proposal: latest }) : noProposal();
+      }),
+    );
+    renderApp('/menu');
+    await screen.findByRole('button', { name: 'Предложи меню' });
+    source().open();
+
+    latest = pendingProposal;
+    act(() =>
+      source().send({ type: 'menu.proposal.changed', weekStart: thisWeek }),
+    );
+    latest = { ...pendingProposal, status: 'failed', error: 'http_500' };
+    act(() =>
+      source().send({ type: 'menu.proposal.changed', weekStart: thisWeek }),
+    );
+
+    expect(
+      await screen.findByRole('button', { name: 'Опитай пак' }),
+    ).toBeEnabled();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('shopping.changed презарежда списъка на своята седмица', async () => {

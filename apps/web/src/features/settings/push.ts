@@ -15,10 +15,12 @@ import { logger } from '../../logger';
 
 /**
  * Известията (GLOSSARY: Известие) на това устройство: `unsupported` — браузърът няма Web Push; `disabled` — api-то е
- * без VAPID ключове (`push_disabled`); `denied` — човекът е отказал в браузъра; `off`/`on` — без или с абонамент.
+ * без VAPID ключове (`push_disabled`); `denied` — човекът е отказал в браузъра; `unready` — няма активен service
+ * worker (`SERVICE_WORKER_TIMEOUT_MS`); `off`/`on` — без или с абонамент.
  */
 export type PushDevice =
   | { status: 'unsupported' }
+  | { status: 'unready' }
   | { status: 'disabled' }
   | { status: 'denied' }
   | { status: 'off'; publicKey: string }
@@ -52,6 +54,22 @@ export function pushSupported(): boolean {
   );
 }
 
+/** Толкова се чака активен service worker (`navigator.serviceWorker.ready`), преди известията да кажат „не сега“. */
+export const SERVICE_WORKER_TIMEOUT_MS = 10_000;
+
+/** Активният service worker или `null` след `SERVICE_WORKER_TIMEOUT_MS`: без такъв `ready` не се изпълнява никога. */
+async function activeRegistration(): Promise<ServiceWorkerRegistration | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((done) => {
+    timer = setTimeout(() => done(null), SERVICE_WORKER_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([navigator.serviceWorker.ready, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function currentSubscription(): Promise<PushSubscription | null> {
   const registration = await navigator.serviceWorker.ready;
   return registration.pushManager.getSubscription();
@@ -76,7 +94,11 @@ async function readPushDevice(): Promise<PushDevice> {
   if (Notification.permission === 'denied') {
     return { status: 'denied' };
   }
-  const subscription = await currentSubscription();
+  const registration = await activeRegistration();
+  if (!registration) {
+    return { status: 'unready' };
+  }
+  const subscription = await registration.pushManager.getSubscription();
   return subscription
     ? { status: 'on', publicKey, subscription }
     : { status: 'off', publicKey };

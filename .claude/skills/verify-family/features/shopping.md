@@ -10,7 +10,7 @@ The week's shopping list is computed from the menu: every ingredient of the plan
 - `shopping-sources` the ⓘ button „Още за <item>“ (left of the checkbox) opens the row sheet: „От кои ястия“ with the dinners, „Скрий от списъка“, „Имаме го винаги“ (makes it a pantry staple).
 - `shopping-pantry` staples go into „🏠 Скрити от килера: N“; „Свърши <item>“ puts one back on the list with badge „свърши“; checking it clears the run-out mark.
 - `shopping-add` „+ Добави“ sheet adds a manual item (Заглавие, Количество, Единица, Щанд), marked img „добавен на ръка“; its row sheet has „Изтрий“, which asks in alertdialog „Изтриване на <item>“.
-- `shopping-offline` a check made offline waits in a queue: status „N отметка чака връзка“ until the connection is back.
+- `shopping-offline` a check made offline waits in a queue. The sync icon, always at the right of „N от M за купуване“, shows it: button „Всички отметки са изпратени“ (muted, no number); unsent checks → badge with the count, name „N отметка/и чака/т връзка“ (online only after ~800 ms); offline → struck-through cloud, name „Няма връзка · …“. Tapping it shows a status „… ще се изпрати/ят сам/и.“ and, online, sends right away.
 - `shopping-empty` a week without a plan shows „Няма меню за тази седмица“ and link „Към менюто“.
 
 ## How to get to it (user POV)
@@ -31,7 +31,7 @@ Preconditions:
 - **Sources.** `tap(getByRole('button', { name: 'Още за лук' }))` → dialog „лук“ with paragraph „От кои ястия“ and listitem `понеделник, 2 ноември · <recipe>`; close with Escape.
 - **Hide.** `tap(getByRole('button', { name: 'Още за лук' }))`, `tap` „Скрий от списъка“ → button `/Скрити \(1\)/` appears and the counter excludes it; `psql` shows `hidden = t` for that `item_key`. `tap` it, then „Покажи лук“ → back on the list.
 - **Pantry.** With „лук“ unchecked: row sheet „Още за лук“ → `tap` „Имаме го винаги“ → button `/Скрити от килера: 1/`; `tap` it, `tap` „Свърши лук“ → checkbox „лук“ is back with text „свърши“; `psql` on `pantry_item` → `staple`, `ran_out_at` set; check „лук“ → `ran_out_at` null.
-- **Offline.** `context.setOffline(true)`; tap a checkbox → status `/чака връзка/`; `context.setOffline(false)` → the status disappears within the 15 s refresh (wait with `waitFor({ state: 'detached', timeout: 30000 })`).
+- **Offline.** `context.setOffline(true)` and dispatch `offline` on `window`; tap a checkbox → button `/Няма връзка · 1 отметка чака връзка/`; `context.setOffline(false)` + `online` event → button „Всички отметки са изпратени“ within the 15 s refresh.
 - **Empty.** Tab „Тази седмица“ without a plan → paragraph „Няма меню за тази седмица“ and `getByRole('main').getByRole('link', { name: 'Към менюто' })`.
 
 ## Gotchas

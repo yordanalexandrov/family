@@ -58,8 +58,8 @@ import '../recipes/recipes.css';
 import './menu.css';
 
 /**
- * `?week=` (понеделник), `?proposal=` (предложението, което се чака) и `?meal=` (ястието с отворен лист, напр. от
- * известие) на `/menu`.
+ * `?week=` (понеделник), `?proposal=` (предложението, което се чака) и `?meal=` (ястието, чийто лист да се отвори,
+ * напр. от известие) на `/menu`.
  */
 export interface MenuSearch {
   week?: DateKey;
@@ -113,16 +113,22 @@ export function MenuWeek() {
     [navigate],
   );
 
-  const setOpenMeal = useCallback(
-    (meal: string | null) =>
+  // Отвореният лист е в state, не в адреса: листът има свой запис в историята и „назад“ го затваря, а адрес с
+  // `?meal=` под него би го отворил пак. `?meal=` само отваря листа и се маха от адреса, преди листът да добави
+  // записа си; иначе махането би заменило записа на листа.
+  const [openMeal, setOpenMeal] = useState(search.meal ?? null);
+  useEffect(() => {
+    if (search.meal) {
+      setOpenMeal(search.meal);
       void navigate({
-        search: ({ meal: _, ...rest }) => (meal ? { ...rest, meal } : rest),
+        search: ({ meal: _, ...rest }) => rest,
         replace: true,
-      }),
-    [navigate],
-  );
+      });
+    }
+  }, [search.meal, navigate]);
 
   function showWeek(week: DateKey) {
+    setOpenMeal(null);
     void navigate({ search: week === thisWeek ? {} : { week } });
   }
 
@@ -171,7 +177,8 @@ export function MenuWeek() {
         today={dateKeyInSofia(now)}
         proposalId={search.proposal}
         onProposal={setProposal}
-        openMealId={search.meal ?? null}
+        openMealId={openMeal}
+        sheetWaits={search.meal !== undefined}
         onOpenMeal={setOpenMeal}
       />
     </main>
@@ -186,8 +193,10 @@ interface WeekProps {
   today: DateKey;
   proposalId: string | undefined;
   onProposal: (id: string | undefined) => void;
-  /** Ястието с отворен лист (`?meal=`). */
+  /** Ястието с отворен лист. */
   openMealId: string | null;
+  /** Адресът още носи `?meal=`: листът чака, докато бъде махнат. */
+  sheetWaits: boolean;
   onOpenMeal: (id: string | null) => void;
 }
 
@@ -200,6 +209,7 @@ function Week({
   proposalId,
   onProposal,
   openMealId,
+  sheetWaits,
   onOpenMeal,
 }: WeekProps) {
   const plan = usePlan(weekStart);
@@ -207,7 +217,12 @@ function Week({
   const proposal = useMenuProposal(proposalId);
   // Седмица без план може да чака предложение (на когото и да е, и на крона) или да е изпуснала неуспешното;
   // планът от предложение казва кой го е поискал и с каква подсказка.
-  const weekProposal = useWeekProposal(weekStart, proposalId === undefined);
+  // Неуспешното от адреса не спира седмицата: по-новото предложение (и чуждото) или готов план го изместват.
+  const failed = proposal.data?.status === 'failed' ? proposal.data : undefined;
+  const weekProposal = useWeekProposal(
+    weekStart,
+    proposalId === undefined || failed !== undefined,
+  );
   const done = proposal.data?.status === 'done';
   useEffect(() => {
     if (done) {
@@ -217,7 +232,7 @@ function Week({
   const waitingFor = (request: MenuProposalRequest) =>
     waitingLabel(request, voterId, users.data ?? []);
 
-  if (proposalId !== undefined && !done) {
+  if (proposalId !== undefined && !done && !failed) {
     if (proposal.isError) {
       return (
         <ErrorBox
@@ -259,7 +274,7 @@ function Week({
     if (weekProposal.isPending) {
       return <Spinner />;
     }
-    const latest = weekProposal.data ?? undefined;
+    const latest = newer(weekProposal.data ?? undefined, failed);
     // `done`, докато планът му още се чете.
     const waiting =
       latest &&
@@ -299,9 +314,21 @@ function Week({
       voterId={voterId}
       today={today}
       openMealId={openMealId}
+      sheetWaits={sheetWaits}
       onOpenMeal={onOpenMeal}
     />
   );
+}
+
+/** По-новото от двете предложения (по `createdAt`). */
+function newer(
+  a: MenuProposalRequest | undefined,
+  b: MenuProposalRequest | undefined,
+): MenuProposalRequest | undefined {
+  if (!a || !b) {
+    return a ?? b;
+  }
+  return Date.parse(b.createdAt) > Date.parse(a.createdAt) ? b : a;
 }
 
 /** Предложението на крона: в сряда 09:00 за следващата седмица, без подсказка и без потребител. */
@@ -493,6 +520,7 @@ interface PlanViewProps {
   voterId: string | null;
   today: DateKey;
   openMealId: string | null;
+  sheetWaits: boolean;
   onOpenMeal: (id: string | null) => void;
 }
 
@@ -514,6 +542,7 @@ function PlanView({
   voterId,
   today,
   openMealId,
+  sheetWaits,
   onOpenMeal,
 }: PlanViewProps) {
   const [chosen, setChosen] = useState<Filter>('all');
@@ -539,8 +568,9 @@ function PlanView({
   const outcomeOf = (meal: MealPlan['meals'][number]) =>
     mealOutcome(meal, userIds);
   const coming = plan.meals.filter((meal) => !isPastMeal(meal, today));
-  // Съгласуване има, докато в седмицата има ден от днес нататък.
-  const agreement = voterId !== null && coming.length > 0;
+  // Съгласуване има, докато в седмицата има ястие от днес нататък; празните дни чакат ястие, не глас.
+  const agreement =
+    voterId !== null && coming.some((meal) => outcomeOf(meal) !== null);
   const agreed = agreement && isAgreed(plan.meals, userIds, today);
   const counts = new Map(
     FILTERS.map((key) => [
@@ -671,7 +701,7 @@ function PlanView({
       )}
       {plan.summary && <p className="menu__summary">{plan.summary}</p>}
       {!readOnly && canDelete && <DeletePlan plan={plan} />}
-      {openMeal && (
+      {openMeal && !sheetWaits && (
         <MealSheet
           meal={openMeal}
           plan={plan}

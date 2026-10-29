@@ -126,6 +126,45 @@ describe('RecipeList', () => {
     await expect.poll(() => queries.at(-1)?.has('time')).toBe(false);
   });
 
+  it('филтрите и подреждането остават след връщане от рецепта', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const queries = serveRecipes();
+    server.use(
+      http.get(`/api/recipes/${omelette.id}`, () =>
+        HttpResponse.json({ recipe: omelette }),
+      ),
+    );
+
+    renderApp('/recipes');
+    await screen.findByRole('link', { name: /Омлет/ });
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
+    await user.click(screen.getByRole('button', { name: 'закуска' }));
+    await user.click(screen.getByRole('radio', { name: 'по оценка' }));
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('link', { name: /Омлет/ }));
+    await screen.findByRole('heading', { name: omelette.title });
+    const before = queries.length;
+    await user.click(screen.getByRole('link', { name: '← Рецепти' }));
+
+    expect(
+      await screen.findByRole('button', { name: 'Филтри (1)' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Филтри (1)' }));
+    expect(screen.getByRole('button', { name: 'закуска' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('radio', { name: 'по оценка' })).toBeChecked();
+    // Списъкът се презарежда със същите филтри, не без тях.
+    for (const query of queries.slice(before)) {
+      expect(query.get('sort')).toBe('rating');
+      if (!query.has('includeArchived')) {
+        expect(query.get('tag')).toBe('breakfast');
+      }
+    }
+  });
+
   it('над списъка е броят: „2 рецепти“ без филтри, „1 от 2“ при търсене или филтър', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);

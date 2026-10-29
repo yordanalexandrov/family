@@ -1,5 +1,5 @@
 import type { DateKey } from '@family/shared';
-import type { QueryClient } from '@tanstack/react-query';
+import { isCancelledError, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { useActingUser } from '../../app/acting-user';
 import { storedSetting } from '../../app/stored-setting';
@@ -68,6 +68,10 @@ export async function noteProposalChange(
       write(unseen, [...known, weekStart].sort());
     }
   } catch (error) {
+    // Отменено от по-новото четене на седмицата (обикновено следващият сигнал, който проверява пак).
+    if (isCancelledError(error)) {
+      return;
+    }
     logger.warn('Предложението на седмицата не се прочете', error);
   }
 }

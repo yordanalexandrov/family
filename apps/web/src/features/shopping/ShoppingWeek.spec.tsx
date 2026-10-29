@@ -1,9 +1,10 @@
 import { type ShoppingList, withCheck } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { delay, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextWeek, thisWeek } from '../../test/menu';
-import { dani, fixtureNow, poli } from '../../test/msw';
+import { dani, fixtureNow, poli, server } from '../../test/msw';
 import { pantryItem, servePantry } from '../../test/pantry';
 import { renderApp, setUpDevice } from '../../test/render';
 import {
@@ -19,6 +20,7 @@ import {
   shoppingList,
   tomatoes,
 } from '../../test/shopping';
+import { UNSENT_AFTER_MS } from './sync';
 
 /** Заглавията на редовете в щанда, по реда им. */
 function rowTitles(aisle: string): string[] {
@@ -178,6 +180,70 @@ describe('ShoppingWeek', () => {
         },
       ]),
     );
+  });
+
+  it('онлайн отметка с латентност 400 ms не слага брой на иконата за синхронизация (#207, #208)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    serveShopping({ [thisWeek]: shoppingList() });
+    server.use(
+      http.put(
+        '/api/shopping-lists/:weekStart/items/:key/checked',
+        async () => {
+          await delay(400);
+          return undefined;
+        },
+      ),
+    );
+
+    renderApp('/shopping');
+    await user.click(await screen.findByRole('checkbox', { name: 'Домати' }));
+    for (let ms = 0; ms < 2000; ms += 50) {
+      await act(() => vi.advanceTimersByTimeAsync(50));
+      expect(
+        screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+      ).toHaveTextContent('');
+    }
+  });
+
+  it('бавна онлайн отметка: броят на иконата идва чак след прага и пада, когато отметката стигне (#207)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    serveShopping({ [thisWeek]: shoppingList() });
+    server.use(
+      http.put(
+        '/api/shopping-lists/:weekStart/items/:key/checked',
+        async () => {
+          await delay(2000);
+          return undefined;
+        },
+      ),
+    );
+    // Часовникът върви на стъпки по 50 ms, всяка в свой `act`: таймер, пуснат от ефект по средата, тръгва навреме.
+    const advance = async (ms: number) => {
+      for (let passed = 0; passed < ms; passed += 50) {
+        await act(() => vi.advanceTimersByTimeAsync(Math.min(50, ms - passed)));
+      }
+    };
+
+    renderApp('/shopping');
+    await user.click(await screen.findByRole('checkbox', { name: 'Домати' }));
+    await advance(UNSENT_AFTER_MS - 100);
+    expect(
+      screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+    ).toHaveTextContent('');
+
+    await advance(200);
+    expect(
+      screen.getByRole('button', { name: '1 отметка чака връзка' }),
+    ).toHaveTextContent('1');
+
+    await advance(2000);
+    expect(
+      screen.getByRole('button', { name: 'Всички отметки са изпратени' }),
+    ).toHaveTextContent('');
   });
 
   it('отметнат ред остава на мястото си и слиза в края на щанда 1.5 s след последното докосване', async () => {

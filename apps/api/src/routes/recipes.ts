@@ -34,6 +34,8 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/api/recipes/:id',
     {
+      // The tablet opens a recipe without an acting user; changes still need one.
+      config: { actingUser: false },
       schema: {
         params: idParamsSchema,
         response: { 200: recipeResponseSchema },

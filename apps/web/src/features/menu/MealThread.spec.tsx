@@ -239,8 +239,8 @@ describe('MealSheet: разговор в минала седмица', () => {
       within(thread).queryByRole('button', { name: 'Изтрий коментара' }),
     ).toBeNull();
     for (const name of [
-      'За',
-      'Против',
+      'Да',
+      'Не',
       'Изпрати',
       'Избери сам',
       '✨ Предложи друго',

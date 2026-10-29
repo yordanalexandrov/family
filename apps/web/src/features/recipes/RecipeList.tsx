@@ -9,11 +9,10 @@ import { useRecipes } from './queries';
 import {
   clearedFilters,
   countFilters,
-  NO_FILTERS,
-  type RecipeFilters,
   RecipeFiltersSheet,
 } from './RecipeFiltersSheet';
 import { StarsBadge } from './Stars';
+import { useStoredRecipeFilters } from './stored-filters';
 import { useDebouncedValue } from './useDebouncedValue';
 import './recipes.css';
 
@@ -29,7 +28,7 @@ function resultCount(shown: number, total: number | undefined): string {
 
 export function RecipeList() {
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState<RecipeFilters>(NO_FILTERS);
+  const [filters, setFilters] = useStoredRecipeFilters();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
   const selectedCount = countFilters(filters);
@@ -79,10 +78,12 @@ export function RecipeList() {
           {selectedCount > 0 && (
             <button
               type="button"
-              className="button button--quiet"
-              onClick={() => setFilters(clearedFilters)}
+              className="button button--quiet recipes__search-clear"
+              aria-label="Изчисти"
+              title="Изчисти филтрите"
+              onClick={() => setFilters(clearedFilters(filters))}
             >
-              Изчисти
+              ✕
             </button>
           )}
         </div>

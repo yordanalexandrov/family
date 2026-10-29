@@ -40,6 +40,7 @@ import {
   useToggleCheck,
 } from './queries';
 import { SourcesSheet } from './SourcesSheet';
+import { SyncIcon } from './SyncIcon';
 import '../recipes/recipes.css';
 import '../menu/menu.css';
 import './shopping.css';
@@ -121,7 +122,7 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
   if (week.isError) {
     return <ErrorBox error={week.error} onRetry={() => void week.refetch()} />;
   }
-  const { list, staleSince, pending } = week.data;
+  const { list, staleSince } = week.data;
   return (
     <>
       <NotAgreed weekStart={weekStart} now={now} />
@@ -131,18 +132,12 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
             {list.remaining} от {list.total}
           </span>{' '}
           за купуване
+          <SyncIcon weekStart={weekStart} />
         </p>
       )}
       {staleSince && (
         <p className="shopping__stale" role="status">
           Няма връзка · остарели данни от {formatAge(staleSince, now)}
-        </p>
-      )}
-      {pending > 0 && (
-        <p className="shopping__pending" role="status">
-          {pending === 1
-            ? '1 отметка чака връзка'
-            : `${pending} отметки чакат връзка`}
         </p>
       )}
       <ListView

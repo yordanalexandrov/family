@@ -90,10 +90,10 @@ describe('failureMessage', () => {
 
   it('fetch_blocked и fetch_failed при внасяне водят към поставяне на текста', () => {
     expect(failureMessage('import', failed('fetch_blocked'))).toBe(
-      'Сайтът не позволява автоматично четене — постави текста',
+      'Сайтът не позволява автоматично четене — постави текста.',
     );
     expect(failureMessage('import', failed('fetch_failed'))).toBe(
-      'Страницата не се отвори — постави текста',
+      'Страницата не се отвори — постави текста.',
     );
   });
 

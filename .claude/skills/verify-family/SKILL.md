@@ -98,8 +98,8 @@ Proof standards:
 - Drive the real user path: device and user chosen through the UI or `?device=`, navigation through „Основна навигация“ or links, data entered through forms. Don't seed through `ctx.api()` or SQL what the feature under test is supposed to create; use them only to set up *other* state or as a second view.
 - Capture the action and the result: an `aria`/`shot` before and after the change, not only the final screen.
 - Check side effects with a second view: a reload, another screen showing the same data, and `psql` on the table that should have changed (`recipe`, `recipe_ingredient`, `meal_plan`, `meal`, `shopping_list`, `shopping_item`, `recipe_suggestion_request`, `menu_proposal_request`, …).
-- Read `console.log` and `network.log`: a passing scenario with a `[pageerror]` or an unexpected 5xx is not clean. `404` on `GET /api/menu/plans?weekStart=…` or `/api/shopping-lists/<week>` (no plan that week) and on `GET /api/notifications/vapid-key` (push off) is normal, and so is `503` on an AI request (OpenClaw off).
-- External systems are off, not mocked: the app must show its own „не е конфигуриран“ / „AI не е наличен в момента“ states. Proving an AI or sync happy path needs the real system and is the human's manual step (README → Smoke тест), not this skill.
+- Read `console.log` and `network.log`: a passing scenario with a `[pageerror]` or an unexpected 5xx is not clean. `404` on `GET /api/menu/plans?weekStart=…` or `/api/shopping-lists/<week>` (no plan that week), on `GET /api/menu/proposals?weekStart=…` (no proposal that week) and `GET /api/menu/meals/<id>/replacements` (no replacement asked for the meal) and on `GET /api/notifications/vapid-key` (push off) is normal, and so is `503` on an AI request (OpenClaw off).
+- External systems are off, not mocked: the app must show its own „не е конфигуриран“ / „AI не е на разположение в момента“ states. Proving an AI or sync happy path needs the real system and is the human's manual step (README → Smoke тест), not this skill.
 - For a PR, attach the PNGs from the evidence dir; they show phone width unless you drove with `--device`.
 
 ## Cleanup
