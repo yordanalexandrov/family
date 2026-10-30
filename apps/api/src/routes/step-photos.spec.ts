@@ -3,7 +3,13 @@ import type { FastifyInstance } from 'fastify';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
-import { cameraJpeg, HEIC_PHOTO, postStepPhoto } from '../test/photos.js';
+import {
+  cameraJpeg,
+  HEIC_PHOTO,
+  hugeHeic,
+  hugePng,
+  postStepPhoto,
+} from '../test/photos.js';
 
 let app: FastifyInstance;
 
@@ -109,6 +115,22 @@ describe('a step photo', () => {
     expect(response.statusCode).toBe(415);
     expect(response.json()).toMatchObject({ error: 'unsupported_photo' });
   });
+
+  it.each([
+    ['a PNG', hugePng],
+    ['a HEIC', hugeHeic],
+  ])(
+    'answers 415 unsupported_photo for %s of more than 50 megapixels in a small file',
+    async (_, photo) => {
+      const response = await postStepPhoto(app, await photo());
+
+      expect(response.statusCode).toBe(415);
+      expect(response.json()).toMatchObject({
+        error: 'unsupported_photo',
+        message: 'Снимката е над 50 мегапиксела. Опитай с по-малка.',
+      });
+    },
+  );
 
   it('answers 413 photo_too_large over 10 MB', async () => {
     const jpeg = await cameraJpeg();

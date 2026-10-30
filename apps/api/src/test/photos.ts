@@ -11,6 +11,36 @@ export const HEIC_PHOTO = readFileSync(
   new URL('./fixtures/step-photos/step.heic', import.meta.url),
 );
 
+/** The side of a {@link hugePng} or {@link hugeHeic}: 8000×8000 is 64 megapixels, over what the api decodes. */
+export const HUGE_SIDE = 8000;
+
+/** A plain white PNG of {@link HUGE_SIDE}² pixels: about 200 KB of file, 192 MB as pixels. */
+export function hugePng(): Promise<Buffer> {
+  return sharp({
+    create: {
+      width: HUGE_SIDE,
+      height: HUGE_SIDE,
+      channels: 3,
+      background: '#fff',
+    },
+  })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
+/**
+ * {@link HEIC_PHOTO} with its `ispe` box (the size the file declares) set to {@link HUGE_SIDE}²: a file of 1.2 KB that
+ * libheif would decode into 256 MB of pixels before it notices the picture is smaller.
+ */
+export function hugeHeic(): Buffer {
+  const heic = Buffer.from(HEIC_PHOTO);
+  const ispe = heic.indexOf('ispe');
+  // Box type, then 4 bytes of version and flags, then width and height.
+  heic.writeUInt32BE(HUGE_SIDE, ispe + 8);
+  heic.writeUInt32BE(HUGE_SIDE, ispe + 12);
+  return heic;
+}
+
 /**
  * A JPEG as a phone camera writes it: `width`×`height` pixels as stored, with an EXIF orientation (6 = turn 90° to the
  * right to show it upright) and GPS coordinates in its EXIF.
