@@ -1,8 +1,9 @@
-import { STEP_PHOTO_MAX_SIDE } from '@family/shared';
+import { DAY_MS, STEP_PHOTO_MAX_SIDE, startOfDayInSofia } from '@family/shared';
 import decodeHeic from 'heic-decode';
 import sharp, { type Sharp } from 'sharp';
 import type { DbExecutor } from '../db/client.js';
 import {
+  deleteOrphanStepPhotos,
   findStepPhotoData,
   insertStepPhoto,
 } from '../db/repositories/step-photos.js';
@@ -10,6 +11,33 @@ import { NotFoundError, UnsupportedPhotoError } from './errors.js';
 import { photoType } from './recipe-photo.js';
 
 const JPEG_QUALITY = 82;
+
+const HOUR_MS = 3_600_000;
+
+/** The night hours in Sofia when the cron removes orphans: an edit given up in the evening loses nothing till morning. */
+const ORPHAN_CLEANUP_HOURS = { from: 3, to: 5 };
+
+/** A photo is uploaded when chosen and pointed at only on „Запази“, so a younger orphan may be an edit under way. */
+const ORPHAN_MIN_AGE_MS = DAY_MS;
+
+/**
+ * The cron's `step-photo-orphans` (`plugins/scheduler.ts`): at night in Sofia ({@link ORPHAN_CLEANUP_HOURS}) deletes
+ * every step photo older than a day that no recipe and no proposed suggestion points at, and answers how many; by day
+ * it does nothing and answers `null`. Running it again the same night deletes nothing more.
+ */
+export async function removeOrphanStepPhotos(
+  db: DbExecutor,
+  now: Date,
+): Promise<number | null> {
+  const hour = (now.getTime() - startOfDayInSofia(now).getTime()) / HOUR_MS;
+  if (hour < ORPHAN_CLEANUP_HOURS.from || hour >= ORPHAN_CLEANUP_HOURS.to) {
+    return null;
+  }
+  return deleteOrphanStepPhotos(
+    db,
+    new Date(now.getTime() - ORPHAN_MIN_AGE_MS),
+  );
+}
 
 const NOT_A_PHOTO = 'Това не е снимка (JPEG, PNG, WebP или HEIC).';
 
