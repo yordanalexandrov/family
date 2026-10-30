@@ -13,10 +13,11 @@ const SWIPE_MIN_PX = 50;
 const PHOTO_WIDTHS = [640, 1024, STEP_PHOTO_MAX_SIDE];
 
 /**
- * Колко широка е снимката на екрана: на широк (kiosk хоризонтално) половината от стъпката до колоната „Продукти“,
- * на тесен (телефон) цялата ширина над текста. Границата е тази на `CookingView` (`SHEET_WINDOW_QUERY`).
+ * Колко широка е снимката на екрана: на нисък (телефон легнал) тясна колона до текста, на широк (kiosk
+ * хоризонтално) половината от стъпката до колоната „Продукти“, на тесен (телефон) цялата ширина над текста.
+ * Границите са тези на `cooking.css` (`max-height: 32rem`) и на `CookingView` (`SHEET_WINDOW_QUERY`).
  */
-const PHOTO_SIZES = '(min-width: 48rem) 34vw, 100vw';
+const PHOTO_SIZES = '(max-height: 32rem) 40vw, (min-width: 48rem) 34vw, 100vw';
 
 interface CookingStepsProps {
   steps: RecipeStep[];

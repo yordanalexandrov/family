@@ -303,7 +303,8 @@
 
 /*
  * Нисък екран (телефон легнал: ~320 px под долната лента): по-тесни отстъпи, без точките (позицията е в
- * „Стъпка X от N“, плъзгането остава) и база на шрифта по височината, не по ширината.
+ * „Стъпка X от N“, плъзгането остава) и база на шрифта по височината, не по ширината. Снимката винаги е встрани
+ * (над текста би изяла височината му) и в по-тясна колона, за да остане повече място за текста.
  */
 @media (max-height: 32rem) {
   .cooking {
@@ -314,6 +315,21 @@
   .cooking-steps {
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
+  }
+
+  .cooking-steps__body {
+    gap: var(--space-3);
+  }
+
+  .cooking-steps__body--photo,
+  .cooking--narrow .cooking-steps__body--photo {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .cooking--narrow .cooking-steps__photo {
+    max-block-size: 100%;
+    inline-size: 100%;
   }
 
   .cooking-steps__text {
