@@ -185,9 +185,33 @@ describe('recipeNormalize.outputSchema', () => {
 
   it('refuses a blank step', () => {
     const output = validOutput();
-    output.recipe.steps[1] = '  ';
+    output.recipe.steps[1].text = '  ';
 
-    expect(issuePaths(output)).toEqual(['recipe.steps.1']);
+    expect(issuePaths(output)).toEqual(['recipe.steps.1.text']);
+  });
+
+  it('gives each step the photo reference of the page the agent chose for it, or null', () => {
+    const output = validOutput();
+    output.recipe.steps[0].image = 's2';
+
+    expect(outputSchema.parse(output).recipe?.steps).toEqual([
+      {
+        text: 'Нарежете пилето на хапки и го овкусете със сол и сумак.',
+        image: 's2',
+      },
+      { text: 'Запечете го за 10 минути.', image: null },
+      {
+        text: 'Добавете ориза и чесъна, залейте с 2 чаши вода и печете още 30 минути на 200 градуса.',
+        image: null,
+      },
+    ]);
+  });
+
+  it('keeps a reference the input does not have: the api leaves that step without a photo, the answer stands', () => {
+    const output = validOutput();
+    output.recipe.steps[1].image = 's99';
+
+    expect(outputSchema.parse(output).recipe?.steps[1]?.image).toBe('s99');
   });
 
   it('refuses a new product with a unit that is not a base unit or an unknown aisle', () => {

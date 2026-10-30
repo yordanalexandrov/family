@@ -1,4 +1,4 @@
-import type { AiContract } from '@family/shared';
+import type { AiContract, Tag } from '@family/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import { HttpResponse, http } from 'msw';
@@ -72,7 +72,9 @@ const store: ContractRequestStore<
   { word: string; picture?: string },
   EchoRequest,
   EchoInput,
-  EchoOutput
+  EchoOutput,
+  string,
+  Tag[]
 > = {
   table,
   async insert(tx, params, requestedBy) {
@@ -98,13 +100,14 @@ const store: ContractRequestStore<
     }
     return { word: request.word };
   },
-  async onDone(tx, request, output) {
+  /** Writes the tags `prepare` gave, else `quick`. */
+  async onDone(tx, request, output, prepared) {
     if (output.word === 'boom') {
       throw new Error('onDone failed');
     }
     await tx
       .update(table)
-      .set({ tags: ['quick'] })
+      .set({ tags: prepared ?? ['quick'] })
       .where(eq(table.id, request.id));
   },
   images(params) {
@@ -212,6 +215,45 @@ describe('AI requests (contract-requests)', () => {
       tags: ['quick'],
     });
     expect(done.finishedAt).toEqual(expect.any(Date));
+  });
+
+  it('hands onDone what prepare made from the input and the answer, before the transaction; a prepare that throws fails the run', async () => {
+    const prepared: {
+      input: EchoInput;
+      output: EchoOutput;
+      aborted: boolean;
+    }[] = [];
+    const handle = create(undefined, silent, {
+      ...store,
+      async prepare(input, output, signal) {
+        prepared.push({ input, output, aborted: signal.aborted });
+        if (input.word === 'гърми') {
+          throw new Error('prepare failed');
+        }
+        return ['kid_friendly'];
+      },
+    });
+
+    const done = await finished(
+      handle,
+      (await handle.request({ word: 'супа' }, DANI.id)).id,
+    );
+    const failed = await finished(
+      handle,
+      (await handle.request({ word: 'гърми' }, DANI.id)).id,
+    );
+
+    expect(done).toMatchObject({ status: 'done', tags: ['kid_friendly'] });
+    expect(failed).toMatchObject({
+      status: 'failed',
+      error: 'error',
+      tags: [],
+    });
+    expect(prepared[0]).toEqual({
+      input: { word: 'супа' },
+      output: { word: 'супа' },
+      aborted: false,
+    });
   });
 
   it('marks the request failed with the failure code when the agent fails', async () => {

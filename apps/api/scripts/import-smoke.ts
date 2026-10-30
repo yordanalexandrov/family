@@ -3,7 +3,9 @@
 //   pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
 // Without `--text-file`, `--url` or `--photo` it imports two built-in texts: a Bulgarian blog post („Продукти:“ /
 // „Начин на приготвяне:“, a range of servings, cups and cloves) and an English recipe with cups and ounces. `--url`
-// fetches and reads the page the way the api does (services/recipe-page) before the agent. `--photo` makes the picture
+// fetches and reads the page the way the api does (services/recipe-page) before the agent; its `HowToStep.image`s go
+// as references (`s1`, …), and after the answer the photos the agent chose are downloaded as the api does
+// (`downloadStepPhotos`: public addresses, 10 MB, 10 s) and checked to be pictures, without storing them. `--photo` makes the picture
 // smaller the way the screen does (`importPhotoLayout`: long side ≤ 2000 px, a long screenshot cut into up to 8 parts,
 // JPEG) and checks it the way the api does (type by its bytes, ≤ 10 MB each, ≤ 20 MB together) before sending the
 // parts as images next to `{ kind: 'photo' }`; the fixture is
@@ -30,7 +32,14 @@ import {
   type ContractImage,
   createOpenClawClient,
 } from '../src/openclaw/client.js';
-import { readRecipePage } from '../src/services/recipe-page/index.js';
+import {
+  type DownloadedStepPhotos,
+  downloadStepPhotos,
+} from '../src/services/imported-step-photos.js';
+import {
+  readRecipePage,
+  type StepImages,
+} from '../src/services/recipe-page/index.js';
 import { photoType } from '../src/services/recipe-photo.js';
 
 const BULGARIAN_BLOG = `Мусака с кайма и картофи — като на баба
@@ -87,7 +96,7 @@ Remove from oven and let cool in the pan for a few minutes. Then remove the bana
  * One thing to import: a name for the output and the source as the api would send it; what reading the page gave or
  * the photo as sent (`page`); why it cannot go to the agent (`fetchFailure`: a page that does not open, a photo the api
  * would refuse; then there is no source and no agent call); the pictures sent next to a photo input (`images`: one
- * photo, or the parts of a long screenshot).
+ * photo, or the parts of a long screenshot); the URLs of a page's step photos by their references (`stepImages`).
  */
 interface SmokeCase {
   name: string;
@@ -95,6 +104,7 @@ interface SmokeCase {
   page?: string;
   fetchFailure?: string;
   images?: ContractImage[];
+  stepImages?: StepImages;
 }
 
 const BUILT_IN: SmokeCase[] = [
@@ -181,15 +191,17 @@ async function pageCases(links: string[]): Promise<SmokeCase[]> {
       });
       continue;
     }
+    const refs = Object.keys(page.stepImages ?? {});
     const sent = page.jsonLd
-      ? `jsonLd ${JSON.stringify(page.jsonLd).length} знака`
-      : `text ${page.text?.length ?? 0} знака`;
+      ? `jsonLd ${JSON.stringify(page.jsonLd).length} знака, снимки на стъпки: ${refs.length === 0 ? 'няма' : `${refs.length} (${refs[0]}…${refs.at(-1)})`}`
+      : `text ${page.text?.length ?? 0} знака, без снимки на стъпки`;
     cases.push({
       name: link,
       page: `краен URL ${page.url}, ${sent}, свалено за ${seconds} s`,
       source: page.jsonLd
         ? { kind: 'page', url: page.url, jsonLd: page.jsonLd }
         : { kind: 'page', url: page.url, text: page.text ?? '' },
+      ...(page.stepImages ? { stepImages: page.stepImages } : {}),
     });
   }
   return cases;
@@ -338,7 +350,65 @@ const ingredients = seed.ingredients.map((ingredient, index) => ({
 }));
 const names = new Map(ingredients.map((i) => [i.id, i.name]));
 
-function summary(output: RecipeNormalizeOutput, seconds: string): string {
+/** What a step's photo became: the reference and its download, as the api would store it or drop it. */
+function stepPhoto(
+  image: string | null,
+  stepImages: StepImages | undefined,
+  photos: Map<string, string>,
+): string {
+  if (image === null) {
+    return '';
+  }
+  if (!stepImages || !Object.hasOwn(stepImages, image)) {
+    return ` [${image}: няма я във входа, api-то я пренебрегва]`;
+  }
+  return ` [снимка ${image}: ${photos.get(image) ?? '?'}]`;
+}
+
+/** The downloaded photos as the api would take them: a picture by its bytes (and one sharp decodes), or dropped. */
+async function checkedPhotos(
+  downloaded: DownloadedStepPhotos,
+  stepImages: StepImages,
+): Promise<{ photos: Map<string, string>; dropped: number }> {
+  const photos = new Map<string, string>();
+  let dropped = 0;
+  for (const [ref, bytes] of downloaded) {
+    const url = stepImages[ref];
+    const type = bytes ? photoType(bytes) : undefined;
+    if (!bytes || !type) {
+      dropped++;
+      photos.set(
+        ref,
+        `✗ ${bytes ? 'не е снимка' : 'не се свали'}, изпуска се (${url})`,
+      );
+      continue;
+    }
+    const heic = type === 'image/heic' || type === 'image/heif';
+    const meta = heic
+      ? undefined
+      : await sharp(bytes)
+          .metadata()
+          .catch(() => undefined);
+    if (!heic && !meta) {
+      dropped++;
+      photos.set(ref, `✗ не се декодира, изпуска се (${url})`);
+      continue;
+    }
+    photos.set(
+      ref,
+      `✓ ${type} ${sizeOf(bytes.length)}${meta ? ` ${meta.width}×${meta.height}` : ''} (${url})`,
+    );
+  }
+  return { photos, dropped };
+}
+
+function summary(
+  output: RecipeNormalizeOutput,
+  seconds: string,
+  stepImages?: StepImages,
+  photos: Map<string, string> = new Map(),
+  dropped = 0,
+): string {
   const { recipe } = output;
   if (!recipe) {
     return `Няма рецепта (${seconds} s): ${output.noResults}\n`;
@@ -359,8 +429,11 @@ function summary(output: RecipeNormalizeOutput, seconds: string): string {
     `   Допускания: ${recipe.assumptions || '—'}`,
     `   Продукти: ${recipe.ingredients.length}, нови: ${newCount}`,
     ...lines,
-    `   Стъпки: ${recipe.steps.length}`,
-    ...recipe.steps.map((step, index) => `   ${index + 1}. ${step}`),
+    `   Стъпки: ${recipe.steps.length}, със снимка: ${recipe.steps.filter((step) => step.image !== null).length} (на страницата ${Object.keys(stepImages ?? {}).length}, изпуснати ${dropped})`,
+    ...recipe.steps.map(
+      (step, index) =>
+        `   ${index + 1}. ${step.text}${stepPhoto(step.image, stepImages, photos)}`,
+    ),
     `   Хранителна стойност на 100 г: ${recipe.nutritionPer100g ? JSON.stringify(recipe.nutritionPer100g) : 'няма'}`,
     `   за ${seconds} s`,
     '',
@@ -384,7 +457,7 @@ function described(
   return `${size}${source.url ? `, ${source.url}` : ''}`;
 }
 
-for (const { name, source, page, fetchFailure, images } of cases) {
+for (const { name, source, page, fetchFailure, images, stepImages } of cases) {
   if (fetchFailure !== undefined || !source) {
     failed = true;
     process.stdout.write(`[${name}] ✗ ${fetchFailure}\n\n`);
@@ -394,6 +467,16 @@ for (const { name, source, page, fetchFailure, images } of cases) {
     process.stdout.write(`[${name}] ${page}\n`);
   }
   const input: RecipeNormalizeInput = { source, ingredients };
+  const leaked = Object.values(stepImages ?? {}).filter((url) =>
+    JSON.stringify(input).includes(url),
+  );
+  if (leaked.length > 0) {
+    failed = true;
+    process.stdout.write(
+      `[${name}] ✗ URL на снимка на стъпка е във входа на агента: ${leaked.join(', ')}\n\n`,
+    );
+    continue;
+  }
   process.stderr.write(
     `→ ${config.url} openclaw/${config.importAgent}, timeout ${config.timeoutMs} ms, ${name}: ${described(source, images)}, ${ingredients.length} продукта в регистъра\n`,
   );
@@ -404,7 +487,20 @@ for (const { name, source, page, fetchFailure, images } of cases) {
       ...(images ? { images } : {}),
     });
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    process.stdout.write(`[${name}] ${summary(output, seconds)}\n`);
+    const checked =
+      stepImages && output.recipe
+        ? await checkedPhotos(
+            await downloadStepPhotos(
+              stepImages,
+              output.recipe.steps,
+              AbortSignal.timeout(60_000),
+            ),
+            stepImages,
+          )
+        : { photos: new Map<string, string>(), dropped: 0 };
+    process.stdout.write(
+      `[${name}] ${summary(output, seconds, stepImages, checked.photos, checked.dropped)}\n`,
+    );
     saved[name] = output;
   } catch (error) {
     const seconds = ((performance.now() - started) / 1000).toFixed(1);

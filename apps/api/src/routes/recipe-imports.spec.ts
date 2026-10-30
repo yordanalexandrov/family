@@ -8,10 +8,15 @@ import {
   type RecipeNormalizeInput,
   recipeImportDetailSchema,
   recipeImportRequestSchema,
+  STEP_PHOTO_MAX_BYTES,
 } from '@family/shared';
+import normalizeFixture from '@family/shared/fixtures/recipe-normalize.valid.json' with {
+  type: 'json',
+};
 import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
+import sharp from 'sharp';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
 import {
@@ -586,6 +591,225 @@ describe('an import by photo', () => {
     const response = await postPhoto(PHOTO, 'image/jpeg', 'picture');
 
     expect(response.statusCode).toBe(400);
+  });
+});
+
+const SHAKSHUKA_URL = 'https://panandplate.example/shakshuka/';
+const STEP_PHOTO = {
+  s1: 'https://panandplate.example/wp-content/uploads/shakshuka-step-1.jpg',
+  s2: 'https://panandplate.example/wp-content/uploads/shakshuka-step-3.jpg',
+  s3: 'https://cdn.panandplate.example/shakshuka-step-4.webp',
+};
+
+/** A picture `width` pixels wide, so a stored photo tells which one of the page it is. */
+function pictureOf(width: number, format: 'jpeg' | 'webp' = 'jpeg') {
+  return sharp({
+    create: { width, height: 300, channels: 3, background: '#c63' },
+  })
+    .toFormat(format)
+    .toBuffer();
+}
+
+/**
+ * The page with photos of its steps (`jsonld-step-images.html`), the photos at their URLs as `photos` answers them,
+ * and the URLs fetched besides the agent.
+ */
+function serveShakshuka(
+  photos: Record<string, () => Response | Promise<Response>>,
+  html = savedPage('jsonld-step-images.html'),
+) {
+  const fetched: string[] = [];
+  openclaw.use(
+    http.all('*', ({ request }) => {
+      if (request.url !== CHAT_COMPLETIONS_URL) {
+        fetched.push(request.url);
+      }
+    }),
+    http.get(
+      SHAKSHUKA_URL,
+      () =>
+        new HttpResponse(html, {
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        }),
+    ),
+    ...Object.entries(photos).map(([url, answer]) => http.get(url, answer)),
+  );
+  return { fetched };
+}
+
+async function imageResponse(width: number, format: 'jpeg' | 'webp' = 'jpeg') {
+  return new HttpResponse(await pictureOf(width, format), {
+    headers: { 'content-type': `image/${format}` },
+  });
+}
+
+/** The recorded answer with `steps`: the agent's own, each with the page's photo reference it chose, or null. */
+function withSteps(steps: { text: string; image: string | null }[]) {
+  return (input: RecipeNormalizeInput) => {
+    const answer = normalizeAnswer(input) as ReturnType<
+      typeof normalizeAnswer
+    > & { recipe: { steps: unknown; assumptions: string } };
+    answer.recipe.steps = steps;
+    return answer;
+  };
+}
+
+/** How wide the stored step photo is (each photo of the page has its own width). */
+async function storedWidth(photoId: string | undefined): Promise<number> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/step-photos/${photoId}`,
+  });
+  expect(response.statusCode).toBe(200);
+  return (await sharp(response.rawPayload).metadata()).width;
+}
+
+describe('an import by link with photos of its steps', () => {
+  it('stores the photos the agent chose at its own steps, also merged and split, and never sends it a photo URL', async () => {
+    const site = serveShakshuka({
+      [STEP_PHOTO.s1]: () => imageResponse(410),
+      [STEP_PHOTO.s2]: () => imageResponse(420),
+      [STEP_PHOTO.s3]: () => imageResponse(430, 'webp'),
+    });
+    const calls = answerInTurn(
+      withSteps([
+        {
+          text: 'Загрейте зехтина, задушете лука и пипера 5 минути, после добавете чесъна и кимиона за 1 минута.',
+          image: 's1',
+        },
+        { text: 'Добавете доматите и варете 10 минути.', image: 's2' },
+        { text: 'Направете 4 гнезда в соса.', image: 's3' },
+        {
+          text: 'Счупете по едно яйце във всяко, покрийте и гответе 6 минути.',
+          image: 's3',
+        },
+        { text: 'Поръсете с фетата и сервирайте.', image: null },
+      ]),
+    );
+
+    const body = await finished(
+      await imported({ kind: 'url', url: SHAKSHUKA_URL }),
+    );
+
+    expect(body.request.status).toBe('done');
+    const steps = body.suggestion?.payload.steps ?? [];
+    expect(steps.map((step) => step.text)).toHaveLength(5);
+    expect(await storedWidth(steps[0]?.photoId)).toBe(410);
+    expect(await storedWidth(steps[1]?.photoId)).toBe(420);
+    expect(await storedWidth(steps[2]?.photoId)).toBe(430);
+    expect(steps[3]?.photoId).toBe(steps[2]?.photoId);
+    expect(steps[4]).not.toHaveProperty('photoId');
+    expect(body.suggestion?.payload.assumptions).toBe(
+      normalizeFixture.recipe.assumptions,
+    );
+
+    const sent = textOf(calls.bodies[0]?.messages[0]);
+    expect(sent).not.toContain('shakshuka-step');
+    expect(sent).not.toContain('wp-content');
+    expect(
+      JSON.parse(sent).source.jsonLd.recipeInstructions[0].steps[0],
+    ).toEqual({
+      text: 'Heat the olive oil in a skillet and cook the onion and the pepper for 5 minutes.',
+      image: 's1',
+    });
+    expect(site.fetched).toEqual([SHAKSHUKA_URL, ...Object.values(STEP_PHOTO)]);
+  });
+
+  it('fetches only the photos the agent chose and ignores a reference the page does not have', async () => {
+    const site = serveShakshuka({
+      [STEP_PHOTO.s1]: () => imageResponse(410),
+      [STEP_PHOTO.s2]: () => imageResponse(420),
+      [STEP_PHOTO.s3]: () => imageResponse(430, 'webp'),
+    });
+    answerInTurn(
+      withSteps([
+        { text: 'Задушете лука и пипера.', image: 's9' },
+        { text: 'Добавете доматите.', image: 's2' },
+      ]),
+    );
+
+    const body = await finished(
+      await imported({ kind: 'url', url: SHAKSHUKA_URL }),
+    );
+
+    const steps = body.suggestion?.payload.steps ?? [];
+    expect(steps[0]).toEqual({ text: 'Задушете лука и пипера.' });
+    expect(await storedWidth(steps[1]?.photoId)).toBe(420);
+    expect(site.fetched).toEqual([SHAKSHUKA_URL, STEP_PHOTO.s2]);
+    expect(body.suggestion?.payload.assumptions).not.toContain('сним');
+  });
+
+  it('leaves a step without its photo when it is 404, not a picture or too large, and says how many in the note', async () => {
+    serveShakshuka({
+      [STEP_PHOTO.s1]: () => new HttpResponse('Not found', { status: 404 }),
+      [STEP_PHOTO.s2]: () =>
+        new HttpResponse('<html>not a photo</html>', {
+          headers: { 'content-type': 'image/jpeg' },
+        }),
+      [STEP_PHOTO.s3]: () =>
+        new HttpResponse(Buffer.alloc(STEP_PHOTO_MAX_BYTES + 1), {
+          headers: { 'content-type': 'image/webp' },
+        }),
+    });
+    answerInTurn(
+      withSteps([
+        { text: 'Задушете лука и пипера.', image: 's1' },
+        { text: 'Добавете доматите.', image: 's2' },
+        { text: 'Счупете яйцата.', image: 's3' },
+      ]),
+    );
+
+    const body = await finished(
+      await imported({ kind: 'url', url: SHAKSHUKA_URL }),
+    );
+
+    expect(body.request.status).toBe('done');
+    const payload = body.suggestion?.payload;
+    expect(payload?.steps).toEqual([
+      { text: 'Задушете лука и пипера.' },
+      { text: 'Добавете доматите.' },
+      { text: 'Счупете яйцата.' },
+    ]);
+    expect(payload?.assumptions).toMatch(
+      / 3 снимки на стъпки не се свалиха\.$/,
+    );
+  });
+
+  it('never fetches a photo at a private address: the step is without it, and the note says so', async () => {
+    const site = serveShakshuka(
+      {},
+      savedPage('jsonld-step-images.html').replace(
+        STEP_PHOTO.s1,
+        'http://192.168.1.10/step-1.jpg',
+      ),
+    );
+    answerInTurn(withSteps([{ text: 'Задушете лука и пипера.', image: 's1' }]));
+
+    const body = await finished(
+      await imported({ kind: 'url', url: SHAKSHUKA_URL }),
+    );
+
+    expect(body.suggestion?.payload.steps).toEqual([
+      { text: 'Задушете лука и пипера.' },
+    ]);
+    expect(body.suggestion?.payload.assumptions).toMatch(
+      / 1 снимка на стъпка не се свали\.$/,
+    );
+    expect(site.fetched).toEqual([SHAKSHUKA_URL]);
+  });
+
+  it('gives pasted text no photos, even when the agent names a reference', async () => {
+    const site = serveShakshuka({});
+    answerInTurn(withSteps([{ text: 'Нарежете пилето.', image: 's1' }]));
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(body.suggestion?.payload.steps).toEqual([
+      { text: 'Нарежете пилето.' },
+    ]);
+    expect(site.fetched).toEqual([]);
   });
 });
 

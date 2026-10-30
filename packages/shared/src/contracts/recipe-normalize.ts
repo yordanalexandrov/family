@@ -155,6 +155,25 @@ const normalizedIngredientSchema = z
 
 export type NormalizedIngredient = z.infer<typeof normalizedIngredientSchema>;
 
+/**
+ * The reference of a step photo of the page (GLOSSARY: Снимка на стъпка): in the input the api writes it in place of a
+ * `HowToStep.image` of the JSON-LD (`s1`, `s2`, …; the agent never sees the photo's URL); in the output the agent puts
+ * it on the step of its own that shows it, since it may translate, merge and split steps.
+ */
+export type StepImageRef = string;
+
+/**
+ * A step of the recipe: its text and the reference of the page's photo for it, or `null` (always `null` for text and a
+ * photo). The schema takes any reference: the api ignores one the input does not have, the step is then without a
+ * photo and the answer stands.
+ */
+const normalizedStepSchema = z.object({
+  text: z.string().trim().min(1),
+  image: z.string().trim().min(1).nullable(),
+});
+
+export type NormalizedStep = z.infer<typeof normalizedStepSchema>;
+
 const normalizedRecipeFields = {
   title: z.string().trim().min(1),
   servings: z.int().min(1),
@@ -163,7 +182,7 @@ const normalizedRecipeFields = {
   /** What the agent assumed (servings of „4–6“, converted units); shown where a suggestion shows "why". May be empty. */
   assumptions: z.string().trim(),
   ingredients: z.array(normalizedIngredientSchema).min(1),
-  steps: z.array(z.string().trim().min(1)).min(1),
+  steps: z.array(normalizedStepSchema).min(1),
 };
 
 /** The one recipe of an import (GLOSSARY: Предложение за рецепта), as stored and shown for review. */
@@ -216,7 +235,9 @@ const recipeNormalizeWireSchema = z.object({
     .object({
       ...normalizedRecipeFields,
       ingredients: z.array(z.object(normalizedIngredientFields)),
-      steps: z.array(z.string()),
+      steps: z.array(
+        z.object({ text: z.string(), image: z.string().nullable() }),
+      ),
       nutritionPer100g: nutritionSchema.nullable(),
     })
     .nullable(),

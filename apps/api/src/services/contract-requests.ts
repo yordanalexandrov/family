@@ -46,6 +46,8 @@ export interface ContractRequestStore<
   O,
   /** Who asks: a user's id, or `null` too for a contract the api also runs by itself (the cron's `menu.propose`). */
   A extends string | null = string,
+  /** What {@link ContractRequestStore.prepare} hands `onDone`; none without it. */
+  D = undefined,
 > {
   /** Spreads `contractRequestColumns()`; finished and failed as stale by the module. */
   table: ContractRequestTable;
@@ -65,8 +67,19 @@ export interface ContractRequestStore<
    * is stored: they live only in the memory of its run, never in the table. No method = none.
    */
   images?(params: P): ContractImage[];
+  /**
+   * After a valid answer with results, before the transaction that writes it: work too slow to hold a transaction for
+   * (the downloads of an import's step photos), aborted with the run (`signal`); its result goes to `onDone`. One that
+   * throws fails the run. No method = `onDone` gets `undefined`.
+   */
+  prepare?(input: I, output: O, signal: AbortSignal): Promise<D>;
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
-  onDone(tx: DbExecutor, request: R, output: O): Promise<void>;
+  onDone(
+    tx: DbExecutor,
+    request: R,
+    output: O,
+    prepared: D | undefined,
+  ): Promise<void>;
   /** After that transaction has committed, e.g. to signal the change (`app.events`). One that throws is logged. */
   afterDone?(request: R): void;
   /** After the `pending` request has committed, e.g. to signal that it waits. Must not throw. */
@@ -98,9 +111,16 @@ export interface ContractRequestHandle<
 
 export interface ContractRequests {
   /** `agent` answers `contract` (`OPENCLAW_RECIPE_AGENT`, `OPENCLAW_MENU_AGENT`: configuration, ADR-0004). */
-  register<P, R extends StoredContractRequest, I, O, A extends string | null>(
+  register<
+    P,
+    R extends StoredContractRequest,
+    I,
+    O,
+    A extends string | null,
+    D = undefined,
+  >(
     contract: AiContract<I, O>,
-    store: ContractRequestStore<P, R, I, O, A>,
+    store: ContractRequestStore<P, R, I, O, A, D>,
     agent: string,
   ): ContractRequestHandle<P, R, A>;
   /**
@@ -131,9 +151,16 @@ export function createContractRequests({
   const registered: { id: string; table: ContractRequestTable }[] = [];
 
   return {
-    register<P, R extends StoredContractRequest, I, O, A extends string | null>(
+    register<
+      P,
+      R extends StoredContractRequest,
+      I,
+      O,
+      A extends string | null,
+      D = undefined,
+    >(
       contract: AiContract<I, O>,
-      store: ContractRequestStore<P, R, I, O, A>,
+      store: ContractRequestStore<P, R, I, O, A, D>,
       agent: string,
     ): ContractRequestHandle<P, R, A> {
       registered.push({ id: contract.id, table: store.table });
@@ -183,8 +210,13 @@ export function createContractRequests({
             after('afterFailed', request);
             return;
           }
+          const prepared = await store.prepare?.(
+            input,
+            output,
+            shutdown.signal,
+          );
           await db.transaction(async (tx) => {
-            await store.onDone(tx, request, output);
+            await store.onDone(tx, request, output, prepared);
             await finishContractRequest(tx, store.table, request.id, {
               status: 'done',
             });

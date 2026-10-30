@@ -5,6 +5,7 @@ import https from 'node:https';
 import { BlockList, isIP, type LookupFunction } from 'node:net';
 import type { Readable } from 'node:stream';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
+import { STEP_PHOTO_MAX_BYTES } from '@family/shared';
 import { decodeHtml } from './extract.js';
 
 /** How the api introduces itself to recipe sites: honestly, with a link to the project (no browser disguise). */
@@ -12,8 +13,11 @@ const PAGE_USER_AGENT =
   'family-app/1.0 (+https://github.com/yordanalexandrov/family)';
 
 const TIMEOUT_MS = 10_000;
-const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
+
+const PAGE_ACCEPT = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5';
+const IMAGE_ACCEPT = 'image/avif,image/webp,image/jpeg,image/png,image/*;q=0.8';
 
 /** Statuses with which a site refuses an automated read (Cloudflare and others 403, Fastly 406, Vercel 429). */
 const BLOCKING_STATUSES = new Set([403, 406, 429]);
@@ -127,7 +131,11 @@ const guardedLookup: LookupFunction = (hostname, options, callback) => {
 };
 
 /** The response of one GET, without following redirects. */
-function get(url: URL, signal: AbortSignal): Promise<IncomingMessage> {
+function get(
+  url: URL,
+  signal: AbortSignal,
+  accept: string,
+): Promise<IncomingMessage> {
   const host = url.hostname.replace(/^\[|\]$/g, '');
   // Node skips the lookup for an IP literal, so it is checked here.
   if (isIP(host) !== 0 && !isPublicAddress(host)) {
@@ -143,7 +151,7 @@ function get(url: URL, signal: AbortSignal): Promise<IncomingMessage> {
         lookup: guardedLookup,
         headers: {
           'user-agent': PAGE_USER_AGENT,
-          accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
+          accept,
           'accept-language': 'bg,en;q=0.8',
           'accept-encoding': 'gzip, deflate, br',
         },
@@ -169,10 +177,13 @@ function decompressed(response: IncomingMessage): Readable {
   }
 }
 
-/** The body, at most `MAX_BYTES` after decompression. */
-async function readBody(response: IncomingMessage): Promise<Buffer> {
+/** The body, at most `maxBytes` after decompression. */
+async function readBody(
+  response: IncomingMessage,
+  maxBytes: number,
+): Promise<Buffer> {
   const declared = Number(response.headers['content-length']);
-  if (Number.isFinite(declared) && declared > MAX_BYTES) {
+  if (Number.isFinite(declared) && declared > maxBytes) {
     response.destroy();
     throw new FetchFailure('fetch_failed', 'too_large');
   }
@@ -181,7 +192,7 @@ async function readBody(response: IncomingMessage): Promise<Buffer> {
   const stream = decompressed(response);
   for await (const chunk of stream) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BYTES) {
+    if (size > maxBytes) {
       stream.destroy();
       response.destroy();
       throw new FetchFailure('fetch_failed', 'too_large');
@@ -189,6 +200,16 @@ async function readBody(response: IncomingMessage): Promise<Buffer> {
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks);
+}
+
+/** Whether a declared type may be a picture: an image, a generic binary or none (the bytes tell the type later). */
+function mayBeImage(contentType: string | undefined): boolean {
+  return (
+    contentType === undefined ||
+    /^\s*(image\/|application\/octet-stream|binary\/octet-stream)/i.test(
+      contentType,
+    )
+  );
 }
 
 function isHtml(contentType: string | undefined): boolean {
@@ -230,14 +251,84 @@ function failureOf(error: unknown, signal: AbortSignal): FetchFailure {
  * `fetch_blocked`, so the person pastes the text instead. Never throws.
  */
 export async function fetchPage(url: string): Promise<FetchedPage> {
+  const fetched = await fetchResource(url, {
+    accept: PAGE_ACCEPT,
+    maxBytes: MAX_PAGE_BYTES,
+    contentType: isHtml,
+    wrongType: 'not_html',
+  });
+  if (!fetched.ok) {
+    return fetched;
+  }
+  const html = decodeHtml(fetched.body, fetched.contentType);
+  if (CHALLENGE_TITLE.test(html.slice(0, 4096))) {
+    return {
+      ok: false,
+      url: fetched.url,
+      failure: 'fetch_blocked',
+      reason: 'challenge',
+    };
+  }
+  return { ok: true, url: fetched.url, html };
+}
+
+/** A fetched picture: its bytes as sent (the type is read from them when stored); or why not, as for a page. */
+export type FetchedImage =
+  | { ok: true; url: string; bytes: Buffer }
+  | { ok: false; url: string; reason: string };
+
+/**
+ * Fetches the photo of a step of a recipe page (GLOSSARY: Снимка на стъпка) by the rules of {@link fetchPage}: public
+ * addresses only at every hop, at most 3 redirects, 10 s, at most `STEP_PHOTO_MAX_BYTES` (10 MB, as an upload); a
+ * declared type that is not a picture is `not_image`. `signal` aborts it with the run. Never throws.
+ */
+export async function fetchImage(
+  url: string,
+  signal?: AbortSignal,
+): Promise<FetchedImage> {
+  const fetched = await fetchResource(
+    url,
+    {
+      accept: IMAGE_ACCEPT,
+      maxBytes: STEP_PHOTO_MAX_BYTES,
+      contentType: mayBeImage,
+      wrongType: 'not_image',
+    },
+    signal,
+  );
+  return fetched.ok
+    ? { ok: true, url: fetched.url, bytes: fetched.body }
+    : { ok: false, url: fetched.url, reason: fetched.reason };
+}
+
+/** What one kind of resource takes: its `Accept`, its largest body, the declared types it reads and the reason else. */
+interface ResourceRules {
+  accept: string;
+  maxBytes: number;
+  contentType: (contentType: string | undefined) => boolean;
+  wrongType: string;
+}
+
+type FetchedResource =
+  | { ok: true; url: string; body: Buffer; contentType: string | undefined }
+  | { ok: false; url: string; failure: PageFetchFailure; reason: string };
+
+async function fetchResource(
+  url: string,
+  rules: ResourceRules,
+  outer?: AbortSignal,
+): Promise<FetchedResource> {
   // A timer, not `AbortSignal.timeout`, so a spec can move the clock.
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(new DOMException('timeout', 'TimeoutError')),
     TIMEOUT_MS,
   );
+  const signal = outer
+    ? AbortSignal.any([controller.signal, outer])
+    : controller.signal;
   try {
-    return await fetchWithin(url, controller.signal);
+    return await fetchWithin(url, rules, signal);
   } finally {
     clearTimeout(timer);
   }
@@ -245,8 +336,9 @@ export async function fetchPage(url: string): Promise<FetchedPage> {
 
 async function fetchWithin(
   url: string,
+  rules: ResourceRules,
   signal: AbortSignal,
-): Promise<FetchedPage> {
+): Promise<FetchedResource> {
   let current: URL;
   try {
     current = new URL(url);
@@ -258,7 +350,7 @@ async function fetchWithin(
       if (current.protocol !== 'http:' && current.protocol !== 'https:') {
         throw new FetchFailure('fetch_failed', 'bad_url');
       }
-      const response = await get(current, signal);
+      const response = await get(current, signal, rules.accept);
       const status = response.statusCode ?? 0;
       const location = response.headers.location;
       if (status >= 300 && status < 400 && location) {
@@ -281,15 +373,12 @@ async function fetchWithin(
         throw new FetchFailure('fetch_failed', `http_${status}`);
       }
       const contentType = response.headers['content-type'];
-      if (!isHtml(contentType)) {
+      if (!rules.contentType(contentType)) {
         response.resume();
-        throw new FetchFailure('fetch_failed', 'not_html');
+        throw new FetchFailure('fetch_failed', rules.wrongType);
       }
-      const html = decodeHtml(await readBody(response), contentType);
-      if (CHALLENGE_TITLE.test(html.slice(0, 4096))) {
-        throw new FetchFailure('fetch_blocked', 'challenge');
-      }
-      return { ok: true, url: current.href, html };
+      const body = await readBody(response, rules.maxBytes);
+      return { ok: true, url: current.href, body, contentType };
     }
   } catch (error) {
     const { failure, reason } = failureOf(error, signal);
