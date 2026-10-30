@@ -2,6 +2,7 @@ import type { Recipe } from '@family/shared';
 import { useState } from 'react';
 import { CookingIngredients } from './CookingIngredients';
 import { CookingSteps } from './CookingSteps';
+import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
 import './cooking.css';
 
 interface CookingViewProps {
@@ -13,15 +14,16 @@ interface CookingViewProps {
 }
 
 /**
- * Готвене (GLOSSARY) на широк екран: колоната „Продукти“ вляво, една стъпка вдясно. Нищо не се записва: порциите,
- * стъпката и дали колоната е отворена живеят само на екрана.
+ * Готвене (GLOSSARY) на широк екран: колоната „Продукти“ вляво, една стъпка вдясно. Нищо не стига до сървъра:
+ * порциите живеят само на екрана, стъпката и отметките се помнят на устройството до края на деня, а дали колоната
+ * е отворена — на устройството.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
     servings ?? recipe.servings,
   );
-  const [step, setStep] = useState(0);
-  const [ingredientsOpen, setIngredientsOpen] = useState(true);
+  const { step, setStep, used, toggleUsed } = useCookingProgress(recipe);
+  const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
 
   return (
     <main
@@ -33,6 +35,8 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
         recipeServings={recipe.servings}
         servings={shownServings}
         onServingsChange={setShownServings}
+        used={used}
+        onToggleUsed={toggleUsed}
         open={ingredientsOpen}
         onOpenChange={setIngredientsOpen}
       />
