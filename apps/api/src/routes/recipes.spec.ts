@@ -349,6 +349,28 @@ describe('GET /api/recipes/:id', () => {
     expect(change.statusCode).toBe(400);
     expect(change.json()).toMatchObject({ error: 'missing_acting_user' });
   });
+
+  it('lists and searches the registry without an acting user (kiosk), but refuses to create', async () => {
+    await createdRecipe(recipeInput({ title: 'Мусака' }));
+    await createdRecipe(recipeInput({ title: 'Пиле с ориз' }));
+
+    const list = await app.inject({
+      method: 'GET',
+      url: `/api/recipes?q=${encodeURIComponent('мус')}`,
+    });
+    const create = await app.inject({
+      method: 'POST',
+      url: '/api/recipes',
+      payload: recipeInput({ title: 'Боб' }),
+    });
+
+    expect(list.statusCode).toBe(200);
+    expect(list.json().recipes.map((r: { title: string }) => r.title)).toEqual([
+      'Мусака',
+    ]);
+    expect(create.statusCode).toBe(400);
+    expect(create.json()).toMatchObject({ error: 'missing_acting_user' });
+  });
 });
 
 describe('PUT /api/recipes/:id', () => {

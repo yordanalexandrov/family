@@ -21,6 +21,8 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/api/recipes',
     {
+      // The tablet searches the registry without an acting user; adding a recipe still needs one.
+      config: { actingUser: false },
       schema: {
         querystring: recipesQuerySchema,
         response: { 200: recipesResponseSchema },
