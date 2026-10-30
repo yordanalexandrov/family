@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { stepPhoto } from '../schema/step-photo.js';
 
@@ -43,4 +43,31 @@ export async function existingStepPhotoIds(
     .from(stepPhoto)
     .where(inArray(stepPhoto.id, ids));
   return new Set(rows.map((row) => row.id));
+}
+
+/**
+ * Deletes every photo uploaded before `uploadedBefore` that no step points at: neither of a recipe (archived ones too)
+ * nor of a proposed suggestion's payload. Answers how many it deleted.
+ */
+export async function deleteOrphanStepPhotos(
+  db: DbExecutor,
+  uploadedBefore: Date,
+): Promise<number> {
+  const used = sql`(
+    select (s->>'photoId')::uuid from recipe, jsonb_array_elements(recipe.steps) s
+      where s ? 'photoId'
+    union
+    select (s->>'photoId')::uuid from recipe_suggestion, jsonb_array_elements(recipe_suggestion.payload->'steps') s
+      where recipe_suggestion.status = 'proposed' and s ? 'photoId'
+  )`;
+  const deleted = await db
+    .delete(stepPhoto)
+    .where(
+      and(
+        lt(stepPhoto.createdAt, uploadedBefore),
+        sql`${stepPhoto.id} not in ${used}`,
+      ),
+    )
+    .returning({ id: stepPhoto.id });
+  return deleted.length;
 }
