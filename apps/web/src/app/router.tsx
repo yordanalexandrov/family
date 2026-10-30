@@ -13,6 +13,10 @@ import {
 import { useEffect } from 'react';
 import { Aurora } from '../components/Aurora';
 import { CalendarScreen } from '../features/calendar/CalendarScreen';
+import {
+  CookingScreen,
+  parseCookingSearch,
+} from '../features/cooking/CookingScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
 import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
@@ -226,6 +230,14 @@ const editRecipeRoute = createRoute({
   component: EditRecipeScreen,
 });
 
+// Готвене (GLOSSARY): kiosk, телефон и браузър; влиза се от изгледа на рецептата.
+const cookingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id/cook',
+  component: CookingScreen,
+  validateSearch: parseCookingSearch,
+});
+
 // Седмично меню: телефон и таблет; не влиза в kiosk/TV навигацията.
 const menuRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -306,6 +318,7 @@ const routeTree = rootRoute.addChildren([
   newRecipeRoute,
   recipeRoute,
   editRecipeRoute,
+  cookingRoute,
   suggestRoute,
   suggestionRequestRoute,
   suggestionReviewRoute,

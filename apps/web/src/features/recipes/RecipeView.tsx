@@ -1,6 +1,7 @@
 import { AISLES, type Recipe, TAG_LABELS_BG } from '@family/shared';
 import { Link, useParams } from '@tanstack/react-router';
 import { useWritingUserId } from '../../app/acting-user';
+import { useDeviceMode } from '../../app/device-mode';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
@@ -45,6 +46,8 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const nutrition = recipe.nutritionPer100g;
   // Оценката, редакцията и архивът пишат от името на потребител; kiosk и TV нямат такъв.
   const canWrite = useWritingUserId() !== null;
+  // Готвене (GLOSSARY) е на kiosk, телефона и браузъра, но не и на TV.
+  const canCook = useDeviceMode().mode !== 'tv';
 
   return (
     <article className="recipe-view">
@@ -72,6 +75,15 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
           {recipe.appliance && <ApplianceBadge name={recipe.appliance} />}
           {archived && <span className="badge">Архивирана</span>}
         </p>
+        {canCook && (
+          <Link
+            to="/recipes/$id/cook"
+            params={{ id: recipe.id }}
+            className="button recipe-view__cook"
+          >
+            Готви
+          </Link>
+        )}
         {canWrite && (
           <div className="recipes__actions">
             <Link
