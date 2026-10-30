@@ -53,7 +53,7 @@ export function normalizeQuantity(
 }
 
 /** Drops binary floating-point noise (2.01 × 1000 = 2009.9999999999998) at a thousandth of the target unit. */
-function roundMilli(value: number): number {
+export function roundMilli(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 

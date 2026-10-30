@@ -14,6 +14,7 @@ export * from './events.js';
 export * from './food/aisles.js';
 export * from './food/import-photo.js';
 export * from './food/prep-time.js';
+export * from './food/scale.js';
 export * from './food/source-url.js';
 export * from './food/tags.js';
 export * from './food/units.js';

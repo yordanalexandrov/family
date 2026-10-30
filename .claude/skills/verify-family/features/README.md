@@ -40,6 +40,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Device and acting user](./device-and-user.md) covers the first-visit device choice, „Кой си?“, switching user and device in Настройки, and browser mode.
 - [Dashboard](./dashboard.md) covers the phone/browser, kiosk and TV dashboards and their unconfigured states.
 - [Recipes](./recipes.md) covers creating, viewing, searching, rating, editing and archiving recipes, new ingredients and the suggestion request screen.
+- [Cooking](./cooking.md) covers Готвене: entry from the recipe view, servings −/+, the folding „Продукти“ column, steps by buttons, dots and swipe, „Готово“.
 - [Recipe import](./recipe-import.md) covers the text, link, photo and share-target import forms and their unavailable state.
 - [Weekly menu](./menu.md) covers an empty plan, choosing a dinner, cook and servings, the thread, notes, the filter, deleting a plan and the AI actions when unavailable.
 - [Shopping list](./shopping.md) covers the list computed from the menu, checking, hiding, pantry staples, manual items, its source dishes and the offline queue.

@@ -13,6 +13,10 @@ import {
 import { useEffect } from 'react';
 import { Aurora } from '../components/Aurora';
 import { CalendarScreen } from '../features/calendar/CalendarScreen';
+import {
+  CookingScreen,
+  parseCookingSearch,
+} from '../features/cooking/CookingScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
 import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
@@ -126,7 +130,8 @@ function Screen({
     return <Navigate to={WHO_PATH} replace />;
   }
   // Навигацията е долу на телефона и горе в браузъра; kiosk стига до календара и
-  // настройките от дашборда, TV няма навигация (GLOSSARY: kiosk, TV).
+  // настройките от дашборда, TV няма навигация (GLOSSARY: kiosk, TV). kiosk се връща
+  // сам на дашборда след 60 с без докосване, а от Готвене — след 2 часа.
   return (
     <>
       {mode === 'browser' && <MainNav placement="top" />}
@@ -201,7 +206,7 @@ const deviceRoute = createRoute({
   component: DeviceScreen,
 });
 
-// Регистър рецепти: телефон и таблет; не влиза в kiosk/TV навигацията.
+// Регистър рецепти: телефон и браузър; kiosk го отваря за четене от „Рецепти“ на дашборда, TV го няма.
 const recipesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes',
@@ -224,6 +229,14 @@ const editRecipeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes/$id/edit',
   component: EditRecipeScreen,
+});
+
+// Готвене (GLOSSARY): kiosk, телефон и браузър; влиза се от изгледа на рецептата.
+const cookingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/recipes/$id/cook',
+  component: CookingScreen,
+  validateSearch: parseCookingSearch,
 });
 
 // Седмично меню: телефон и таблет; не влиза в kiosk/TV навигацията.
@@ -306,6 +319,7 @@ const routeTree = rootRoute.addChildren([
   newRecipeRoute,
   recipeRoute,
   editRecipeRoute,
+  cookingRoute,
   suggestRoute,
   suggestionRequestRoute,
   suggestionReviewRoute,

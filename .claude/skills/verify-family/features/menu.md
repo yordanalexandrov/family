@@ -16,7 +16,7 @@ The week's dinners: start an empty plan (or ask the AI to propose one), then pic
 ## How to get to it (user POV)
 
 - Nav link „Меню“ → `/menu`.
-- Dashboard link „Днес се готви …“ → `/menu` (kiosk, or no recipe today).
+- Dashboard link „Днес се готви …“ → `/menu` when today's dinner has no recipe (phone and kiosk).
 - Shopping list: link „Към менюто“ (empty week, or the „Менюто още не е съгласувано“ banner).
 
 ## Driving it with drive.mjs
