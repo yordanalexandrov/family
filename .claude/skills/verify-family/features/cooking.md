@@ -32,5 +32,6 @@ Preconditions:
 ## Gotchas
 
 - The dots animate (150 ms); wait ~500 ms before a `shot` right after a step change, or the old dot still looks current.
-- On kiosk `IdleReturn` sends every screen except the dashboard back to `/` after 60 s without a touch (#232 changes this for Готвене); keep kiosk drives short.
+- On kiosk `IdleReturn` sends Готвене back to `/` after 2 hours without a touch (other screens after 60 s), so the recipe view before „Готви“ still times out after 60 s.
+- Phone and browser hold a `screen` wake lock only while Готвене is open; headless Chrome may refuse it, which only logs a warning.
 - Seed has no `олио`; use `слънчогледово олио` or another seeded name.
