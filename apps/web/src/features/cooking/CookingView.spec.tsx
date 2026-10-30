@@ -34,6 +34,24 @@ describe('Готвене', () => {
     },
   );
 
+  it('на телефона Готвене е без долната лента, а „Затвори“ я връща', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}`);
+    await user.click(await screen.findByRole('link', { name: 'Готви' }));
+    await screen.findByText('Стъпка 1 от 3');
+    expect(
+      screen.queryByRole('navigation', { name: 'Основна навигация' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Затвори' }));
+    expect(
+      await screen.findByRole('navigation', { name: 'Основна навигация' }),
+    ).toBeInTheDocument();
+  });
+
   it('на TV изгледът на рецептата няма „Готви“', async () => {
     setUpDevice('tv');
     serveRecipe();
