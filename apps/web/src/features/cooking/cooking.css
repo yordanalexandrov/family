@@ -233,3 +233,46 @@
 .cooking__ingredients-button {
   font-size: var(--font-size-lg);
 }
+
+/*
+ * Текстът на стъпката и снимката ѝ (ако има). На широк екран (kiosk хоризонтално) снимката е до текста, на тесен
+ * (телефон) е над него. Без снимка текстът е сам, както преди.
+ */
+.cooking-steps__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+}
+
+.cooking-steps__body--photo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: start;
+}
+
+.cooking-steps__body--photo .cooking-steps__text {
+  align-self: stretch;
+}
+
+.cooking-steps__photo {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.cooking--narrow .cooking-steps__body--photo {
+  display: flex;
+}
+
+.cooking--narrow .cooking-steps__photo {
+  flex: none;
+  max-block-size: 40vh;
+  inline-size: auto;
+  max-inline-size: 100%;
+  align-self: center;
+}

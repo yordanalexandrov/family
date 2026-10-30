@@ -1,8 +1,21 @@
-import type { RecipeStep } from '@family/shared';
+import {
+  type RecipeStep,
+  STEP_PHOTO_MAX_SIDE,
+  stepPhotoUrl,
+} from '@family/shared';
 import { useRef } from 'react';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
 const SWIPE_MIN_PX = 50;
+
+/** Ширините (`?w=`), от които браузърът избира снимката на стъпката по екрана си; най-широката е пазената снимка. */
+const PHOTO_WIDTHS = [640, 1024, STEP_PHOTO_MAX_SIDE];
+
+/**
+ * Колко широка е снимката на екрана: на широк (kiosk хоризонтално) половината от стъпката до колоната „Продукти“,
+ * на тесен (телефон) цялата ширина над текста. Границата е тази на `CookingView` (`SHEET_WINDOW_QUERY`).
+ */
+const PHOTO_SIZES = '(min-width: 48rem) 34vw, 100vw';
 
 interface CookingStepsProps {
   steps: RecipeStep[];
@@ -15,7 +28,7 @@ interface CookingStepsProps {
   onDone: () => void;
 }
 
-/** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст, „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
+/** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст (със снимката на стъпката, ако има), „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
 export function CookingSteps({
   steps,
   step,
@@ -24,6 +37,8 @@ export function CookingSteps({
   onDone,
 }: CookingStepsProps) {
   const last = step === steps.length - 1;
+  const current = steps[step];
+  const photoId = current?.photoId;
   const go = (to: number) => {
     if (to >= 0 && to < steps.length && to !== step) {
       onStepChange(to);
@@ -67,7 +82,25 @@ export function CookingSteps({
           Затвори
         </button>
       </header>
-      <p className="cooking-steps__text">{steps[step]?.text}</p>
+      <div
+        className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
+      >
+        {photoId && (
+          <img
+            // Новата стъпка не показва старата снимка, докато своята се зарежда.
+            key={photoId}
+            className="cooking-steps__photo"
+            src={stepPhotoUrl(photoId, PHOTO_WIDTHS[1])}
+            srcSet={PHOTO_WIDTHS.map(
+              (width) => `${stepPhotoUrl(photoId, width)} ${width}w`,
+            ).join(', ')}
+            sizes={PHOTO_SIZES}
+            alt={`Снимката на стъпка ${step + 1}`}
+            decoding="async"
+          />
+        )}
+        <p className="cooking-steps__text">{current?.text}</p>
+      </div>
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (
