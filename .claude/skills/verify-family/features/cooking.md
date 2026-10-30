@@ -9,7 +9,7 @@
 - `cooking-column` button „Прибери продуктите“ folds the column to the strip button „Продукти (N)“ (`aria-expanded=false`), which opens it again.
 - `cooking-sheet` narrow screen (phone portrait, below 48rem): no column; button „Продукти (N)“ above the step opens dialog „Продукти“ (the Sheet) with the same −/+ and list „Продукти“; „Готово“ in the dialog closes it, servings stay.
 - `cooking-checks` each product line is a checkbox named „<name> <amount>“ (e.g. „лук 2 бр.“); checking moves it into the folded group button „Използвани (N)“ at the bottom, which opens list „Използвани“; unchecking puts it back in place. „Продукти (N)“ counts the unchecked lines.
-- `cooking-memory` leaving and entering again the same day restores the step and the checks (`localStorage['family.cooking.progress']`); a folded column stays folded (`family.cooking.ingredientsOpen`).
+- `cooking-memory` leaving („Затвори“, kiosk idle return) and entering again the same day restores the step and the checks; „Готово“ on the last step forgets them, so the next entry starts at step 1 (`localStorage['family.cooking.progress']`); a folded column stays folded (`family.cooking.ingredientsOpen`).
 - `cooking-steps` „Напред“/„Назад“ (disabled on step 1), group „Към стъпка“ with buttons „Стъпка N“ (`aria-current=step`), horizontal swipe on region „Стъпки“.
 - `cooking-exit` „Готово“ on the last step, „Затвори“ on any: back in history, or the recipe view without history.
 

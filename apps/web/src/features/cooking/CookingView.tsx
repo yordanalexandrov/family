@@ -23,14 +23,15 @@ interface CookingViewProps {
  * Готвене (GLOSSARY). На широк екран колоната „Продукти“ е вляво, една стъпка вдясно; на тесен (телефон изправен)
  * стъпката е на целия екран, а продуктите са в лист отдолу зад бутона „Продукти (N)“. Границата е тази на листа:
  * от нея нагоре той е прозорец, не лист отдолу. Нищо не стига до сървъра: порциите и дали листът е отворен живеят
- * само на екрана, стъпката и отметките се помнят на устройството до края на деня, а дали колоната е отворена — на
+ * само на екрана, стъпката и отметките се помнят на устройството до края на деня или до „Готово“, а дали колоната е отворена — на
  * устройството.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
     servings ?? recipe.servings,
   );
-  const { step, setStep, used, toggleUsed } = useCookingProgress(recipe);
+  const { step, setStep, used, toggleUsed, finish } =
+    useCookingProgress(recipe);
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
@@ -40,7 +41,11 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       steps={recipe.steps}
       step={step}
       onStepChange={setStep}
-      onExit={onExit}
+      onClose={onExit}
+      onDone={() => {
+        finish();
+        onExit();
+      }}
     />
   );
 

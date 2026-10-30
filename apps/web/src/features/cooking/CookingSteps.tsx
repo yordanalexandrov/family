@@ -8,8 +8,10 @@ interface CookingStepsProps {
   /** Индексът на текущата стъпка, от 0. */
   step: number;
   onStepChange: (step: number) => void;
-  /** „Готово“ на последната стъпка и „Затвори“ от всяка: излизане от Готвене. */
-  onExit: () => void;
+  /** „Затвори“ от всяка стъпка: излизане от Готвене. */
+  onClose: () => void;
+  /** „Готово“ на последната стъпка: Готвене е свършило. */
+  onDone: () => void;
 }
 
 /** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст, „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
@@ -17,7 +19,8 @@ export function CookingSteps({
   steps,
   step,
   onStepChange,
-  onExit,
+  onClose,
+  onDone,
 }: CookingStepsProps) {
   const last = step === steps.length - 1;
   const go = (to: number) => {
@@ -55,7 +58,11 @@ export function CookingSteps({
         <p className="cooking-steps__count">
           Стъпка {step + 1} от {steps.length}
         </p>
-        <button type="button" className="button button--quiet" onClick={onExit}>
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={onClose}
+        >
           Затвори
         </button>
       </header>
@@ -87,7 +94,7 @@ export function CookingSteps({
           <button
             type="button"
             className="button cooking-steps__button"
-            onClick={onExit}
+            onClick={onDone}
           >
             Готово
           </button>

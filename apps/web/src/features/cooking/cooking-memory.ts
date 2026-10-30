@@ -67,10 +67,15 @@ function readProgress(recipe: Recipe): CookingProgress {
   };
 }
 
-function writeProgress(recipeId: string, progress: CookingProgress): void {
+/** Записва напредъка по рецептата за днес; без `progress` го трие. */
+function writeProgress(recipeId: string, progress?: CookingProgress): void {
   // Записът е само за днес: преминаването в нов ден изхвърля напредъка по всички рецепти.
   const stored = readStored();
-  stored.recipes[recipeId] = progress;
+  if (progress) {
+    stored.recipes[recipeId] = progress;
+  } else {
+    delete stored.recipes[recipeId];
+  }
   try {
     localStorage.setItem(COOKING_PROGRESS_KEY, JSON.stringify(stored));
   } catch (error) {
@@ -80,7 +85,8 @@ function writeProgress(recipeId: string, progress: CookingProgress): void {
 
 /**
  * Стъпката и отметките на Готвене за `recipe`, запомнени на устройството до края на деня (по софийско време).
- * Нищо не стига до сървъра; без localStorage Готвене работи без памет.
+ * `finish` („Готово“) ги забравя, така че ново влизане същия ден започва отначало. Нищо не стига до сървъра; без
+ * localStorage Готвене работи без памет.
  */
 export function useCookingProgress(recipe: Recipe) {
   const [progress, setProgress] = useState(() => readProgress(recipe));
@@ -99,6 +105,7 @@ export function useCookingProgress(recipe: Recipe) {
           ? progress.used.filter((other) => other !== index)
           : [...progress.used, index],
       }),
+    finish: () => writeProgress(recipe.id),
   };
 }
 

@@ -403,6 +403,32 @@ describe('Готвене', () => {
     );
   });
 
+  it('„Затвори“ пази стъпката и отметките, а „Готово“ ги изчиства и същия ден', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+
+    const first = renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Стъпка 3' }));
+    await user.click(screen.getByRole('checkbox', { name: 'лук 2 бр.' }));
+    await user.click(screen.getByRole('button', { name: 'Затвори' }));
+    first.unmount();
+
+    const again = renderApp(`/recipes/${stew.id}/cook`);
+    expect(await screen.findByText('Стъпка 3 от 3')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+    again.unmount();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    expect(await screen.findByText('Стъпка 1 от 3')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Използвани/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it('две рецепти имат отделна памет', async () => {
     const user = userEvent.setup();
     setUpDevice('kiosk');
