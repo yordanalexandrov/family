@@ -149,6 +149,33 @@ describe('extractRecipe: the photos of the steps', () => {
     expect(JSON.stringify(result.jsonLd)).not.toMatch(/https?:|data:/);
   });
 
+  it('gives references to the photos of the first 40 steps only, and the rest of the steps as text', () => {
+    const steps = Array.from({ length: 45 }, (_, i) => ({
+      '@type': 'HowToStep',
+      text: `Step ${i + 1}.`,
+      image: `https://panandplate.example/step-${i + 1}.jpg`,
+    }));
+    const page = `<html><head><script type="application/ld+json">${JSON.stringify(
+      {
+        '@type': 'Recipe',
+        name: 'Long',
+        recipeIngredient: ['1 egg'],
+        recipeInstructions: steps,
+      },
+    )}</script></head><body></body></html>`;
+
+    const result = extractRecipe(page, PAGE_URL);
+
+    expect(Object.keys(result.stepImages ?? {})).toHaveLength(40);
+    expect(result.stepImages?.s40).toBe(
+      'https://panandplate.example/step-40.jpg',
+    );
+    const instructions = result.jsonLd?.recipeInstructions as unknown[];
+    expect(instructions[39]).toEqual({ text: 'Step 40.', image: 's40' });
+    expect(instructions[40]).toBe('Step 41.');
+    expect(instructions[44]).toBe('Step 45.');
+  });
+
   it('gives a JSON-LD recipe without step photos no references', () => {
     const result = extractRecipe(html('jsonld-howtosection.html'), PAGE_URL);
 

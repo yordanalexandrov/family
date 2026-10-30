@@ -25,6 +25,7 @@ import {
   normalizeAnswer,
   openclaw,
 } from '../test/openclaw.js';
+import { hugePng } from '../test/photos.js';
 import { DANI, POLI } from '../test/users.js';
 
 let app: FastifyInstance;
@@ -772,6 +773,32 @@ describe('an import by link with photos of its steps', () => {
     ]);
     expect(payload?.assumptions).toMatch(
       / 3 снимки на стъпки не се свалиха\.$/,
+    );
+  });
+
+  it('drops a photo of more than 50 megapixels in a small file, as one that did not download', async () => {
+    const huge = await hugePng();
+    serveShakshuka({
+      [STEP_PHOTO.s1]: () =>
+        new HttpResponse(huge, { headers: { 'content-type': 'image/png' } }),
+      [STEP_PHOTO.s2]: () => imageResponse(420),
+    });
+    answerInTurn(
+      withSteps([
+        { text: 'Задушете лука и пипера.', image: 's1' },
+        { text: 'Добавете доматите.', image: 's2' },
+      ]),
+    );
+
+    const body = await finished(
+      await imported({ kind: 'url', url: SHAKSHUKA_URL }),
+    );
+
+    const steps = body.suggestion?.payload.steps ?? [];
+    expect(steps[0]).toEqual({ text: 'Задушете лука и пипера.' });
+    expect(await storedWidth(steps[1]?.photoId)).toBe(420);
+    expect(body.suggestion?.payload.assumptions).toMatch(
+      / 1 снимка на стъпка не се свали\.$/,
     );
   });
 

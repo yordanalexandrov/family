@@ -10,6 +10,12 @@ export const PAGE_TEXT_MAX = 12_000;
 const BEFORE_INGREDIENTS = 1_000;
 
 /**
+ * The most step photos a page gives references to (real pages have up to about 24): the steps after them go as text,
+ * so a page cannot make an import download hundreds of pictures.
+ */
+export const STEP_IMAGES_MAX = 40;
+
+/**
  * The URL of each step photo of a JSON-LD Recipe by the reference that stands in its place (`s1`, `s2`, …, in the
  * order of the steps). Only the api reads it: the agent gets the references alone.
  */
@@ -105,7 +111,8 @@ const INGREDIENTS_HEADING =
  * one, the page's main text without scripts, styles, navigation, header, footer and sidebars, cut to
  * {@link PAGE_TEXT_MAX} around „Продукти“ / „Ingredients“. The lines of products are left as the page writes them.
  * A step with a `HowToStep.image` (the first of several; a URL relative to `pageUrl` too, `http(s)` only) becomes
- * `{ text, image: 's1' }` and its URL goes to `stepImages`, never into the JSON-LD.
+ * `{ text, image: 's1' }` and its URL goes to `stepImages`, never into the JSON-LD; past {@link STEP_IMAGES_MAX} photos
+ * a step stays text.
  */
 export function extractRecipe(html: string, pageUrl?: string): ExtractedRecipe {
   const document = parse(html);
@@ -113,7 +120,11 @@ export function extractRecipe(html: string, pageUrl?: string): ExtractedRecipe {
   const recipe = findJsonLdRecipe(
     document,
     (url) => {
-      const ref = `s${Object.keys(stepImages).length + 1}`;
+      const count = Object.keys(stepImages).length;
+      if (count === STEP_IMAGES_MAX) {
+        return undefined;
+      }
+      const ref = `s${count + 1}`;
       stepImages[ref] = url;
       return ref;
     },
@@ -125,8 +136,8 @@ export function extractRecipe(html: string, pageUrl?: string): ExtractedRecipe {
   return { text: pageText(document) };
 }
 
-/** Gives the URL of a step photo its reference. */
-type ImageRefs = (url: string) => string;
+/** Gives the URL of a step photo its reference, or none past {@link STEP_IMAGES_MAX}. */
+type ImageRefs = (url: string) => string | undefined;
 
 // ── JSON-LD ─────────────────────────────────────────────────────────────
 
@@ -313,7 +324,8 @@ function howToStep(
     return undefined;
   }
   const url = imageUrl(step.image, images.pageUrl);
-  return url ? { text, image: images.refs(url) } : text;
+  const image = url && images.refs(url);
+  return image ? { text, image } : text;
 }
 
 /**
