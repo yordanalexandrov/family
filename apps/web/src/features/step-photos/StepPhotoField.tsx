@@ -29,13 +29,14 @@ export function StepPhotoField({
   const connection = useNeedsConnection(online);
   const label = `Снимката на стъпка ${number}`;
   // Отговор за стъпка, чийто лист вече е затворен, не бива да пише в друга.
-  const mounted = useRef(true);
-  useEffect(
-    () => () => {
+  // StrictMode монтира два пъти, затова ефектът го слага наново.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   function choose(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];

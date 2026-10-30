@@ -73,7 +73,7 @@
   inset: 0;
   border: 0;
   /* Снимката се гледа на тъмно и в светлата тема. */
-  background: rgb(0 0 0 / 0.92);
+  background: #000;
   cursor: zoom-out;
 }
 
