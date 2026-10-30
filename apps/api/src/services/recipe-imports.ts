@@ -31,7 +31,13 @@ import {
   type ContractRequestStore,
 } from './contract-requests.js';
 import { AlreadyImportedError, NotFoundError } from './errors.js';
-import { readRecipePage } from './recipe-page/index.js';
+import {
+  type PreparedStepPhotos,
+  prepareStepPhotos,
+  stepsWithPhotos,
+  withDroppedPhotos,
+} from './imported-step-photos.js';
+import { readRecipePage, type StepImages } from './recipe-page/index.js';
 import { withDuplicateOf } from './recipe-suggestions.js';
 
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
@@ -58,12 +64,20 @@ export type RecipeImportRequests = ContractRequestHandle<
  * `fetch_blocked` or `fetch_failed` without asking the agent. A photo goes from the `POST` straight to the memory of
  * its run (`images`) and to the agent as an image next to the input (`{ kind: 'photo' }`); the database never sees
  * it. Approval and rejection of the suggestion are the suggestions' own (`app.recipeSuggestions`).
+ *
+ * A page's step photos (GLOSSARY: Снимка на стъпка) go to the agent as references only. Their URLs stay with what the
+ * run loaded (`load`), in memory; once the agent has answered, the photos it chose are downloaded and made ready
+ * (`prepare`, outside the transaction) and stored with the suggestion, and the note of the suggestion says how many
+ * were dropped.
  */
 export function createRecipeImportStore(): ContractRequestStore<
   ImportParams,
   RecipeImportRequest,
   RecipeNormalizeInput,
-  RecipeNormalizeOutput
+  RecipeNormalizeOutput,
+  string,
+  PreparedStepPhotos,
+  AgentSource
 > {
   return {
     table: recipeImportRequest,
@@ -90,16 +104,32 @@ export function createRecipeImportStore(): ContractRequestStore<
       return params.kind === 'photo' ? params.photos : [];
     },
 
-    async buildInput(db, request) {
-      return {
-        source: await agentSource(db, request.id),
-        ingredients: await listRegistryIngredients(db),
-      };
+    load(db, request) {
+      return agentSource(db, request.id);
     },
 
-    async onDone(tx, request, output) {
+    async buildInput(db, _request, { source }) {
+      return { source, ingredients: await listRegistryIngredients(db) };
+    },
+
+    async prepare(output, { stepImages }, signal) {
+      return stepImages && output.recipe
+        ? prepareStepPhotos(stepImages, output.recipe.steps, signal)
+        : new Map();
+    },
+
+    async onDone(tx, request, output, prepared) {
       if (output.recipe) {
-        await insertImportedSuggestion(tx, request.id, output.recipe);
+        const { steps, dropped } = await stepsWithPhotos(
+          tx,
+          output.recipe.steps,
+          prepared,
+        );
+        await insertImportedSuggestion(tx, request.id, {
+          ...output.recipe,
+          assumptions: withDroppedPhotos(output.recipe.assumptions, dropped),
+          steps,
+        });
       }
     },
 
@@ -113,17 +143,21 @@ export function createRecipeImportStore(): ContractRequestStore<
   };
 }
 
+/** The source the agent reads, and the URLs of the step photos of a page by their references in it. */
+interface AgentSource {
+  source: RecipeNormalizeSource;
+  stepImages?: StepImages;
+}
+
 /**
  * Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps
- * normalised (no utm, `#` or trailing `/`; one spelling of its escapes).
+ * normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the URLs of the step photos of its
+ * JSON-LD by the references the agent gets instead.
  */
-async function agentSource(
-  db: DbExecutor,
-  id: string,
-): Promise<RecipeNormalizeSource> {
+async function agentSource(db: DbExecutor, id: string): Promise<AgentSource> {
   const source = await findImportSource(db, id);
   if (source.kind === 'text' || source.kind === 'photo') {
-    return source;
+    return { source };
   }
   const page = await readRecipePage(source.url);
   if (!page.ok) {
@@ -137,8 +171,11 @@ async function agentSource(
     await setImportUrl(db, id, url);
   }
   return page.jsonLd
-    ? { kind: 'page', url, jsonLd: page.jsonLd }
-    : { kind: 'page', url, text: page.text };
+    ? {
+        source: { kind: 'page', url, jsonLd: page.jsonLd },
+        ...(page.stepImages ? { stepImages: page.stepImages } : {}),
+      }
+    : { source: { kind: 'page', url, text: page.text } };
 }
 
 export interface RecipeImportsService {

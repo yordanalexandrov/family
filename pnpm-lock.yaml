@@ -38,6 +38,9 @@ importers:
       google-auth-library:
         specifier: 11.3.1
         version: 11.3.1
+      heic-decode:
+        specifier: 2.1.0
+        version: 2.1.0
       jose:
         specifier: 6.2.13
         version: 6.2.13
@@ -47,6 +50,9 @@ importers:
       pg:
         specifier: 8.23.1
         version: 8.23.1
+      sharp:
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@24.19.2)
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
@@ -72,9 +78,6 @@ importers:
       pino-pretty:
         specifier: ^13.2.0
         version: 13.2.0
-      sharp:
-        specifier: 0.35.5
-        version: 0.35.5(@types/node@24.19.2)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -2783,6 +2786,10 @@ packages:
   headers-polyfill@5.0.1:
     resolution: {integrity: sha512-1TJ6Fih/b8h5TIcv+1+Hw0PDQWJTKDKzFZzcKOiW1wJza3XoAQlkCuXLbymPYB8+ZQyw8mHvdw560e8zVFIWyA==}
 
+  heic-decode@2.1.0:
+    resolution: {integrity: sha512-0fB3O3WMk38+PScbHLVp66jcNhsZ/ErtQ6u2lMYu/YxXgbBtl+oKOhGQHa4RpvE68k8IzbWkABzHnyAIjR758A==}
+    engines: {node: '>=8.0.0'}
+
   help-me@5.0.0:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
 
@@ -3009,6 +3016,10 @@ packages:
   leven@3.1.0:
     resolution: {integrity: sha512-qsda+H8jTaUaN/x5vzW2rzc+8Rw4TAQ/4KjB46IwK5VH+IlVeeeje/EoZRpiXvIqjFgK84QffqPztGI3VBLG1A==}
     engines: {node: '>=6'}
+
+  libheif-js@1.23.5:
+    resolution: {integrity: sha512-umXZPthnWZtF3iG/5mQG+AZ2V6i0UeYpo3z2CkggTEgL8dKmIIwJT6TDuAMuabXa1yTW8uJ1ZAgR+CxNTklYYw==}
+    engines: {node: '>=8.0.0'}
 
   light-my-request@6.8.0:
     resolution: {integrity: sha512-5Q8PjoSEdtGIB8fikZsTem5vgRo4F2mR6vUKTDW/H1g6MtAt8e3duQbg/QxL5yzg6BZhor2KOUm3hhWMWLTZwg==}
@@ -6316,6 +6327,10 @@ snapshots:
       '@types/set-cookie-parser': 2.4.10
       set-cookie-parser: 3.2.1
 
+  heic-decode@2.1.0:
+    dependencies:
+      libheif-js: 1.23.5
+
   help-me@5.0.0: {}
 
   html-encoding-sniffer@7.0.0:
@@ -6554,6 +6569,8 @@ snapshots:
       safe-buffer: 5.2.1
 
   leven@3.1.0: {}
+
+  libheif-js@1.23.5: {}
 
   light-my-request@6.8.0:
     dependencies:

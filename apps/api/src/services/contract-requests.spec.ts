@@ -1,4 +1,4 @@
-import type { AiContract } from '@family/shared';
+import type { AiContract, Tag } from '@family/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import { HttpResponse, http } from 'msw';
@@ -67,13 +67,19 @@ function toRequest(row: typeof table.$inferSelect): EchoRequest {
   };
 }
 
-/** Refuses the word `taken` inside the insert, as menu refuses a taken week. */
-const store: ContractRequestStore<
+/** The echo contract's store, with what its `load` reads. */
+type EchoStore<C = undefined> = ContractRequestStore<
   { word: string; picture?: string },
   EchoRequest,
   EchoInput,
-  EchoOutput
-> = {
+  EchoOutput,
+  string,
+  Tag[],
+  C
+>;
+
+/** Refuses the word `taken` inside the insert, as menu refuses a taken week. */
+const store: EchoStore = {
   table,
   async insert(tx, params, requestedBy) {
     if (params.word === 'taken') {
@@ -98,13 +104,14 @@ const store: ContractRequestStore<
     }
     return { word: request.word };
   },
-  async onDone(tx, request, output) {
+  /** Writes the tags `prepare` gave, else `quick`. */
+  async onDone(tx, request, output, prepared) {
     if (output.word === 'boom') {
       throw new Error('onDone failed');
     }
     await tx
       .update(table)
-      .set({ tags: ['quick'] })
+      .set({ tags: prepared ?? ['quick'] })
       .where(eq(table.id, request.id));
   },
   images(params) {
@@ -133,10 +140,10 @@ const silent = { info() {}, warn() {}, error() {} };
 
 let requests: ContractRequests;
 
-function create(
+function create<C = undefined>(
   client = createOpenClawClient(TEST_OPENCLAW, silent),
   log: Pick<FastifyBaseLogger, 'warn' | 'error'> = silent,
-  withStore: typeof store = store,
+  withStore: EchoStore<C> = store as EchoStore<C>,
 ) {
   requests = createContractRequests({ db: testDb(), client, log });
   return requests.register(echo, withStore, 'family-test');
@@ -212,6 +219,52 @@ describe('AI requests (contract-requests)', () => {
       tags: ['quick'],
     });
     expect(done.finishedAt).toEqual(expect.any(Date));
+  });
+
+  it('hands buildInput and prepare what load read, and onDone what prepare made of it and the answer, before the transaction; a prepare that throws fails the run', async () => {
+    const prepared: {
+      loaded: string;
+      output: EchoOutput;
+      aborted: boolean;
+    }[] = [];
+    const handle = create<string>(undefined, silent, {
+      ...store,
+      async load(_db, request) {
+        return `заредено ${request.word}`;
+      },
+      async buildInput(_db, request, loaded) {
+        expect(loaded).toBe(`заредено ${request.word}`);
+        return { word: request.word };
+      },
+      async prepare(output, loaded, signal) {
+        prepared.push({ loaded, output, aborted: signal.aborted });
+        if (output.word === 'гърми') {
+          throw new Error('prepare failed');
+        }
+        return ['kid_friendly'];
+      },
+    });
+
+    const done = await finished(
+      handle,
+      (await handle.request({ word: 'супа' }, DANI.id)).id,
+    );
+    const failed = await finished(
+      handle,
+      (await handle.request({ word: 'гърми' }, DANI.id)).id,
+    );
+
+    expect(done).toMatchObject({ status: 'done', tags: ['kid_friendly'] });
+    expect(failed).toMatchObject({
+      status: 'failed',
+      error: 'error',
+      tags: [],
+    });
+    expect(prepared[0]).toEqual({
+      loaded: 'заредено супа',
+      output: { word: 'супа' },
+      aborted: false,
+    });
   });
 
   it('marks the request failed with the failure code when the agent fails', async () => {

@@ -7,6 +7,7 @@ import {
   normalizeSourceUrl,
   type Recipe,
   type RecipeInput,
+  type RecipeStep,
   recipeInputSchema,
   type Tag,
   UNIT_LABELS_BG,
@@ -69,7 +70,8 @@ export interface RecipeFormValues {
   tags: Tag[];
   /** Името на уреда (GLOSSARY: Уред), както е в Настройки; празно = без уред. */
   appliance: string;
-  steps: string[];
+  /** Стъпките с текста им и снимката им, ако има: при местене и махане снимката върви със стъпката. */
+  steps: RecipeStep[];
   ingredients: IngredientRowValues[];
   nutrition: NutritionValues;
 }
@@ -145,7 +147,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     sourceUrl: displaySourceUrl(recipe.sourceUrl ?? ''),
     tags: [...recipe.tags],
     appliance: recipe.appliance ?? '',
-    steps: [...recipe.steps],
+    steps: recipe.steps.map((step) => ({ ...step })),
     ingredients: recipe.ingredients.map((line) =>
       emptyIngredientRow({
         ingredient: line.ingredient,
@@ -240,7 +242,8 @@ export function toRecipeInput(
   }
   const errors: RecipeFormErrors = {};
   for (const issue of result.error.issues) {
-    const path = issue.path.join('.');
+    // Грешката в текста на стъпка (`steps.1.text`) е на реда на стъпката (`steps.1`).
+    const path = issue.path.join('.').replace(/^(steps\.\d+)\.text$/, '$1');
     errors[path] ??= messageFor(path);
   }
   return { ok: false, errors };

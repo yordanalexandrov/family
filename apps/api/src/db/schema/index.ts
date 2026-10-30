@@ -5,4 +5,5 @@ export * from './menu.js';
 export * from './notifications.js';
 export * from './pantry.js';
 export * from './shopping.js';
+export * from './step-photo.js';
 export * from './user.js';

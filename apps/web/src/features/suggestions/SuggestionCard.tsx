@@ -1,6 +1,6 @@
 import {
   type RecipeSuggestion,
-  type Suggestion,
+  type SuggestionPayload,
   TAG_LABELS_BG,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
@@ -127,7 +127,7 @@ export function SuggestionCard({
 }
 
 /** Бърз преглед само за четене: продуктите и стъпките, за да се прецени дали предложението си струва. */
-function SuggestionPreview({ suggestion }: { suggestion: Suggestion }) {
+function SuggestionPreview({ suggestion }: { suggestion: SuggestionPayload }) {
   const ingredientsId = useId();
   const stepsId = useId();
   return (
@@ -160,7 +160,7 @@ function SuggestionPreview({ suggestion }: { suggestion: Suggestion }) {
       >
         {suggestion.steps.map((step, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id, а редът им е смисълът.
-          <li key={index}>{step}</li>
+          <li key={index}>{step.text}</li>
         ))}
       </ol>
     </div>

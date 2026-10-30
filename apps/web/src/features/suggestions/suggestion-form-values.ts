@@ -1,8 +1,8 @@
 import {
   displaySourceUrl,
+  type ImportPayload,
   type Ingredient,
-  type NormalizedRecipe,
-  type Suggestion,
+  type SuggestionPayload,
 } from '@family/shared';
 import {
   emptyIngredientRow,
@@ -16,7 +16,7 @@ import {
  * (точно съвпадение); ред без него остава неразрешен и откроен като нов продукт.
  */
 export function suggestionToFormValues(
-  suggestion: Suggestion,
+  suggestion: SuggestionPayload,
   resolved: ReadonlyMap<string, Ingredient>,
 ): RecipeFormValues {
   return {
@@ -27,7 +27,7 @@ export function suggestionToFormValues(
     sourceUrl: displaySourceUrl(suggestion.sourceUrl),
     tags: [...suggestion.tags],
     appliance: suggestion.appliance ?? '',
-    steps: [...suggestion.steps],
+    steps: suggestion.steps.map((step) => ({ ...step })),
     ingredients: suggestion.ingredients.map((line) => {
       const ingredient = line.isNew ? undefined : resolved.get(line.name);
       return emptyIngredientRow({
@@ -48,7 +48,7 @@ export function suggestionToFormValues(
  * Бележката на реда (оригиналната единица) остава в рецептата.
  */
 export function importToFormValues(
-  recipe: NormalizedRecipe,
+  recipe: ImportPayload,
   linked: readonly Ingredient[],
   sourceUrl: string | undefined,
 ): RecipeFormValues {
@@ -60,7 +60,7 @@ export function importToFormValues(
     prepMinutes: recipe.prepMinutes === null ? '' : String(recipe.prepMinutes),
     sourceUrl: displaySourceUrl(sourceUrl ?? ''),
     tags: [...recipe.tags],
-    steps: [...recipe.steps],
+    steps: recipe.steps.map((step) => ({ ...step })),
     ingredients: recipe.ingredients.map((line) => {
       const ingredient =
         line.ingredientId === null ? undefined : byId.get(line.ingredientId);

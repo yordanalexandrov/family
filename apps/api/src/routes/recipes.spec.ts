@@ -9,6 +9,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
+import { storedStepPhoto } from '../test/photos.js';
 import { DANI } from '../test/users.js';
 
 let app: FastifyInstance;
@@ -41,7 +42,10 @@ function recipeInput(overrides: Partial<RecipeInput> = {}): RecipeInput {
   return {
     title: 'Печени картофи',
     servings: 4,
-    steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+    steps: [
+      { text: 'Нарежи картофите.' },
+      { text: 'Печи 40 минути на 200 °C.' },
+    ],
     tags: ['dinner'],
     ingredients: [],
     ...overrides,
@@ -92,7 +96,10 @@ describe('POST /api/recipes', () => {
         id: created.id,
         title: 'Печени картофи',
         servings: 4,
-        steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+        steps: [
+          { text: 'Нарежи картофите.' },
+          { text: 'Печи 40 минути на 200 °C.' },
+        ],
         sourceUrl: 'https://recepti.example/pecheni-kartofi',
         prepMinutes: 50,
         tags: ['dinner'],
@@ -142,8 +149,50 @@ describe('POST /api/recipes', () => {
     expect(await listTitles('')).toEqual([]);
   });
 
+  it('keeps the photo of a step', async () => {
+    const photoId = await storedStepPhoto(app);
+
+    const created = await createdRecipe(
+      recipeInput({
+        steps: [{ text: 'Нарежи картофите.', photoId }, { text: 'Печи.' }],
+      }),
+    );
+
+    expect(created.steps).toEqual([
+      { text: 'Нарежи картофите.', photoId },
+      { text: 'Печи.' },
+    ]);
+  });
+
+  it('answers 400 invalid_reference for a step with an unknown photo and creates nothing', async () => {
+    const response = await createRecipe(
+      recipeInput({
+        steps: [
+          {
+            text: 'Нарежи картофите.',
+            photoId: '99999999-9999-4999-8999-999999999999',
+          },
+        ],
+      }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'invalid_reference' });
+    expect(await listTitles('')).toEqual([]);
+  });
+
   it('answers 400 validation_error for a recipe without steps', async () => {
     const response = await createRecipe(recipeInput({ steps: [] }));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'validation_error' });
+  });
+
+  it('answers 400 validation_error for steps of text instead of step objects', async () => {
+    const response = await createRecipe({
+      ...recipeInput(),
+      steps: ['Нарежи картофите.'],
+    });
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: 'validation_error' });
@@ -469,6 +518,25 @@ describe('PUT /api/recipes/:id', () => {
             quantity: 1,
             unit: 'pcs',
           },
+        ],
+      }),
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'invalid_reference' });
+    expect((await getRecipe(created.id)).json()).toEqual({ recipe: created });
+  });
+
+  it('answers 400 invalid_reference for a step with an unknown photo and keeps the recipe as it was', async () => {
+    const created = await createdRecipe(recipeInput());
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}`,
+      headers,
+      payload: recipeInput({
+        steps: [
+          { text: 'Друго.', photoId: '99999999-9999-4999-8999-999999999999' },
         ],
       }),
     });

@@ -73,7 +73,7 @@ function recipe(
     id: uuid('2'),
     title,
     servings,
-    steps: ['готви'],
+    steps: [{ text: 'готви' }],
     tags: [],
     ingredients: lines.map(([ingredient, quantity, unit]) => ({
       ingredientId: ingredient.id,

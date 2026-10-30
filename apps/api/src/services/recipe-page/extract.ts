@@ -9,10 +9,29 @@ export const PAGE_TEXT_MAX = 12_000;
 /** How much of the page before „Продукти“ / „Ingredients“ the window keeps (the title and intro of the recipe). */
 const BEFORE_INGREDIENTS = 1_000;
 
-/** What a page gives the agent: the JSON-LD Recipe (trimmed to its fields) or, without one, the main text. */
+/**
+ * The most step photos a page gives references to (real pages have up to about 24): the steps after them go as text,
+ * so a page cannot make an import download hundreds of pictures.
+ */
+export const STEP_IMAGES_MAX = 40;
+
+/**
+ * The URL of each step photo of a JSON-LD Recipe by the reference that stands in its place (`s1`, `s2`, …, in the
+ * order of the steps). Only the api reads it: the agent gets the references alone.
+ */
+export type StepImages = Record<string, string>;
+
+/**
+ * What a page gives the agent: the JSON-LD Recipe (trimmed to its fields, a `HowToStep.image` as a reference) with the
+ * URLs of those references, or, without one, the main text (no step photos).
+ */
 export type ExtractedRecipe =
-  | { jsonLd: Record<string, unknown>; text?: undefined }
-  | { text: string; jsonLd?: undefined };
+  | {
+      jsonLd: Record<string, unknown>;
+      stepImages: StepImages;
+      text?: undefined;
+    }
+  | { text: string; jsonLd?: undefined; stepImages?: undefined };
 
 /** The fields of a schema.org Recipe the agent needs; images, video, ratings, reviews and authors are left out. */
 const RECIPE_FIELDS = [
@@ -91,15 +110,34 @@ const INGREDIENTS_HEADING =
  * top-level array, with `@type` an array and instructions in `HowToSection`s), trimmed to the recipe's fields; without
  * one, the page's main text without scripts, styles, navigation, header, footer and sidebars, cut to
  * {@link PAGE_TEXT_MAX} around „Продукти“ / „Ingredients“. The lines of products are left as the page writes them.
+ * A step with a `HowToStep.image` (the first of several; a URL relative to `pageUrl` too, `http(s)` only) becomes
+ * `{ text, image: 's1' }` and its URL goes to `stepImages`, never into the JSON-LD; past {@link STEP_IMAGES_MAX} photos
+ * a step stays text.
  */
-export function extractRecipe(html: string): ExtractedRecipe {
+export function extractRecipe(html: string, pageUrl?: string): ExtractedRecipe {
   const document = parse(html);
-  const recipe = findJsonLdRecipe(document);
+  const stepImages: StepImages = {};
+  const recipe = findJsonLdRecipe(
+    document,
+    (url) => {
+      const count = Object.keys(stepImages).length;
+      if (count === STEP_IMAGES_MAX) {
+        return undefined;
+      }
+      const ref = `s${count + 1}`;
+      stepImages[ref] = url;
+      return ref;
+    },
+    pageUrl,
+  );
   if (recipe) {
-    return { jsonLd: recipe };
+    return { jsonLd: recipe, stepImages };
   }
   return { text: pageText(document) };
 }
+
+/** Gives the URL of a step photo its reference, or none past {@link STEP_IMAGES_MAX}. */
+type ImageRefs = (url: string) => string | undefined;
 
 // ── JSON-LD ─────────────────────────────────────────────────────────────
 
@@ -135,12 +173,16 @@ function findRecipeNode(value: unknown): Record<string, unknown> | undefined {
   return findRecipeNode(value['@graph']) ?? findRecipeNode(value.mainEntity);
 }
 
-function findJsonLdRecipe(document: Node): Record<string, unknown> | undefined {
+function findJsonLdRecipe(
+  document: Node,
+  refs: ImageRefs,
+  pageUrl: string | undefined,
+): Record<string, unknown> | undefined {
   for (const script of elements(document, isJsonLdScript)) {
     const value = parseJsonLd(textOf(script));
     const node = findRecipeNode(value);
     if (node && (node.recipeIngredient || node.ingredients)) {
-      return trimRecipe(node);
+      return trimRecipe(node, { refs, pageUrl });
     }
   }
   return undefined;
@@ -172,7 +214,10 @@ function isJsonLdScript(element: Element): boolean {
 }
 
 /** The Recipe's own fields, cleaned: no `@`-keys, strings without HTML or entities, steps as text or sections. */
-function trimRecipe(node: Record<string, unknown>): Record<string, unknown> {
+function trimRecipe(
+  node: Record<string, unknown>,
+  images: StepImageContext,
+): Record<string, unknown> {
   const recipe: Record<string, unknown> = { '@type': 'Recipe' };
   for (const field of RECIPE_FIELDS) {
     const value = node[field];
@@ -180,7 +225,9 @@ function trimRecipe(node: Record<string, unknown>): Record<string, unknown> {
       continue;
     }
     recipe[field] =
-      field === 'recipeInstructions' ? instructions(value) : clean(value);
+      field === 'recipeInstructions'
+        ? instructions(value, images)
+        : clean(value);
   }
   return recipe;
 }
@@ -208,10 +255,25 @@ function cleanText(value: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-type Instruction = string | { section: string; steps: string[] };
+/** How the steps' photos are referenced: the references so far, and the page's URL for relative ones. */
+interface StepImageContext {
+  refs: ImageRefs;
+  pageUrl: string | undefined;
+}
 
-/** `recipeInstructions` in any of its shapes as steps of text, with `HowToSection`s kept as named groups. */
-function instructions(value: unknown): Instruction | Instruction[] {
+/** A step as the agent reads it: its text, or its text and the reference of its photo. */
+type Step = string | { text: string; image: string };
+
+type Instruction = Step | { section: string; steps: Step[] };
+
+/**
+ * `recipeInstructions` in any of its shapes as steps of text (with the reference of a step's photo), with
+ * `HowToSection`s kept as named groups.
+ */
+function instructions(
+  value: unknown,
+  images: StepImageContext,
+): Instruction | Instruction[] {
   if (typeof value === 'string') {
     return cleanText(value);
   }
@@ -224,19 +286,19 @@ function instructions(value: unknown): Instruction | Instruction[] {
       return [];
     }
     if (item.itemListElement !== undefined) {
-      const steps = sectionSteps(item.itemListElement);
+      const steps = sectionSteps(item.itemListElement, images);
       const name = typeof item.name === 'string' ? cleanText(item.name) : '';
       return name ? [{ section: name, steps }] : steps;
     }
-    const text = stepText(item);
-    return text ? [text] : [];
+    const step = howToStep(item, images);
+    return step ? [step] : [];
   });
 }
 
 /** The steps of a section, flat. */
-function sectionSteps(value: unknown): string[] {
+function sectionSteps(value: unknown, images: StepImageContext): Step[] {
   const items = Array.isArray(value) ? value : [value];
-  return items.flatMap((item) => {
+  return items.flatMap((item): Step[] => {
     if (typeof item === 'string') {
       return [cleanText(item)];
     }
@@ -244,16 +306,59 @@ function sectionSteps(value: unknown): string[] {
       return [];
     }
     if (item.itemListElement !== undefined) {
-      return sectionSteps(item.itemListElement);
+      return sectionSteps(item.itemListElement, images);
     }
-    const text = stepText(item);
-    return text ? [text] : [];
+    const step = howToStep(item, images);
+    return step ? [step] : [];
   });
 }
 
-function stepText(step: Record<string, unknown>): string | undefined {
-  const text = typeof step.text === 'string' ? step.text : step.name;
-  return typeof text === 'string' ? cleanText(text) || undefined : undefined;
+/** A `HowToStep`: its text, with the reference of its photo when it has one. */
+function howToStep(
+  step: Record<string, unknown>,
+  images: StepImageContext,
+): Step | undefined {
+  const value = typeof step.text === 'string' ? step.text : step.name;
+  const text = typeof value === 'string' ? cleanText(value) : '';
+  if (!text) {
+    return undefined;
+  }
+  const url = imageUrl(step.image, images.pageUrl);
+  const image = url && images.refs(url);
+  return image ? { text, image } : text;
+}
+
+/**
+ * The URL of a `HowToStep.image`: a URL, an `ImageObject` (`url` or `contentUrl`), or the first usable of an array of
+ * them; absolute against the page, `http(s)` only (no `data:`).
+ */
+function imageUrl(
+  value: unknown,
+  pageUrl: string | undefined,
+): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const url = imageUrl(item, pageUrl);
+      if (url) {
+        return url;
+      }
+    }
+    return undefined;
+  }
+  if (isRecord(value)) {
+    return imageUrl(value.url, pageUrl) ?? imageUrl(value.contentUrl, pageUrl);
+  }
+  if (typeof value !== 'string' || value.trim() === '') {
+    return undefined;
+  }
+  try {
+    const url = new URL(value.trim(), pageUrl);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // ── Text ────────────────────────────────────────────────────────────────

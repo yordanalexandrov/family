@@ -14,7 +14,13 @@ import {
 const DANI = '11111111-1111-4111-8111-111111111111';
 const REQUEST = '77777777-7777-4777-8777-777777777777';
 
-const [suggestion] = fixture.suggestions;
+/** A contract's recipe as stored in a suggestion: its steps of text become step objects. */
+function stored<T extends { steps: string[] }>(recipe: T) {
+  return { ...recipe, steps: recipe.steps.map((text) => ({ text })) };
+}
+
+const [contractSuggestion] = fixture.suggestions;
+const suggestion = contractSuggestion && stored(contractSuggestion);
 
 describe('suggestionRequestSchema', () => {
   const pending = {
@@ -61,8 +67,29 @@ describe('recipeSuggestionSchema', () => {
     status: 'proposed',
   };
 
-  it('accepts a proposed suggestion carrying the contract payload', () => {
+  it('accepts a proposed suggestion carrying the contract payload with its steps as objects', () => {
     expect(recipeSuggestionSchema.parse(proposed)).toEqual(proposed);
+  });
+
+  it('accepts a step with a photo and refuses steps of text, as the contract gives them', () => {
+    const withPhoto = {
+      ...proposed,
+      payload: {
+        ...suggestion,
+        steps: [
+          { text: 'Нарежи.', photoId: '99999999-9999-4999-8999-999999999999' },
+          { text: 'Изпечи.' },
+        ],
+      },
+    };
+
+    expect(recipeSuggestionSchema.parse(withPhoto)).toEqual(withPhoto);
+    expect(
+      recipeSuggestionSchema.safeParse({
+        ...proposed,
+        payload: contractSuggestion,
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts an approved suggestion that points to its recipe', () => {
@@ -87,7 +114,11 @@ describe('recipeSuggestionSchema', () => {
 
 describe('anyRecipeSuggestionSchema', () => {
   const IMPORT = '55555555-5555-4555-8555-555555555555';
-  const { nutritionPer100g: _none, ...recipe } = normalizeFixture.recipe;
+  // The contract's steps carry the agent's photo reference; a stored step has text (and a photo id) only.
+  const { nutritionPer100g: _none, ...recipe } = {
+    ...normalizeFixture.recipe,
+    steps: normalizeFixture.recipe.steps.map(({ text }) => ({ text })),
+  };
   const imported = {
     id: '88888888-8888-4888-8888-888888888889',
     origin: 'import',

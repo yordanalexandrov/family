@@ -1,0 +1,93 @@
+/* Снимки на стъпките (GLOSSARY: Снимка на стъпка): миниатюра, полето в редакцията и изгледът на цял екран. */
+
+.step-photo-thumbnail {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  cursor: zoom-in;
+}
+
+.step-photo-thumbnail:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.step-photo-thumbnail__image {
+  display: block;
+  inline-size: 5rem;
+  block-size: 5rem;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.step-photo-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.step-photo-field__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.step-photo-field__pick {
+  position: relative;
+}
+
+.step-photo-field__pick:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.step-photo-field__pick--disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.step-photo-field__status {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.photo-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(var(--space-4), env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
+}
+
+.photo-viewer__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  /* Снимката се гледа на тъмно и в светлата тема. */
+  background: #000;
+  cursor: zoom-out;
+}
+
+.photo-viewer__image {
+  position: relative;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+
+.photo-viewer__close {
+  position: absolute;
+  inset-block-start: max(var(--space-4), env(safe-area-inset-top));
+  inset-inline-end: max(var(--space-4), env(safe-area-inset-right));
+}

@@ -5,6 +5,7 @@ import { isInteractiveDevice, useDeviceMode } from '../../app/device-mode';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
+import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
 import { ApplianceBadge } from './ApplianceBadge';
 import { formatMinutes } from './format';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
@@ -46,8 +47,9 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const nutrition = recipe.nutritionPer100g;
   // Оценката, редакцията и архивът пишат от името на потребител; kiosk и TV нямат такъв.
   const canWrite = useWritingUserId() !== null;
-  // Готвене (GLOSSARY) е на kiosk, телефона и браузъра, но не и на TV.
-  const canCook = isInteractiveDevice(useDeviceMode().mode);
+  // Готвене (GLOSSARY) и снимките на стъпките са на kiosk, телефона и браузъра, но не и на TV.
+  const interactive = isInteractiveDevice(useDeviceMode().mode);
+  const canCook = interactive;
 
   return (
     <article className="recipe-view">
@@ -137,7 +139,18 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         <ol className="recipe-view__steps" aria-labelledby="steps">
           {recipe.steps.map((step, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id, а редът им е смисълът.
-            <li key={index}>{step}</li>
+            <li key={index}>
+              {/* Флексът е вътре: `li` остава ред от списъка и пази номера си. */}
+              <div className="recipe-view__step">
+                <span className="recipe-view__step-text">{step.text}</span>
+                {interactive && step.photoId && (
+                  <StepPhotoThumbnail
+                    photoId={step.photoId}
+                    label={`Снимката на стъпка ${index + 1}`}
+                  />
+                )}
+              </div>
+            </li>
           ))}
         </ol>
       </section>

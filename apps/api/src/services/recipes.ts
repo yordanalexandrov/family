@@ -16,7 +16,9 @@ import {
   setRecipeRating,
   updateRecipe,
 } from '../db/repositories/recipes.js';
+import { existingStepPhotoIds } from '../db/repositories/step-photos.js';
 import { InvalidReferenceError, NotFoundError } from './errors.js';
+import { stepPhotoIds } from './step-photos.js';
 
 const NO_SUCH_RECIPE = 'Няма такава рецепта';
 
@@ -37,7 +39,7 @@ export async function getRecipe(db: DbExecutor, id: string): Promise<Recipe> {
   return found;
 }
 
-/** Adds a recipe to the registry; an unknown `ingredientId` is an `InvalidReferenceError`. */
+/** Adds a recipe to the registry; an unknown `ingredientId` or step `photoId` is an `InvalidReferenceError`. */
 export function createRecipe(db: Db, input: RecipeInput): Promise<Recipe> {
   return db.transaction((tx) => addRecipe(tx, input));
 }
@@ -47,7 +49,7 @@ export async function addRecipe(
   tx: DbExecutor,
   input: RecipeInput,
 ): Promise<Recipe> {
-  await checkIngredientsExist(tx, input);
+  await checkReferencesExist(tx, input);
   const id = await insertRecipe(tx, input);
   await replaceRecipeIngredients(tx, id, input.ingredients);
   return getRecipe(tx, id);
@@ -60,7 +62,7 @@ export function replaceRecipe(
   input: RecipeInput,
 ): Promise<Recipe> {
   return db.transaction(async (tx) => {
-    await checkIngredientsExist(tx, input);
+    await checkReferencesExist(tx, input);
     if (!(await updateRecipe(tx, id, input))) {
       throw new NotFoundError(NO_SUCH_RECIPE);
     }
@@ -101,7 +103,7 @@ export function rateRecipe(
   });
 }
 
-async function checkIngredientsExist(
+async function checkReferencesExist(
   db: DbExecutor,
   input: RecipeInput,
 ): Promise<void> {
@@ -109,5 +111,12 @@ async function checkIngredientsExist(
   const existing = await existingIngredientIds(db, ids);
   if (ids.some((id) => !existing.has(id))) {
     throw new InvalidReferenceError('Рецептата сочи непознат продукт');
+  }
+  const photoIds = stepPhotoIds(input.steps);
+  const photos = await existingStepPhotoIds(db, photoIds);
+  if (photoIds.some((id) => !photos.has(id))) {
+    throw new InvalidReferenceError(
+      'Стъпка сочи снимка, която я няма. Добави снимката пак.',
+    );
   }
 }

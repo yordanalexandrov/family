@@ -263,6 +263,18 @@
   padding-inline-start: var(--space-5);
 }
 
+/* Стъпка със снимка: текстът, а вдясно миниатюрата (`StepPhotoThumbnail`). */
+.recipe-view__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.recipe-view__step-text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
 @media (min-width: 48rem) {
   .recipe-view {
     grid-template-columns: 1fr 1fr;
@@ -437,7 +449,9 @@
 }
 
 .step-line__open {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   inline-size: 100%;
   min-block-size: 2.75rem;
   padding: var(--space-2) 0;
@@ -448,6 +462,18 @@
   text-align: start;
   overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+.step-line__text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* Миниатюрата в реда е само знак, че стъпката има снимка; голямата е в листа. */
+.step-line__open .step-photo-thumbnail__image {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: var(--radius-sm);
 }
 
 .step-line__error {

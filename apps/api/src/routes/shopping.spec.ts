@@ -1,10 +1,8 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { sql } from 'drizzle-orm';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { shoppingItem, shoppingList } from '../db/schema/shopping.js';
 import { buildTestApp } from '../test/app.js';
-import { testDb } from '../test/db.js';
+import { rerunMigration, testDb } from '../test/db.js';
 import { DANI, POLI } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia. */
@@ -67,7 +65,7 @@ async function createRecipe(
     await inject('POST', '/api/recipes', {
       title,
       servings: 4,
-      steps: ['Сготви.'],
+      steps: [{ text: 'Сготви.' }],
       tags: ['dinner'],
       ingredients,
     }),
@@ -415,19 +413,9 @@ describe('PUT …/items/:key/hidden', () => {
 describe('one row per ingredient (migration of the old keys)', () => {
   beforeEach(seedMenu);
 
-  const DRIZZLE = new URL('../../drizzle/', import.meta.url);
-
-  /** Runs the data migration again, as it ran once over the records stored before it; found by name, not number. */
-  async function migrate() {
-    const file = (await readdir(DRIZZLE)).find((name) =>
-      name.endsWith('_shopping_item_per_ingredient.sql'),
-    );
-    expect(file).toBeDefined();
-    const text = await readFile(new URL(file ?? '', DRIZZLE), 'utf8');
-    for (const statement of text.split('--> statement-breakpoint')) {
-      await testDb().execute(sql.raw(statement));
-    }
-  }
+  /** Runs the data migration again, as it ran once over the records stored before it. */
+  const migrate = () =>
+    rerunMigration(testDb(), '_shopping_item_per_ingredient');
 
   it('moves the checks and hides stored per unit onto the ingredient’s row, the latest check winning', async () => {
     const [list] = await testDb()

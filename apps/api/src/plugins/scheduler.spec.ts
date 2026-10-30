@@ -1,3 +1,4 @@
+import type { ImportPayload, RecipeStep } from '@family/shared';
 import { dashboardResponseSchema } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -17,9 +18,16 @@ import {
   calendarEvent,
   syncRun,
 } from '../db/schema/dashboard.js';
-import { ingredient, recipe, recipeIngredient } from '../db/schema/food.js';
+import {
+  ingredient,
+  recipe,
+  recipeImportRequest,
+  recipeIngredient,
+  recipeSuggestion,
+} from '../db/schema/food.js';
 import { meal, mealPlan } from '../db/schema/menu.js';
 import { pantryItem } from '../db/schema/pantry.js';
+import { stepPhoto } from '../db/schema/step-photo.js';
 import { createCalendarClient } from '../integrations/google-calendar/client.js';
 import { createWalletClient } from '../integrations/wallet/client.js';
 import { buildTestApp } from '../test/app.js';
@@ -32,6 +40,7 @@ import {
   tokenHandler,
 } from '../test/google.js';
 import { server } from '../test/msw.js';
+import { storedStepPhoto } from '../test/photos.js';
 import {
   createTestPushService,
   deviceSubscription,
@@ -107,7 +116,7 @@ describe('scheduler', () => {
       .values({
         title: 'Мусака',
         servings: 4,
-        steps: ['Сготви.'],
+        steps: [{ text: 'Сготви.' }],
         tags: ['dinner'],
       })
       .returning({ id: recipe.id });
@@ -269,5 +278,189 @@ describe('scheduler', () => {
         }),
       ]),
     );
+  });
+
+  describe('step photo orphans', () => {
+    /** The log lines of an app, parsed. */
+    function capturedLog() {
+      const lines: Record<string, unknown>[] = [];
+      return {
+        lines,
+        logger: {
+          level: 'info',
+          stream: { write: (line: string) => lines.push(JSON.parse(line)) },
+        },
+      };
+    }
+
+    async function photoStatus(id: string): Promise<number> {
+      if (!app) {
+        throw new Error('no app');
+      }
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/step-photos/${id}?w=16`,
+      });
+      return response.statusCode;
+    }
+
+    async function recipeWithPhoto(photoId: string, archived = false) {
+      const [row] = await testDb()
+        .insert(recipe)
+        .values({
+          title: `Рецепта ${photoId}`,
+          servings: 2,
+          steps: [{ text: 'Нарежи.', photoId }, { text: 'Печи.' }],
+          tags: ['dinner'],
+          archivedAt: archived ? new Date('2026-10-01T12:00:00Z') : null,
+        })
+        .returning({ id: recipe.id });
+      if (!row) {
+        throw new Error('no recipe');
+      }
+      return row.id;
+    }
+
+    async function importedSuggestionWithPhoto(
+      photoId: string,
+      status: 'proposed' | 'rejected',
+    ) {
+      const [request] = await testDb()
+        .insert(recipeImportRequest)
+        .values({
+          source: 'text',
+          text: 'Рецепта',
+          status: 'done',
+          requestedBy: DANI.id,
+        })
+        .returning({ id: recipeImportRequest.id });
+      await testDb()
+        .insert(recipeSuggestion)
+        .values({
+          importRequestId: request?.id ?? '',
+          position: 0,
+          status,
+          payload: {
+            title: `Внесена ${photoId}`,
+            steps: [{ text: 'Сготви.', photoId }],
+          } as unknown as ImportPayload,
+        });
+    }
+
+    /** Six stored photos, every one uploaded on 1 November but `fresh` (the night of 4 to 5 November). */
+    async function photos() {
+      const uploader = buildTestApp();
+      try {
+        const ids = {
+          inRecipe: await storedStepPhoto(uploader),
+          inArchivedRecipe: await storedStepPhoto(uploader),
+          inProposed: await storedStepPhoto(uploader),
+          inRejected: await storedStepPhoto(uploader),
+          ofDeletedRecipe: await storedStepPhoto(uploader),
+          unsaved: await storedStepPhoto(uploader),
+          fresh: await storedStepPhoto(uploader),
+        };
+        await testDb()
+          .update(stepPhoto)
+          .set({ createdAt: new Date('2026-11-01T12:00:00Z') });
+        await testDb()
+          .update(stepPhoto)
+          .set({ createdAt: new Date('2026-11-04T23:00:00Z') })
+          .where(sql`${stepPhoto.id} = ${ids.fresh}`);
+        await recipeWithPhoto(ids.inRecipe);
+        await recipeWithPhoto(ids.inArchivedRecipe, true);
+        await importedSuggestionWithPhoto(ids.inProposed, 'proposed');
+        await importedSuggestionWithPhoto(ids.inRejected, 'rejected');
+        const deleted = await recipeWithPhoto(ids.ofDeletedRecipe);
+        await testDb().delete(recipe).where(sql`${recipe.id} = ${deleted}`);
+        return ids;
+      } finally {
+        await uploader.close();
+      }
+    }
+
+    it('removes at night every photo no recipe or proposed suggestion points at, once older than a day, and logs how many', async () => {
+      const ids = await photos();
+      const log = capturedLog();
+      app = buildTestApp({
+        openclaw: undefined,
+        // 03:30 in Sofia.
+        now: () => new Date('2026-11-05T01:30:00Z'),
+        logger: log.logger,
+        scheduler: { firstRunDelayMs: 0 },
+      });
+      await app.ready();
+
+      await vi.waitFor(async () => {
+        expect(await photoStatus(ids.unsaved)).toBe(404);
+      });
+      expect(await photoStatus(ids.inRejected)).toBe(404);
+      expect(await photoStatus(ids.ofDeletedRecipe)).toBe(404);
+      expect(await photoStatus(ids.inRecipe)).toBe(200);
+      expect(await photoStatus(ids.inArchivedRecipe)).toBe(200);
+      expect(await photoStatus(ids.inProposed)).toBe(200);
+      // Uploaded two and a half hours ago: an edit under way, not yet saved.
+      expect(await photoStatus(ids.fresh)).toBe(200);
+      await vi.waitFor(() => {
+        expect(log.lines).toContainEqual(
+          expect.objectContaining({ job: 'step-photo-orphans', removed: 3 }),
+        );
+      });
+    });
+
+    it('removes the orphans also when a step has a photoId of JSON null or not an id', async () => {
+      const ids = await photos();
+      await testDb()
+        .insert(recipe)
+        .values({
+          title: 'Рецепта с празна снимка',
+          servings: 2,
+          steps: [
+            { text: 'Нарежи.', photoId: null },
+            { text: 'Печи.', photoId: 'не-е-id' },
+          ] as unknown as RecipeStep[],
+          tags: ['dinner'],
+        });
+      const log = capturedLog();
+      app = buildTestApp({
+        openclaw: undefined,
+        // 03:30 in Sofia.
+        now: () => new Date('2026-11-05T01:30:00Z'),
+        logger: log.logger,
+        scheduler: { firstRunDelayMs: 0 },
+      });
+      await app.ready();
+
+      await vi.waitFor(() => {
+        expect(log.lines).toContainEqual(
+          expect.objectContaining({ job: 'step-photo-orphans', removed: 3 }),
+        );
+      });
+      expect(await photoStatus(ids.unsaved)).toBe(404);
+      expect(await photoStatus(ids.inRecipe)).toBe(200);
+    });
+
+    it('keeps orphans during the day', async () => {
+      const ids = await photos();
+      const log = capturedLog();
+      app = buildTestApp({
+        openclaw: undefined,
+        // 14:00 in Sofia.
+        now: () => new Date('2026-11-05T12:00:00Z'),
+        logger: log.logger,
+        scheduler: { firstRunDelayMs: 0 },
+      });
+      await app.ready();
+
+      await vi.waitFor(() => {
+        expect(log.lines).toContainEqual(
+          expect.objectContaining({
+            job: 'step-photo-orphans',
+            msg: 'job finished',
+          }),
+        );
+      });
+      expect(await photoStatus(ids.unsaved)).toBe(200);
+    });
   });
 });

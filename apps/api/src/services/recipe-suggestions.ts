@@ -8,6 +8,7 @@ import {
   type RecipeSuggestParams,
   type SuggestionRequest,
   type SuggestionRequestDetail,
+  stepsOfText,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import { listEnabledApplianceNames } from '../db/repositories/appliances.js';
@@ -26,6 +27,7 @@ import {
   listActiveRecipesByTitle,
   listActiveRecipeTitles,
 } from '../db/repositories/recipes.js';
+import { existingStepPhotoIds } from '../db/repositories/step-photos.js';
 import { recipeSuggestionRequest } from '../db/schema/food.js';
 import type {
   ContractRequestHandle,
@@ -33,6 +35,7 @@ import type {
 } from './contract-requests.js';
 import { ConflictError, NotFoundError } from './errors.js';
 import { addRecipe } from './recipes.js';
+import { stepPhotoIds } from './step-photos.js';
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
 const NO_SUCH_SUGGESTION = 'Няма такова предложение';
@@ -98,7 +101,14 @@ export const suggestionRequestStore: ContractRequestStore<
   },
 
   async onDone(tx, request, output) {
-    await insertSuggestions(tx, request.id, output.suggestions);
+    await insertSuggestions(
+      tx,
+      request.id,
+      output.suggestions.map((suggestion) => ({
+        ...suggestion,
+        steps: stepsOfText(suggestion.steps),
+      })),
+    );
   },
 
   noResults(output) {
@@ -213,9 +223,41 @@ export function createRecipeSuggestionsService({
 
     restoreSuggestion(id) {
       return db.transaction(async (tx) => {
-        await lockWith(tx, id, 'rejected', ONLY_REJECTED_RESTORED);
-        return undecideSuggestion(tx, id);
+        const { payload } = await lockWith(
+          tx,
+          id,
+          'rejected',
+          ONLY_REJECTED_RESTORED,
+        );
+        return undecideSuggestion(
+          tx,
+          id,
+          await withoutRemovedPhotos(tx, payload),
+        );
       });
     },
+  };
+}
+
+/**
+ * The payload of a rejected suggestion without the step photos the nightly cleanup removed while it was rejected (its
+ * photos were orphans then), or `undefined` when all are still there. Restored, it shows and approves without them.
+ */
+async function withoutRemovedPhotos<P extends AnyRecipeSuggestion['payload']>(
+  db: DbExecutor,
+  payload: P,
+): Promise<P | undefined> {
+  const photoIds = stepPhotoIds(payload.steps);
+  const existing = await existingStepPhotoIds(db, photoIds);
+  if (existing.size === photoIds.length) {
+    return undefined;
+  }
+  return {
+    ...payload,
+    steps: payload.steps.map((step) =>
+      step.photoId === undefined || existing.has(step.photoId)
+        ? step
+        : { text: step.text },
+    ),
   };
 }

@@ -16,7 +16,7 @@ export async function seedFixtureRecipes(): Promise<void> {
       id: entry.id,
       title: entry.title,
       servings: 4,
-      steps: ['Сготви.'],
+      steps: [{ text: 'Сготви.' }],
       prepMinutes: entry.prepMinutes,
       tags: entry.tags as (typeof recipe.$inferInsert)['tags'],
       rating: entry.rating,

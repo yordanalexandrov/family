@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resizePhoto } from './resize-photo';
+import { resizePhoto, resizeStepPhoto } from './resize-photo';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -69,5 +69,39 @@ describe('resizePhoto', () => {
     const heic = new File(['heic'], 'IMG_2.HEIC', { type: 'image/heic' });
 
     expect(await resizePhoto(heic)).toEqual([heic]);
+  });
+});
+
+describe('resizeStepPhoto', () => {
+  it('draws the photo at most 2000 px on the long side as one JPEG', async () => {
+    const canvas = mockCanvas(3024, 4032);
+
+    const photo = await resizeStepPhoto(
+      new File(['x'], 'IMG_2.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(photo.type).toBe('image/jpeg');
+    expect(canvas.drawn).toEqual([{ width: 1500, height: 2000, top: 0 }]);
+    expect(canvas.encoded).toEqual([{ type: 'image/jpeg', quality: 0.85 }]);
+  });
+
+  it('keeps a long screenshot whole, never in parts', async () => {
+    const canvas = mockCanvas(1170, 4000);
+
+    await resizeStepPhoto(new File(['x'], 'Screenshot.png'));
+
+    expect(canvas.drawn).toEqual([{ width: 585, height: 2000, top: 0 }]);
+  });
+
+  it('sends a photo the browser cannot decode as it is', async () => {
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => {
+        throw new DOMException('no HEIC here', 'InvalidStateError');
+      }),
+    );
+    const heic = new File(['heic'], 'IMG_3.HEIC', { type: 'image/heic' });
+
+    expect(await resizeStepPhoto(heic)).toBe(heic);
   });
 });

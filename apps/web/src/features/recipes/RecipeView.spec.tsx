@@ -62,6 +62,60 @@ describe('RecipeView', () => {
     );
   });
 
+  it('стъпка със снимка има миниатюра, която се отваря на цял екран', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const photoId = 'eeeeeeee-1111-4000-8000-000000000001';
+    serveRecipe({
+      ...chickenWithRice,
+      steps: [{ text: 'Нарежи пилето.' }, { text: 'Задуши с лука.', photoId }],
+    });
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    const steps = within(
+      await screen.findByRole('list', { name: 'Стъпки' }),
+    ).getAllByRole('listitem');
+    expect(within(steps[0] as HTMLElement).queryByRole('img')).toBeNull();
+    const thumbnail = within(steps[1] as HTMLElement).getByRole('img', {
+      name: 'Снимката на стъпка 2',
+    });
+    expect(thumbnail.getAttribute('src')).toMatch(
+      new RegExp(`^/api/step-photos/${photoId}\\?w=\\d+$`),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Снимката на стъпка 2 на цял екран' }),
+    );
+    const viewer = screen.getByRole('dialog', { name: 'Снимката на стъпка 2' });
+    expect(within(viewer).getByRole('img')).toHaveAttribute(
+      'src',
+      `/api/step-photos/${photoId}`,
+    );
+
+    await user.click(within(viewer).getByRole('button', { name: 'Затвори' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('на TV стъпките са без снимки', async () => {
+    setUpDevice('tv');
+    serveRecipe({
+      ...chickenWithRice,
+      steps: [
+        {
+          text: 'Нарежи пилето.',
+          photoId: 'eeeeeeee-1111-4000-8000-000000000001',
+        },
+      ],
+    });
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    const steps = await screen.findByRole('list', { name: 'Стъпки' });
+    expect(steps).toHaveTextContent('Нарежи пилето.');
+    expect(within(steps).queryByRole('img')).toBeNull();
+  });
+
   it('рецепта за наш уред показва значка с краткото му име', async () => {
     setUpDevice('phone', dani.id);
     serveRecipe({ ...chickenWithRice, appliance: 'sous vide' });

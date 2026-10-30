@@ -2,6 +2,7 @@ import {
   addDays,
   type ContractRequestStatus,
   type DateKey,
+  HOUR_MS,
   type MenuProposalRequest,
   type MenuProposalTrigger,
   startOfDayInSofia,
@@ -19,8 +20,6 @@ import type { MenuProposals } from './menu.js';
 /** The cron proposes next week's menu from Wednesday at this hour in Sofia on; changed by PR, not configuration. */
 export const SCHEDULED_PROPOSAL_WEEKDAY = 2;
 export const SCHEDULED_PROPOSAL_HOUR = 9;
-
-const HOUR_MS = 3_600_000;
 
 /** What the cron needs to know of the week after `now`'s ({@link scheduledWeekOf}). */
 export interface ScheduleState {

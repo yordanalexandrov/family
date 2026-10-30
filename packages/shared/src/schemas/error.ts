@@ -20,9 +20,9 @@ export const apiErrorCodeSchema = z.enum([
   'conflict',
   // 409: the link of an import by link is already a recipe's source or a proposed suggestion's; the body names it.
   'already_imported',
-  // 413: the photo of an import is over IMPORT_PHOTO_MAX_BYTES.
+  // 413: the photo of an import is over IMPORT_PHOTO_MAX_BYTES, a step photo over STEP_PHOTO_MAX_BYTES.
   'photo_too_large',
-  // 415: the photo of an import is not a JPEG, PNG, WebP or HEIC picture.
+  // 415: the photo of an import or of a step is not a JPEG, PNG, WebP or HEIC picture.
   'unsupported_photo',
   // 400: the body points at a record that does not exist (e.g. an unknown ingredientId in a recipe).
   'invalid_reference',

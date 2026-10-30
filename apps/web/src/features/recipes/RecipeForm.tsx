@@ -1,4 +1,4 @@
-import type { Ingredient, RecipeInput, Tag } from '@family/shared';
+import type { Ingredient, RecipeInput, RecipeStep, Tag } from '@family/shared';
 import {
   type FormEvent,
   useCallback,
@@ -11,6 +11,7 @@ import { type Action, ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { applianceShortName, useAppliances } from '../appliances/queries';
+import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
   emptyIngredientRow,
@@ -74,6 +75,12 @@ const NUTRITION_FIELDS = [
   ['fatG', 'Мазнини (г)'],
   ['carbsG', 'Въглехидрати (г)'],
 ] as const;
+
+/** Стъпката с нова снимка или без снимка (`undefined`), без празно поле `photoId`. */
+function withPhoto(step: RecipeStep, photoId: string | undefined): RecipeStep {
+  const { photoId: _old, ...rest } = step;
+  return photoId === undefined ? rest : { ...rest, photoId };
+}
 
 function move<T>(items: readonly T[], from: number, to: number): T[] {
   const next = [...items];
@@ -188,7 +195,7 @@ export function RecipeForm({
   stepsRef.current = values.steps;
   const closeStep = useCallback(() => {
     const step = editingStepRef.current;
-    if (step?.added && stepsRef.current[step.index]?.trim() === '') {
+    if (step?.added && stepsRef.current[step.index]?.text.trim() === '') {
       const removed = step.index;
       setValues((current) => ({
         ...current,
@@ -286,7 +293,7 @@ export function RecipeForm({
   }
 
   function addStep() {
-    set('steps', [...values.steps, '']);
+    set('steps', [...values.steps, { text: '' }]);
     setEditingStep({ index: values.steps.length, added: true });
   }
 
@@ -521,7 +528,7 @@ export function RecipeForm({
               const error = errors[`steps.${index}`];
               const errorId = `${errorIdPrefix}-step-${index}-error`;
               return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: стъпките са само текст; редът е идентичността им.
+                // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id; редът е идентичността им.
                 <li key={index} className="step-line">
                   <button
                     type="button"
@@ -529,7 +536,12 @@ export function RecipeForm({
                     aria-describedby={error === undefined ? undefined : errorId}
                     onClick={() => setEditingStep({ index, added: false })}
                   >
-                    {step.trim() || 'Празна стъпка'}
+                    <span className="step-line__text">
+                      {step.text.trim() || 'Празна стъпка'}
+                    </span>
+                    {step.photoId && (
+                      <StepPhotoImage photoId={step.photoId} label="" />
+                    )}
                   </button>
                   {error !== undefined && (
                     <p className="field__error step-line__error" id={errorId}>
@@ -631,13 +643,24 @@ export function RecipeForm({
         <StepSheet
           number={editingStep.index + 1}
           count={values.steps.length}
-          text={values.steps[editingStep.index] ?? ''}
+          text={values.steps[editingStep.index]?.text ?? ''}
+          photoId={values.steps[editingStep.index]?.photoId}
           error={errors[`steps.${editingStep.index}`]}
           onChange={(text) =>
             set(
               'steps',
-              values.steps.map((s, i) => (i === editingStep.index ? text : s)),
+              values.steps.map((s, i) =>
+                i === editingStep.index ? { ...s, text } : s,
+              ),
             )
+          }
+          onPhotoChange={(photoId) =>
+            setValues((current) => ({
+              ...current,
+              steps: current.steps.map((s, i) =>
+                i === editingStep.index ? withPhoto(s, photoId) : s,
+              ),
+            }))
           }
           onMoveUp={() => moveStep(editingStep.index, editingStep.index - 1)}
           onMoveDown={() => moveStep(editingStep.index, editingStep.index + 1)}

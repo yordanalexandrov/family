@@ -259,8 +259,52 @@
 }
 
 /*
+ * Текстът на стъпката и снимката ѝ (ако има). На широк екран (kiosk хоризонтално) снимката е до текста, на тесен
+ * (телефон) е над него. Без снимка текстът е сам, както преди.
+ */
+.cooking-steps__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+}
+
+.cooking-steps__body--photo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: start;
+}
+
+.cooking-steps__body--photo .cooking-steps__text {
+  align-self: stretch;
+}
+
+.cooking-steps__photo {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.cooking--narrow .cooking-steps__body--photo {
+  display: flex;
+}
+
+.cooking--narrow .cooking-steps__photo {
+  flex: none;
+  max-block-size: 40vh;
+  inline-size: auto;
+  max-inline-size: 100%;
+  align-self: center;
+}
+
+/*
  * Нисък екран (телефон легнал: ~320 px под долната лента): по-тесни отстъпи, без точките (позицията е в
- * „Стъпка X от N“, плъзгането остава) и база на шрифта по височината, не по ширината.
+ * „Стъпка X от N“, плъзгането остава) и база на шрифта по височината, не по ширината. Снимката винаги е встрани
+ * (над текста би изяла височината му) и в по-тясна колона, за да остане повече място за текста.
  */
 @media (max-height: 32rem) {
   .cooking {
@@ -271,6 +315,21 @@
   .cooking-steps {
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
+  }
+
+  .cooking-steps__body {
+    gap: var(--space-3);
+  }
+
+  .cooking-steps__body--photo,
+  .cooking--narrow .cooking-steps__body--photo {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .cooking--narrow .cooking-steps__photo {
+    max-block-size: 100%;
+    inline-size: 100%;
   }
 
   .cooking-steps__text {

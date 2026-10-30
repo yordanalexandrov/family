@@ -67,7 +67,7 @@ async function seedFixtureRecipes() {
       id: entry.id,
       title: entry.title,
       servings: 4,
-      steps: ['Сготви.'],
+      steps: [{ text: 'Сготви.' }],
       prepMinutes: entry.prepMinutes,
       tags: entry.tags as (typeof recipe.$inferInsert)['tags'],
       rating: entry.rating,
@@ -265,11 +265,16 @@ describe('POST /api/menu/meals/:id/replacements', () => {
     await testDb()
       .insert(recipe)
       .values([
-        { title: 'Таратор', servings: 2, steps: ['Смеси.'], tags: ['lunch'] },
+        {
+          title: 'Таратор',
+          servings: 2,
+          steps: [{ text: 'Смеси.' }],
+          tags: ['lunch'],
+        },
         {
           title: 'Стара вечеря',
           servings: 2,
-          steps: ['Сготви.'],
+          steps: [{ text: 'Сготви.' }],
           tags: ['dinner'],
           archivedAt: new Date(),
         },

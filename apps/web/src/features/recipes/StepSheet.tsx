@@ -1,28 +1,34 @@
 import { useLayoutEffect, useRef } from 'react';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
+import { StepPhotoField } from '../step-photos/StepPhotoField';
 
 interface StepSheetProps {
   /** Номерът на стъпката, от 1. */
   number: number;
   count: number;
   text: string;
+  photoId: string | undefined;
   /** Грешката на стъпката от последния опит за запис. */
   error?: string | undefined;
   onChange: (text: string) => void;
+  /** Нова (вече качена) снимка или `undefined` при „Махни“. */
+  onPhotoChange: (photoId: string | undefined) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
   onClose: () => void;
 }
 
-/** Лист за една стъпка в `RecipeForm`: текстът, „По-нагоре“, „По-надолу“ и „Премахни стъпка“. */
+/** Лист за една стъпка в `RecipeForm`: текстът, снимката, „По-нагоре“, „По-надолу“ и „Премахни стъпка“. */
 export function StepSheet({
   number,
   count,
   text,
+  photoId,
   error,
   onChange,
+  onPhotoChange,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -54,6 +60,11 @@ export function StepSheet({
           />
         )}
       </Field>
+      <StepPhotoField
+        number={number}
+        photoId={photoId}
+        onChange={onPhotoChange}
+      />
       <div className="recipes__actions">
         <button
           type="button"

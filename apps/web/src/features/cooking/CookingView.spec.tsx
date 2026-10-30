@@ -9,7 +9,24 @@ import { renderApp, setUpDevice } from '../../test/render';
 
 const stew: Recipe = {
   ...chickenWithRice,
-  steps: ['Нарежи пилето.', 'Задуши с лука.', 'Посоли и сервирай.'],
+  steps: [
+    { text: 'Нарежи пилето.' },
+    { text: 'Задуши с лука.' },
+    { text: 'Посоли и сервирай.' },
+  ],
+};
+
+const slicedChicken = 'eeeeeeee-1111-4000-8000-000000000001';
+const servedPlate = 'eeeeeeee-1111-4000-8000-000000000002';
+
+/** Снимки на първата и последната стъпка, средната е без. */
+const withPhotos: Recipe = {
+  ...stew,
+  steps: [
+    { text: 'Нарежи пилето.', photoId: slicedChicken },
+    { text: 'Задуши с лука.' },
+    { text: 'Посоли и сервирай.', photoId: servedPlate },
+  ],
 };
 
 function serveRecipe(recipe: Recipe = stew) {
@@ -31,6 +48,43 @@ describe('Готвене', () => {
 
       expect(await screen.findByText('Стъпка 1 от 3')).toBeInTheDocument();
       expect(screen.getByText('Нарежи пилето.')).toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    ['kiosk', false],
+    ['phone', true],
+    ['browser', false],
+  ] as const)(
+    'стъпка със снимка я показва голяма, а при смяна на стъпката — нейната (%s, тесен: %s)',
+    async (mode, narrow) => {
+      const user = userEvent.setup();
+      if (narrow) {
+        stubNarrowScreen();
+      }
+      setUpDevice(mode, mode === 'kiosk' ? undefined : dani.id);
+      serveRecipe(withPhotos);
+
+      renderApp(`/recipes/${withPhotos.id}/cook`);
+
+      const steps = await screen.findByRole('region', { name: 'Стъпки' });
+      const first = within(steps).getByRole('img', {
+        name: 'Снимката на стъпка 1',
+      });
+      expect(first.getAttribute('src')).toMatch(
+        new RegExp(`^/api/step-photos/${slicedChicken}\\?w=\\d+$`),
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+      expect(screen.getByText('Задуши с лука.')).toBeInTheDocument();
+      expect(within(steps).queryByRole('img')).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+      expect(
+        within(steps)
+          .getByRole('img', { name: 'Снимката на стъпка 3' })
+          .getAttribute('src'),
+      ).toMatch(new RegExp(`^/api/step-photos/${servedPlate}\\?w=\\d+$`));
     },
   );
 
