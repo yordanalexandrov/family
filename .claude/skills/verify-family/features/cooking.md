@@ -1,6 +1,6 @@
 # Cooking
 
-Готвене for one recipe, laid out for a wide screen (kiosk and browser in landscape): column „Продукти“ on the left with servings −/+ and the scaled amounts, one step on the right with „Стъпка X от N“, „Назад“/„Напред“, a dot per step and swipe. „Готово“ on the last step and „Затвори“ on any step go back to the previous screen. Nothing is written.
+Готвене for one recipe, laid out for a wide screen (kiosk and browser in landscape): column „Продукти“ on the left with servings −/+ and the scaled amounts, one step on the right with „Стъпка X от N“, „Назад“/„Напред“, a dot per step and swipe. „Готово“ on the last step and „Затвори“ on any step go back to the previous screen. Nothing reaches the api; the step and the checks are kept in localStorage per recipe until midnight (Sofia), the folded column per device.
 
 ## Sub-features
 
@@ -8,6 +8,8 @@
 - `cooking-servings` buttons „Една порция по-малко“/„Една порция повече“ change „за N порции“ and the amounts (600 г × 2 → 1,2 кг); „по вкус“ has no number.
 - `cooking-column` button „Прибери продуктите“ folds the column to the strip button „Продукти (N)“ (`aria-expanded=false`), which opens it again.
 - `cooking-sheet` narrow screen (phone portrait, below 48rem): no column; button „Продукти (N)“ above the step opens dialog „Продукти“ (the Sheet) with the same −/+ and list „Продукти“; „Готово“ in the dialog closes it, servings stay.
+- `cooking-checks` each product line is a checkbox named „<name> <amount>“ (e.g. „лук 2 бр.“); checking moves it into the folded group button „Използвани (N)“ at the bottom, which opens list „Използвани“; unchecking puts it back in place. „Продукти (N)“ counts the unchecked lines.
+- `cooking-memory` leaving and entering again the same day restores the step and the checks (`localStorage['family.cooking.progress']`); a folded column stays folded (`family.cooking.ingredientsOpen`).
 - `cooking-steps` „Напред“/„Назад“ (disabled on step 1), group „Към стъпка“ with buttons „Стъпка N“ (`aria-current=step`), horizontal swipe on region „Стъпки“.
 - `cooking-exit` „Готово“ on the last step, „Затвори“ on any: back in history, or the recipe view without history.
 
@@ -27,9 +29,12 @@ Preconditions:
 - **Servings.** `tap` „Една порция повече“ twice → „за <servings+2> порции“, amounts in list „Продукти“ scaled.
 - **Fold.** `tap` „Прибери продуктите“ → button `/Продукти \(\d+\)/`.
 - **Sheet (phone).** `tap` button `/^Продукти \(\d+\)$/` → dialog „Продукти“; scope −/+ and the list to the dialog; `tap` its „Готово“ → no dialog. On the last step „Готово“ is unique only while the sheet is closed.
+- **Check.** `tap` checkbox `/^лук/` → button „Използвани (1)“; `tap` it → list „Използвани“.
 - **Jump.** `tap` „Стъпка N“ (last) → button „Готово“; `tap` it → heading level 1 = recipe title.
 
 ## Gotchas
+
+- The browser profile keeps localStorage between drives of a run: a column folded in an earlier drive is still folded, and a recipe re-entered the same day resumes its step. Remove `family.cooking.ingredientsOpen` / `family.cooking.progress` at the start of a scenario that expects a fresh start.
 
 - The dots animate (150 ms); wait ~500 ms before a `shot` right after a step change, or the old dot still looks current.
 - On kiosk `IdleReturn` sends Готвене back to `/` after 2 hours without a touch (other screens after 60 s), so the recipe view before „Готви“ still times out after 60 s.
