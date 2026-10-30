@@ -7,7 +7,7 @@ import { SourceAvatars } from '../calendar/SourceAvatars';
 import { Clock } from './Clock';
 import { useCoreFit } from './core-fit';
 import { DayRing } from './DayRing';
-import { TodayCooking } from './TodayCooking';
+import { type RecipeTarget, TodayCooking } from './TodayCooking';
 import './Core.css';
 
 /*
@@ -37,8 +37,8 @@ interface CoreProps {
   onSelectEvent?: (eventId: string) => void;
   /** kiosk, телефон: „Днес се готви“ води към менюто. */
   opensMenu?: boolean;
-  /** телефон: днешна рецепта в „Днес се готви“ води към рецептата вместо към менюто. */
-  opensRecipe?: boolean;
+  /** Днешна рецепта в „Днес се готви“ води вместо към менюто: телефон — към рецептата, kiosk — към Готвене. */
+  opensRecipe?: RecipeTarget;
   /** kiosk: останалото ядро води към календара (връзка под съдържанието, по целия кръг). */
   opensCalendar?: boolean;
 }
@@ -54,7 +54,7 @@ export function Core({
   showHiddenCount = false,
   onSelectEvent,
   opensMenu = false,
-  opensRecipe = false,
+  opensRecipe,
   opensCalendar = false,
 }: CoreProps) {
   const { unconfigured, stale } = syncNotes(sync, now);

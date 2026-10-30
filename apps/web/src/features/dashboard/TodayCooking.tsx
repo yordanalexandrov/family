@@ -15,9 +15,14 @@ interface TodayCookingProps {
   dinner: CookingMeal | null;
   /** kiosk, телефон: докосване на реда отваря менюто на тази седмица. TV: само показва. */
   opensMenu?: boolean;
-  /** телефон: при днешна рецепта редът отваря нея вместо менюто. */
-  opensRecipe?: boolean;
+  /**
+   * При днешна рецепта редът отваря нея вместо менюто: телефон — изгледа на рецептата (`view`), kiosk — Готвене с
+   * порциите на ястието (`cooking`).
+   */
+  opensRecipe?: RecipeTarget;
 }
+
+export type RecipeTarget = 'view' | 'cooking';
 
 /**
  * Редът „Днес се готви“ в ядрото: днешната вечеря от менюто (заглавието на
@@ -28,7 +33,7 @@ interface TodayCookingProps {
 export function TodayCooking({
   dinner,
   opensMenu = false,
-  opensRecipe = false,
+  opensRecipe,
 }: TodayCookingProps) {
   const users = useUsers();
   const actor = useWritingUserId();
@@ -49,7 +54,15 @@ export function TodayCooking({
     <div className="core__cooking">
       <Row
         opensMenu={opensMenu}
-        recipeId={opensRecipe ? (dinner?.recipeId ?? null) : null}
+        recipe={
+          opensRecipe && dinner?.recipeId
+            ? {
+                id: dinner.recipeId,
+                target: opensRecipe,
+                servings: dinner.servings && totalServings(dinner.servings),
+              }
+            : null
+        }
       >
         <small>Днес се готви</small>
         {dinner ? (
@@ -114,23 +127,42 @@ function CookLine({
   );
 }
 
+interface RowRecipe {
+  id: string;
+  target: RecipeTarget;
+  /** Порциите на ястието; без тях (по-стар сървър) или при 0 Готвене е с порциите на рецептата. */
+  servings: number | undefined;
+}
+
 function Row({
   opensMenu,
-  recipeId,
+  recipe,
   children,
 }: {
   opensMenu: boolean;
-  recipeId: string | null;
+  recipe: RowRecipe | null;
   children: ReactNode;
 }) {
   if (!opensMenu) {
     return <div className="core__cooking-main">{children}</div>;
   }
-  if (recipeId) {
+  if (recipe?.target === 'cooking') {
+    return (
+      <Link
+        to="/recipes/$id/cook"
+        params={{ id: recipe.id }}
+        search={recipe.servings ? { servings: recipe.servings } : {}}
+        className="core__cooking-main core__cooking--link"
+      >
+        {children}
+      </Link>
+    );
+  }
+  if (recipe) {
     return (
       <Link
         to="/recipes/$id"
-        params={{ id: recipeId }}
+        params={{ id: recipe.id }}
         className="core__cooking-main core__cooking--link"
       >
         {children}
