@@ -48,6 +48,8 @@ export interface ContractRequestStore<
   A extends string | null = string,
   /** What {@link ContractRequestStore.prepare} hands `onDone`; none without it. */
   D = undefined,
+  /** What {@link ContractRequestStore.load} read for the run; none without it. */
+  C = undefined,
 > {
   /** Spreads `contractRequestColumns()`; finished and failed as stale by the module. */
   table: ContractRequestTable;
@@ -58,10 +60,16 @@ export interface ContractRequestStore<
   insert(tx: DbExecutor, params: P, requestedBy: A): Promise<R>;
   find(db: DbExecutor, id: string): Promise<R | undefined>;
   /**
-   * The contract input for the request, read when the run starts. Throws {@link ContractRequestFailure} to end the run
-   * with its code before the agent is asked.
+   * What the run reads first, when it starts, and keeps in its memory (never in the table) for `buildInput` and
+   * `prepare`: e.g. the page of an import by link, whose step photo URLs the agent never gets. Throws
+   * {@link ContractRequestFailure} to end the run with its code before the agent is asked. No method = `undefined`.
    */
-  buildInput(db: DbExecutor, request: R): Promise<I>;
+  load?(db: DbExecutor, request: R): Promise<C>;
+  /**
+   * The contract input for the request, built when the run starts from what `load` read. Throws
+   * {@link ContractRequestFailure} to end the run with its code before the agent is asked.
+   */
+  buildInput(db: DbExecutor, request: R, loaded: C): Promise<I>;
   /**
    * Pictures that go to the agent next to the input (the photos of an import), taken from the params once the request
    * is stored: they live only in the memory of its run, never in the table. No method = none.
@@ -69,10 +77,10 @@ export interface ContractRequestStore<
   images?(params: P): ContractImage[];
   /**
    * After a valid answer with results, before the transaction that writes it: work too slow to hold a transaction for
-   * (the downloads of an import's step photos), aborted with the run (`signal`); its result goes to `onDone`. One that
-   * throws fails the run. No method = `onDone` gets `undefined`.
+   * (the downloads and decoding of an import's step photos, by what `load` read), aborted with the run (`signal`); its
+   * result goes to `onDone`. One that throws fails the run. No method = `onDone` gets `undefined`.
    */
-  prepare?(input: I, output: O, signal: AbortSignal): Promise<D>;
+  prepare?(output: O, loaded: C, signal: AbortSignal): Promise<D>;
   /** Writes what the valid answer makes, in the transaction that marks the request `done`. */
   onDone(
     tx: DbExecutor,
@@ -118,9 +126,10 @@ export interface ContractRequests {
     O,
     A extends string | null,
     D = undefined,
+    C = undefined,
   >(
     contract: AiContract<I, O>,
-    store: ContractRequestStore<P, R, I, O, A, D>,
+    store: ContractRequestStore<P, R, I, O, A, D, C>,
     agent: string,
   ): ContractRequestHandle<P, R, A>;
   /**
@@ -158,9 +167,10 @@ export function createContractRequests({
       O,
       A extends string | null,
       D = undefined,
+      C = undefined,
     >(
       contract: AiContract<I, O>,
-      store: ContractRequestStore<P, R, I, O, A, D>,
+      store: ContractRequestStore<P, R, I, O, A, D, C>,
       agent: string,
     ): ContractRequestHandle<P, R, A> {
       registered.push({ id: contract.id, table: store.table });
@@ -188,7 +198,9 @@ export function createContractRequests({
       ): Promise<void> {
         const logContext = { requestId: request.id };
         try {
-          const input = await store.buildInput(db, request);
+          // Without `load`, `C` is `undefined`.
+          const loaded = (await store.load?.(db, request)) as C;
+          const input = await store.buildInput(db, request, loaded);
           const output = await gateway.complete(contract, input, {
             agent,
             signal: shutdown.signal,
@@ -211,8 +223,8 @@ export function createContractRequests({
             return;
           }
           const prepared = await store.prepare?.(
-            input,
             output,
+            loaded,
             shutdown.signal,
           );
           await db.transaction(async (tx) => {

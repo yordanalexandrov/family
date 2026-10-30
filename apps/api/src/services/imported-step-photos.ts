@@ -1,27 +1,33 @@
 import type { NormalizedStep, RecipeStep } from '@family/shared';
 import type { DbExecutor } from '../db/client.js';
+import { insertStepPhoto } from '../db/repositories/step-photos.js';
 import { UnsupportedPhotoError } from './errors.js';
 import { fetchImage, type StepImages } from './recipe-page/index.js';
-import { storeStepPhoto } from './step-photos.js';
+import { stepPhotoJpeg } from './step-photos.js';
 
-/** How many photos of a page download at the same time. */
+/**
+ * How many photos of a page download and decode at the same time: at most this many downloads (10 MB each) are in
+ * memory at once, the rest of a page's photos (at most `STEP_IMAGES_MAX`) only as the JPEGs made of them.
+ */
 const PARALLEL_DOWNLOADS = 4;
 
 /**
- * The photos of a page's steps the agent chose (GLOSSARY: Снимка на стъпка), downloaded: the bytes by reference, or
- * `null` for one that did not download. A reference the page does not have is not in it.
+ * The photos of a page's steps the agent chose (GLOSSARY: Снимка на стъпка), made ready to store: the JPEG by
+ * reference, or `null` for one that did not download or is not a picture. A reference the page does not have is not
+ * in it.
  */
-export type DownloadedStepPhotos = Map<string, Buffer | null>;
+export type PreparedStepPhotos = Map<string, Buffer | null>;
 
 /**
  * Downloads each photo of `stepImages` that one of the agent's `steps` points at, once, by the rules of the page's own
- * fetch (`fetchImage`: public addresses only, 10 MB, 10 s), a few at a time; `signal` aborts them with the run.
+ * fetch (`fetchImage`: public addresses only, 10 MB, 10 s), and makes it a JPEG as an upload is (`stepPhotoJpeg`), a
+ * few at a time; `signal` aborts them with the run. Slow: never inside a transaction.
  */
-export async function downloadStepPhotos(
+export async function prepareStepPhotos(
   stepImages: StepImages,
   steps: readonly NormalizedStep[],
   signal: AbortSignal,
-): Promise<DownloadedStepPhotos> {
+): Promise<PreparedStepPhotos> {
   const refs = [
     ...new Set(
       steps.flatMap((step) =>
@@ -31,31 +37,42 @@ export async function downloadStepPhotos(
       ),
     ),
   ];
-  const downloaded: DownloadedStepPhotos = new Map();
+  const prepared: PreparedStepPhotos = new Map();
   for (let start = 0; start < refs.length; start += PARALLEL_DOWNLOADS) {
     await Promise.all(
       refs.slice(start, start + PARALLEL_DOWNLOADS).map(async (ref) => {
         const image = await fetchImage(stepImages[ref] as string, signal);
-        downloaded.set(ref, image.ok ? image.bytes : null);
+        prepared.set(ref, image.ok ? await jpegOrNull(image.bytes) : null);
       }),
     );
   }
-  return downloaded;
+  return prepared;
+}
+
+async function jpegOrNull(bytes: Buffer): Promise<Buffer | null> {
+  try {
+    return await stepPhotoJpeg(bytes);
+  } catch (error) {
+    if (error instanceof UnsupportedPhotoError) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
- * The agent's steps as a suggestion stores them, each with the photo it chose stored like an upload
- * (`storeStepPhoto`), once per photo even when it is on several steps; and how many chosen photos were dropped, because
- * they did not download or are not pictures. A reference the page does not have leaves its step without a photo.
+ * The agent's steps as a suggestion stores them, each with the photo it chose stored, once per photo even when it is
+ * on several steps; and how many chosen photos were dropped, because they did not download or are not pictures. A
+ * reference the page does not have leaves its step without a photo. Only inserts: the photos are ready already.
  */
 export async function stepsWithPhotos(
   tx: DbExecutor,
   steps: readonly NormalizedStep[],
-  downloaded: DownloadedStepPhotos | undefined,
+  prepared: PreparedStepPhotos | undefined,
 ): Promise<{ steps: RecipeStep[]; dropped: number }> {
   const stored = new Map<string, string | null>();
-  for (const [ref, bytes] of downloaded ?? []) {
-    stored.set(ref, bytes ? await storedOrNull(tx, bytes) : null);
+  for (const [ref, jpeg] of prepared ?? []) {
+    stored.set(ref, jpeg ? await insertStepPhoto(tx, jpeg) : null);
   }
   return {
     steps: steps.map(({ text, image }) => {
@@ -64,20 +81,6 @@ export async function stepsWithPhotos(
     }),
     dropped: [...stored.values()].filter((id) => id === null).length,
   };
-}
-
-async function storedOrNull(
-  tx: DbExecutor,
-  bytes: Buffer,
-): Promise<string | null> {
-  try {
-    return await storeStepPhoto(tx, bytes);
-  } catch (error) {
-    if (error instanceof UnsupportedPhotoError) {
-      return null;
-    }
-    throw error;
-  }
 }
 
 /** The agent's note, with how many photos of the steps were dropped at its end (in Bulgarian). */

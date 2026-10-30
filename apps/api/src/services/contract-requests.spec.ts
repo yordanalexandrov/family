@@ -67,15 +67,19 @@ function toRequest(row: typeof table.$inferSelect): EchoRequest {
   };
 }
 
-/** Refuses the word `taken` inside the insert, as menu refuses a taken week. */
-const store: ContractRequestStore<
+/** The echo contract's store, with what its `load` reads. */
+type EchoStore<C = undefined> = ContractRequestStore<
   { word: string; picture?: string },
   EchoRequest,
   EchoInput,
   EchoOutput,
   string,
-  Tag[]
-> = {
+  Tag[],
+  C
+>;
+
+/** Refuses the word `taken` inside the insert, as menu refuses a taken week. */
+const store: EchoStore = {
   table,
   async insert(tx, params, requestedBy) {
     if (params.word === 'taken') {
@@ -136,10 +140,10 @@ const silent = { info() {}, warn() {}, error() {} };
 
 let requests: ContractRequests;
 
-function create(
+function create<C = undefined>(
   client = createOpenClawClient(TEST_OPENCLAW, silent),
   log: Pick<FastifyBaseLogger, 'warn' | 'error'> = silent,
-  withStore: typeof store = store,
+  withStore: EchoStore<C> = store as EchoStore<C>,
 ) {
   requests = createContractRequests({ db: testDb(), client, log });
   return requests.register(echo, withStore, 'family-test');
@@ -217,17 +221,24 @@ describe('AI requests (contract-requests)', () => {
     expect(done.finishedAt).toEqual(expect.any(Date));
   });
 
-  it('hands onDone what prepare made from the input and the answer, before the transaction; a prepare that throws fails the run', async () => {
+  it('hands buildInput and prepare what load read, and onDone what prepare made of it and the answer, before the transaction; a prepare that throws fails the run', async () => {
     const prepared: {
-      input: EchoInput;
+      loaded: string;
       output: EchoOutput;
       aborted: boolean;
     }[] = [];
-    const handle = create(undefined, silent, {
+    const handle = create<string>(undefined, silent, {
       ...store,
-      async prepare(input, output, signal) {
-        prepared.push({ input, output, aborted: signal.aborted });
-        if (input.word === 'гърми') {
+      async load(_db, request) {
+        return `заредено ${request.word}`;
+      },
+      async buildInput(_db, request, loaded) {
+        expect(loaded).toBe(`заредено ${request.word}`);
+        return { word: request.word };
+      },
+      async prepare(output, loaded, signal) {
+        prepared.push({ loaded, output, aborted: signal.aborted });
+        if (output.word === 'гърми') {
           throw new Error('prepare failed');
         }
         return ['kid_friendly'];
@@ -250,7 +261,7 @@ describe('AI requests (contract-requests)', () => {
       tags: [],
     });
     expect(prepared[0]).toEqual({
-      input: { word: 'супа' },
+      loaded: 'заредено супа',
       output: { word: 'супа' },
       aborted: false,
     });

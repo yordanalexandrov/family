@@ -32,8 +32,8 @@ import {
 } from './contract-requests.js';
 import { AlreadyImportedError, NotFoundError } from './errors.js';
 import {
-  type DownloadedStepPhotos,
-  downloadStepPhotos,
+  type PreparedStepPhotos,
+  prepareStepPhotos,
   stepsWithPhotos,
   withDroppedPhotos,
 } from './imported-step-photos.js';
@@ -65,9 +65,10 @@ export type RecipeImportRequests = ContractRequestHandle<
  * its run (`images`) and to the agent as an image next to the input (`{ kind: 'photo' }`); the database never sees
  * it. Approval and rejection of the suggestion are the suggestions' own (`app.recipeSuggestions`).
  *
- * A page's step photos (GLOSSARY: Снимка на стъпка) go to the agent as references only. Their URLs stay with the input
- * they were read for, here in memory; once the agent has answered, the photos it chose are downloaded (`prepare`,
- * outside the transaction) and stored with the suggestion, and the note of the suggestion says how many were dropped.
+ * A page's step photos (GLOSSARY: Снимка на стъпка) go to the agent as references only. Their URLs stay with what the
+ * run loaded (`load`), in memory; once the agent has answered, the photos it chose are downloaded and made ready
+ * (`prepare`, outside the transaction) and stored with the suggestion, and the note of the suggestion says how many
+ * were dropped.
  */
 export function createRecipeImportStore(): ContractRequestStore<
   ImportParams,
@@ -75,10 +76,9 @@ export function createRecipeImportStore(): ContractRequestStore<
   RecipeNormalizeInput,
   RecipeNormalizeOutput,
   string,
-  DownloadedStepPhotos
+  PreparedStepPhotos,
+  AgentSource
 > {
-  /** The URLs of the step photos of each input built from a page, by reference; gone with the input. */
-  const stepImagesOf = new WeakMap<RecipeNormalizeInput, StepImages>();
   return {
     table: recipeImportRequest,
     async insert(tx, params, requestedBy) {
@@ -104,31 +104,26 @@ export function createRecipeImportStore(): ContractRequestStore<
       return params.kind === 'photo' ? params.photos : [];
     },
 
-    async buildInput(db, request) {
-      const { source, stepImages } = await agentSource(db, request.id);
-      const input = {
-        source,
-        ingredients: await listRegistryIngredients(db),
-      };
-      if (stepImages) {
-        stepImagesOf.set(input, stepImages);
-      }
-      return input;
+    load(db, request) {
+      return agentSource(db, request.id);
     },
 
-    async prepare(input, output, signal) {
-      const stepImages = stepImagesOf.get(input);
+    async buildInput(db, _request, { source }) {
+      return { source, ingredients: await listRegistryIngredients(db) };
+    },
+
+    async prepare(output, { stepImages }, signal) {
       return stepImages && output.recipe
-        ? downloadStepPhotos(stepImages, output.recipe.steps, signal)
+        ? prepareStepPhotos(stepImages, output.recipe.steps, signal)
         : new Map();
     },
 
-    async onDone(tx, request, output, downloaded) {
+    async onDone(tx, request, output, prepared) {
       if (output.recipe) {
         const { steps, dropped } = await stepsWithPhotos(
           tx,
           output.recipe.steps,
-          downloaded,
+          prepared,
         );
         await insertImportedSuggestion(tx, request.id, {
           ...output.recipe,
@@ -148,15 +143,18 @@ export function createRecipeImportStore(): ContractRequestStore<
   };
 }
 
+/** The source the agent reads, and the URLs of the step photos of a page by their references in it. */
+interface AgentSource {
+  source: RecipeNormalizeSource;
+  stepImages?: StepImages;
+}
+
 /**
  * Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps
  * normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the URLs of the step photos of its
  * JSON-LD by the references the agent gets instead.
  */
-async function agentSource(
-  db: DbExecutor,
-  id: string,
-): Promise<{ source: RecipeNormalizeSource; stepImages?: StepImages }> {
+async function agentSource(db: DbExecutor, id: string): Promise<AgentSource> {
   const source = await findImportSource(db, id);
   if (source.kind === 'text' || source.kind === 'photo') {
     return { source };

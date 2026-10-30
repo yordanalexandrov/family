@@ -4,8 +4,8 @@
 // Without `--text-file`, `--url` or `--photo` it imports two built-in texts: a Bulgarian blog post („Продукти:“ /
 // „Начин на приготвяне:“, a range of servings, cups and cloves) and an English recipe with cups and ounces. `--url`
 // fetches and reads the page the way the api does (services/recipe-page) before the agent; its `HowToStep.image`s go
-// as references (`s1`, …), and after the answer the photos the agent chose are downloaded as the api does
-// (`downloadStepPhotos`: public addresses, 10 MB, 10 s) and checked to be pictures, without storing them. `--photo` makes the picture
+// as references (`s1`, …), and after the answer the photos the agent chose are downloaded and made JPEGs as the api
+// does (`prepareStepPhotos`: public addresses, 10 MB, 10 s, at most 50 megapixels), without storing them. `--photo` makes the picture
 // smaller the way the screen does (`importPhotoLayout`: long side ≤ 2000 px, a long screenshot cut into up to 8 parts,
 // JPEG) and checks it the way the api does (type by its bytes, ≤ 10 MB each, ≤ 20 MB together) before sending the
 // parts as images next to `{ kind: 'photo' }`; the fixture is
@@ -33,8 +33,8 @@ import {
   createOpenClawClient,
 } from '../src/openclaw/client.js';
 import {
-  type DownloadedStepPhotos,
-  downloadStepPhotos,
+  type PreparedStepPhotos,
+  prepareStepPhotos,
 } from '../src/services/imported-step-photos.js';
 import {
   readRecipePage,
@@ -365,38 +365,27 @@ function stepPhoto(
   return ` [снимка ${image}: ${photos.get(image) ?? '?'}]`;
 }
 
-/** The downloaded photos as the api would take them: a picture by its bytes (and one sharp decodes), or dropped. */
+/** The prepared photos as the api would store them: the JPEG made of a picture, or dropped. */
 async function checkedPhotos(
-  downloaded: DownloadedStepPhotos,
+  prepared: PreparedStepPhotos,
   stepImages: StepImages,
 ): Promise<{ photos: Map<string, string>; dropped: number }> {
   const photos = new Map<string, string>();
   let dropped = 0;
-  for (const [ref, bytes] of downloaded) {
+  for (const [ref, jpeg] of prepared) {
     const url = stepImages[ref];
-    const type = bytes ? photoType(bytes) : undefined;
-    if (!bytes || !type) {
+    if (!jpeg) {
       dropped++;
       photos.set(
         ref,
-        `✗ ${bytes ? 'не е снимка' : 'не се свали'}, изпуска се (${url})`,
+        `✗ не се свали, не е снимка или не се декодира, изпуска се (${url})`,
       );
       continue;
     }
-    const heic = type === 'image/heic' || type === 'image/heif';
-    const meta = heic
-      ? undefined
-      : await sharp(bytes)
-          .metadata()
-          .catch(() => undefined);
-    if (!heic && !meta) {
-      dropped++;
-      photos.set(ref, `✗ не се декодира, изпуска се (${url})`);
-      continue;
-    }
+    const meta = await sharp(jpeg).metadata();
     photos.set(
       ref,
-      `✓ ${type} ${sizeOf(bytes.length)}${meta ? ` ${meta.width}×${meta.height}` : ''} (${url})`,
+      `✓ JPEG ${sizeOf(jpeg.length)} ${meta.width}×${meta.height} (${url})`,
     );
   }
   return { photos, dropped };
@@ -490,7 +479,7 @@ for (const { name, source, page, fetchFailure, images, stepImages } of cases) {
     const checked =
       stepImages && output.recipe
         ? await checkedPhotos(
-            await downloadStepPhotos(
+            await prepareStepPhotos(
               stepImages,
               output.recipe.steps,
               AbortSignal.timeout(60_000),
