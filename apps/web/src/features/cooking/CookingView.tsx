@@ -8,6 +8,7 @@ import {
   CookingIngredientsBody,
 } from './CookingIngredients';
 import { CookingSteps } from './CookingSteps';
+import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
 import './cooking.css';
 
 interface CookingViewProps {
@@ -21,15 +22,16 @@ interface CookingViewProps {
 /**
  * Готвене (GLOSSARY). На широк екран колоната „Продукти“ е вляво, една стъпка вдясно; на тесен (телефон изправен)
  * стъпката е на целия екран, а продуктите са в лист отдолу зад бутона „Продукти (N)“. Границата е тази на листа:
- * от нея нагоре той е прозорец, не лист отдолу. Нищо не се записва: порциите, стъпката и дали колоната (или
- * листът) е отворена живеят само на екрана.
+ * от нея нагоре той е прозорец, не лист отдолу. Нищо не стига до сървъра: порциите и дали листът е отворен живеят
+ * само на екрана, стъпката и отметките се помнят на устройството до края на деня, а дали колоната е отворена — на
+ * устройството.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
     servings ?? recipe.servings,
   );
-  const [step, setStep] = useState(0);
-  const [ingredientsOpen, setIngredientsOpen] = useState(true);
+  const { step, setStep, used, toggleUsed } = useCookingProgress(recipe);
+  const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
 
@@ -52,7 +54,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
           aria-expanded={sheetOpen}
           onClick={() => setSheetOpen(true)}
         >
-          Продукти ({recipe.ingredients.length})
+          Продукти ({recipe.ingredients.length - used.length})
         </button>
         {steps}
         {sheetOpen && (
@@ -63,6 +65,8 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
                 recipeServings={recipe.servings}
                 servings={shownServings}
                 onServingsChange={setShownServings}
+                used={used}
+                onToggleUsed={toggleUsed}
               />
             </div>
           </Sheet>
@@ -81,6 +85,8 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
         recipeServings={recipe.servings}
         servings={shownServings}
         onServingsChange={setShownServings}
+        used={used}
+        onToggleUsed={toggleUsed}
         open={ingredientsOpen}
         onOpenChange={setIngredientsOpen}
       />

@@ -258,6 +258,7 @@ describe('Готвене', () => {
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/recipes/${stew.id}`);
   });
+
   it('на тесен екран няма колона: „Продукти (N)“ отваря и затваря лист със същото съдържание', async () => {
     const user = userEvent.setup();
     stubNarrowScreen();
@@ -302,6 +303,199 @@ describe('Готвене', () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it('на тесен екран отметките са в листа, а „Продукти (N)“ брои неотметнатите', async () => {
+    const user = userEvent.setup();
+    stubNarrowScreen();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Продукти (3)' }),
+    );
+    const sheet = screen.getByRole('dialog', { name: 'Продукти' });
+    await user.click(
+      within(sheet).getByRole('checkbox', { name: 'лук 2 бр.' }),
+    );
+
+    expect(
+      within(sheet).getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(
+      screen.getByRole('button', { name: 'Продукти (2)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('отметнат продукт отива в „Използвани (N)“, а махането на отметката го връща на мястото му', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'пилешко филе 500 г' }),
+    );
+    await user.click(screen.getByRole('checkbox', { name: 'сол по вкус' }));
+
+    expect(names(screen.getByRole('list', { name: 'Продукти' }))).toEqual([
+      'лук2 бр.',
+    ]);
+    const usedToggle = screen.getByRole('button', { name: 'Използвани (2)' });
+    expect(usedToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('list', { name: 'Използвани' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(usedToggle);
+    const used = screen.getByRole('list', { name: 'Използвани' });
+    expect(names(used)).toEqual(['пилешко филе500 г', 'солпо вкус']);
+    expect(
+      within(used).getByRole('checkbox', { name: 'сол по вкус' }),
+    ).toBeChecked();
+
+    await user.click(
+      within(used).getByRole('checkbox', { name: 'пилешко филе 500 г' }),
+    );
+
+    expect(names(screen.getByRole('list', { name: 'Продукти' }))).toEqual([
+      'пилешко филе500 г',
+      'лук2 бр.',
+    ]);
+    expect(
+      screen.getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('същия ден Готвене продължава от стъпката и отметките, а след полунощ започва отначало', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+    atTime('2026-10-30T19:00:00+02:00');
+
+    const first = renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('checkbox', { name: 'лук 2 бр.' }));
+    first.unmount();
+
+    atTime('2026-10-30T23:50:00+02:00');
+    const again = renderApp(`/recipes/${stew.id}/cook`);
+    expect(await screen.findByText('Стъпка 2 от 3')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+    expect(names(screen.getByRole('list', { name: 'Продукти' }))).toEqual([
+      'пилешко филе500 г',
+      'солпо вкус',
+    ]);
+    again.unmount();
+
+    atTime('2026-10-31T00:10:00+02:00');
+    renderApp(`/recipes/${stew.id}/cook`);
+    expect(await screen.findByText('Стъпка 1 от 3')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Използвани/ }),
+    ).not.toBeInTheDocument();
+    expect(names(screen.getByRole('list', { name: 'Продукти' }))).toHaveLength(
+      3,
+    );
+  });
+
+  it('две рецепти имат отделна памет', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    const soup: Recipe = {
+      ...stew,
+      id: 'bbbbbbbb-0000-4000-8000-0000000000aa',
+      title: 'Супа',
+    };
+    serveRecipe();
+    serveRecipe(soup);
+
+    const first = renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Стъпка 3' }));
+    await user.click(screen.getByRole('checkbox', { name: 'лук 2 бр.' }));
+    first.unmount();
+
+    const second = renderApp(`/recipes/${soup.id}/cook`);
+    expect(await screen.findByText('Стъпка 1 от 3')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Използвани/ }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Напред' }));
+    second.unmount();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    expect(await screen.findByText('Стъпка 3 от 3')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('прибраното чекмедже остава прибрано при следващото влизане', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+
+    const first = renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Прибери продуктите' }),
+    );
+    first.unmount();
+
+    const second = renderApp(`/recipes/${stew.id}/cook`);
+    const strip = await screen.findByRole('button', { name: 'Продукти (3)' });
+    expect(
+      screen.queryByRole('list', { name: 'Продукти' }),
+    ).not.toBeInTheDocument();
+    await user.click(strip);
+    second.unmount();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    expect(
+      await screen.findByRole('list', { name: 'Продукти' }),
+    ).toBeInTheDocument();
+  });
+
+  it('прибраната лента брои само неотметнатите продукти', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(
+      await screen.findByRole('checkbox', { name: 'сол по вкус' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Прибери продуктите' }),
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Продукти (2)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('без localStorage Готвене работи, само без памет', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+    // Само ключовете на Готвене; режимът на устройството се чете нормално.
+    denyStorage('getItem', 'setItem', 'removeItem');
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('checkbox', { name: 'лук 2 бр.' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Прибери продуктите' }),
+    );
+
+    expect(screen.getByText('Стъпка 2 от 3')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Продукти (2)' }),
+    ).toBeInTheDocument();
+  });
 });
 
 /** Телефон в изправено положение: никоя `min-width` медия-заявка не важи. */
@@ -315,6 +509,41 @@ function stubNarrowScreen() {
   onTestFinished(() => {
     vi.unstubAllGlobals();
   });
+}
+
+/** `methods` на localStorage хвърлят за ключовете на Готвене, както в private режим. */
+function denyStorage(...methods: ('getItem' | 'setItem' | 'removeItem')[]) {
+  for (const method of methods) {
+    const original = Storage.prototype[method] as (
+      this: Storage,
+      ...args: string[]
+    ) => unknown;
+    const spy = vi
+      .spyOn(Storage.prototype, method)
+      .mockImplementation(function (this: Storage, ...args: string[]) {
+        if (args[0]?.startsWith('family.cooking.')) {
+          throw new DOMException('denied', 'SecurityError');
+        }
+        return original.apply(this, args);
+      } as never);
+    onTestFinished(() => spy.mockRestore());
+  }
+}
+
+/** Часовникът показва `iso` (само `Date`; таймерите остават истински). */
+function atTime(iso: string) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(iso));
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+}
+
+/** Текстът на редовете в списъка (името и количеството). */
+function names(list: HTMLElement) {
+  return within(list)
+    .getAllByRole('listitem')
+    .map((item) => item.textContent);
 }
 
 /** Плъзгане с пръст по `element` от `fromX` до `toX`. */

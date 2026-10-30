@@ -74,17 +74,58 @@
 }
 
 .cooking-ingredients__line {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
   border-block-end: 1px solid var(--color-line);
   font-size: var(--font-size-lg);
+}
+
+/* Целият ред е зоната за докосване на отметката. */
+.cooking-ingredients__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-target);
+  padding-block: var(--space-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cooking-ingredients__check input {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.cooking-ingredients__name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: break-word;
 }
 
 .cooking-ingredients__amount {
   flex: none;
   font-weight: 600;
+}
+
+/* „Използвани (N)“ в дъното: зачеркнати и приглушени. */
+.cooking-ingredients__used {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: auto;
+}
+
+.cooking-ingredients__used-toggle {
+  justify-content: flex-start;
+  font-weight: 600;
+}
+
+.cooking-ingredients__lines--used .cooking-ingredients__name,
+.cooking-ingredients__lines--used .cooking-ingredients__amount {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
 }
 
 /* Прибрана: тясна лента с вертикален надпис, цялата е бутон. */

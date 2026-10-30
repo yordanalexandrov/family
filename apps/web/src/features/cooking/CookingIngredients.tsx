@@ -1,5 +1,6 @@
-import { type Recipe, scaleQuantity } from '@family/shared';
-import { formatQuantity, formatServings } from '../../lib/format';
+import type { Recipe } from '@family/shared';
+import { formatServings } from '../../lib/format';
+import { CookingChecklist } from './CookingChecklist';
 
 interface CookingIngredientsProps {
   ingredients: Recipe['ingredients'];
@@ -8,6 +9,9 @@ interface CookingIngredientsProps {
   /** Порциите на екрана; количествата са мащабирани към тях. */
   servings: number;
   onServingsChange: (servings: number) => void;
+  /** Индексите на отметнатите („използвани“) редове. */
+  used: readonly number[];
+  onToggleUsed: (index: number) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -21,6 +25,8 @@ export function CookingIngredients({
   recipeServings,
   servings,
   onServingsChange,
+  used,
+  onToggleUsed,
   open,
   onOpenChange,
 }: CookingIngredientsProps) {
@@ -33,7 +39,7 @@ export function CookingIngredients({
         onClick={() => onOpenChange(true)}
       >
         <span className="cooking-ingredients__strip">
-          Продукти ({ingredients.length})
+          Продукти ({ingredients.length - used.length})
         </span>
       </button>
     );
@@ -62,13 +68,15 @@ export function CookingIngredients({
         recipeServings={recipeServings}
         servings={servings}
         onServingsChange={onServingsChange}
+        used={used}
+        onToggleUsed={onToggleUsed}
       />
     </section>
   );
 }
 
 /**
- * Съдържанието на „Продукти“: порциите с −/+ и продуктите с количествата за тях. Едно и също в колоната на широк
+ * Съдържанието на „Продукти“: порциите с −/+ и продуктите с количествата за тях, с отметки. Едно и също в колоната на широк
  * екран и в листа на тесен.
  */
 export function CookingIngredientsBody({
@@ -76,10 +84,9 @@ export function CookingIngredientsBody({
   recipeServings,
   servings,
   onServingsChange,
-}: Pick<
-  CookingIngredientsProps,
-  'ingredients' | 'recipeServings' | 'servings' | 'onServingsChange'
->) {
+  used,
+  onToggleUsed,
+}: Omit<CookingIngredientsProps, 'open' | 'onOpenChange'>) {
   return (
     <>
       <div className="cooking-ingredients__servings">
@@ -102,17 +109,13 @@ export function CookingIngredientsBody({
           +
         </button>
       </div>
-      <ul className="cooking-ingredients__lines" aria-label="Продукти">
-        {ingredients.map((line, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: един продукт може да е на два реда, а редовете нямат id.
-          <li key={index} className="cooking-ingredients__line">
-            <span>{line.ingredient.name}</span>
-            <span className="cooking-ingredients__amount">
-              {formatQuantity(scaleQuantity(line, recipeServings, servings))}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <CookingChecklist
+        ingredients={ingredients}
+        recipeServings={recipeServings}
+        servings={servings}
+        used={used}
+        onToggleUsed={onToggleUsed}
+      />
     </>
   );
 }
