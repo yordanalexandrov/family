@@ -106,7 +106,7 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
           sync={data.sync.calendar}
           onSelectEvent={selectTodayEvent}
           opensMenu
-          opensRecipe
+          opensRecipe="view"
         />
         <ThawCard thaw={data.thaw ?? []} today={data.today} />
         <TodayList

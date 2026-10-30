@@ -5,9 +5,11 @@ import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   apiError,
+  dani,
   dashboard,
   dashboardWith,
   fixtureNow,
+  poli,
   server,
 } from '../../test/msw';
 import { chickenWithRice, toSummary } from '../../test/recipes';
@@ -100,20 +102,71 @@ describe('KioskLayout', () => {
     expect(await region('Днес накратко')).toBeTruthy();
   });
 
-  it('докосване на „Днес се готви“ в ядрото отваря менюто, не календара, и с рецепта', async () => {
+  it('вечеря с рецепта: „Днес се готви“ отваря Готвене с порциите на ястието; „Затвори“ връща дашборда', async () => {
     const user = userEvent.setup();
     respondWith(
       dashboardWith({
         cooking: {
           lunch: null,
           dinner: {
-            title: 'Мусака',
-            recipeId: 'bbbbbbbb-0000-4000-8000-000000000001',
+            title: chickenWithRice.title,
+            recipeId: chickenWithRice.id,
             cookUserId: null,
+            servings: { [dani.id]: 4, [poli.id]: 2 },
           },
         },
       }),
     );
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({ recipe: chickenWithRice }),
+      ),
+    );
+    const { router } = renderApp('/');
+
+    await user.click(
+      (await region('Днес накратко')).getByRole('link', {
+        name: /Днес се готви/,
+      }),
+    );
+
+    // Рецептата е за 4 порции; ястието е за 6 → 500 г стават 750 г.
+    expect(await screen.findByText('за 6 порции')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('list', { name: 'Продукти' })).getByText('750 г'),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(
+      `/recipes/${chickenWithRice.id}/cook`,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Затвори' }));
+    expect(await region('Днес накратко')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/');
+  });
+
+  it('вечеря само с бележка: „Днес се готви“ отваря менюто, не календара', async () => {
+    const user = userEvent.setup();
+    respondWith(
+      dashboardWith({
+        cooking: {
+          lunch: null,
+          dinner: { title: 'Остатъци', recipeId: null, cookUserId: null },
+        },
+      }),
+    );
+    const { router } = renderApp('/');
+
+    await user.click(
+      (await region('Днес накратко')).getByRole('link', {
+        name: /Днес се готви/,
+      }),
+    );
+
+    expect(router.state.location.pathname).toBe('/menu');
+  });
+
+  it('без меню: „Днес се готви“ отваря менюто', async () => {
+    const user = userEvent.setup();
     const { router } = renderApp('/');
 
     await user.click(
