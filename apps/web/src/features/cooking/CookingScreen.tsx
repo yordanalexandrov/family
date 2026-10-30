@@ -5,6 +5,8 @@ import {
   useRouter,
   useSearch,
 } from '@tanstack/react-router';
+import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
+import { useWakeLock } from '../../app/wake-lock';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { useRecipe } from '../recipes/queries';
@@ -30,6 +32,9 @@ export function CookingScreen() {
   const router = useRouter();
   const navigate = useNavigate();
   const canGoBack = useCanGoBack();
+  // Телефон и браузър държат екрана включен само в Готвене; kiosk го държи навсякъде (RootLayout).
+  const { mode } = useDeviceMode();
+  useWakeLock(isPersonalDevice(mode));
   // „Готово“ връща там, откъдето си влязъл; без предишен екран (отворено по адрес) — към изгледа на рецептата.
   const exit = () => {
     if (canGoBack) {
