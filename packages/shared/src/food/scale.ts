@@ -1,4 +1,4 @@
-import { normalizeQuantity, type Unit } from './units.js';
+import { normalizeQuantity, roundMilli, type Unit } from './units.js';
 
 /** An amount in its unit; `null` quantity for a pinch ("по вкус"). */
 export interface Amount {
@@ -13,8 +13,21 @@ const LARGER: Partial<Record<Unit, { unit: Unit; factor: number }>> = {
 };
 
 /**
- * An amount of a recipe written for `from` servings, scaled to `to` servings as the shopping list scales a meal
- * (kg → g and l → ml first, then × to/from, without float noise), and then read in the unit a cook reads it in:
+ * An amount of a recipe written for `from` servings, scaled to `to` servings in the small unit (kg → g and l → ml
+ * first, then × to/from), unrounded so a sum of them carries no rounding: the shopping list adds these up per meal and
+ * per week. A pinch keeps no quantity.
+ */
+export function scaleToServings(
+  amount: Amount,
+  from: number,
+  to: number,
+): Amount {
+  const { quantity, unit } = normalizeQuantity(amount.quantity, amount.unit);
+  return { quantity: quantity === null ? null : quantity * (to / from), unit };
+}
+
+/**
+ * One amount scaled as {@link scaleToServings}, without float noise, and read in the unit a cook reads it in:
  * 1000 g and more in kg, 1000 ml and more in l. A pinch keeps no quantity.
  */
 export function scaleQuantity(
@@ -22,18 +35,14 @@ export function scaleQuantity(
   from: number,
   to: number,
 ): Amount {
-  const { quantity, unit } = normalizeQuantity(amount.quantity, amount.unit);
+  const { quantity, unit } = scaleToServings(amount, from, to);
   if (quantity === null) {
     return { quantity, unit };
   }
-  const scaled = roundMilli((quantity * to) / from);
+  const scaled = roundMilli(quantity);
   const larger = LARGER[unit];
   if (larger && scaled >= larger.factor) {
     return { quantity: roundMilli(scaled / larger.factor), unit: larger.unit };
   }
   return { quantity: scaled, unit };
-}
-
-function roundMilli(value: number): number {
-  return Math.round(value * 1000) / 1000;
 }

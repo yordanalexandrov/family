@@ -1,6 +1,7 @@
 import type { DateKey } from '../dashboard/time.js';
 import { AISLES, type Aisle } from '../food/aisles.js';
-import { normalizeQuantity, type Unit, unitSchema } from '../food/units.js';
+import { scaleToServings } from '../food/scale.js';
+import { roundMilli, type Unit, unitSchema } from '../food/units.js';
 import { totalServings } from '../menu/meal.js';
 import type { MealPlan } from '../schemas/menu.js';
 import type { PantryItem } from '../schemas/pantry.js';
@@ -57,9 +58,12 @@ export function buildShoppingList({
     if (!recipe || servings <= 0) {
       continue;
     }
-    const factor = servings / recipe.servings;
     for (const line of recipe.ingredients) {
-      const { quantity, unit } = normalizeQuantity(line.quantity, line.unit);
+      const { quantity: scaled, unit } = scaleToServings(
+        line,
+        recipe.servings,
+        servings,
+      );
       const key = computedItemKey(line.ingredientId);
       const row = computed.get(key) ?? {
         key,
@@ -70,7 +74,6 @@ export function buildShoppingList({
         totals: new Map(),
         sources: new Map(),
       };
-      const scaled = quantity === null ? null : quantity * factor;
       addAmount(row.totals, unit, scaled);
       const source = row.sources.get(meal.id) ?? {
         date: meal.date,
@@ -128,7 +131,8 @@ export function buildShoppingList({
       aisle: item.aisle,
       sources: [...item.sources.values()].map(({ totals, ...source }) => ({
         ...source,
-        amounts: amountsOf(totals, item.baseUnit, roundMeal),
+        // What a meal wants is shown as it is, without the float noise of scaling (0.1 × 3).
+        amounts: amountsOf(totals, item.baseUnit, roundMilli),
       })),
       checkedBy: counts ? (overlay?.checkedBy ?? null) : null,
       checkedAt: counts ? (overlay?.checkedAt ?? null) : null,
@@ -204,11 +208,6 @@ function amountsOf(
       quantity: quantity === null ? null : round(quantity, unit),
       unit,
     }));
-}
-
-/** What a meal wants is shown as it is, without the float noise of scaling (0.1 × 3). */
-function roundMeal(quantity: number): number {
-  return Math.round(quantity * 1000) / 1000;
 }
 
 /** What a row shows of its ingredient's pantry item; only a staple runs out. */
