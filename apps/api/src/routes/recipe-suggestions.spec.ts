@@ -21,6 +21,7 @@ import {
   suggestFixture,
   TEST_OPENCLAW,
 } from '../test/openclaw.js';
+import { storedStepPhoto } from '../test/photos.js';
 import { DANI, POLI } from '../test/users.js';
 
 let app: FastifyInstance;
@@ -439,6 +440,39 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
       headers,
     });
     expect(list.json().recipes).toHaveLength(1);
+  });
+
+  it('keeps a photo added to a step before approval, and refuses an unknown one with the suggestion still proposed', async () => {
+    const suggestion = await aSuggestion();
+    const input = await editedInput(suggestion);
+    const photoId = await storedStepPhoto(app);
+    const [first, ...rest] = input.steps;
+    if (!first) {
+      throw new Error('a suggestion without steps');
+    }
+
+    const unknown = await decide(suggestion.id, 'approve', {
+      ...input,
+      steps: [
+        { ...first, photoId: '99999999-9999-4999-8999-999999999999' },
+        ...rest,
+      ],
+    });
+
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.json()).toMatchObject({ error: 'invalid_reference' });
+    expect(
+      (await getRequest(suggestion.requestId)).json().suggestions[0],
+    ).toMatchObject({ id: suggestion.id, status: 'proposed' });
+
+    const approved = await decide(suggestion.id, 'approve', {
+      ...input,
+      steps: [{ ...first, photoId }, ...rest],
+    });
+
+    expect(approved.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(approved.json());
+    expect(recipe.steps[0]).toEqual({ text: first.text, photoId });
   });
 
   it('gives a later proposed suggestion of the same title duplicateOf the approved recipe, not the approved one', async () => {

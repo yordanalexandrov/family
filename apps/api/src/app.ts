@@ -39,6 +39,7 @@ import { recipeImportsRoutes } from './routes/recipe-imports.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { shoppingRoutes } from './routes/shopping.js';
+import { stepPhotosRoutes } from './routes/step-photos.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
@@ -309,6 +310,7 @@ export function buildApp({
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
   app.register(recipeImportsRoutes);
+  app.register(stepPhotosRoutes);
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);
   app.register(shoppingRoutes);

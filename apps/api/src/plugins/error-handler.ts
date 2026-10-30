@@ -10,6 +10,7 @@ import {
   NotFoundError,
   OpenClawUnavailableError,
   ServiceRefusal,
+  UnsupportedPhotoError,
 } from '../services/errors.js';
 
 /**
@@ -75,6 +76,7 @@ const REFUSALS: [
   [InvalidReferenceError, 400, 'invalid_reference'],
   [InvalidActionError, 400, 'invalid_action'],
   [OpenClawUnavailableError, 503, 'openclaw_unavailable'],
+  [UnsupportedPhotoError, 415, 'unsupported_photo'],
 ];
 
 /** The status and body of a typed refusal, or `undefined` for any other error. */
