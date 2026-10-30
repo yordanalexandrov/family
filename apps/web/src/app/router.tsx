@@ -8,6 +8,7 @@ import {
   Outlet,
   type RouterHistory,
   useLocation,
+  useMatch,
   useRouter,
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
@@ -51,7 +52,7 @@ import {
   parseDeviceMode,
   useDeviceMode,
 } from './device-mode';
-import { IdleReturn } from './IdleReturn';
+import { COOKING_IDLE_RETURN_MS, IdleReturn } from './IdleReturn';
 import { MainNav } from './MainNav';
 import { useAutoTheme } from './theme';
 import { UpdateBar } from './UpdateBar';
@@ -114,6 +115,7 @@ function Screen({
   mode: DeviceMode | null;
   hasActingUser: boolean;
 }) {
+  const cooking = useMatch({ from: '/recipes/$id/cook', shouldThrow: false });
   if (
     pathname === DEVICE_PATH ||
     (import.meta.env.DEV && pathname.startsWith(DEV_PREFIX))
@@ -130,13 +132,19 @@ function Screen({
     return <Navigate to={WHO_PATH} replace />;
   }
   // Навигацията е долу на телефона и горе в браузъра; kiosk стига до календара и
-  // настройките от дашборда, TV няма навигация (GLOSSARY: kiosk, TV).
+  // настройките от дашборда, TV няма навигация (GLOSSARY: kiosk, TV). kiosk се връща
+  // сам на дашборда след 60 с без докосване, а от Готвене — след 2 часа.
   return (
     <>
       {mode === 'browser' && <MainNav placement="top" />}
       <Outlet />
       {mode === 'phone' && <MainNav placement="bottom" />}
-      {mode === 'kiosk' && pathname !== '/' && <IdleReturn key={pathname} />}
+      {mode === 'kiosk' && pathname !== '/' && (
+        <IdleReturn
+          key={pathname}
+          timeoutMs={cooking ? COOKING_IDLE_RETURN_MS : undefined}
+        />
+      )}
     </>
   );
 }
