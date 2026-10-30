@@ -8,7 +8,6 @@ import {
   Outlet,
   type RouterHistory,
   useLocation,
-  useMatch,
   useRouter,
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
@@ -52,7 +51,7 @@ import {
   parseDeviceMode,
   useDeviceMode,
 } from './device-mode';
-import { COOKING_IDLE_RETURN_MS, IdleReturn } from './IdleReturn';
+import { IdleReturn } from './IdleReturn';
 import { MainNav } from './MainNav';
 import { useAutoTheme } from './theme';
 import { UpdateBar } from './UpdateBar';
@@ -115,7 +114,6 @@ function Screen({
   mode: DeviceMode | null;
   hasActingUser: boolean;
 }) {
-  const cooking = useMatch({ from: '/recipes/$id/cook', shouldThrow: false });
   if (
     pathname === DEVICE_PATH ||
     (import.meta.env.DEV && pathname.startsWith(DEV_PREFIX))
@@ -139,12 +137,7 @@ function Screen({
       {mode === 'browser' && <MainNav placement="top" />}
       <Outlet />
       {mode === 'phone' && <MainNav placement="bottom" />}
-      {mode === 'kiosk' && pathname !== '/' && (
-        <IdleReturn
-          key={pathname}
-          timeoutMs={cooking ? COOKING_IDLE_RETURN_MS : undefined}
-        />
-      )}
+      {mode === 'kiosk' && pathname !== '/' && <IdleReturn key={pathname} />}
     </>
   );
 }

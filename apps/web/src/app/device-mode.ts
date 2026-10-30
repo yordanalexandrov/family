@@ -27,6 +27,11 @@ export function isPersonalDevice(mode: DeviceMode | null): boolean {
   return mode === 'phone' || mode === 'browser';
 }
 
+/** Всички освен TV се докосват; TV само показва (GLOSSARY: TV). */
+export function isInteractiveDevice(mode: DeviceMode | null): boolean {
+  return mode !== null && mode !== 'tv';
+}
+
 const deviceMode = storedSetting<DeviceMode | null>({
   key: DEVICE_MODE_KEY,
   parse: parseDeviceMode,

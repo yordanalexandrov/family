@@ -1,7 +1,7 @@
 import { AISLES, type Recipe, TAG_LABELS_BG } from '@family/shared';
 import { Link, useParams } from '@tanstack/react-router';
 import { useWritingUserId } from '../../app/acting-user';
-import { useDeviceMode } from '../../app/device-mode';
+import { isInteractiveDevice, useDeviceMode } from '../../app/device-mode';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
@@ -47,7 +47,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   // Оценката, редакцията и архивът пишат от името на потребител; kiosk и TV нямат такъв.
   const canWrite = useWritingUserId() !== null;
   // Готвене (GLOSSARY) е на kiosk, телефона и браузъра, но не и на TV.
-  const canCook = useDeviceMode().mode !== 'tv';
+  const canCook = isInteractiveDevice(useDeviceMode().mode);
 
   return (
     <article className="recipe-view">

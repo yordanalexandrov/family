@@ -1,7 +1,7 @@
 import { TAG_LABELS_BG } from '@family/shared';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
-import { useDeviceMode } from '../../app/device-mode';
+import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
 import { ScreenHeader } from '../../app/ScreenHeader';
 import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -30,7 +30,7 @@ function resultCount(shown: number, total: number | undefined): string {
 
 export function RecipeList() {
   // kiosk чете регистъра, без действията, които пишат от името на потребител.
-  const kiosk = useDeviceMode().mode === 'kiosk';
+  const personal = isPersonalDevice(useDeviceMode().mode);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useStoredRecipeFilters();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -50,8 +50,8 @@ export function RecipeList() {
 
   return (
     <main className="screen recipes">
-      <ScreenHeader title="Рецепти" start={kiosk && <BackLink />}>
-        {!kiosk && (
+      <ScreenHeader title="Рецепти" start={!personal && <BackLink />}>
+        {personal && (
           <>
             <Link to="/recipes/suggest" className="button button--quiet">
               Поискай предложения
@@ -118,9 +118,7 @@ export function RecipeList() {
         />
       ) : registryEmpty ? (
         <div className="recipes__empty">
-          {kiosk ? (
-            <p>Няма рецепти.</p>
-          ) : (
+          {personal ? (
             <>
               <p>Няма рецепти. Добави първата или поискай предложения.</p>
               <div className="recipes__actions">
@@ -132,6 +130,8 @@ export function RecipeList() {
                 </Link>
               </div>
             </>
+          ) : (
+            <p>Няма рецепти.</p>
           )}
         </div>
       ) : (
