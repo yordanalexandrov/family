@@ -3,7 +3,8 @@ import {
   STEP_PHOTO_MAX_SIDE,
   stepPhotoUrl,
 } from '@family/shared';
-import { useRef } from 'react';
+import { type CSSProperties, useRef } from 'react';
+import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
 const SWIPE_MIN_PX = 50;
@@ -28,7 +29,7 @@ interface CookingStepsProps {
   onDone: () => void;
 }
 
-/** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст (със снимката на стъпката, ако има), „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
+/** Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. */
 export function CookingSteps({
   steps,
   step,
@@ -45,6 +46,10 @@ export function CookingSteps({
     }
   };
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [textSize, setTextSize] = useCookingTextSize();
+  const sizeIndex = COOKING_TEXT_SIZES.indexOf(
+    textSize as (typeof COOKING_TEXT_SIZES)[number],
+  );
   return (
     <section
       className="cooking-steps"
@@ -71,16 +76,70 @@ export function CookingSteps({
       }}
     >
       <header className="cooking-steps__head">
-        <p className="cooking-steps__count">
-          Стъпка {step + 1} от {steps.length}
-        </p>
-        <button
-          type="button"
-          className="button button--quiet"
-          onClick={onClose}
-        >
-          Затвори
-        </button>
+        <div className="cooking-steps__nav">
+          <button
+            type="button"
+            className="button button--quiet cooking-steps__go"
+            aria-label="Назад"
+            disabled={step === 0}
+            onClick={() => go(step - 1)}
+          >
+            ‹
+          </button>
+          <p className="cooking-steps__count">
+            Стъпка {step + 1} от {steps.length}
+          </p>
+          {last ? (
+            <button
+              type="button"
+              className="button cooking-steps__go"
+              aria-label="Готово"
+              onClick={onDone}
+            >
+              ✓
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button cooking-steps__go"
+              aria-label="Напред"
+              onClick={() => go(step + 1)}
+            >
+              ›
+            </button>
+          )}
+        </div>
+        <div className="cooking-steps__tools">
+          <button
+            type="button"
+            className="button button--quiet cooking-steps__size"
+            aria-label="По-дребен текст"
+            disabled={sizeIndex <= 0}
+            onClick={() =>
+              setTextSize(COOKING_TEXT_SIZES[sizeIndex - 1] ?? textSize)
+            }
+          >
+            A−
+          </button>
+          <button
+            type="button"
+            className="button button--quiet cooking-steps__size"
+            aria-label="По-едър текст"
+            disabled={sizeIndex >= COOKING_TEXT_SIZES.length - 1}
+            onClick={() =>
+              setTextSize(COOKING_TEXT_SIZES[sizeIndex + 1] ?? textSize)
+            }
+          >
+            A+
+          </button>
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={onClose}
+          >
+            Затвори
+          </button>
+        </div>
       </header>
       <div
         className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
@@ -99,7 +158,14 @@ export function CookingSteps({
             decoding="async"
           />
         )}
-        <p className="cooking-steps__text">{current?.text}</p>
+        {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
+        <p
+          key={step}
+          className="cooking-steps__text"
+          style={{ '--cooking-text-scale': textSize } as CSSProperties}
+        >
+          {current?.text}
+        </p>
       </div>
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
@@ -114,33 +180,6 @@ export function CookingSteps({
             onClick={() => go(index)}
           />
         ))}
-      </div>
-      <div className="cooking-steps__nav">
-        <button
-          type="button"
-          className="button button--quiet cooking-steps__button"
-          disabled={step === 0}
-          onClick={() => go(step - 1)}
-        >
-          Назад
-        </button>
-        {last ? (
-          <button
-            type="button"
-            className="button cooking-steps__button"
-            onClick={onDone}
-          >
-            Готово
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="button cooking-steps__button"
-            onClick={() => go(step + 1)}
-          >
-            Напред
-          </button>
-        )}
       </div>
     </section>
   );

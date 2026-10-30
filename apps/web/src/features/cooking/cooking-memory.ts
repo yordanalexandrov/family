@@ -5,6 +5,7 @@ import { logger } from '../../logger';
 
 export const COOKING_PROGRESS_KEY = 'family.cooking.progress';
 export const COOKING_INGREDIENTS_OPEN_KEY = 'family.cooking.ingredientsOpen';
+export const COOKING_TEXT_SIZE_KEY = 'family.cooking.textSize';
 
 /** Докъдето е стигнало Готвене за една рецепта: индексът на стъпката и на отметнатите редове продукти. */
 export interface CookingProgress {
@@ -127,6 +128,35 @@ export function useIngredientsOpen(): [boolean, (open: boolean) => void] {
     (next: boolean) => {
       setOpen(next);
       ingredientsOpen.write(next);
+    },
+  ];
+}
+
+/** Мащабите на текста на стъпката спрямо едрия по подразбиране (1); A−/A+ местят с една степен. */
+export const COOKING_TEXT_SIZES = [0.6, 0.7, 0.8, 0.9, 1, 1.15, 1.3] as const;
+
+const textSize = storedSetting<number>({
+  key: COOKING_TEXT_SIZE_KEY,
+  parse: (raw) => {
+    const value = Number(raw);
+    return (COOKING_TEXT_SIZES as readonly number[]).includes(value)
+      ? value
+      : 1;
+  },
+  unset: 1,
+});
+
+/**
+ * Мащабът на текста на стъпката: помни се на устройството (телефонът иска по-дребен от kiosk-а), по подразбиране 1.
+ * Както при чекмеджето, състоянието е на екрана, а записът го пази за следващото влизане.
+ */
+export function useCookingTextSize(): [number, (size: number) => void] {
+  const [size, setSize] = useState(textSize.read);
+  return [
+    size,
+    (next: number) => {
+      setSize(next);
+      textSize.write(next);
     },
   ];
 }

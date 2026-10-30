@@ -10,7 +10,9 @@
 - `cooking-sheet` narrow screen (phone portrait, below 48rem): no column; button „Продукти (N)“ above the step opens dialog „Продукти“ (the Sheet) with the same −/+ and list „Продукти“; „Готово“ in the dialog closes it, servings stay.
 - `cooking-checks` each product line is a checkbox named „<name> <amount>“ (e.g. „лук 2 бр.“); checking moves it into the folded group button „Използвани (N)“ at the bottom, which opens list „Използвани“; unchecking puts it back in place. „Продукти (N)“ counts the unchecked lines.
 - `cooking-memory` leaving („Затвори“, kiosk idle return) and entering again the same day restores the step and the checks; „Готово“ on the last step forgets them, so the next entry starts at step 1 (`localStorage['family.cooking.progress']`); a folded column stays folded (`family.cooking.ingredientsOpen`).
-- `cooking-steps` „Напред“/„Назад“ (disabled on step 1), group „Към стъпка“ with buttons „Стъпка N“ (`aria-current=step`), horizontal swipe on region „Стъпки“.
+- `cooking-steps` small arrow buttons in the step header around „Стъпка X от N“: „Назад“ (‹, disabled on step 1) and „Напред“ (›), on the last step „Готово“ (✓); group „Към стъпка“ with buttons „Стъпка N“ (`aria-current=step`, hidden below 32rem height), horizontal swipe on region „Стъпки“.
+- `cooking-text-size` buttons „По-дребен текст“/„По-едър текст“ (A−/A+) in the step header scale the step text in 7 steps (0.6–1.3, inline `--cooking-text-scale` on the text), disabled at the ends; remembered on the device (`family.cooking.textSize`).
+- `cooking-scroll` Готвене is never taller than the screen (check phone landscape too, e.g. 915×412 via `page.setViewportSize`: the text must keep most of the height): a long step scrolls inside `.cooking-steps__text` (the document does not scroll) and a new step starts scrolled to the top.
 - `cooking-exit` „Готово“ on the last step, „Затвори“ on any: back in history, or the recipe view without history.
 
 ## How to get to it (user POV)

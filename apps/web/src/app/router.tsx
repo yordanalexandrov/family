@@ -61,6 +61,7 @@ const WHO_PATH = '/who';
 const DEVICE_PATH = '/device';
 const DEV_PREFIX = '/dev/';
 const DEVICE_PARAM = 'device';
+const COOKING_PATH = /^\/recipes\/[^/]+\/cook$/;
 
 /**
  * Аурората е фонът на всички екрани. `?device=` записва режима на устройството и
@@ -130,13 +131,16 @@ function Screen({
     return <Navigate to={WHO_PATH} replace />;
   }
   // Навигацията е долу на телефона и горе в браузъра; kiosk стига до календара и
-  // настройките от дашборда, TV няма навигация (GLOSSARY: kiosk, TV). kiosk се връща
-  // сам на дашборда след 60 с без докосване, а от Готвене — след 2 часа.
+  // настройките от дашборда, TV няма навигация (GLOSSARY: kiosk, TV). В Готвене на
+  // телефона долната лента я няма: височината е за стъпката, а изходът е „Затвори“.
+  // kiosk се връща сам на дашборда след 60 с без докосване, а от Готвене — след 2 часа.
   return (
     <>
       {mode === 'browser' && <MainNav placement="top" />}
       <Outlet />
-      {mode === 'phone' && <MainNav placement="bottom" />}
+      {mode === 'phone' && !COOKING_PATH.test(pathname) && (
+        <MainNav placement="bottom" />
+      )}
       {mode === 'kiosk' && pathname !== '/' && <IdleReturn key={pathname} />}
     </>
   );

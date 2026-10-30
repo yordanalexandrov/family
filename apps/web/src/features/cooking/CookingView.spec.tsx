@@ -88,6 +88,24 @@ describe('Готвене', () => {
     },
   );
 
+  it('на телефона Готвене е без долната лента, а „Затвори“ я връща', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}`);
+    await user.click(await screen.findByRole('link', { name: 'Готви' }));
+    await screen.findByText('Стъпка 1 от 3');
+    expect(
+      screen.queryByRole('navigation', { name: 'Основна навигация' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Затвори' }));
+    expect(
+      await screen.findByRole('navigation', { name: 'Основна навигация' }),
+    ).toBeInTheDocument();
+  });
+
   it('на TV изгледът на рецептата няма „Готви“', async () => {
     setUpDevice('tv');
     serveRecipe();
@@ -555,6 +573,46 @@ describe('Готвене', () => {
     expect(
       screen.getByRole('button', { name: 'Продукти (2)' }),
     ).toBeInTheDocument();
+  });
+
+  it('A−/A+ сменят размера на текста до крайните степени и той се помни на устройството', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    stubNarrowScreen();
+    serveRecipe();
+
+    const first = renderApp(`/recipes/${stew.id}/cook`);
+    const text = await screen.findByText('Нарежи пилето.');
+    const smaller = screen.getByRole('button', { name: 'По-дребен текст' });
+    expect(text.style.getPropertyValue('--cooking-text-scale')).toBe('1');
+
+    for (let i = 0; i < 4; i++) {
+      await user.click(smaller);
+    }
+    expect(text.style.getPropertyValue('--cooking-text-scale')).toBe('0.6');
+    expect(smaller).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'По-едър текст' }));
+    first.unmount();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    expect(
+      (await screen.findByText('Нарежи пилето.')).style.getPropertyValue(
+        '--cooking-text-scale',
+      ),
+    ).toBe('0.7');
+  });
+
+  it('„Напред“ показва новата стъпка превъртяна от началото', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    const text = await screen.findByText('Нарежи пилето.');
+    text.scrollTop = 120;
+    await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+    expect(screen.getByText('Задуши с лука.').scrollTop).toBe(0);
   });
 
   it('без localStorage Готвене работи, само без памет', async () => {
