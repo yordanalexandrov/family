@@ -189,10 +189,14 @@ export async function decideSuggestion(
   return toAnySuggestion(row);
 }
 
-/** Clears the decision on a suggestion: it is `proposed` again, without who and when; returns it as stored. */
+/**
+ * Clears the decision on a suggestion: it is `proposed` again, without who and when, and with `payload` when given;
+ * returns it as stored.
+ */
 export async function undecideSuggestion(
   db: DbExecutor,
   id: string,
+  payload?: SuggestionPayload | ImportPayload,
 ): Promise<AnyRecipeSuggestion> {
   const [row] = await db
     .update(recipeSuggestion)
@@ -201,6 +205,7 @@ export async function undecideSuggestion(
       recipeId: null,
       decidedBy: null,
       decidedAt: null,
+      ...(payload === undefined ? {} : { payload }),
     })
     .where(eq(recipeSuggestion.id, id))
     .returning();

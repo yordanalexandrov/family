@@ -27,6 +27,7 @@ import {
   listActiveRecipesByTitle,
   listActiveRecipeTitles,
 } from '../db/repositories/recipes.js';
+import { existingStepPhotoIds } from '../db/repositories/step-photos.js';
 import { recipeSuggestionRequest } from '../db/schema/food.js';
 import type {
   ContractRequestHandle,
@@ -221,9 +222,45 @@ export function createRecipeSuggestionsService({
 
     restoreSuggestion(id) {
       return db.transaction(async (tx) => {
-        await lockWith(tx, id, 'rejected', ONLY_REJECTED_RESTORED);
-        return undecideSuggestion(tx, id);
+        const { payload } = await lockWith(
+          tx,
+          id,
+          'rejected',
+          ONLY_REJECTED_RESTORED,
+        );
+        return undecideSuggestion(
+          tx,
+          id,
+          await withoutRemovedPhotos(tx, payload),
+        );
       });
     },
+  };
+}
+
+/**
+ * The payload of a rejected suggestion without the step photos the nightly cleanup removed while it was rejected (its
+ * photos were orphans then), or `undefined` when all are still there. Restored, it shows and approves without them.
+ */
+async function withoutRemovedPhotos<P extends AnyRecipeSuggestion['payload']>(
+  db: DbExecutor,
+  payload: P,
+): Promise<P | undefined> {
+  const photoIds = new Set(
+    payload.steps.flatMap((step) =>
+      step.photoId === undefined ? [] : [step.photoId],
+    ),
+  );
+  const existing = await existingStepPhotoIds(db, [...photoIds]);
+  if (existing.size === photoIds.size) {
+    return undefined;
+  }
+  return {
+    ...payload,
+    steps: payload.steps.map((step) =>
+      step.photoId === undefined || existing.has(step.photoId)
+        ? step
+        : { text: step.text },
+    ),
   };
 }

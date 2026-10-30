@@ -385,6 +385,23 @@ async function editedInput(suggestion: RecipeSuggestion): Promise<RecipeInput> {
   };
 }
 
+/**
+ * The suggestion as one with a step photo is stored (an import by link brings them, #242): its first step points at
+ * `photoId`. Read back through `GET`, as the review sees it.
+ */
+async function withStepPhoto(
+  suggestion: RecipeSuggestion,
+  photoId: string,
+): Promise<RecipeSuggestion> {
+  await testDb().execute(
+    sql`update recipe_suggestion set payload = jsonb_set(payload, '{steps,0,photoId}', to_jsonb(${photoId}::text)) where id = ${suggestion.id}`,
+  );
+  const detail = (await getRequest(suggestion.requestId)).json();
+  return recipeSuggestionSchema.parse(
+    detail.suggestions.find((s: RecipeSuggestion) => s.id === suggestion.id),
+  );
+}
+
 function decide(
   id: string,
   action: 'approve' | 'reject' | 'restore',
@@ -473,6 +490,27 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
     expect(approved.statusCode).toBe(201);
     const { recipe } = approvedSuggestionResponseSchema.parse(approved.json());
     expect(recipe.steps[0]).toEqual({ text: first.text, photoId });
+  });
+
+  it('creates the recipe with the same step photos as the suggestion, not copies', async () => {
+    const photoId = await storedStepPhoto(app);
+    const suggestion = await withStepPhoto(await aSuggestion(), photoId);
+    expect(suggestion.payload.steps[0]).toMatchObject({ photoId });
+
+    const response = await decide(
+      suggestion.id,
+      'approve',
+      await editedInput(suggestion),
+    );
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe.steps).toEqual(suggestion.payload.steps);
+    const photo = await app.inject({
+      method: 'GET',
+      url: `/api/step-photos/${photoId}`,
+    });
+    expect(photo.statusCode).toBe(200);
   });
 
   it('gives a later proposed suggestion of the same title duplicateOf the approved recipe, not the approved one', async () => {
@@ -601,6 +639,23 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
 });
 
 describe('POST /api/recipe-suggestions/:id/reject', () => {
+  it('leaves the step photos of the rejected suggestion in place, and a restored one shows them again', async () => {
+    const photoId = await storedStepPhoto(app);
+    const suggestion = await withStepPhoto(await aSuggestion(), photoId);
+
+    expect((await decide(suggestion.id, 'reject')).statusCode).toBe(200);
+
+    const photo = await app.inject({
+      method: 'GET',
+      url: `/api/step-photos/${photoId}`,
+    });
+    expect(photo.statusCode).toBe(200);
+    const restored = await decide(suggestion.id, 'restore');
+    expect(restored.json().suggestion.payload.steps[0]).toMatchObject({
+      photoId,
+    });
+  });
+
   it('marks the suggestion rejected and keeps it with the request; deciding again is 409', async () => {
     const suggestion = await aSuggestion();
 
@@ -644,6 +699,36 @@ describe('POST /api/recipe-suggestions/:id/restore', () => {
     ).toEqual(['proposed', 'proposed', 'proposed']);
     expect(
       (await decide(suggestion.id, 'approve', await editedInput(suggestion)))
+        .statusCode,
+    ).toBe(201);
+  });
+
+  it('restores without a step photo the nightly cleanup removed while the suggestion was rejected', async () => {
+    const kept = await storedStepPhoto(app);
+    const removed = await storedStepPhoto(app);
+    const suggestion = await withStepPhoto(await aSuggestion(), removed);
+    await testDb().execute(
+      sql`update recipe_suggestion set payload = jsonb_set(payload, '{steps,1,photoId}', to_jsonb(${kept}::text)) where id = ${suggestion.id}`,
+    );
+    await decide(suggestion.id, 'reject');
+    // The nightly cleanup (#240) took one of the rejected suggestion's photos.
+    await testDb().execute(sql`delete from step_photo where id = ${removed}`);
+
+    const response = await decide(suggestion.id, 'restore');
+
+    expect(response.statusCode).toBe(200);
+    const [first, second] = suggestion.payload.steps;
+    expect(response.json().suggestion.payload.steps.slice(0, 2)).toEqual([
+      { text: first?.text },
+      { text: second?.text, photoId: kept },
+    ]);
+    const detail = (await getRequest(suggestion.requestId)).json();
+    expect(detail.suggestions[0].payload.steps[0]).toEqual({
+      text: first?.text,
+    });
+    const restored = recipeSuggestionSchema.parse(detail.suggestions[0]);
+    expect(
+      (await decide(suggestion.id, 'approve', await editedInput(restored)))
         .statusCode,
     ).toBe(201);
   });

@@ -19,6 +19,11 @@ import { dani, server } from '../../test/msw';
 import { chicken, ingredients, omelette, salt } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 import {
+  cameraPhoto,
+  serveStepPhotoUploads,
+  stepPhotoIds,
+} from '../../test/step-photos';
+import {
   chickenSkewers,
   doneRequest,
   requestId,
@@ -125,6 +130,33 @@ function ingredientLines() {
 /** Листът за един ред продукт. */
 function lineSheet() {
   return within(screen.getByRole('dialog', { name: 'Продукт' }));
+}
+
+/** Предложението за шишчета без нови продукти (одобрява се направо) и със стъпки `steps`. */
+function knownSkewers(steps: RecipeSuggestion['payload']['steps']) {
+  return {
+    ...skewersSuggestion,
+    payload: {
+      ...chickenSkewers,
+      ingredients: chickenSkewers.ingredients.map((line) => ({
+        ...line,
+        isNew: false,
+      })),
+      steps,
+    },
+  } satisfies RecipeSuggestion;
+}
+
+/** Адресът на миниатюрата във всеки ред на „Стъпки“ (`undefined` за стъпка без снимка). */
+function stepThumbnails() {
+  return within(screen.getByRole('list', { name: 'Стъпки' }))
+    .getAllByRole('listitem')
+    .map((line) => line.querySelector('img')?.getAttribute('src'));
+}
+
+/** Листът за една стъпка. */
+function stepSheet() {
+  return within(screen.getByRole('dialog', { name: 'Стъпка' }));
 }
 
 /** Toast-ът със съобщението `text` (в `document.body` има и други toast-ове). */
@@ -586,6 +618,118 @@ describe('SuggestionReview', () => {
     expect(
       actionBar().queryByText('Одобрението не мина'),
     ).not.toBeInTheDocument();
+  });
+
+  it('снимките на стъпките са в прегледа, при предложение и при внасяне; „Одобри“ праща същите снимки', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const photoId = 'eeeeeeee-0000-4000-8000-000000000031';
+    const suggestion = knownSkewers([
+      { text: 'Нарежи пилето.', photoId },
+      { text: 'Нанижи и изпечи.' },
+    ]);
+    const { approved } = serveReview(suggestion);
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          request: doneImport,
+          suggestion: {
+            ...importedSuggestion,
+            payload: {
+              ...importedSuggestion.payload,
+              steps: [
+                { text: 'Овкусете пилето.' },
+                { text: 'Изпечете го 30 минути.', photoId },
+              ],
+            },
+          },
+          ingredients: [chicken, salt, importedSumac],
+        }),
+      ),
+    );
+
+    const imported = renderApp(`/recipes/import/${importId}`);
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    expect(stepThumbnails()).toEqual([
+      undefined,
+      `/api/step-photos/${photoId}?w=240`,
+    ]);
+    imported.unmount();
+
+    renderApp(reviewPath);
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    expect(stepThumbnails()).toEqual([
+      `/api/step-photos/${photoId}?w=240`,
+      undefined,
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Нарежи пилето.' }));
+    expect(
+      stepSheet().getByRole('img', { name: 'Снимката на стъпка 1' }),
+    ).toBeInTheDocument();
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Предложения' });
+    expect(approved[0]?.steps).toEqual([
+      { text: 'Нарежи пилето.', photoId },
+      { text: 'Нанижи и изпечи.' },
+    ]);
+  });
+
+  it('преди одобрение снимката на стъпка се сменя, маха и добавя ръчно', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveStepPhotoUploads();
+    const { approved } = serveReview(
+      knownSkewers([
+        {
+          text: 'Нарежи пилето.',
+          photoId: 'eeeeeeee-0000-4000-8000-000000000031',
+        },
+        {
+          text: 'Нанижи и изпечи.',
+          photoId: 'eeeeeeee-0000-4000-8000-000000000032',
+        },
+        { text: 'Поднеси с лимон.' },
+      ]),
+    );
+
+    renderApp(reviewPath);
+    await user.click(
+      await screen.findByRole('button', { name: 'Нарежи пилето.' }),
+    );
+    await user.upload(stepSheet().getByLabelText('Смени'), cameraPhoto());
+    await expect
+      .poll(() =>
+        stepSheet()
+          .getByRole('img', { name: 'Снимката на стъпка 1' })
+          .getAttribute('src'),
+      )
+      .toContain(stepPhotoIds[0]);
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+
+    await user.click(screen.getByRole('button', { name: 'Нанижи и изпечи.' }));
+    await user.click(stepSheet().getByRole('button', { name: 'Махни' }));
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+
+    await user.click(screen.getByRole('button', { name: 'Поднеси с лимон.' }));
+    await user.upload(stepSheet().getByLabelText('Снимка'), cameraPhoto());
+    await stepSheet().findByRole('img', { name: 'Снимката на стъпка 3' });
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+
+    expect(stepThumbnails()).toEqual([
+      `/api/step-photos/${stepPhotoIds[0]}?w=240`,
+      undefined,
+      `/api/step-photos/${stepPhotoIds[1]}?w=240`,
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Предложения' });
+    expect(approved[0]?.steps).toEqual([
+      { text: 'Нарежи пилето.', photoId: stepPhotoIds[0] },
+      { text: 'Нанижи и изпечи.' },
+      { text: 'Поднеси с лимон.', photoId: stepPhotoIds[1] },
+    ]);
   });
 
   it('бележката на агента е с етикет: „Защо:“ при предложение, „AI допусна:“ като предупреждение при внасяне', async () => {
