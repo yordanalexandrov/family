@@ -28,14 +28,27 @@ const CHALLENGE_TITLE =
 
 export type PageFetchFailure = 'fetch_blocked' | 'fetch_failed';
 
-/**
- * A fetched page: its final URL (after redirects) and its text; or why not, with a short `reason` for logs and the
- * smoke (`http_404`, `timeout`, `too_large`, `not_html`, `too_many_redirects`, `private_address`, `bad_url`,
- * `network_<code>`, `challenge`).
- */
+/** Why a fetch did not give a page or a picture, short, for logs and the smoke. */
+export type FetchReason =
+  | `http_${number}`
+  | 'timeout'
+  | 'aborted'
+  | 'too_large'
+  | WrongType
+  | 'too_many_redirects'
+  | 'private_address'
+  | 'bad_url'
+  | 'network'
+  | `network_${string}`
+  | 'challenge';
+
+/** A declared type the resource does not take: not a page, not a picture. */
+type WrongType = 'not_html' | 'not_image';
+
+/** A fetched page: its final URL (after redirects) and its text; or why not ({@link FetchReason}). */
 export type FetchedPage =
   | { ok: true; url: string; html: string }
-  | { ok: false; url: string; failure: PageFetchFailure; reason: string };
+  | { ok: false; url: string; failure: PageFetchFailure; reason: FetchReason };
 
 const PRIVATE = new BlockList();
 for (const [network, prefix] of [
@@ -89,7 +102,7 @@ function isPublicAddress(ip: string): boolean {
 class FetchFailure extends Error {
   constructor(
     readonly failure: PageFetchFailure,
-    readonly reason: string,
+    readonly reason: FetchReason,
   ) {
     super(reason);
   }
@@ -254,7 +267,7 @@ export async function fetchPage(url: string): Promise<FetchedPage> {
   const fetched = await fetchResource(url, {
     accept: PAGE_ACCEPT,
     maxBytes: MAX_PAGE_BYTES,
-    contentType: isHtml,
+    acceptsType: isHtml,
     wrongType: 'not_html',
   });
   if (!fetched.ok) {
@@ -275,7 +288,7 @@ export async function fetchPage(url: string): Promise<FetchedPage> {
 /** A fetched picture: its bytes as sent (the type is read from them when stored); or why not, as for a page. */
 export type FetchedImage =
   | { ok: true; url: string; bytes: Buffer }
-  | { ok: false; url: string; reason: string };
+  | { ok: false; url: string; reason: FetchReason };
 
 /**
  * Fetches the photo of a step of a recipe page (GLOSSARY: Снимка на стъпка) by the rules of {@link fetchPage}: public
@@ -291,7 +304,7 @@ export async function fetchImage(
     {
       accept: IMAGE_ACCEPT,
       maxBytes: STEP_PHOTO_MAX_BYTES,
-      contentType: mayBeImage,
+      acceptsType: mayBeImage,
       wrongType: 'not_image',
     },
     signal,
@@ -305,13 +318,13 @@ export async function fetchImage(
 interface ResourceRules {
   accept: string;
   maxBytes: number;
-  contentType: (contentType: string | undefined) => boolean;
-  wrongType: string;
+  acceptsType: (contentType: string | undefined) => boolean;
+  wrongType: WrongType;
 }
 
 type FetchedResource =
   | { ok: true; url: string; body: Buffer; contentType: string | undefined }
-  | { ok: false; url: string; failure: PageFetchFailure; reason: string };
+  | { ok: false; url: string; failure: PageFetchFailure; reason: FetchReason };
 
 async function fetchResource(
   url: string,
@@ -373,7 +386,7 @@ async function fetchWithin(
         throw new FetchFailure('fetch_failed', `http_${status}`);
       }
       const contentType = response.headers['content-type'];
-      if (!rules.contentType(contentType)) {
+      if (!rules.acceptsType(contentType)) {
         response.resume();
         throw new FetchFailure('fetch_failed', rules.wrongType);
       }

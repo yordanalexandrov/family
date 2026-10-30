@@ -18,6 +18,7 @@ import {
 } from '../db/repositories/recipes.js';
 import { existingStepPhotoIds } from '../db/repositories/step-photos.js';
 import { InvalidReferenceError, NotFoundError } from './errors.js';
+import { stepPhotoIds } from './step-photos.js';
 
 const NO_SUCH_RECIPE = 'Няма такава рецепта';
 
@@ -111,9 +112,7 @@ async function checkReferencesExist(
   if (ids.some((id) => !existing.has(id))) {
     throw new InvalidReferenceError('Рецептата сочи непознат продукт');
   }
-  const photoIds = [
-    ...new Set(input.steps.flatMap((step) => step.photoId ?? [])),
-  ];
+  const photoIds = stepPhotoIds(input.steps);
   const photos = await existingStepPhotoIds(db, photoIds);
   if (photoIds.some((id) => !photos.has(id))) {
     throw new InvalidReferenceError(

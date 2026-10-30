@@ -1,9 +1,7 @@
 import type { Freshness, LastRunStatus, SyncSource } from '../schemas/sync.js';
-import { dateKeyInSofia, daysBetween } from './time.js';
+import { DAY_MS, dateKeyInSofia, daysBetween, HOUR_MS } from './time.js';
 
 const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
 
 /** Age of the last successful sync after which a source's data counts as stale. */
 export const STALE_AFTER_MS: Record<SyncSource, number> = {

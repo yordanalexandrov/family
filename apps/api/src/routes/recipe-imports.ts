@@ -15,9 +15,12 @@ import { z } from 'zod';
 import { HttpError } from '../plugins/error-handler.js';
 import { photoType } from '../services/recipe-photo.js';
 import { idParamsSchema } from './params.js';
-
-/** The form field of the photo, as the screen sends it (repeated for the parts of a long screenshot). */
-const PHOTO_FIELD = 'photo';
+import {
+  megabytes,
+  missingPhoto,
+  PHOTO_FIELD,
+  photoTooLarge,
+} from './photo-form.js';
 
 const photoSchema = z.object({
   mediaType: z.string(),
@@ -29,8 +32,6 @@ const photoBodySchema = z.object({
   kind: z.literal('photo'),
   photos: z.array(photoSchema).min(1).max(IMPORT_PHOTO_MAX_PARTS),
 });
-
-const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
 /**
  * Imports of recipes (GLOSSARY: Внасяне на рецепта). A POST answers 202 at once; the client polls `GET …/:id` until the
@@ -104,7 +105,7 @@ async function readPhotos(
   try {
     for await (const file of request.files()) {
       if (file.fieldname !== PHOTO_FIELD) {
-        throw new HttpError(400, 'validation_error', 'Липсва снимка');
+        throw missingPhoto();
       }
       const data = await file.toBuffer();
       total += data.length;
@@ -126,15 +127,11 @@ async function readPhotos(
       photos.push({ mediaType, data });
     }
   } catch (error) {
-    const code = (error as { code?: unknown }).code;
-    if (code === 'FST_REQ_FILE_TOO_LARGE') {
-      throw new HttpError(
-        413,
-        'photo_too_large',
-        `Снимката е над ${megabytes(IMPORT_PHOTO_MAX_BYTES)} MB. Опитай с по-малка.`,
-      );
+    const tooLarge = photoTooLarge(error, IMPORT_PHOTO_MAX_BYTES);
+    if (tooLarge) {
+      throw tooLarge;
     }
-    if (code === 'FST_FILES_LIMIT') {
+    if ((error as { code?: unknown }).code === 'FST_FILES_LIMIT') {
       throw new HttpError(
         400,
         'validation_error',
@@ -144,7 +141,7 @@ async function readPhotos(
     throw error;
   }
   if (photos.length === 0) {
-    throw new HttpError(400, 'validation_error', 'Липсва снимка');
+    throw missingPhoto();
   }
   return { kind: 'photo', photos };
 }

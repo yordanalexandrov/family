@@ -6,7 +6,7 @@ export const STEP_PHOTO_MAX_SIDE = 1600;
 /** Largest step photo the api takes, after the client has made it smaller (as one photo of an import). */
 export const STEP_PHOTO_MAX_BYTES = 10 * 1024 * 1024;
 
-/** Narrowest and widest thumbnail `?w=` may ask for; wider than the stored photo gives the photo as it is. */
+/** Narrowest thumbnail `?w=` may ask for; the widest is `STEP_PHOTO_MAX_SIDE`, and wider than the stored photo gives the photo as it is. */
 export const STEP_PHOTO_MIN_WIDTH = 16;
 
 /** `POST /api/step-photos` → `201`: the id a step points at (`RecipeStep.photoId`) from „Запази“ on. */

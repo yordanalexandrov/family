@@ -35,6 +35,7 @@ import type {
 } from './contract-requests.js';
 import { ConflictError, NotFoundError } from './errors.js';
 import { addRecipe } from './recipes.js';
+import { stepPhotoIds } from './step-photos.js';
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
 const NO_SUCH_SUGGESTION = 'Няма такова предложение';
@@ -246,13 +247,9 @@ async function withoutRemovedPhotos<P extends AnyRecipeSuggestion['payload']>(
   db: DbExecutor,
   payload: P,
 ): Promise<P | undefined> {
-  const photoIds = new Set(
-    payload.steps.flatMap((step) =>
-      step.photoId === undefined ? [] : [step.photoId],
-    ),
-  );
-  const existing = await existingStepPhotoIds(db, [...photoIds]);
-  if (existing.size === photoIds.size) {
+  const photoIds = stepPhotoIds(payload.steps);
+  const existing = await existingStepPhotoIds(db, photoIds);
+  if (existing.size === photoIds.length) {
     return undefined;
   }
   return {

@@ -43,8 +43,9 @@ export function canonicalTitle(title: string): string {
 
 /**
  * One step of a recipe or of a stored suggestion: its text and, optionally, its photo (GLOSSARY: Снимка на стъпка) by
- * id. The AI contracts (`recipe.normalize`, `recipe.suggest`) still give steps as text; the api turns them into steps
- * with {@link stepsOfText} when it stores a suggestion.
+ * id. The AI contracts give no photo ids: `recipe.suggest` gives steps as text (the api turns them into steps with
+ * {@link stepsOfText}), `recipe.normalize` gives `{ text, image }` with `image` the reference of a page's photo, which the
+ * api downloads and stores as a photo of the step when it stores the suggestion.
  */
 export const recipeStepSchema = z.object({
   text: z.string().trim().min(1),

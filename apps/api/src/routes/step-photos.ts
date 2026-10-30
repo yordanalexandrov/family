@@ -6,17 +6,12 @@ import {
 import multipart from '@fastify/multipart';
 import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { HttpError } from '../plugins/error-handler.js';
 import { stepPhotoImage, storeStepPhoto } from '../services/step-photos.js';
 import { idParamsSchema } from './params.js';
-
-/** The form field of the photo, as the recipe form sends it. */
-const PHOTO_FIELD = 'photo';
+import { missingPhoto, PHOTO_FIELD, photoTooLarge } from './photo-form.js';
 
 /** A photo never changes (another photo is another id), so the browser keeps it for good; only for this person. */
 const IMMUTABLE = 'private, max-age=31536000, immutable';
-
-const megabytes = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
 /**
  * Step photos (GLOSSARY: Снимка на стъпка, ADR-0008). `POST` takes one photo as `multipart/form-data` in the field
@@ -59,23 +54,13 @@ export const stepPhotosRoutes: FastifyPluginAsyncZod = async (app) => {
 
 /** The one photo of the form, as it came. */
 async function readPhoto(request: FastifyRequest): Promise<Buffer> {
-  if (!request.isMultipart()) {
-    throw new HttpError(400, 'validation_error', 'Липсва снимка');
+  const file = request.isMultipart() ? await request.file() : undefined;
+  if (file?.fieldname !== PHOTO_FIELD) {
+    throw missingPhoto();
   }
   try {
-    const file = await request.file();
-    if (!file || file.fieldname !== PHOTO_FIELD) {
-      throw new HttpError(400, 'validation_error', 'Липсва снимка');
-    }
     return await file.toBuffer();
   } catch (error) {
-    if ((error as { code?: unknown }).code === 'FST_REQ_FILE_TOO_LARGE') {
-      throw new HttpError(
-        413,
-        'photo_too_large',
-        `Снимката е над ${megabytes(STEP_PHOTO_MAX_BYTES)} MB. Опитай с по-малка.`,
-      );
-    }
-    throw error;
+    throw photoTooLarge(error, STEP_PHOTO_MAX_BYTES) ?? error;
   }
 }

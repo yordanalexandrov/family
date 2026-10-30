@@ -1,5 +1,5 @@
 import { extractRecipe, type StepImages } from './extract.js';
-import { fetchPage, type PageFetchFailure } from './fetch.js';
+import { type FetchReason, fetchPage, type PageFetchFailure } from './fetch.js';
 
 export type { StepImages } from './extract.js';
 export { type FetchedImage, fetchImage } from './fetch.js';
@@ -17,7 +17,12 @@ export type RecipePage =
       stepImages?: StepImages;
       text?: string;
     }
-  | { ok: false; url: string; failure: PageFetchFailure; reason: string };
+  | {
+      ok: false;
+      url: string;
+      failure: PageFetchFailure;
+      reason: FetchReason | 'empty_page';
+    };
 
 /** Fetches the page of an import by link and extracts its recipe (`fetch.ts`, then `extract.ts`). Never throws. */
 export async function readRecipePage(url: string): Promise<RecipePage> {

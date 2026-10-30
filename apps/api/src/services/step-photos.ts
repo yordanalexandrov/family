@@ -1,4 +1,10 @@
-import { DAY_MS, STEP_PHOTO_MAX_SIDE, startOfDayInSofia } from '@family/shared';
+import {
+  DAY_MS,
+  HOUR_MS,
+  type RecipeStep,
+  STEP_PHOTO_MAX_SIDE,
+  startOfDayInSofia,
+} from '@family/shared';
 import decodeHeic from 'heic-decode';
 import sharp, { type Sharp } from 'sharp';
 import type { DbExecutor } from '../db/client.js';
@@ -11,8 +17,6 @@ import { NotFoundError, UnsupportedPhotoError } from './errors.js';
 import { photoType } from './recipe-photo.js';
 
 const JPEG_QUALITY = 82;
-
-const HOUR_MS = 3_600_000;
 
 /** The night hours in Sofia when the cron removes orphans: an edit given up in the evening loses nothing till morning. */
 const ORPHAN_CLEANUP_HOURS = { from: 3, to: 5 };
@@ -37,6 +41,11 @@ export async function removeOrphanStepPhotos(
     db,
     new Date(now.getTime() - ORPHAN_MIN_AGE_MS),
   );
+}
+
+/** The photos `steps` point at, each once, in the order of the steps. */
+export function stepPhotoIds(steps: readonly RecipeStep[]): string[] {
+  return [...new Set(steps.flatMap((step) => step.photoId ?? []))];
 }
 
 const NOT_A_PHOTO = 'Това не е снимка (JPEG, PNG, WebP или HEIC).';
