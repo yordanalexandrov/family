@@ -1,4 +1,5 @@
-import { useRef } from 'react';
+import { type CSSProperties, useRef } from 'react';
+import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
 const SWIPE_MIN_PX = 50;
@@ -14,7 +15,7 @@ interface CookingStepsProps {
   onDone: () => void;
 }
 
-/** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст, „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
+/** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст с A−/A+, „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
 export function CookingSteps({
   steps,
   step,
@@ -29,6 +30,10 @@ export function CookingSteps({
     }
   };
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [textSize, setTextSize] = useCookingTextSize();
+  const sizeIndex = COOKING_TEXT_SIZES.indexOf(
+    textSize as (typeof COOKING_TEXT_SIZES)[number],
+  );
   return (
     <section
       className="cooking-steps"
@@ -58,15 +63,46 @@ export function CookingSteps({
         <p className="cooking-steps__count">
           Стъпка {step + 1} от {steps.length}
         </p>
-        <button
-          type="button"
-          className="button button--quiet"
-          onClick={onClose}
-        >
-          Затвори
-        </button>
+        <div className="cooking-steps__tools">
+          <button
+            type="button"
+            className="button button--quiet cooking-steps__size"
+            aria-label="По-дребен текст"
+            disabled={sizeIndex <= 0}
+            onClick={() =>
+              setTextSize(COOKING_TEXT_SIZES[sizeIndex - 1] ?? textSize)
+            }
+          >
+            A−
+          </button>
+          <button
+            type="button"
+            className="button button--quiet cooking-steps__size"
+            aria-label="По-едър текст"
+            disabled={sizeIndex >= COOKING_TEXT_SIZES.length - 1}
+            onClick={() =>
+              setTextSize(COOKING_TEXT_SIZES[sizeIndex + 1] ?? textSize)
+            }
+          >
+            A+
+          </button>
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={onClose}
+          >
+            Затвори
+          </button>
+        </div>
       </header>
-      <p className="cooking-steps__text">{steps[step]}</p>
+      {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
+      <p
+        key={step}
+        className="cooking-steps__text"
+        style={{ '--cooking-text-scale': textSize } as CSSProperties}
+      >
+        {steps[step]}
+      </p>
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (
