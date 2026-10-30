@@ -703,6 +703,36 @@ describe('POST /api/recipe-suggestions/:id/restore', () => {
     ).toBe(201);
   });
 
+  it('restores without a step photo the nightly cleanup removed while the suggestion was rejected', async () => {
+    const kept = await storedStepPhoto(app);
+    const removed = await storedStepPhoto(app);
+    const suggestion = await withStepPhoto(await aSuggestion(), removed);
+    await testDb().execute(
+      sql`update recipe_suggestion set payload = jsonb_set(payload, '{steps,1,photoId}', to_jsonb(${kept}::text)) where id = ${suggestion.id}`,
+    );
+    await decide(suggestion.id, 'reject');
+    // The nightly cleanup (#240) took one of the rejected suggestion's photos.
+    await testDb().execute(sql`delete from step_photo where id = ${removed}`);
+
+    const response = await decide(suggestion.id, 'restore');
+
+    expect(response.statusCode).toBe(200);
+    const [first, second] = suggestion.payload.steps;
+    expect(response.json().suggestion.payload.steps.slice(0, 2)).toEqual([
+      { text: first?.text },
+      { text: second?.text, photoId: kept },
+    ]);
+    const detail = (await getRequest(suggestion.requestId)).json();
+    expect(detail.suggestions[0].payload.steps[0]).toEqual({
+      text: first?.text,
+    });
+    const restored = recipeSuggestionSchema.parse(detail.suggestions[0]);
+    expect(
+      (await decide(suggestion.id, 'approve', await editedInput(restored)))
+        .statusCode,
+    ).toBe(201);
+  });
+
   it('refuses a suggestion that is approved or still proposed with 409, and an unknown one with 404', async () => {
     const suggestion = await aSuggestion();
 
