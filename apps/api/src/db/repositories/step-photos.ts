@@ -47,25 +47,27 @@ export async function existingStepPhotoIds(
 
 /**
  * Deletes every photo uploaded before `uploadedBefore` that no step points at: neither of a recipe (archived ones too)
- * nor of a proposed suggestion's payload. Answers how many it deleted.
+ * nor of a proposed suggestion's payload. Answers how many it deleted. A step's `photoId` is compared as text, so one
+ * that is JSON `null` or not an id points at nothing and cannot stop the cleanup; case does not matter, as in a uuid.
  */
 export async function deleteOrphanStepPhotos(
   db: DbExecutor,
   uploadedBefore: Date,
 ): Promise<number> {
-  const used = sql`(
-    select (s->>'photoId')::uuid from recipe, jsonb_array_elements(recipe.steps) s
-      where s ? 'photoId'
-    union
-    select (s->>'photoId')::uuid from recipe_suggestion, jsonb_array_elements(recipe_suggestion.payload->'steps') s
-      where recipe_suggestion.status = 'proposed' and s ? 'photoId'
-  )`;
+  const photoId = sql`${stepPhoto.id}::text`;
   const deleted = await db
     .delete(stepPhoto)
     .where(
       and(
         lt(stepPhoto.createdAt, uploadedBefore),
-        sql`${stepPhoto.id} not in ${used}`,
+        sql`not exists (
+          select 1 from recipe, jsonb_array_elements(recipe.steps) s
+            where lower(s->>'photoId') = ${photoId}
+        )`,
+        sql`not exists (
+          select 1 from recipe_suggestion, jsonb_array_elements(recipe_suggestion.payload->'steps') s
+            where recipe_suggestion.status = 'proposed' and lower(s->>'photoId') = ${photoId}
+        )`,
       ),
     )
     .returning({ id: stepPhoto.id });

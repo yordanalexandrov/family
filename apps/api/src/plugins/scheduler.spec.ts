@@ -1,4 +1,4 @@
-import type { ImportPayload } from '@family/shared';
+import type { ImportPayload, RecipeStep } from '@family/shared';
 import { dashboardResponseSchema } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -406,6 +406,38 @@ describe('scheduler', () => {
           expect.objectContaining({ job: 'step-photo-orphans', removed: 3 }),
         );
       });
+    });
+
+    it('removes the orphans also when a step has a photoId of JSON null or not an id', async () => {
+      const ids = await photos();
+      await testDb()
+        .insert(recipe)
+        .values({
+          title: 'Рецепта с празна снимка',
+          servings: 2,
+          steps: [
+            { text: 'Нарежи.', photoId: null },
+            { text: 'Печи.', photoId: 'не-е-id' },
+          ] as unknown as RecipeStep[],
+          tags: ['dinner'],
+        });
+      const log = capturedLog();
+      app = buildTestApp({
+        openclaw: undefined,
+        // 03:30 in Sofia.
+        now: () => new Date('2026-11-05T01:30:00Z'),
+        logger: log.logger,
+        scheduler: { firstRunDelayMs: 0 },
+      });
+      await app.ready();
+
+      await vi.waitFor(() => {
+        expect(log.lines).toContainEqual(
+          expect.objectContaining({ job: 'step-photo-orphans', removed: 3 }),
+        );
+      });
+      expect(await photoStatus(ids.unsaved)).toBe(404);
+      expect(await photoStatus(ids.inRecipe)).toBe(200);
     });
 
     it('keeps orphans during the day', async () => {
