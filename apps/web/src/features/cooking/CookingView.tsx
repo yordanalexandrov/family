@@ -47,7 +47,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       <main className="cooking cooking--narrow" aria-label={recipe.title}>
         <button
           type="button"
-          className="button cooking__ingredients-button"
+          className="button button--quiet cooking__ingredients-button"
           aria-haspopup="dialog"
           aria-expanded={sheetOpen}
           onClick={() => setSheetOpen(true)}
