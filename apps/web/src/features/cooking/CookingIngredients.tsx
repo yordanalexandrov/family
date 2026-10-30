@@ -13,7 +13,7 @@ interface CookingIngredientsProps {
 }
 
 /**
- * Колоната „Продукти“ на Готвене: порциите с −/+ и продуктите с количествата за тях. Прибрана е тясна лента
+ * Колоната „Продукти“ на Готвене на широк екран (съдържанието е `CookingIngredientsBody`). Прибрана е тясна лента
  * „Продукти (N)“, която я отваря отново.
  */
 export function CookingIngredients({
@@ -57,6 +57,31 @@ export function CookingIngredients({
           ‹
         </button>
       </header>
+      <CookingIngredientsBody
+        ingredients={ingredients}
+        recipeServings={recipeServings}
+        servings={servings}
+        onServingsChange={onServingsChange}
+      />
+    </section>
+  );
+}
+
+/**
+ * Съдържанието на „Продукти“: порциите с −/+ и продуктите с количествата за тях. Едно и също в колоната на широк
+ * екран и в листа на тесен.
+ */
+export function CookingIngredientsBody({
+  ingredients,
+  recipeServings,
+  servings,
+  onServingsChange,
+}: Pick<
+  CookingIngredientsProps,
+  'ingredients' | 'recipeServings' | 'servings' | 'onServingsChange'
+>) {
+  return (
+    <>
       <div className="cooking-ingredients__servings">
         <button
           type="button"
@@ -77,10 +102,7 @@ export function CookingIngredients({
           +
         </button>
       </div>
-      <ul
-        className="cooking-ingredients__lines"
-        aria-labelledby="cooking-ingredients-title"
-      >
+      <ul className="cooking-ingredients__lines" aria-label="Продукти">
         {ingredients.map((line, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: един продукт може да е на два реда, а редовете нямат id.
           <li key={index} className="cooking-ingredients__line">
@@ -91,6 +113,6 @@ export function CookingIngredients({
           </li>
         ))}
       </ul>
-    </section>
+    </>
   );
 }

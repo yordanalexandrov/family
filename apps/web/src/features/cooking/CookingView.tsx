@@ -1,6 +1,12 @@
 import type { Recipe } from '@family/shared';
 import { useState } from 'react';
-import { CookingIngredients } from './CookingIngredients';
+import { Sheet } from '../../components/Sheet';
+import { SHEET_WINDOW_QUERY } from '../../components/sheet-drag';
+import { useMediaQuery } from '../../lib/use-media-query';
+import {
+  CookingIngredients,
+  CookingIngredientsBody,
+} from './CookingIngredients';
 import { CookingSteps } from './CookingSteps';
 import './cooking.css';
 
@@ -13,8 +19,10 @@ interface CookingViewProps {
 }
 
 /**
- * Готвене (GLOSSARY) на широк екран: колоната „Продукти“ вляво, една стъпка вдясно. Нищо не се записва: порциите,
- * стъпката и дали колоната е отворена живеят само на екрана.
+ * Готвене (GLOSSARY). На широк екран колоната „Продукти“ е вляво, една стъпка вдясно; на тесен (телефон изправен)
+ * стъпката е на целия екран, а продуктите са в лист отдолу зад бутона „Продукти (N)“. Границата е тази на листа:
+ * от нея нагоре той е прозорец, не лист отдолу. Нищо не се записва: порциите, стъпката и дали колоната (или
+ * листът) е отворена живеят само на екрана.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
@@ -22,6 +30,46 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   );
   const [step, setStep] = useState(0);
   const [ingredientsOpen, setIngredientsOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
+
+  const steps = (
+    <CookingSteps
+      steps={recipe.steps}
+      step={step}
+      onStepChange={setStep}
+      onExit={onExit}
+    />
+  );
+
+  if (!wide) {
+    return (
+      <main className="cooking cooking--narrow" aria-label={recipe.title}>
+        <button
+          type="button"
+          className="button cooking__ingredients-button"
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+          onClick={() => setSheetOpen(true)}
+        >
+          Продукти ({recipe.ingredients.length})
+        </button>
+        {steps}
+        {sheetOpen && (
+          <Sheet title="Продукти" onClose={() => setSheetOpen(false)}>
+            <div className="sheet__section">
+              <CookingIngredientsBody
+                ingredients={recipe.ingredients}
+                recipeServings={recipe.servings}
+                servings={shownServings}
+                onServingsChange={setShownServings}
+              />
+            </div>
+          </Sheet>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main
@@ -36,12 +84,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
         open={ingredientsOpen}
         onOpenChange={setIngredientsOpen}
       />
-      <CookingSteps
-        steps={recipe.steps}
-        step={step}
-        onStepChange={setStep}
-        onExit={onExit}
-      />
+      {steps}
     </main>
   );
 }

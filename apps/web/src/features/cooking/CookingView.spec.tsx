@@ -2,7 +2,7 @@ import type { Recipe } from '@family/shared';
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it, onTestFinished } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import { dani, server } from '../../test/msw';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
@@ -258,7 +258,64 @@ describe('Готвене', () => {
     ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/recipes/${stew.id}`);
   });
+  it('на тесен екран няма колона: „Продукти (N)“ отваря и затваря лист със същото съдържание', async () => {
+    const user = userEvent.setup();
+    stubNarrowScreen();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+
+    expect(await screen.findByText('Стъпка 1 от 3')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Продукти' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Прибери продуктите' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Продукти (3)' }));
+
+    const sheet = screen.getByRole('dialog', { name: 'Продукти' });
+    expect(
+      within(within(sheet).getByRole('list', { name: 'Продукти' }))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['пилешко филе500 г', 'лук2 бр.', 'солпо вкус']);
+
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Една порция повече' }),
+    );
+    expect(within(sheet).getByText('за 5 порции')).toBeInTheDocument();
+    expect(within(sheet).getByText('625 г')).toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Стъпка 1 от 3')).toBeInTheDocument();
+
+    // Порциите остават на екрана: листът се отваря отново със същите.
+    await user.click(screen.getByRole('button', { name: 'Продукти (3)' }));
+    expect(
+      within(screen.getByRole('dialog', { name: 'Продукти' })).getByText(
+        'за 5 порции',
+      ),
+    ).toBeInTheDocument();
+  });
 });
+
+/** Телефон в изправено положение: никоя `min-width` медия-заявка не важи. */
+function stubNarrowScreen() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+}
 
 /** Плъзгане с пръст по `element` от `fromX` до `toX`. */
 function swipe(
