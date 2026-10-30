@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { SHEET_WINDOW_QUERY } from '../../components/sheet-drag';
 import { useMediaQuery } from '../../lib/use-media-query';
+import { type CookingProducts, productsLabel } from './CookingChecklist';
 import {
   CookingIngredients,
   CookingIngredientsBody,
@@ -35,6 +36,14 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
+  const products: CookingProducts = {
+    ingredients: recipe.ingredients,
+    recipeServings: recipe.servings,
+    servings: shownServings,
+    onServingsChange: setShownServings,
+    used,
+    onToggleUsed: toggleUsed,
+  };
 
   const steps = (
     <CookingSteps
@@ -59,20 +68,13 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
           aria-expanded={sheetOpen}
           onClick={() => setSheetOpen(true)}
         >
-          Продукти ({recipe.ingredients.length - used.length})
+          {productsLabel(products)}
         </button>
         {steps}
         {sheetOpen && (
           <Sheet title="Продукти" onClose={() => setSheetOpen(false)}>
             <div className="sheet__section">
-              <CookingIngredientsBody
-                ingredients={recipe.ingredients}
-                recipeServings={recipe.servings}
-                servings={shownServings}
-                onServingsChange={setShownServings}
-                used={used}
-                onToggleUsed={toggleUsed}
-              />
+              <CookingIngredientsBody products={products} />
             </div>
           </Sheet>
         )}
@@ -86,12 +88,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       aria-label={recipe.title}
     >
       <CookingIngredients
-        ingredients={recipe.ingredients}
-        recipeServings={recipe.servings}
-        servings={shownServings}
-        onServingsChange={setShownServings}
-        used={used}
-        onToggleUsed={toggleUsed}
+        products={products}
         open={ingredientsOpen}
         onOpenChange={setIngredientsOpen}
       />

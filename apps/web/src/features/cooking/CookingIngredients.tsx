@@ -1,17 +1,12 @@
-import type { Recipe } from '@family/shared';
 import { formatServings } from '../../lib/format';
-import { CookingChecklist } from './CookingChecklist';
+import {
+  CookingChecklist,
+  type CookingProducts,
+  productsLabel,
+} from './CookingChecklist';
 
 interface CookingIngredientsProps {
-  ingredients: Recipe['ingredients'];
-  /** Порциите, за които е написана рецептата. */
-  recipeServings: number;
-  /** Порциите на екрана; количествата са мащабирани към тях. */
-  servings: number;
-  onServingsChange: (servings: number) => void;
-  /** Индексите на отметнатите („използвани“) редове. */
-  used: readonly number[];
-  onToggleUsed: (index: number) => void;
+  products: CookingProducts;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -21,12 +16,7 @@ interface CookingIngredientsProps {
  * „Продукти (N)“, която я отваря отново.
  */
 export function CookingIngredients({
-  ingredients,
-  recipeServings,
-  servings,
-  onServingsChange,
-  used,
-  onToggleUsed,
+  products,
   open,
   onOpenChange,
 }: CookingIngredientsProps) {
@@ -39,7 +29,7 @@ export function CookingIngredients({
         onClick={() => onOpenChange(true)}
       >
         <span className="cooking-ingredients__strip">
-          Продукти ({ingredients.length - used.length})
+          {productsLabel(products)}
         </span>
       </button>
     );
@@ -63,14 +53,7 @@ export function CookingIngredients({
           ‹
         </button>
       </header>
-      <CookingIngredientsBody
-        ingredients={ingredients}
-        recipeServings={recipeServings}
-        servings={servings}
-        onServingsChange={onServingsChange}
-        used={used}
-        onToggleUsed={onToggleUsed}
-      />
+      <CookingIngredientsBody products={products} />
     </section>
   );
 }
@@ -80,13 +63,11 @@ export function CookingIngredients({
  * екран и в листа на тесен.
  */
 export function CookingIngredientsBody({
-  ingredients,
-  recipeServings,
-  servings,
-  onServingsChange,
-  used,
-  onToggleUsed,
-}: Omit<CookingIngredientsProps, 'open' | 'onOpenChange'>) {
+  products,
+}: {
+  products: CookingProducts;
+}) {
+  const { servings, onServingsChange } = products;
   return (
     <>
       <div className="cooking-ingredients__servings">
@@ -109,13 +90,7 @@ export function CookingIngredientsBody({
           +
         </button>
       </div>
-      <CookingChecklist
-        ingredients={ingredients}
-        recipeServings={recipeServings}
-        servings={servings}
-        used={used}
-        onToggleUsed={onToggleUsed}
-      />
+      <CookingChecklist products={products} />
     </>
   );
 }
