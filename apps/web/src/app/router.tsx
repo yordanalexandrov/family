@@ -205,7 +205,7 @@ const deviceRoute = createRoute({
   component: DeviceScreen,
 });
 
-// Регистър рецепти: телефон и таблет; не влиза в kiosk/TV навигацията.
+// Регистър рецепти: телефон и браузър; kiosk го отваря за четене от „Рецепти“ на дашборда, TV го няма.
 const recipesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes',

@@ -62,11 +62,17 @@
   scale: 0.985;
 }
 
-/* Дискретната икона за настройки в долния десен ъгъл. */
-.kiosk__settings {
+/* Долният десен ъгъл: „Рецепти“ и дискретната икона за настройки. */
+.kiosk__corner {
   position: fixed;
   inset-block-end: max(var(--space-3), env(safe-area-inset-bottom));
   inset-inline-end: max(var(--space-3), env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.kiosk__settings {
   display: grid;
   place-items: center;
   inline-size: var(--touch-target);
