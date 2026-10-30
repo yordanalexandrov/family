@@ -159,13 +159,30 @@
 
 .cooking-steps__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
+}
+
+/* „‹ Стъпка X от N ›“: малки бутони със стрелки над текста, за да остане височината за стъпката. */
+.cooking-steps__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cooking-steps__go {
+  inline-size: var(--touch-target);
+  padding: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
 }
 
 .cooking-steps__tools {
   display: flex;
+  /* Пренесени на втори ред (тесен екран) остават вдясно. */
+  margin-inline-start: auto;
   align-items: center;
   gap: var(--space-2);
 }
@@ -189,10 +206,8 @@
   margin: 0;
   overflow-y: auto;
   /* `--cooking-text-scale` е от A−/A+. */
-  font-size: calc(
-    clamp(1.75rem, 1rem + 2.2vw, 3.25rem) *
-    var(--cooking-text-scale, 1)
-  );
+  --cooking-text-base: clamp(1.75rem, 1rem + 2.2vw, 3.25rem);
+  font-size: calc(var(--cooking-text-base) * var(--cooking-text-scale, 1));
   line-height: 1.35;
   overflow-wrap: break-word;
 }
@@ -233,17 +248,6 @@
   transform: scale(1.4);
 }
 
-.cooking-steps__nav {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: var(--space-3);
-}
-
-.cooking-steps__button {
-  min-block-size: calc(var(--touch-target) * 1.5);
-  font-size: var(--font-size-lg);
-}
-
 /* Тесен екран (CookingView по границата на листа): стъпката е на цялата ширина, продуктите са в лист зад бутона. */
 .cooking--narrow {
   grid-template-columns: 1fr;
@@ -252,4 +256,32 @@
 
 .cooking__ingredients-button {
   font-size: var(--font-size-lg);
+}
+
+/*
+ * Нисък екран (телефон легнал: ~320 px под долната лента): по-тесни отстъпи, без точките (позицията е в
+ * „Стъпка X от N“, плъзгането остава) и база на шрифта по височината, не по ширината.
+ */
+@media (max-height: 32rem) {
+  .cooking {
+    padding-block: var(--space-2)
+      calc(var(--space-2) + var(--bottom-nav-space, 0px));
+  }
+
+  .cooking-steps {
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .cooking-steps__text {
+    --cooking-text-base: 1.5rem;
+  }
+
+  .cooking-steps__dots {
+    display: none;
+  }
+
+  .cooking-ingredients {
+    padding: var(--space-3);
+  }
 }
