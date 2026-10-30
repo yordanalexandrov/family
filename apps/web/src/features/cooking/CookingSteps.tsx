@@ -15,7 +15,7 @@ interface CookingStepsProps {
   onDone: () => void;
 }
 
-/** Стъпките на Готвене една по една: „Стъпка X от N“, едър текст с A−/A+, „Назад“ и „Напред“/„Готово“, точки за прескачане и плъзгане наляво/надясно. */
+/** Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над едрия текст с A−/A+, точки за прескачане и плъзгане наляво/надясно. */
 export function CookingSteps({
   steps,
   step,
@@ -60,9 +60,39 @@ export function CookingSteps({
       }}
     >
       <header className="cooking-steps__head">
-        <p className="cooking-steps__count">
-          Стъпка {step + 1} от {steps.length}
-        </p>
+        <div className="cooking-steps__nav">
+          <button
+            type="button"
+            className="button button--quiet cooking-steps__go"
+            aria-label="Назад"
+            disabled={step === 0}
+            onClick={() => go(step - 1)}
+          >
+            ‹
+          </button>
+          <p className="cooking-steps__count">
+            Стъпка {step + 1} от {steps.length}
+          </p>
+          {last ? (
+            <button
+              type="button"
+              className="button cooking-steps__go"
+              aria-label="Готово"
+              onClick={onDone}
+            >
+              ✓
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button cooking-steps__go"
+              aria-label="Напред"
+              onClick={() => go(step + 1)}
+            >
+              ›
+            </button>
+          )}
+        </div>
         <div className="cooking-steps__tools">
           <button
             type="button"
@@ -116,33 +146,6 @@ export function CookingSteps({
             onClick={() => go(index)}
           />
         ))}
-      </div>
-      <div className="cooking-steps__nav">
-        <button
-          type="button"
-          className="button button--quiet cooking-steps__button"
-          disabled={step === 0}
-          onClick={() => go(step - 1)}
-        >
-          Назад
-        </button>
-        {last ? (
-          <button
-            type="button"
-            className="button cooking-steps__button"
-            onClick={onDone}
-          >
-            Готово
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="button cooking-steps__button"
-            onClick={() => go(step + 1)}
-          >
-            Напред
-          </button>
-        )}
       </div>
     </section>
   );
