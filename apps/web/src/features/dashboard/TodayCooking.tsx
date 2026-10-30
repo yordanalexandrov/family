@@ -19,7 +19,7 @@ interface TodayCookingProps {
    * При днешна рецепта редът отваря нея вместо менюто: телефон — изгледа на рецептата (`view`), kiosk — Готвене с
    * порциите на ястието (`cooking`).
    */
-  opensRecipe?: RecipeTarget;
+  recipeTarget?: RecipeTarget;
 }
 
 export type RecipeTarget = 'view' | 'cooking';
@@ -33,7 +33,7 @@ export type RecipeTarget = 'view' | 'cooking';
 export function TodayCooking({
   dinner,
   opensMenu = false,
-  opensRecipe,
+  recipeTarget,
 }: TodayCookingProps) {
   const users = useUsers();
   const actor = useWritingUserId();
@@ -55,10 +55,10 @@ export function TodayCooking({
       <Row
         opensMenu={opensMenu}
         recipe={
-          opensRecipe && dinner?.recipeId
+          recipeTarget && dinner?.recipeId
             ? {
                 id: dinner.recipeId,
-                target: opensRecipe,
+                target: recipeTarget,
                 servings: dinner.servings && totalServings(dinner.servings),
               }
             : null

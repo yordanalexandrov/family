@@ -38,7 +38,7 @@ interface CoreProps {
   /** kiosk, телефон: „Днес се готви“ води към менюто. */
   opensMenu?: boolean;
   /** Днешна рецепта в „Днес се готви“ води вместо към менюто: телефон — към рецептата, kiosk — към Готвене. */
-  opensRecipe?: RecipeTarget;
+  recipeTarget?: RecipeTarget;
   /** kiosk: останалото ядро води към календара (връзка под съдържанието, по целия кръг). */
   opensCalendar?: boolean;
 }
@@ -54,7 +54,7 @@ export function Core({
   showHiddenCount = false,
   onSelectEvent,
   opensMenu = false,
-  opensRecipe,
+  recipeTarget,
   opensCalendar = false,
 }: CoreProps) {
   const { unconfigured, stale } = syncNotes(sync, now);
@@ -121,7 +121,7 @@ export function Core({
         <TodayCooking
           dinner={cooking.dinner}
           opensMenu={opensMenu}
-          opensRecipe={opensRecipe}
+          recipeTarget={recipeTarget}
         />
         {staleNote && <p className="core__stale">{staleNote}</p>}
       </div>

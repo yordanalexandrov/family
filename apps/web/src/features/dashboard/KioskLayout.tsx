@@ -52,7 +52,7 @@ export function KioskLayout({ state, now, interactive }: KioskLayoutProps) {
         maxEvents={CORE_MAX_EVENTS}
         showHiddenCount
         opensMenu={interactive}
-        opensRecipe="cooking"
+        recipeTarget="cooking"
         opensCalendar={interactive}
       />
     ),
