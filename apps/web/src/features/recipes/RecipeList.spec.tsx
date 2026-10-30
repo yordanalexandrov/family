@@ -322,6 +322,69 @@ describe('RecipeList', () => {
     expect(screen.getByRole('button', { name: 'Изчисти' })).toBeInTheDocument();
   });
 
+  it.each(['phone', 'browser'] as const)(
+    'на %s регистърът предлага „Нова“, „Внеси“ и „Поискай предложения“',
+    async (mode) => {
+      setUpDevice(mode, dani.id);
+      serveRecipes();
+
+      renderApp('/recipes');
+
+      await screen.findByRole('link', { name: /Омлет/ });
+      expect(screen.getByRole('link', { name: 'Нова рецепта' })).toBeVisible();
+      expect(screen.getByRole('link', { name: 'Внеси' })).toBeVisible();
+      expect(
+        screen.getByRole('link', { name: 'Поискай предложения' }),
+      ).toBeVisible();
+      expect(screen.queryByRole('link', { name: 'Назад' })).toBeNull();
+    },
+  );
+
+  it('на kiosk регистърът е само за четене: търсене и филтри без „Нова“, „Внеси“ и „Поискай предложения“', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk', dani.id);
+    const queries = serveRecipes();
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({ recipe: chickenWithRice }),
+      ),
+    );
+
+    renderApp('/recipes');
+
+    await screen.findByRole('link', { name: /Омлет/ });
+    expect(screen.queryByRole('link', { name: 'Нова рецепта' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Внеси' })).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: 'Поискай предложения' }),
+    ).toBeNull();
+
+    await user.type(screen.getByRole('searchbox', { name: 'Търси' }), 'пиле');
+    await expect.poll(() => queries.at(-1)?.get('q')).toBe('пиле');
+    await user.click(screen.getByRole('button', { name: 'Филтри' }));
+    await user.click(screen.getByRole('button', { name: 'закуска' }));
+    await expect.poll(() => queries.at(-1)?.get('tag')).toBe('breakfast');
+    await user.click(screen.getByRole('button', { name: 'Готово' }));
+
+    await user.click(screen.getByRole('link', { name: /Пиле с ориз/ }));
+    expect(
+      await screen.findByRole('heading', { name: 'Пиле с ориз' }),
+    ).toBeInTheDocument();
+  });
+
+  it('на kiosk празният регистър няма бутони за добавяне', async () => {
+    setUpDevice('kiosk');
+    serveRecipes([]);
+
+    renderApp('/recipes');
+
+    expect(await screen.findByText('Няма рецепти.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Добави рецепта' })).toBeNull();
+    expect(
+      screen.queryByRole('link', { name: 'Поискай предложения' }),
+    ).toBeNull();
+  });
+
   it('от долната навигация на телефона води към „Рецепти“ и я държи активна', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);

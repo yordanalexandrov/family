@@ -10,6 +10,7 @@ import {
   fixtureNow,
   server,
 } from '../../test/msw';
+import { chickenWithRice, toSummary } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 
 async function region(name: string) {
@@ -164,6 +165,27 @@ describe('KioskLayout', () => {
       await screen.findByRole('heading', { name: 'Настройки' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Назад' })).toBeVisible();
+  });
+
+  it('„Рецепти“ до настройките отваря регистъра; „Назад“ връща дашборда', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('/api/recipes', () =>
+        HttpResponse.json({ recipes: [toSummary(chickenWithRice)] }),
+      ),
+    );
+    renderApp('/');
+
+    await user.click(await screen.findByRole('link', { name: 'Рецепти' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Рецепти' }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('link', { name: /Пиле с ориз/ }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Назад' }));
+    expect(await region('Днес накратко')).toBeTruthy();
   });
 
   it('401 → цял екран „Сесията изтече · докосни за вход“', async () => {

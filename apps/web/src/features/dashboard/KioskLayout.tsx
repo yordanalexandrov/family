@@ -117,9 +117,18 @@ export function KioskLayout({ state, now, interactive }: KioskLayoutProps) {
         )}
       </div>
       {interactive && (
-        <Link to="/settings" className="kiosk__settings" aria-label="Настройки">
-          <SettingsIcon />
-        </Link>
+        <nav className="kiosk__corner" aria-label="Още">
+          <Link to="/recipes" className="button button--quiet kiosk__recipes">
+            Рецепти
+          </Link>
+          <Link
+            to="/settings"
+            className="kiosk__settings"
+            aria-label="Настройки"
+          >
+            <SettingsIcon />
+          </Link>
+        </nav>
       )}
     </main>
   );
