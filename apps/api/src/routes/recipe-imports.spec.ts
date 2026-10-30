@@ -186,6 +186,14 @@ describe('POST /api/recipe-imports', () => {
       status: 'proposed',
       payload: { title: 'Пилешко филе с ориз на фурна', servings: 4 },
     });
+    // The contract's steps of text are stored as step objects, in order and without photos.
+    expect(suggestion.payload.steps).toEqual([
+      { text: 'Нарежете пилето на хапки и го овкусете със сол и сумак.' },
+      { text: 'Запечете го за 10 минути.' },
+      {
+        text: 'Добавете ориза и чесъна, залейте с 2 чаши вода и печете още 30 минути на 200 градуса.',
+      },
+    ]);
     expect(body.request.suggestionId).toBe(suggestion.id);
     expect(suggestion.payload).not.toHaveProperty('nutritionPer100g');
     // The registry ingredients the lines are linked to, for the review; the new product is not among them.
@@ -702,7 +710,7 @@ describe('a title already in the registry', () => {
       payload: {
         title,
         servings: 4,
-        steps: ['Нарежи.', 'Печи.'],
+        steps: [{ text: 'Нарежи.' }, { text: 'Печи.' }],
         tags: ['dinner'],
         ingredients: [],
       },

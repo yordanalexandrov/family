@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
@@ -78,5 +78,23 @@ export async function resetDatabase(db: Db): Promise<void> {
   // The data migrations (`<n>_seed_*`: Дани and Поли, the seed ingredients) are idempotent (`on conflict do nothing`).
   for (const migration of await dataMigrations()) {
     await db.$client.query(await readFile(migration.path, 'utf8'));
+  }
+}
+
+/**
+ * Runs a migration of `apps/api/drizzle` again, found by the end of its name (`_recipe_step_object`), not its number:
+ * the setup ran it once over empty tables, so a spec that stores rows in their old shape runs it over them.
+ */
+export async function rerunMigration(db: Db, nameEnd: string): Promise<void> {
+  const drizzle = new URL('../../drizzle/', import.meta.url);
+  const file = (await readdir(drizzle)).find((name) =>
+    name.endsWith(`${nameEnd}.sql`),
+  );
+  if (!file) {
+    throw new Error(`no migration *${nameEnd}.sql`);
+  }
+  const text = await readFile(new URL(file, drizzle), 'utf8');
+  for (const statement of text.split('--> statement-breakpoint')) {
+    await db.execute(sql.raw(statement));
   }
 }

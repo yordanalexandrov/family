@@ -5,7 +5,7 @@ import { suggestionSchema } from '../contracts/recipe-suggest.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
-import { recipeInputSchema, recipeSchema } from './recipe.js';
+import { recipeInputSchema, recipeSchema, recipeStepSchema } from './recipe.js';
 
 /** One run of `recipe.suggest` by a user (GLOSSARY: Заявка за предложения). */
 export const suggestionRequestSchema = z.object({
@@ -56,13 +56,33 @@ const readFields = {
   duplicateOf: duplicateOfSchema.optional(),
 };
 
+/**
+ * A `Suggestion` of `recipe.suggest` as a suggestion stores it: its steps are step objects (with a place for a photo),
+ * not the contract's text.
+ */
+export const suggestionPayloadSchema = suggestionSchema.extend({
+  steps: z.array(recipeStepSchema).min(2),
+});
+
+export type SuggestionPayload = z.infer<typeof suggestionPayloadSchema>;
+
+/**
+ * A `NormalizedRecipe` of `recipe.normalize` as an import's suggestion stores it: its steps are step objects (with a
+ * place for a photo), not the contract's text.
+ */
+export const importPayloadSchema = normalizedRecipeSchema.extend({
+  steps: z.array(recipeStepSchema).min(1),
+});
+
+export type ImportPayload = z.infer<typeof importPayloadSchema>;
+
 /** One of the 3–5 recipes returned for a suggestion request (GLOSSARY: Предложение за рецепта). */
 export const recipeSuggestionSchema = z.object({
   ...decisionFields,
   ...readFields,
   origin: z.literal('suggest'),
   requestId: z.uuid(),
-  payload: suggestionSchema,
+  payload: suggestionPayloadSchema,
 });
 
 export type RecipeSuggestion = z.infer<typeof recipeSuggestionSchema>;
@@ -73,14 +93,14 @@ export const importedSuggestionSchema = z.object({
   ...readFields,
   origin: z.literal('import'),
   importRequestId: z.uuid(),
-  payload: normalizedRecipeSchema,
+  payload: importPayloadSchema,
 });
 
 export type ImportedSuggestion = z.infer<typeof importedSuggestionSchema>;
 
 /**
  * A recipe suggestion of either origin, as approval and rejection return it (`/api/recipe-suggestions/:id/…` take both):
- * `payload` is a `Suggestion` of `recipe.suggest` or a `NormalizedRecipe` of `recipe.normalize`.
+ * `payload` is a `SuggestionPayload` (of `recipe.suggest`) or an `ImportPayload` (of `recipe.normalize`).
  */
 export const anyRecipeSuggestionSchema = z.discriminatedUnion('origin', [
   recipeSuggestionSchema,

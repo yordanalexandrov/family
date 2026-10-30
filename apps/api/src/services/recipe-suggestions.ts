@@ -8,6 +8,7 @@ import {
   type RecipeSuggestParams,
   type SuggestionRequest,
   type SuggestionRequestDetail,
+  stepsOfText,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import { listEnabledApplianceNames } from '../db/repositories/appliances.js';
@@ -98,7 +99,14 @@ export const suggestionRequestStore: ContractRequestStore<
   },
 
   async onDone(tx, request, output) {
-    await insertSuggestions(tx, request.id, output.suggestions);
+    await insertSuggestions(
+      tx,
+      request.id,
+      output.suggestions.map((suggestion) => ({
+        ...suggestion,
+        steps: stepsOfText(suggestion.steps),
+      })),
+    );
   },
 
   noResults(output) {

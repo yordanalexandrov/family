@@ -210,7 +210,10 @@ describe('ImportScreen', () => {
         servings: 4,
         prepMinutes: 40,
         tags: ['dinner'],
-        steps: ['Овкусете пилето.', 'Изпечете го 30 минути.'],
+        steps: [
+          { text: 'Овкусете пилето.' },
+          { text: 'Изпечете го 30 минути.' },
+        ],
         appliance: null,
         sourceUrl: importUrl,
         ingredients: [

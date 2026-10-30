@@ -4,16 +4,17 @@ import {
   type BaseUnit,
   baseUnitSchema,
   contractRequestStatusSchema,
-  type NormalizedRecipe,
+  type ImportPayload,
   type Nutrition,
   type PrepTimeRange,
   prepTimeRangeSchema,
   type RecipeImportSource,
+  type RecipeStep,
   type RecipeSuggestionStatus,
   recipeImportSourceSchema,
   recipeSuggestionStatusSchema,
   type Slot,
-  type Suggestion,
+  type SuggestionPayload,
   slotSchema,
   type Tag,
   tagSchema,
@@ -55,14 +56,14 @@ export const ingredient = pgTable(
   ],
 );
 
-/** A recipe in the registry (GLOSSARY: Рецепта); `steps` is a JSON array of strings. */
+/** A recipe in the registry (GLOSSARY: Рецепта); `steps` is a JSON array of `RecipeStep` objects. */
 export const recipe = pgTable(
   'recipe',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     title: text('title').notNull(),
     servings: integer('servings').notNull(),
-    steps: jsonb('steps').$type<string[]>().notNull(),
+    steps: jsonb('steps').$type<RecipeStep[]>().notNull(),
     sourceUrl: text('source_url'),
     prepMinutes: integer('prep_minutes'),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
@@ -176,7 +177,8 @@ export const recipeImportRequest = pgTable(
 
 /**
  * One suggested recipe (GLOSSARY: Предложение за рецепта), of exactly one AI request: a suggestion request
- * (`request_id`, `payload` a `Suggestion`) or an import (`import_request_id`, `payload` a `NormalizedRecipe`).
+ * (`request_id`, `payload` a `SuggestionPayload`) or an import (`import_request_id`, `payload` an `ImportPayload`).
+ * Both payloads keep the contract's recipe with its steps as `RecipeStep` objects.
  */
 export const recipeSuggestion = pgTable(
   'recipe_suggestion',
@@ -190,7 +192,9 @@ export const recipeSuggestion = pgTable(
       { onDelete: 'cascade' },
     ),
     position: integer('position').notNull(),
-    payload: jsonb('payload').$type<Suggestion | NormalizedRecipe>().notNull(),
+    payload: jsonb('payload')
+      .$type<SuggestionPayload | ImportPayload>()
+      .notNull(),
     status: text('status')
       .$type<RecipeSuggestionStatus>()
       .notNull()

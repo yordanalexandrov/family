@@ -137,7 +137,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         <ol className="recipe-view__steps" aria-labelledby="steps">
           {recipe.steps.map((step, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id, а редът им е смисълът.
-            <li key={index}>{step}</li>
+            <li key={index}>{step.text}</li>
           ))}
         </ol>
       </section>

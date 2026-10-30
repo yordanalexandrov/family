@@ -7,11 +7,13 @@ import {
   type SuggestionRequest,
   suggestionRequestSchema,
 } from '@family/shared';
+import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { CloudflareAccessOptions } from '../plugins/cloudflare-access.js';
 import { buildTestApp } from '../test/app.js';
+import { rerunMigration, testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -112,6 +114,8 @@ describe('POST /api/recipe-suggestions/requests', () => {
       payload: {
         title: fixture.suggestions[0]?.title,
         sourceUrl: fixture.suggestions[0]?.sourceUrl,
+        // The contract's steps of text are stored as step objects, in order and without photos.
+        steps: fixture.suggestions[0]?.steps.map((text) => ({ text })),
       },
     });
     expect(
@@ -208,7 +212,7 @@ describe('the recipe.suggest run', () => {
         payload: {
           title,
           servings: 2,
-          steps: ['Свари.'],
+          steps: [{ text: 'Свари.' }],
           tags: [],
           ingredients: [],
         },
@@ -632,5 +636,47 @@ describe('POST /api/recipe-suggestions/:id/restore', () => {
       (await decide('00000000-0000-4000-8000-000000000000', 'restore'))
         .statusCode,
     ).toBe(404);
+  });
+});
+
+describe('steps stored as text before they became objects (migration)', () => {
+  it('turns the steps of recipes and of stored suggestions into step objects, keeping text and order', async () => {
+    const suggestion = await aSuggestion();
+    const approved = await decide(
+      suggestion.id,
+      'approve',
+      await editedInput(suggestion),
+    );
+    const { recipe } = approvedSuggestionResponseSchema.parse(approved.json());
+    // Back to how the rows were stored before: steps as a JSON array of strings.
+    await testDb().execute(
+      sql`update recipe set steps = '["Нарежи лука.", "Задуши го.", "Посоли."]'::jsonb`,
+    );
+    await testDb().execute(
+      sql`update recipe_suggestion set payload = jsonb_set(payload, '{steps}', '["Свари.", "Отцеди."]'::jsonb)`,
+    );
+
+    await rerunMigration(testDb(), '_recipe_step_object');
+    // Steps that are objects already are left as they are.
+    await rerunMigration(testDb(), '_recipe_step_object');
+
+    const read = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(read.json().recipe.steps).toEqual([
+      { text: 'Нарежи лука.' },
+      { text: 'Задуши го.' },
+      { text: 'Посоли.' },
+    ]);
+    const detail = (await getRequest(suggestion.requestId)).json();
+    expect(detail.suggestions.length).toBeGreaterThan(1);
+    for (const stored of detail.suggestions) {
+      expect(stored.payload.steps).toEqual([
+        { text: 'Свари.' },
+        { text: 'Отцеди.' },
+      ]);
+    }
   });
 });

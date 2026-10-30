@@ -1,10 +1,11 @@
+import type { RecipeStep } from '@family/shared';
 import { useRef } from 'react';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
 const SWIPE_MIN_PX = 50;
 
 interface CookingStepsProps {
-  steps: string[];
+  steps: RecipeStep[];
   /** Индексът на текущата стъпка, от 0. */
   step: number;
   onStepChange: (step: number) => void;
@@ -66,7 +67,7 @@ export function CookingSteps({
           Затвори
         </button>
       </header>
-      <p className="cooking-steps__text">{steps[step]}</p>
+      <p className="cooking-steps__text">{steps[step]?.text}</p>
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (

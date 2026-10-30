@@ -9,7 +9,11 @@ import { renderApp, setUpDevice } from '../../test/render';
 
 const stew: Recipe = {
   ...chickenWithRice,
-  steps: ['Нарежи пилето.', 'Задуши с лука.', 'Посоли и сервирай.'],
+  steps: [
+    { text: 'Нарежи пилето.' },
+    { text: 'Задуши с лука.' },
+    { text: 'Посоли и сервирай.' },
+  ],
 };
 
 function serveRecipe(recipe: Recipe = stew) {

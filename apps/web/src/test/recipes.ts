@@ -32,7 +32,7 @@ export const chickenWithRice: Recipe = {
   servings: 4,
   prepMinutes: 45,
   tags: ['lunch', 'kid_friendly'],
-  steps: ['Нарежи пилето.', 'Задуши с лука.'],
+  steps: [{ text: 'Нарежи пилето.' }, { text: 'Задуши с лука.' }],
   sourceUrl: 'https://recepti.example/pile-s-oriz',
   nutritionPer100g: { kcal: 150, proteinG: 12, fatG: 5, carbsG: 14 },
   ingredients: [
@@ -52,7 +52,7 @@ export const omelette: Recipe = {
   servings: 2,
   prepMinutes: 10,
   tags: ['breakfast', 'quick'],
-  steps: ['Разбий яйцата.', 'Изпържи.'],
+  steps: [{ text: 'Разбий яйцата.' }, { text: 'Изпържи.' }],
   ingredients: [],
   archivedAt: null,
   rating: null,

@@ -188,7 +188,7 @@ export function RecipeForm({
   stepsRef.current = values.steps;
   const closeStep = useCallback(() => {
     const step = editingStepRef.current;
-    if (step?.added && stepsRef.current[step.index]?.trim() === '') {
+    if (step?.added && stepsRef.current[step.index]?.text.trim() === '') {
       const removed = step.index;
       setValues((current) => ({
         ...current,
@@ -286,7 +286,7 @@ export function RecipeForm({
   }
 
   function addStep() {
-    set('steps', [...values.steps, '']);
+    set('steps', [...values.steps, { text: '' }]);
     setEditingStep({ index: values.steps.length, added: true });
   }
 
@@ -521,7 +521,7 @@ export function RecipeForm({
               const error = errors[`steps.${index}`];
               const errorId = `${errorIdPrefix}-step-${index}-error`;
               return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: стъпките са само текст; редът е идентичността им.
+                // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id; редът е идентичността им.
                 <li key={index} className="step-line">
                   <button
                     type="button"
@@ -529,7 +529,7 @@ export function RecipeForm({
                     aria-describedby={error === undefined ? undefined : errorId}
                     onClick={() => setEditingStep({ index, added: false })}
                   >
-                    {step.trim() || 'Празна стъпка'}
+                    {step.text.trim() || 'Празна стъпка'}
                   </button>
                   {error !== undefined && (
                     <p className="field__error step-line__error" id={errorId}>
@@ -631,12 +631,14 @@ export function RecipeForm({
         <StepSheet
           number={editingStep.index + 1}
           count={values.steps.length}
-          text={values.steps[editingStep.index] ?? ''}
+          text={values.steps[editingStep.index]?.text ?? ''}
           error={errors[`steps.${editingStep.index}`]}
           onChange={(text) =>
             set(
               'steps',
-              values.steps.map((s, i) => (i === editingStep.index ? text : s)),
+              values.steps.map((s, i) =>
+                i === editingStep.index ? { ...s, text } : s,
+              ),
             )
           }
           onMoveUp={() => moveStep(editingStep.index, editingStep.index - 1)}

@@ -41,7 +41,10 @@ function recipeInput(overrides: Partial<RecipeInput> = {}): RecipeInput {
   return {
     title: 'Печени картофи',
     servings: 4,
-    steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+    steps: [
+      { text: 'Нарежи картофите.' },
+      { text: 'Печи 40 минути на 200 °C.' },
+    ],
     tags: ['dinner'],
     ingredients: [],
     ...overrides,
@@ -92,7 +95,10 @@ describe('POST /api/recipes', () => {
         id: created.id,
         title: 'Печени картофи',
         servings: 4,
-        steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+        steps: [
+          { text: 'Нарежи картофите.' },
+          { text: 'Печи 40 минути на 200 °C.' },
+        ],
         sourceUrl: 'https://recepti.example/pecheni-kartofi',
         prepMinutes: 50,
         tags: ['dinner'],
@@ -144,6 +150,16 @@ describe('POST /api/recipes', () => {
 
   it('answers 400 validation_error for a recipe without steps', async () => {
     const response = await createRecipe(recipeInput({ steps: [] }));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'validation_error' });
+  });
+
+  it('answers 400 validation_error for steps of text instead of step objects', async () => {
+    const response = await createRecipe({
+      ...recipeInput(),
+      steps: ['Нарежи картофите.'],
+    });
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: 'validation_error' });

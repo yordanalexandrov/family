@@ -108,7 +108,7 @@ async function createRecipe(title: string, products: string[]) {
     payload: {
       title,
       servings: 4,
-      steps: ['Сготви.'],
+      steps: [{ text: 'Сготви.' }],
       tags: ['dinner'],
       ingredients,
     },

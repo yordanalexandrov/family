@@ -1,11 +1,11 @@
 import type {
   AnyRecipeSuggestion,
   ImportedSuggestion,
-  NormalizedRecipe,
+  ImportPayload,
   RecipeSuggestion,
   RecipeSuggestionStatus,
   RecipeSuggestParams,
-  Suggestion,
+  SuggestionPayload,
   SuggestionRequest,
 } from '@family/shared';
 import { asc, desc, eq, sql } from 'drizzle-orm';
@@ -53,7 +53,7 @@ function toSuggestion(row: SuggestionRow): RecipeSuggestion {
     ...decisionOf(row),
     origin: 'suggest',
     requestId: row.requestId,
-    payload: row.payload as Suggestion,
+    payload: row.payload as SuggestionPayload,
   };
 }
 
@@ -66,7 +66,7 @@ export function toImportedSuggestion(row: SuggestionRow): ImportedSuggestion {
     ...decisionOf(row),
     origin: 'import',
     importRequestId: row.importRequestId,
-    payload: row.payload as NormalizedRecipe,
+    payload: row.payload as ImportPayload,
   };
 }
 
@@ -128,7 +128,7 @@ export async function listSuggestionRequests(
 export async function insertSuggestions(
   db: DbExecutor,
   requestId: string,
-  suggestions: Suggestion[],
+  suggestions: SuggestionPayload[],
 ): Promise<void> {
   if (suggestions.length === 0) {
     return;

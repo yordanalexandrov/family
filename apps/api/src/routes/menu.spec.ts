@@ -456,7 +456,7 @@ describe('PATCH /api/menu/meals/:id', () => {
       .values({
         title: 'Супа',
         servings: 4,
-        steps: ['Свари.'],
+        steps: [{ text: 'Свари.' }],
         tags: ['lunch'],
       })
       .returning({ id: recipe.id });
@@ -1450,11 +1450,16 @@ describe('POST /api/menu/proposals', () => {
     await testDb()
       .insert(recipe)
       .values([
-        { title: 'Таратор', servings: 2, steps: ['Смеси.'], tags: ['lunch'] },
+        {
+          title: 'Таратор',
+          servings: 2,
+          steps: [{ text: 'Смеси.' }],
+          tags: ['lunch'],
+        },
         {
           title: 'Стара вечеря',
           servings: 2,
-          steps: ['Сготви.'],
+          steps: [{ text: 'Сготви.' }],
           tags: ['dinner'],
           archivedAt: new Date(),
         },

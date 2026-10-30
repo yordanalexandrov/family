@@ -107,7 +107,7 @@ describe('scheduler', () => {
       .values({
         title: 'Мусака',
         servings: 4,
-        steps: ['Сготви.'],
+        steps: [{ text: 'Сготви.' }],
         tags: ['dinner'],
       })
       .returning({ id: recipe.id });

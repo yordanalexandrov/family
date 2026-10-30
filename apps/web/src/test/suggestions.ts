@@ -1,7 +1,7 @@
 import type {
   ContractFailure,
   RecipeSuggestion,
-  Suggestion,
+  SuggestionPayload,
   SuggestionRequest,
 } from '@family/shared';
 import { dani } from './msw';
@@ -35,7 +35,7 @@ export function failedRequest(error: ContractFailure): SuggestionRequest {
   };
 }
 
-export const chickenSkewers: Suggestion = {
+export const chickenSkewers: SuggestionPayload = {
   title: 'Пилешки шишчета',
   sourceUrl: 'https://recepti.example/pileshki-shishcheta',
   why: 'Бързо е и децата го обичат.',
@@ -47,10 +47,10 @@ export const chickenSkewers: Suggestion = {
     { name: 'сумак', isNew: true, quantity: 1, unit: 'tsp' },
     { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
   ],
-  steps: ['Нарежи пилето.', 'Нанижи и изпечи.'],
+  steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
 };
 
-export const lentilSoup: Suggestion = {
+export const lentilSoup: SuggestionPayload = {
   title: 'Леща чорба',
   sourceUrl: 'https://supichki.example/leshta',
   why: 'Топло и сито за вечер.',
@@ -61,10 +61,10 @@ export const lentilSoup: Suggestion = {
     { name: 'леща', isNew: false, quantity: 300, unit: 'g' },
     { name: 'лук', isNew: false, quantity: 1, unit: 'pcs' },
   ],
-  steps: ['Запържи лука.', 'Свари лещата с лука.'],
+  steps: [{ text: 'Запържи лука.' }, { text: 'Свари лещата с лука.' }],
 };
 
-export const omeletteSuggestion: Suggestion = {
+export const omeletteSuggestion: SuggestionPayload = {
   title: 'Омлет с билки',
   sourceUrl: 'https://www.zakuski.example/omlet',
   why: 'Става за десет минути.',
@@ -75,7 +75,7 @@ export const omeletteSuggestion: Suggestion = {
     { name: 'яйце', isNew: false, quantity: 4, unit: 'pcs' },
     { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
   ],
-  steps: ['Разбий яйцата със солта.', 'Изпечи ги в тиган.'],
+  steps: [{ text: 'Разбий яйцата със солта.' }, { text: 'Изпечи ги в тиган.' }],
 };
 
 export const skewersSuggestion: RecipeSuggestion = {

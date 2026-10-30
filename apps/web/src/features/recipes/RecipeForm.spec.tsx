@@ -146,7 +146,7 @@ describe('RecipeForm', () => {
           servings: 6,
           prepMinutes: 50,
           tags: ['lunch'],
-          steps: ['Свари пилето.', 'Добави фиде.'],
+          steps: [{ text: 'Свари пилето.' }, { text: 'Добави фиде.' }],
           ingredients: [
             { ingredientId: chicken.id, quantity: 0.5, unit: 'kg' },
           ],
@@ -338,7 +338,7 @@ describe('RecipeForm', () => {
         servings: 4,
         prepMinutes: 45,
         tags: ['lunch', 'kid_friendly'],
-        steps: ['Задуши с лука.', 'Нарежи пилето.'],
+        steps: [{ text: 'Задуши с лука.' }, { text: 'Нарежи пилето.' }],
         sourceUrl: 'https://recepti.example/pile-s-oriz',
         nutritionPer100g: { kcal: 150, proteinG: 12, fatG: 5, carbsG: 14 },
         ingredients: [
@@ -433,13 +433,22 @@ describe('RecipeForm', () => {
     expect(scrollIntoView.mock.contexts.at(-1)).toBe(field);
   });
 
-  it('стъпките са номериран списък; листът редактира, мести и маха стъпка', async () => {
+  it('стъпките са номериран списък; листът редактира, мести и маха стъпка, а снимката върви със стъпката', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     const put: RecipeInput[] = [];
+    const cutPhoto = 'eeeeeeee-0000-4000-8000-000000000001';
+    const stewPhoto = 'eeeeeeee-0000-4000-8000-000000000002';
+    const withPhotos: Recipe = {
+      ...chickenWithRice,
+      steps: [
+        { text: 'Нарежи пилето.', photoId: cutPhoto },
+        { text: 'Задуши с лука.', photoId: stewPhoto },
+      ],
+    };
     server.use(
       http.get(`/api/recipes/${chickenWithRice.id}`, () =>
-        HttpResponse.json({ recipe: chickenWithRice }),
+        HttpResponse.json({ recipe: withPhotos }),
       ),
       http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
         const body = (await request.json()) as RecipeInput;
@@ -493,7 +502,42 @@ describe('RecipeForm', () => {
 
     await user.click(screen.getByRole('button', { name: 'Запази' }));
     await vi.waitFor(() => expect(put).toHaveLength(1));
-    expect(put[0]?.steps).toEqual(['Задуши с лука и морков.', 'Сервирай.']);
+    // Редактираната и преместена стъпка пази своята снимка, а махнатата я отнася със себе си.
+    expect(put[0]?.steps).toEqual([
+      { text: 'Задуши с лука и морков.', photoId: stewPhoto },
+      { text: 'Сервирай.' },
+    ]);
+  });
+
+  it('изпразнена стъпка не се запазва и редът ѝ казва „Стъпката е празна“', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const put: RecipeInput[] = [];
+    server.use(
+      http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+        HttpResponse.json({ recipe: chickenWithRice }),
+      ),
+      http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
+        put.push((await request.json()) as RecipeInput);
+        return HttpResponse.json({ recipe: chickenWithRice });
+      }),
+    );
+
+    renderApp(`/recipes/${chickenWithRice.id}/edit`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Задуши с лука.' }),
+    );
+    await user.clear(stepSheet().getByRole('textbox', { name: 'Стъпка 2' }));
+    await user.click(stepSheet().getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    expect(
+      await screen.findByRole('button', {
+        name: 'Празна стъпка',
+        description: 'Стъпката е празна',
+      }),
+    ).toBeInTheDocument();
+    expect(put).toEqual([]);
   });
 
   it('грешката изчезва, когато полето е поправено, без ново „Запази“', async () => {

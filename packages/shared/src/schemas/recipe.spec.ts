@@ -14,7 +14,13 @@ const POTATO = '55555555-5555-4555-8555-555555555555';
 const potatoes = {
   title: 'Печени картофи с розмарин',
   servings: 4,
-  steps: ['Нарежи картофите.', 'Печи 40 минути на 200 °C.'],
+  steps: [
+    { text: 'Нарежи картофите.' },
+    {
+      text: 'Печи 40 минути на 200 °C.',
+      photoId: '66666666-6666-4666-8666-666666666666',
+    },
+  ],
   sourceUrl: 'https://example.com/pecheni-kartofi',
   prepMinutes: 50,
   tags: ['dinner', 'kid_friendly'],
@@ -110,7 +116,7 @@ describe('recipeInputSchema', () => {
     const minimal = {
       title: 'Омлет',
       servings: 1,
-      steps: ['Разбий яйцата и ги изпържи.'],
+      steps: [{ text: 'Разбий яйцата и ги изпържи.' }],
       tags: [],
       ingredients: [],
     };
@@ -126,6 +132,9 @@ describe('recipeInputSchema', () => {
     ['servings', { servings: 0 }],
     ['servings', { servings: 1.5 }],
     ['steps', { steps: [] }],
+    ['steps.0', { steps: ['Нарежи картофите.'] }],
+    ['steps.0.text', { steps: [{ text: '  ' }] }],
+    ['steps.0.photoId', { steps: [{ text: 'Нарежи.', photoId: 's1' }] }],
     ['sourceUrl', { sourceUrl: 'не е линк' }],
     ['tags.0', { tags: ['vegan'] }],
   ])('rejects an invalid %s', (path, change) => {

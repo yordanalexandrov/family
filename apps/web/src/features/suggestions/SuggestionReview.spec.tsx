@@ -212,7 +212,7 @@ describe('SuggestionReview', () => {
         servings: 4,
         prepMinutes: 25,
         tags: ['dinner', 'quick'],
-        steps: ['Нарежи пилето.', 'Нанижи и изпечи.'],
+        steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
         sourceUrl: chickenSkewers.sourceUrl,
         appliance: null,
         ingredients: [

@@ -6,6 +6,7 @@ import {
   type RecipeNormalizeInput,
   type RecipeNormalizeOutput,
   type RecipeNormalizeSource,
+  stepsOfText,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import {
@@ -99,7 +100,10 @@ export function createRecipeImportStore(): ContractRequestStore<
 
     async onDone(tx, request, output) {
       if (output.recipe) {
-        await insertImportedSuggestion(tx, request.id, output.recipe);
+        await insertImportedSuggestion(tx, request.id, {
+          ...output.recipe,
+          steps: stepsOfText(output.recipe.steps),
+        });
       }
     },
 

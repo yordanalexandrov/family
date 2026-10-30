@@ -2,7 +2,7 @@ import {
   type AlreadyImported,
   IMPORT_FIRST_LINE_MAX,
   type ImportedSuggestion,
-  type NormalizedRecipe,
+  type ImportPayload,
   nonEmptyLines,
   normalizeSourceUrl,
   type RecipeImportParams,
@@ -250,7 +250,7 @@ export async function findSourceUrlMatches(
 export async function insertImportedSuggestion(
   db: DbExecutor,
   importRequestId: string,
-  payload: NormalizedRecipe,
+  payload: ImportPayload,
 ): Promise<void> {
   await db
     .insert(recipeSuggestion)

@@ -41,11 +41,28 @@ export function canonicalTitle(title: string): string {
   return title.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+/**
+ * One step of a recipe or of a stored suggestion: its text and, optionally, its photo (GLOSSARY: Снимка на стъпка) by
+ * id. The AI contracts (`recipe.normalize`, `recipe.suggest`) still give steps as text; the api turns them into steps
+ * with {@link stepsOfText} when it stores a suggestion.
+ */
+export const recipeStepSchema = z.object({
+  text: z.string().trim().min(1),
+  photoId: z.uuid().optional(),
+});
+
+export type RecipeStep = z.infer<typeof recipeStepSchema>;
+
+/** Steps of text (as the AI contracts give them) as steps without photos, in the same order. */
+export function stepsOfText(steps: readonly string[]): RecipeStep[] {
+  return steps.map((text) => ({ text }));
+}
+
 /** What the client sends to create or replace a recipe (GLOSSARY: Рецепта). Titles are not unique. */
 export const recipeInputSchema = z.object({
   title: z.string().trim().min(1),
   servings: z.int().min(1),
-  steps: z.array(z.string().trim().min(1)).min(1),
+  steps: z.array(recipeStepSchema).min(1),
   sourceUrl: z.url().optional(),
   prepMinutes: z.int().positive().optional(),
   tags: z.array(tagSchema),
