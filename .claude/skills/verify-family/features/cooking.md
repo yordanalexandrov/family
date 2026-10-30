@@ -7,6 +7,7 @@
 - `cooking-entry` link „Готви“ on the recipe view (kiosk, phone, browser; not TV) opens `/recipes/<id>/cook`.
 - `cooking-servings` buttons „Една порция по-малко“/„Една порция повече“ change „за N порции“ and the amounts (600 г × 2 → 1,2 кг); „по вкус“ has no number.
 - `cooking-column` button „Прибери продуктите“ folds the column to the strip button „Продукти (N)“ (`aria-expanded=false`), which opens it again.
+- `cooking-sheet` narrow screen (phone portrait, below 48rem): no column; button „Продукти (N)“ above the step opens dialog „Продукти“ (the Sheet) with the same −/+ and list „Продукти“; „Готово“ in the dialog closes it, servings stay.
 - `cooking-steps` „Напред“/„Назад“ (disabled on step 1), group „Към стъпка“ with buttons „Стъпка N“ (`aria-current=step`), horizontal swipe on region „Стъпки“.
 - `cooking-exit` „Готово“ on the last step, „Затвори“ on any: back in history, or the recipe view without history.
 
@@ -20,15 +21,17 @@
 Preconditions:
 
 - A recipe with ingredients and several steps; create it through `ctx.api('/api/recipes', …)` with header `X-Acting-User` when cooking, not creating, is under test (ingredient ids from `psql` on `ingredient`).
-- `ctx.go('/?device=kiosk')` and `--device kiosk` (1280×800) for the landscape layout.
+- `ctx.go('/?device=kiosk')` and `--device kiosk` (1280×800) for the landscape layout; the default phone viewport (390×844) gives the sheet layout.
 
 - **Enter.** `go('/recipes/<id>')`; `tap` link „Готви“ → text „Стъпка 1 от N“ and „за <servings> порции“.
 - **Servings.** `tap` „Една порция повече“ twice → „за <servings+2> порции“, amounts in list „Продукти“ scaled.
 - **Fold.** `tap` „Прибери продуктите“ → button `/Продукти \(\d+\)/`.
+- **Sheet (phone).** `tap` button `/^Продукти \(\d+\)$/` → dialog „Продукти“; scope −/+ and the list to the dialog; `tap` its „Готово“ → no dialog. On the last step „Готово“ is unique only while the sheet is closed.
 - **Jump.** `tap` „Стъпка N“ (last) → button „Готово“; `tap` it → heading level 1 = recipe title.
 
 ## Gotchas
 
 - The dots animate (150 ms); wait ~500 ms before a `shot` right after a step change, or the old dot still looks current.
-- On kiosk `IdleReturn` sends every screen except the dashboard back to `/` after 60 s without a touch (#232 changes this for Готвене); keep kiosk drives short.
+- On kiosk `IdleReturn` sends Готвене back to `/` after 2 hours without a touch (other screens after 60 s), so the recipe view before „Готви“ still times out after 60 s.
+- Phone and browser hold a `screen` wake lock only while Готвене is open; headless Chrome may refuse it, which only logs a warning.
 - Seed has no `олио`; use `слънчогледово олио` or another seeded name.

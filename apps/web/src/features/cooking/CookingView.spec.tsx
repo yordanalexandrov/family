@@ -259,6 +259,75 @@ describe('Готвене', () => {
     expect(router.state.location.pathname).toBe(`/recipes/${stew.id}`);
   });
 
+  it('на тесен екран няма колона: „Продукти (N)“ отваря и затваря лист със същото съдържание', async () => {
+    const user = userEvent.setup();
+    stubNarrowScreen();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+
+    expect(await screen.findByText('Стъпка 1 от 3')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Продукти' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Прибери продуктите' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Продукти (3)' }));
+
+    const sheet = screen.getByRole('dialog', { name: 'Продукти' });
+    expect(
+      within(within(sheet).getByRole('list', { name: 'Продукти' }))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['пилешко филе500 г', 'лук2 бр.', 'солпо вкус']);
+
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Една порция повече' }),
+    );
+    expect(within(sheet).getByText('за 5 порции')).toBeInTheDocument();
+    expect(within(sheet).getByText('625 г')).toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Стъпка 1 от 3')).toBeInTheDocument();
+
+    // Порциите остават на екрана: листът се отваря отново със същите.
+    await user.click(screen.getByRole('button', { name: 'Продукти (3)' }));
+    expect(
+      within(screen.getByRole('dialog', { name: 'Продукти' })).getByText(
+        'за 5 порции',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('на тесен екран отметките са в листа, а „Продукти (N)“ брои неотметнатите', async () => {
+    const user = userEvent.setup();
+    stubNarrowScreen();
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Продукти (3)' }),
+    );
+    const sheet = screen.getByRole('dialog', { name: 'Продукти' });
+    await user.click(
+      within(sheet).getByRole('checkbox', { name: 'лук 2 бр.' }),
+    );
+
+    expect(
+      within(sheet).getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(
+      screen.getByRole('button', { name: 'Продукти (2)' }),
+    ).toBeInTheDocument();
+  });
+
   it('отметнат продукт отива в „Използвани (N)“, а махането на отметката го връща на мястото му', async () => {
     const user = userEvent.setup();
     setUpDevice('kiosk');
@@ -428,6 +497,19 @@ describe('Готвене', () => {
     ).toBeInTheDocument();
   });
 });
+
+/** Телефон в изправено положение: никоя `min-width` медия-заявка не важи. */
+function stubNarrowScreen() {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+}
 
 /** `methods` на localStorage хвърлят за ключовете на Готвене, както в private режим. */
 function denyStorage(...methods: ('getItem' | 'setItem' | 'removeItem')[]) {

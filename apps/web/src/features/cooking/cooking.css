@@ -224,21 +224,12 @@
   font-size: var(--font-size-lg);
 }
 
-/* До #230 (sheet на тесен екран) колоната е над стъпката. */
-@media (max-width: 47.99rem) {
-  .cooking,
-  .cooking--closed {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-  }
+/* Тесен екран (CookingView по границата на листа): стъпката е на цялата ширина, продуктите са в лист зад бутона. */
+.cooking--narrow {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+}
 
-  .cooking-ingredients--closed {
-    inline-size: auto;
-    padding: var(--space-3);
-  }
-
-  .cooking-ingredients__strip {
-    writing-mode: horizontal-tb;
-    transform: none;
-  }
+.cooking__ingredients-button {
+  font-size: var(--font-size-lg);
 }

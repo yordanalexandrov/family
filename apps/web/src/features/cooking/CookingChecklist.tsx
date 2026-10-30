@@ -49,10 +49,7 @@ export function CookingChecklist({
 
   return (
     <>
-      <ul
-        className="cooking-ingredients__lines"
-        aria-labelledby="cooking-ingredients-title"
-      >
+      <ul className="cooking-ingredients__lines" aria-label="Продукти">
         {lines.filter((line) => !isUsed(line.index)).map(renderLine)}
       </ul>
       {usedLines.length > 0 && (

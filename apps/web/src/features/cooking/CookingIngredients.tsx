@@ -17,7 +17,7 @@ interface CookingIngredientsProps {
 }
 
 /**
- * Колоната „Продукти“ на Готвене: порциите с −/+ и продуктите с количествата за тях. Прибрана е тясна лента
+ * Колоната „Продукти“ на Готвене на широк екран (съдържанието е `CookingIngredientsBody`). Прибрана е тясна лента
  * „Продукти (N)“, която я отваря отново.
  */
 export function CookingIngredients({
@@ -63,6 +63,32 @@ export function CookingIngredients({
           ‹
         </button>
       </header>
+      <CookingIngredientsBody
+        ingredients={ingredients}
+        recipeServings={recipeServings}
+        servings={servings}
+        onServingsChange={onServingsChange}
+        used={used}
+        onToggleUsed={onToggleUsed}
+      />
+    </section>
+  );
+}
+
+/**
+ * Съдържанието на „Продукти“: порциите с −/+ и продуктите с количествата за тях, с отметки. Едно и също в колоната на широк
+ * екран и в листа на тесен.
+ */
+export function CookingIngredientsBody({
+  ingredients,
+  recipeServings,
+  servings,
+  onServingsChange,
+  used,
+  onToggleUsed,
+}: Omit<CookingIngredientsProps, 'open' | 'onOpenChange'>) {
+  return (
+    <>
       <div className="cooking-ingredients__servings">
         <button
           type="button"
@@ -90,6 +116,6 @@ export function CookingIngredients({
         used={used}
         onToggleUsed={onToggleUsed}
       />
-    </section>
+    </>
   );
 }
