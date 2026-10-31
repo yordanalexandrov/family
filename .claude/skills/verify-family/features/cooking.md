@@ -15,6 +15,7 @@
 - `cooking-scroll` Готвене is never taller than the screen (check phone landscape too, e.g. 915×412 via `page.setViewportSize`: the text must keep most of the height): a long step scrolls inside `.cooking-steps__text` (the document does not scroll) and a new step starts scrolled to the top.
 - `cooking-timers` a time in the step text („15 мин“, „10–15 мин“, „1 ч и 30 мин“) is a button named „Таймер <time>“ (shown „⏱<time>“); tapping it adds a row to region „Таймери“ (list above the step text, on every step) with „Стъпка N · <time>“ and the remaining „m:ss“, „Изтече“ when expired; a timer from another recipe carries that recipe's title in front. Timers live in app memory only (#255): a reload (`ctx.go`) empties the strip, so switch recipes with `history.pushState` + `popstate`.
 - `cooking-exit` „Готово“ on the last step, „Затвори“ on any: back in history, or the recipe view without history.
+- `cooking-leave-timers` with a timer in the strip (running or expired), „Готово“, „Затвори“, the system back (`page.goBack()`) and any link out of Готвене open alertdialog „Излизане от Готвене“ („Има N работещи таймера. Излизането ги спира от звънене.“) with „Излез“ / „Остани“ (focus; Escape and the backdrop also stay). „Излез“ leaves and keeps the timers; Готвене of another recipe is not leaving. While the dialog waits after a system back, `page.url()` is already the previous address; „Остани“ restores it. kiosk does not idle-return from Готвене while a timer is active.
 
 ## How to get to it (user POV)
 
