@@ -339,7 +339,9 @@ describe('extractRecipe: the photos in the page text', () => {
       <p>Печете.</p>
       <img srcset="data:image/gif;base64,R0lGODlhAQABAAAAACw= 1x" data-src="/uploads/pechene.jpg">
       <img src="/images/icons/print.png">
-      <img src="/wp-content/plugins/rating/images/1star.png">`);
+      <img src="/wp-content/plugins/rating/images/1star.png">
+      <img src="https://static.forum.example/Smileys/default/chef.gif">
+      <img src="/img/emojis/faces/simple_smile.png">`);
 
     const result = extractRecipe(page, 'https://blog.example.com/');
 

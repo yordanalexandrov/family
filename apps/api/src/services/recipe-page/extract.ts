@@ -477,9 +477,12 @@ function pixels(size: string | undefined): number {
 const NOT_A_PHOTO_CLASS =
   /(^|[^a-z])(avatars?|gravatar|emoji|icons?|logo|spinner|loader|sprite|pixel|spacer|rating|stars?)([^a-z]|$)/i;
 
-/** A folder or a file name (without its extension) of a picture that is not a photo: `/avatar/…`, `logo.png`, `1star.png`. */
+/**
+ * A folder or a file name (without its extension) of a picture that is not a photo: `/avatar/…`, `/Smileys/…`,
+ * `logo.png`, `1star.png`.
+ */
 const NOT_A_PHOTO_NAME =
-  /^\d*(avatars?|gravatar|emoji|smilies|icons?|logo|spinner|loader|sprite|pixel|spacer|rating|stars?)[\d_-]*$/i;
+  /^\d*(avatars?|gravatar|emojis?|emoticons?|smileys?|smilies|icons?|logo|spinner|loader|sprite|pixel|spacer|rating|stars?)[\d_-]*$/i;
 
 function isNotAPhotoAddress(url: string): boolean {
   const { hostname, pathname } = new URL(url);
