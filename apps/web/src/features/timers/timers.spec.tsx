@@ -28,9 +28,13 @@ function serveRecipes(...recipes: Recipe[]) {
   );
 }
 
-/** Фалшив часовник, който не спира userEvent и findBy. */
+/**
+ * Фалшив часовник, който не спира userEvent и findBy. Почва по обед: изтекъл таймер изчезва в полунощ (София), а
+ * тестовете превъртат до часове напред — пуснати късно вечер, не бива да минат през нея.
+ */
 function fakeClock() {
   vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date('2026-10-30T12:00:00+02:00'));
   return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 }
 
