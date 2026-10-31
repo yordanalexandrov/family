@@ -26,6 +26,8 @@ export interface NewTimer extends TimerSource {
   durationMs: number;
   /** Горната граница на интервал („10–15 мин“), за „още до N мин“ при изтичане. */
   maxDurationMs?: number;
+  /** Ръчен таймер („⏱ Таймер“ под стъпката), не от време в текста: надписът е „Таймер · Стъпка N“. */
+  manual?: true;
 }
 
 export interface Timer extends NewTimer {
@@ -116,6 +118,7 @@ function isTimer(value: unknown): value is Timer {
     (timer.step as number) >= 0 &&
     isNumber(timer.durationMs) &&
     (timer.maxDurationMs === undefined || isNumber(timer.maxDurationMs)) &&
+    (timer.manual === undefined || timer.manual === true) &&
     isNumber(timer.endsAt) &&
     (timer.pausedAt === undefined || isNumber(timer.pausedAt))
   );
@@ -239,10 +242,12 @@ export function msToNextChange(ms: number): number {
 }
 
 /**
- * Надписът на таймера в Готвене на `recipeId`: стъпката и времето („Стъпка 2 · 15 мин“), а пред тях заглавието на
- * рецептата, ако таймерът е от друга.
+ * Надписът на таймера в Готвене на `recipeId`: стъпката и времето („Стъпка 2 · 15 мин“) или за ръчен „Таймер · Стъпка
+ * 2“, а пред тях заглавието на рецептата, ако таймерът е от друга.
  */
 export function timerLabel(timer: Timer, recipeId: string): string {
-  const own = `Стъпка ${timer.step + 1} · ${timer.label}`;
+  const own = timer.manual
+    ? `Таймер · Стъпка ${timer.step + 1}`
+    : `Стъпка ${timer.step + 1} · ${timer.label}`;
   return timer.recipeId === recipeId ? own : `${timer.recipeTitle} · ${own}`;
 }
