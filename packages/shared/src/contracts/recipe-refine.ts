@@ -40,7 +40,8 @@ const refineRecipeSchema = z.object({
 
 /**
  * The page of the recipe's source as the api read it again (never the agent): its final URL, the JSON-LD Recipe (its
- * step photos as references) or the main text (its photos as markers `[снимка s1]`), and the references of its photos. At least one of `jsonLd` and `text`.
+ * step photos as references) or the main text (its photos as markers `[снимка s1]`), and the references of its photos.
+ * At least one of `jsonLd` and `text`.
  */
 const refineSourceSchema = z
   .object({

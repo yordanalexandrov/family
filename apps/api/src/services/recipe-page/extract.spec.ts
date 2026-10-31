@@ -328,6 +328,29 @@ describe('extractRecipe: the photos in the page text', () => {
     });
   });
 
+  it('keeps a photo with a percent width, commas in its srcset or a name like star-anise, and skips a data: srcset placeholder', () => {
+    const page = post(`
+      <p>Сварете сиропа.</p>
+      <img src="/uploads/sirop.jpg" width="50%">
+      <p>Добавете звезден анасон.</p>
+      <img src="/uploads/star-anise.jpg">
+      <p>Подредете в тава.</p>
+      <img srcset="https://res.example.com/image/upload/w_320,h_240/tava.jpg 320w, https://res.example.com/image/upload/w_1024,h_768/tava.jpg 1024w">
+      <p>Печете.</p>
+      <img srcset="data:image/gif;base64,R0lGODlhAQABAAAAACw= 1x" data-src="/uploads/pechene.jpg">
+      <img src="/images/icons/print.png">
+      <img src="/wp-content/plugins/rating/images/1star.png">`);
+
+    const result = extractRecipe(page, 'https://blog.example.com/');
+
+    expect(result.stepImages).toEqual({
+      s1: 'https://blog.example.com/uploads/sirop.jpg',
+      s2: 'https://blog.example.com/uploads/star-anise.jpg',
+      s3: 'https://res.example.com/image/upload/w_1024,h_768/tava.jpg',
+      s4: 'https://blog.example.com/uploads/pechene.jpg',
+    });
+  });
+
   it('gives references to the first 40 photos only, and none to a photo the window cuts out', () => {
     const photos = Array.from(
       { length: 45 },

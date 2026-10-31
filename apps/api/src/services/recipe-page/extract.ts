@@ -373,15 +373,15 @@ function webUrl(
 
 // ── Text ────────────────────────────────────────────────────────────────
 
+/** The main text of a page without a JSON-LD Recipe, with the URLs of the references of its photo markers. */
+type PageText = { text: string; stepImages: StepImages };
+
 /**
  * The page's title, then its main text (the first sizeable `<article>`, else `<main>`, else `<body>`), windowed, with
  * each photo of it as a marker `[снимка s1]` in its place. Only a photo whose marker the window keeps gets a
  * reference, once per URL and at most {@link STEP_IMAGES_MAX}: the agent gets no reference it does not see.
  */
-function pageText(
-  document: Node,
-  pageUrl: string | undefined,
-): { text: string; stepImages: StepImages } {
+function pageText(document: Node, pageUrl: string | undefined): PageText {
   const title = cleanText(
     textOf(first(document, (e) => e.tagName === 'title') ?? emptyNode()),
   );
@@ -392,32 +392,29 @@ function pageText(
       return '';
     }
     photos.push(url);
-    return ` ${photoMark(photos.length - 1)} `;
+    return ` ${placeholder(photos.length - 1)} `;
   });
   return numberedPhotos(windowed(title, body), photos);
 }
 
-/**
- * Where a photo stands in the text until the window is cut: its index among the photos, as long as the longest
- * marker (`[снимка s40]`), so the markers keep the text in {@link PAGE_TEXT_MAX}.
- */
-function photoMark(index: number): string {
-  return `\uE000${String(index).padStart(10, '0')}\uE001`;
+/** The longest marker; a placeholder is as long, so the markers keep the text in {@link PAGE_TEXT_MAX}. */
+const LONGEST_MARKER = `[снимка s${STEP_IMAGES_MAX}]`.length;
+
+/** Where a photo stands in the text until the window is cut: its index among the photos, between two private characters. */
+function placeholder(index: number): string {
+  return `\uE000${String(index).padStart(LONGEST_MARKER - 2, '0')}\uE001`;
 }
 
-const PHOTO_MARK = /\uE000(\d{10})\uE001/g;
+const PLACEHOLDER = /\uE000(\d+)\uE001/g;
 
-/** The windowed text with its photo marks as markers `[снимка sN]`, numbered in order, and their URLs. */
-function numberedPhotos(
-  text: string,
-  photos: string[],
-): { text: string; stepImages: StepImages } {
+/** The windowed text with its placeholders as markers `[снимка sN]`, numbered in order, and their URLs. */
+function numberedPhotos(text: string, photos: string[]): PageText {
   const stepImages: StepImages = {};
   const refs = new Set<string>();
   const numbered = text
-    // A mark the window cut in half.
+    // A placeholder the window cut in half.
     .replace(/\uE000\d*$/, '')
-    .replace(PHOTO_MARK, (_, index: string) => {
+    .replace(PLACEHOLDER, (_, index: string) => {
       const url = photos[Number(index)] as string;
       const count = refs.size;
       if (refs.has(url) || count === STEP_IMAGES_MAX) {
@@ -433,56 +430,81 @@ function numberedPhotos(
 /**
  * The URL of a photo of the page text: the largest of its `srcset` (also lazy-loaded), else its lazy-loaded `src`,
  * else its `src`; absolute against the page, `http(s)` only. None for an icon, an avatar, a logo, rating stars or a
- * tracking pixel: smaller than {@link PHOTO_MIN_SIZE} in its attributes, hidden from screen readers, or named so in
- * its class or address.
+ * tracking pixel: smaller than {@link PHOTO_MIN_SIZE} pixels in its attributes, hidden from screen readers, or named
+ * so in its class or address.
  */
 function photoUrl(
   img: Element,
   pageUrl: string | undefined,
 ): string | undefined {
-  const sizes = [attribute(img, 'width'), attribute(img, 'height')].map(
-    (value) => Number.parseInt(value ?? '', 10),
-  );
   if (
-    sizes.some((size) => size < PHOTO_MIN_SIZE) ||
+    [attribute(img, 'width'), attribute(img, 'height')].some(
+      (size) => pixels(size) < PHOTO_MIN_SIZE,
+    ) ||
     attribute(img, 'aria-hidden') === 'true' ||
     attribute(img, 'role') === 'presentation' ||
-    NOT_A_PHOTO.test(attribute(img, 'class') ?? '')
+    NOT_A_PHOTO_CLASS.test(attribute(img, 'class') ?? '')
   ) {
     return undefined;
   }
-  const candidates = [
+  const url =
     largestOfSrcset(
       attribute(img, 'data-lazy-srcset') ??
         attribute(img, 'data-srcset') ??
         attribute(img, 'srcset'),
-    ),
-    attribute(img, 'data-lazy-src'),
-    attribute(img, 'data-src'),
-    attribute(img, 'src'),
-  ];
-  for (const candidate of candidates) {
-    const url = candidate && webUrl(candidate, pageUrl);
-    if (url) {
-      const { hostname, pathname } = new URL(url);
-      return NOT_A_PHOTO.test(`${hostname}${pathname}`) ? undefined : url;
-    }
-  }
-  return undefined;
+      pageUrl,
+    ) ??
+    [
+      attribute(img, 'data-lazy-src'),
+      attribute(img, 'data-src'),
+      attribute(img, 'src'),
+    ]
+      .map((candidate) => candidate && webUrl(candidate, pageUrl))
+      .find((candidate) => candidate !== undefined);
+  return url && !isNotAPhotoAddress(url) ? url : undefined;
 }
 
 /** Smaller than this many pixels in `width` or `height` is an icon, an avatar or a pixel, not a photo of a step. */
 const PHOTO_MIN_SIZE = 100;
 
-/** A class or an address of a picture that is not a photo of the recipe. */
-const NOT_A_PHOTO =
+/** A size attribute in pixels (`48`, `48px`); none for a percentage or no attribute. */
+function pixels(size: string | undefined): number {
+  const match = /^\s*(\d+)(px)?\s*$/i.exec(size ?? '');
+  return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
+}
+
+/** A class of a picture that is not a photo of the recipe. */
+const NOT_A_PHOTO_CLASS =
   /(^|[^a-z])(avatars?|gravatar|emoji|icons?|logo|spinner|loader|sprite|pixel|spacer|rating|stars?)([^a-z]|$)/i;
 
-/** The URL of the widest candidate of a `srcset` (`640w`, or `2x`). */
-function largestOfSrcset(srcset: string | undefined): string | undefined {
+/** A folder or a file name (without its extension) of a picture that is not a photo: `/avatar/…`, `logo.png`, `1star.png`. */
+const NOT_A_PHOTO_NAME =
+  /^\d*(avatars?|gravatar|emoji|smilies|icons?|logo|spinner|loader|sprite|pixel|spacer|rating|stars?)[\d_-]*$/i;
+
+function isNotAPhotoAddress(url: string): boolean {
+  const { hostname, pathname } = new URL(url);
+  return (
+    /(^|\.)gravatar\.com$/.test(hostname) ||
+    pathname
+      .split('/')
+      .some((part) => NOT_A_PHOTO_NAME.test(part.replace(/\.[^.]*$/, '')))
+  );
+}
+
+/**
+ * The URL of the widest usable candidate of a `srcset` (`640w`, or `2x`). Candidates are split at a comma after a
+ * descriptor or before whitespace, so a URL with commas in it (`w_640,h_480`) and a `data:` placeholder stay whole.
+ */
+function largestOfSrcset(
+  srcset: string | undefined,
+  pageUrl: string | undefined,
+): string | undefined {
   let largest: { url: string; size: number } | undefined;
-  for (const candidate of (srcset ?? '').split(',')) {
-    const [url, descriptor] = candidate.trim().split(/\s+/);
+  for (const candidate of (srcset ?? '').split(
+    /(?<=\s\d+(?:\.\d+)?[wx])\s*,|,\s+/,
+  )) {
+    const [value, descriptor] = candidate.trim().split(/\s+/);
+    const url = value && webUrl(value, pageUrl);
     if (!url) {
       continue;
     }

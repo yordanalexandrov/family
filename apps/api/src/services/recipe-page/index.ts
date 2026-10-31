@@ -6,8 +6,8 @@ export { type FetchedImage, fetchImage } from './fetch.js';
 
 /**
  * A recipe page as the agent gets it: the final URL and the JSON-LD Recipe (its step photos as references) or the main
- * text (its photos as markers `[снимка s1]`), with the URLs of the references in `stepImages`; or why it could not be read (`failure` for the request, `reason` for logs and the
- * smoke).
+ * text (its photos as markers `[снимка s1]`), with the URLs of the references in `stepImages`; or why it could not be
+ * read (`failure` for the request, `reason` for logs and the smoke).
  */
 export type RecipePage =
   | {

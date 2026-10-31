@@ -158,8 +158,8 @@ export type NormalizedIngredient = z.infer<typeof normalizedIngredientSchema>;
 /**
  * The reference of a step photo of the page (GLOSSARY: Снимка на стъпка): in the input the api writes it in place of a
  * `HowToStep.image` of the JSON-LD or of an `<img>` of the page text, there as `[снимка s1]` (`s1`, `s2`, …; the agent
- * never sees the photo's URL); in the output the agent puts
- * it on the step of its own that shows it, since it may translate, merge and split steps.
+ * never sees the photo's URL); in the output the agent puts it on the step of its own that shows it, since it may
+ * translate, merge and split steps.
  */
 export type StepImageRef = string;
 
