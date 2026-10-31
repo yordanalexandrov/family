@@ -347,14 +347,22 @@ async function fetchResource(
   }
 }
 
+const UTF8 = new TextDecoder('utf-8', { fatal: true });
+
 /**
  * A `Location` as the site meant it: Node reads header bytes as latin1, so the raw UTF-8 of a Cyrillic path arrives
- * as mojibake; it is read as UTF-8 again. ASCII (percent-encoded included) stays as it is.
+ * as mojibake; it is read as UTF-8 again. ASCII (percent-encoded included) and bytes that are not UTF-8 stay as
+ * they are.
  */
 function utf8Location(location: string): string {
-  return /[^\x20-\x7e]/.test(location)
-    ? Buffer.from(location, 'latin1').toString('utf8')
-    : location;
+  if (!/[^\x20-\x7e]/.test(location)) {
+    return location;
+  }
+  try {
+    return UTF8.decode(Buffer.from(location, 'latin1'));
+  } catch {
+    return location;
+  }
 }
 
 async function fetchWithin(

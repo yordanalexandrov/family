@@ -1,7 +1,7 @@
-import http, { type RequestOptions } from 'node:http';
+import nodeHttp, { type RequestOptions } from 'node:http';
 import type { AddressInfo, LookupFunction } from 'node:net';
 import { gzipSync } from 'node:zlib';
-import { HttpResponse, http as mock } from 'msw';
+import { HttpResponse, http } from 'msw';
 import {
   afterAll,
   afterEach,
@@ -34,31 +34,31 @@ const CYRILLIC_URL = `${SITE}${encodeURI(CYRILLIC_PATH)}`;
 function serveSites() {
   const userAgents: (string | null)[] = [];
   server.use(
-    mock.all('*', ({ request }) => {
+    http.all('*', ({ request }) => {
       userAgents.push(request.headers.get('user-agent'));
     }),
-    mock.get(`${SITE}/recipe`, () => html(RECIPE)),
-    mock.get(`${SITE}/hop/:left`, ({ params }) => {
+    http.get(`${SITE}/recipe`, () => html(RECIPE)),
+    http.get(`${SITE}/hop/:left`, ({ params }) => {
       const left = Number(params.left);
       return left === 0 ? html(RECIPE) : redirect(`/hop/${left - 1}`, 301);
     }),
-    mock.get(`${SITE}/to-encoded`, () => redirect(CYRILLIC_URL, 301)),
-    mock.get(CYRILLIC_URL, () => html(RECIPE)),
-    mock.get(
+    http.get(`${SITE}/to-encoded`, () => redirect(CYRILLIC_URL, 301)),
+    http.get(CYRILLIC_URL, () => html(RECIPE)),
+    http.get(
       `${SITE}/gzip`,
       () =>
         new HttpResponse(gzipSync(RECIPE), {
           headers: { 'content-type': 'text/html', 'content-encoding': 'gzip' },
         }),
     ),
-    mock.get(`${SITE}/cp1251`, () =>
+    http.get(`${SITE}/cp1251`, () =>
       html(
         new Uint8Array([0xc1, 0xee, 0xe1, 0x20, 0xf7, 0xee, 0xf0, 0xe1, 0xe0]), // „Боб чорба“
         'text/html; charset=windows-1251',
       ),
     ),
     // 11 × 100 000 letters × 2 bytes > 2 MB, without a content-length to refuse it up front.
-    mock.get(`${SITE}/big`, () => {
+    http.get(`${SITE}/big`, () => {
       const chunk = new TextEncoder().encode('а'.repeat(100_000));
       let left = 11;
       return new HttpResponse(
@@ -74,8 +74,8 @@ function serveSites() {
         { headers: { 'content-type': 'text/html' } },
       );
     }),
-    mock.get(`${SITE}/slow`, () => new Promise<Response>(() => {})),
-    mock.get(
+    http.get(`${SITE}/slow`, () => new Promise<Response>(() => {})),
+    http.get(
       `${SITE}/forbidden`,
       () =>
         new HttpResponse('<title>Just a moment...</title>', {
@@ -83,11 +83,11 @@ function serveSites() {
           headers: { 'content-type': 'text/html' },
         }),
     ),
-    mock.get(
+    http.get(
       `${SITE}/not-acceptable`,
       () => new HttpResponse(null, { status: 406 }),
     ),
-    mock.get(
+    http.get(
       `${SITE}/too-many`,
       () =>
         new HttpResponse('<title>Vercel Security Checkpoint</title>', {
@@ -95,7 +95,7 @@ function serveSites() {
           headers: { 'content-type': 'text/html' },
         }),
     ),
-    mock.get(
+    http.get(
       `${SITE}/challenge`,
       () =>
         new HttpResponse('<title>Just a moment...</title>', {
@@ -103,12 +103,12 @@ function serveSites() {
           headers: { 'content-type': 'text/html', 'cf-mitigated': 'challenge' },
         }),
     ),
-    mock.get(`${SITE}/challenge-page`, () =>
+    http.get(`${SITE}/challenge-page`, () =>
       html(
         '<html><head><title>Just a moment...</title></head><body>Checking your browser</body></html>',
       ),
     ),
-    mock.get(
+    http.get(
       `${SITE}/missing`,
       () =>
         new HttpResponse('<h1>Not found</h1>', {
@@ -116,23 +116,23 @@ function serveSites() {
           headers: { 'content-type': 'text/html' },
         }),
     ),
-    mock.get(`${SITE}/pdf`, () => html('%PDF-1.7', 'application/pdf')),
-    mock.get(`${SITE}/to-private`, () => redirect('http://10.0.0.1/recipe')),
-    mock.get(`${SITE}/to-metadata`, () =>
+    http.get(`${SITE}/pdf`, () => html('%PDF-1.7', 'application/pdf')),
+    http.get(`${SITE}/to-private`, () => redirect('http://10.0.0.1/recipe')),
+    http.get(`${SITE}/to-metadata`, () =>
       redirect('http://169.254.169.254/latest/meta-data'),
     ),
-    mock.get(`${SITE}/to-mapped-loopback`, () =>
+    http.get(`${SITE}/to-mapped-loopback`, () =>
       redirect('http://[::ffff:7f00:1]/recipe'),
     ),
-    mock.get('http://93.184.216.34/recipe', () => html(RECIPE)),
-    mock.get('http://[2606:4700:4700::1111]/recipe', () => html(RECIPE)),
-    mock.get('http://[::ffff:5db8:d822]/recipe', () => html(RECIPE)),
+    http.get('http://93.184.216.34/recipe', () => html(RECIPE)),
+    http.get('http://[2606:4700:4700::1111]/recipe', () => html(RECIPE)),
+    http.get('http://[::ffff:5db8:d822]/recipe', () => html(RECIPE)),
   );
   return { userAgents };
 }
 
 // msw answers for the sites, but it opens no socket and so skips the DNS lookup: what a name resolves to is checked
-// in the describe after this one, without msw (docs/testing.md).
+// in the next describe, without msw; a raw non-ASCII `Location` in the last one (docs/testing.md).
 describe('fetchPage', () => {
   beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
   afterEach(() => {
@@ -170,7 +170,7 @@ describe('fetchPage', () => {
     });
   });
 
-  it('follows a percent-encoded Location as before', async () => {
+  it('follows a percent-encoded Location unchanged', async () => {
     serveSites();
     expect(await fetchPage(`${SITE}/to-encoded`)).toMatchObject({
       ok: true,
@@ -320,12 +320,11 @@ describe('fetchPage by a name that resolves to a private address', () => {
 // No msw here either: msw writes a header as UTF-8 text, so it cannot send the raw bytes of a non-ASCII `Location`
 // that Node reads as latin1. A real server on loopback answers for `recepti.test`, and only the lookup of that name
 // is pointed at it; the socket and Node's parser are the real ones.
-describe('a redirect whose Location is Cyrillic in raw UTF-8', () => {
-  const page = '/рецепта/1027/баница-със-сирене';
+describe('a redirect whose Location is not ASCII', () => {
   const photo = '/снимки/баница.jpg';
   const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
   let site = '';
-  let local: http.Server;
+  let local: nodeHttp.Server;
 
   /** A `Location` as Node reads it: the UTF-8 bytes of `target`, each byte one latin1 character. */
   function rawLocation(target: string) {
@@ -333,16 +332,20 @@ describe('a redirect whose Location is Cyrillic in raw UTF-8', () => {
   }
 
   beforeAll(async () => {
-    local = http.createServer((req, res) => {
+    local = nodeHttp.createServer((req, res) => {
       const redirects: Record<string, string> = {
-        '/absolute': `${site}${page}`,
-        '/relative': page,
+        '/absolute': `${site}${CYRILLIC_PATH}`,
+        '/relative': CYRILLIC_PATH,
         '/photo': photo,
       };
       const target = redirects[req.url ?? ''];
-      if (target) {
+      if (req.url === '/latin1') {
+        res.writeHead(301, { location: '/caf\xe9' }).end();
+      } else if (target) {
         res.writeHead(301, { location: rawLocation(target) }).end();
-      } else if (req.url === encodeURI(page)) {
+      } else if (req.url === encodeURI(CYRILLIC_PATH)) {
+        res.writeHead(200, { 'content-type': 'text/html' }).end(RECIPE);
+      } else if (req.url === '/caf%C3%A9') {
         res.writeHead(200, { 'content-type': 'text/html' }).end(RECIPE);
       } else if (req.url === encodeURI(photo)) {
         res.writeHead(200, { 'content-type': 'image/jpeg' }).end(JPEG);
@@ -361,24 +364,24 @@ describe('a redirect whose Location is Cyrillic in raw UTF-8', () => {
         callback(null, '127.0.0.1', 4);
       }
     };
-    const request = http.request.bind(http);
-    vi.spyOn(http, 'request').mockImplementation(((
+    const request = nodeHttp.request.bind(nodeHttp);
+    vi.spyOn(nodeHttp, 'request').mockImplementation(((
       url: URL,
       options: RequestOptions,
-      callback: (res: http.IncomingMessage) => void,
+      callback: (res: nodeHttp.IncomingMessage) => void,
     ) =>
       request(
         url,
         { ...options, lookup: toLocal },
         callback,
-      )) as unknown as typeof http.request);
+      )) as unknown as typeof nodeHttp.request);
   });
   afterAll(async () => {
     vi.restoreAllMocks();
     await new Promise((resolve) => local.close(resolve));
   });
 
-  it('reaches the page, absolute or relative', async () => {
+  it('reaches the page of a Cyrillic Location in raw UTF-8, absolute or relative', async () => {
     for (const path of ['/absolute', '/relative']) {
       expect(await fetchPage(`${site}${path}`), path).toEqual({
         ok: true,
@@ -388,11 +391,18 @@ describe('a redirect whose Location is Cyrillic in raw UTF-8', () => {
     }
   });
 
-  it('reaches the photo of a step', async () => {
+  it('reaches the photo of a step the same way', async () => {
     expect(await fetchImage(`${site}/photo`)).toEqual({
       ok: true,
       url: `${site}/%D1%81%D0%BD%D0%B8%D0%BC%D0%BA%D0%B8/%D0%B1%D0%B0%D0%BD%D0%B8%D1%86%D0%B0.jpg`,
       bytes: JPEG,
+    });
+  });
+
+  it('reads a Location that is not UTF-8 as latin1', async () => {
+    expect(await fetchPage(`${site}/latin1`)).toMatchObject({
+      ok: true,
+      url: `${site}/caf%C3%A9`,
     });
   });
 });
