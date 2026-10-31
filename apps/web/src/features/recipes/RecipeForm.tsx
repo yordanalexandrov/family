@@ -1,6 +1,7 @@
 import type { Ingredient, RecipeInput, RecipeStep, Tag } from '@family/shared';
 import {
   type FormEvent,
+  type ReactNode,
   useCallback,
   useId,
   useMemo,
@@ -51,6 +52,20 @@ export interface RecipeFormProps {
   onTitleChange?: (title: string) => void;
   /** Изборът в „Уред“ се смени (`''` = „Без уред“), напр. за значката над формата при преглед. */
   onApplianceChange?: (appliance: string) => void;
+  /** Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията. */
+  stepsAction?: ReactNode;
+  /**
+   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и попълва времето, ако го има, веднъж за
+   * всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
+   */
+  replaceSteps?: StepsReplacement | undefined;
+}
+
+/** Стъпките (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
+export interface StepsReplacement {
+  key: string;
+  steps: RecipeStep[];
+  prepMinutes?: number | undefined;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -152,10 +167,23 @@ export function RecipeForm({
   primaryAction,
   onTitleChange,
   onApplianceChange,
+  stepsAction,
+  replaceSteps,
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
   );
+  const [replacedKey, setReplacedKey] = useState(replaceSteps?.key);
+  if (replaceSteps && replaceSteps.key !== replacedKey) {
+    setReplacedKey(replaceSteps.key);
+    setValues((current) => ({
+      ...current,
+      steps: replaceSteps.steps.map((step) => ({ ...step })),
+      ...(replaceSteps.prepMinutes === undefined
+        ? {}
+        : { prepMinutes: String(replaceSteps.prepMinutes) }),
+    }));
+  }
   /**
    * Грешките на клиентската проверка от последното „Запази“ (тази от сървъра е `submitError`); показват се само докато
    * полето им още не минава проверката.
@@ -522,6 +550,7 @@ export function RecipeForm({
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Стъпки</legend>
+          {stepsAction}
           {errors.steps && <p className="field__error">{errors.steps}</p>}
           <ol className="step-lines" aria-label="Стъпки">
             {values.steps.map((step, index) => {

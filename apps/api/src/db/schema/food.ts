@@ -9,6 +9,7 @@ import {
   type PrepTimeRange,
   prepTimeRangeSchema,
   type RecipeImportSource,
+  type RecipeRefinement,
   type RecipeStep,
   type RecipeSuggestionStatus,
   recipeImportSourceSchema,
@@ -214,6 +215,32 @@ export const recipeSuggestion = pgTable(
     check(
       'recipe_suggestion_request_check',
       sql`num_nonnulls(${t.requestId}, ${t.importRequestId}) = 1`,
+    ),
+  ],
+);
+
+/**
+ * One run of `recipe.refine` for a recipe („Подобри рецептата“, GLOSSARY: Подобряване на рецепта); `refinement` is
+ * written when it is `done`, `no_results` keeps the agent's reason. It goes with the recipe; at most one `pending` per
+ * recipe. The recipe changes only when the person saves the form; `hint` of the common columns is unused.
+ */
+export const recipeRefineRequest = pgTable(
+  'recipe_refine_request',
+  {
+    ...contractRequestColumns(),
+    recipeId: uuid('recipe_id')
+      .notNull()
+      .references(() => recipe.id, { onDelete: 'cascade' }),
+    refinement: jsonb('refinement').$type<RecipeRefinement>(),
+    noResults: text('no_results'),
+  },
+  (t) => [
+    uniqueIndex('recipe_refine_request_pending_recipe_key')
+      .on(t.recipeId)
+      .where(sql`${t.status} = 'pending'`),
+    check(
+      'recipe_refine_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
     ),
   ],
 );

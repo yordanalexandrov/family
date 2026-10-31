@@ -23,7 +23,8 @@
     "suggest:smoke": "tsx --env-file-if-exists=../../.env scripts/suggest-smoke.ts",
     "menu:smoke": "tsx --env-file-if-exists=../../.env scripts/menu-smoke.ts",
     "meal:smoke": "tsx --env-file-if-exists=../../.env scripts/meal-smoke.ts",
-    "import:smoke": "tsx --env-file-if-exists=../../.env scripts/import-smoke.ts"
+    "import:smoke": "tsx --env-file-if-exists=../../.env scripts/import-smoke.ts",
+    "refine:smoke": "tsx --env-file-if-exists=../../.env scripts/refine-smoke.ts"
   },
   "dependencies": {
     "@family/shared": "workspace:*",

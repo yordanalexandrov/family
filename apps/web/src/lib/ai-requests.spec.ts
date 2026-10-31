@@ -16,6 +16,7 @@ const NEXT: Record<AiRequestKind, string> = {
   replace: 'Опитай пак или избери сам.',
   suggest: 'Опитай пак или с друга подсказка.',
   import: 'Опитай пак.',
+  refine: 'Опитай пак.',
 };
 
 const FAILED: Record<AiRequestKind, string> = {
@@ -23,6 +24,7 @@ const FAILED: Record<AiRequestKind, string> = {
   replace: 'AI не успя да предложи друго ястие',
   suggest: 'AI не успя да предложи рецепти',
   import: 'AI не успя да прочете рецептата',
+  refine: 'AI не успя да подобри рецептата',
 };
 
 const KINDS = Object.keys(NEXT) as AiRequestKind[];
