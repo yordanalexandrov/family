@@ -189,4 +189,62 @@ describe('Излизане от Готвене с таймер', () => {
     expect(router.state.location.pathname).toBe(cookPath);
     expect(confirmation()).toBeNull();
   });
+
+  /** kiosk в Готвене на стъпка 2 с таймер „15 мин“, отворено менюто му. */
+  async function kioskTimerMenu(user: ReturnType<typeof fakeClock>) {
+    const rendered = renderApp(cookPath);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
+    const strip = screen.getByRole('region', { name: 'Таймери' });
+    await user.click(
+      within(strip).getByRole('button', { name: /^Стъпка 2 · 15 мин/ }),
+    );
+    return {
+      ...rendered,
+      menu: screen.getByRole('dialog', { name: 'Стъпка 2 · 15 мин' }),
+    };
+  }
+
+  it('kiosk: щом последният таймер е отменен, връщането на дашборда пак се случва', async () => {
+    const user = fakeClock();
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    const { router, menu } = await kioskTimerMenu(user);
+    act(() => vi.advanceTimersByTime(3 * HOUR));
+    expect(router.state.location.pathname).toBe(cookPath);
+
+    await user.click(within(menu).getByRole('button', { name: 'Отмени' }));
+    // Навигацията на router-а завършва в microtask-ове: асинхронното превъртане ги изчаква.
+    await act(() => vi.advanceTimersByTimeAsync(2 * HOUR));
+
+    expect(router.state.location.pathname).toBe('/');
+  });
+
+  it('след отмяна на последния таймер „Затвори“ излиза без потвърждение', async () => {
+    const user = fakeClock();
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    const { router, menu } = await kioskTimerMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Отмени' }));
+    await user.click(screen.getByRole('button', { name: 'Затвори' }));
+
+    expect(confirmation()).toBeNull();
+    expect(router.state.location.pathname).not.toBe(cookPath);
+  });
+
+  it('таймер на пауза не е работещ: не пита при излизане и не спира връщането на kiosk', async () => {
+    const user = fakeClock();
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    const { router, menu } = await kioskTimerMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Пауза' }));
+    await user.click(within(menu).getByRole('button', { name: 'Готово' }));
+    await act(() => vi.advanceTimersByTimeAsync(2 * HOUR));
+
+    expect(confirmation()).toBeNull();
+    expect(router.state.location.pathname).toBe('/');
+  });
 });

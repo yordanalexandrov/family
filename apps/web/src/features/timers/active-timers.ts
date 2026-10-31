@@ -5,6 +5,6 @@ import type { Timer } from './timer-store';
  * се връща сам на дашборда. Работещ е и изтеклият, още неспрян таймер (звънящ). Таймер, който не може да звънне
  * (напр. на пауза), не е активен.
  */
-export function isActiveTimer(_timer: Timer): boolean {
-  return true;
+export function isActiveTimer(timer: Timer): boolean {
+  return timer.pausedAt === undefined;
 }
