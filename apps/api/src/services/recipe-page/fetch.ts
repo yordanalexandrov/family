@@ -347,6 +347,24 @@ async function fetchResource(
   }
 }
 
+const UTF8 = new TextDecoder('utf-8', { fatal: true });
+
+/**
+ * A `Location` as the site meant it: Node reads header bytes as latin1, so the raw UTF-8 of a Cyrillic path arrives
+ * as mojibake; it is read as UTF-8 again. ASCII (percent-encoded included) and bytes that are not UTF-8 stay as
+ * they are.
+ */
+function utf8Location(location: string): string {
+  if (!/[^\x20-\x7e]/.test(location)) {
+    return location;
+  }
+  try {
+    return UTF8.decode(Buffer.from(location, 'latin1'));
+  } catch {
+    return location;
+  }
+}
+
 async function fetchWithin(
   url: string,
   rules: ResourceRules,
@@ -371,7 +389,7 @@ async function fetchWithin(
         if (redirects === MAX_REDIRECTS) {
           throw new FetchFailure('fetch_failed', 'too_many_redirects');
         }
-        current = new URL(location, current);
+        current = new URL(utf8Location(location), current);
         continue;
       }
       if (

@@ -1,3 +1,5 @@
+import nodeHttp, { type RequestOptions } from 'node:http';
+import type { AddressInfo, LookupFunction } from 'node:net';
 import { gzipSync } from 'node:zlib';
 import { HttpResponse, http } from 'msw';
 import {
@@ -10,7 +12,7 @@ import {
   vi,
 } from 'vitest';
 import { server } from '../../test/msw.js';
-import { fetchPage } from './fetch.js';
+import { fetchImage, fetchPage } from './fetch.js';
 
 const RECIPE =
   '<html><head><title>Боб чорба</title></head><body>Продукти: боб</body></html>';
@@ -25,6 +27,9 @@ function redirect(location: string, status = 302) {
   return new HttpResponse(null, { status, headers: { location } });
 }
 
+const CYRILLIC_PATH = '/рецепта/1027/баница-със-сирене';
+const CYRILLIC_URL = `${SITE}${encodeURI(CYRILLIC_PATH)}`;
+
 /** Recipe sites at HTTP level; each path answers one way. Returns the User-Agent of every request. */
 function serveSites() {
   const userAgents: (string | null)[] = [];
@@ -37,6 +42,8 @@ function serveSites() {
       const left = Number(params.left);
       return left === 0 ? html(RECIPE) : redirect(`/hop/${left - 1}`, 301);
     }),
+    http.get(`${SITE}/to-encoded`, () => redirect(CYRILLIC_URL, 301)),
+    http.get(CYRILLIC_URL, () => html(RECIPE)),
     http.get(
       `${SITE}/gzip`,
       () =>
@@ -125,7 +132,7 @@ function serveSites() {
 }
 
 // msw answers for the sites, but it opens no socket and so skips the DNS lookup: what a name resolves to is checked
-// in the describe after this one, without msw (docs/testing.md).
+// in the next describe, without msw; a raw non-ASCII `Location` in the last one (docs/testing.md).
 describe('fetchPage', () => {
   beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
   afterEach(() => {
@@ -160,6 +167,14 @@ describe('fetchPage', () => {
       ok: false,
       failure: 'fetch_failed',
       reason: 'too_many_redirects',
+    });
+  });
+
+  it('follows a percent-encoded Location unchanged', async () => {
+    serveSites();
+    expect(await fetchPage(`${SITE}/to-encoded`)).toMatchObject({
+      ok: true,
+      url: CYRILLIC_URL,
     });
   });
 
@@ -298,6 +313,96 @@ describe('fetchPage by a name that resolves to a private address', () => {
       ok: false,
       failure: 'fetch_failed',
       reason: 'private_address',
+    });
+  });
+});
+
+// No msw here either: msw writes a header as UTF-8 text, so it cannot send the raw bytes of a non-ASCII `Location`
+// that Node reads as latin1. A real server on loopback answers for `recepti.test`, and only the lookup of that name
+// is pointed at it; the socket and Node's parser are the real ones.
+describe('a redirect whose Location is not ASCII', () => {
+  const photo = '/снимки/баница.jpg';
+  const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+  let site = '';
+  let local: nodeHttp.Server;
+
+  /** A `Location` as Node reads it: the UTF-8 bytes of `target`, each byte one latin1 character. */
+  function rawLocation(target: string) {
+    return Buffer.from(target, 'utf8').toString('latin1');
+  }
+
+  beforeAll(async () => {
+    local = nodeHttp.createServer((req, res) => {
+      const redirects: Record<string, string> = {
+        '/absolute': `${site}${CYRILLIC_PATH}`,
+        '/relative': CYRILLIC_PATH,
+        '/photo': photo,
+      };
+      const target = redirects[req.url ?? ''];
+      if (req.url === '/latin1') {
+        res.writeHead(301, { location: '/caf\xe9' }).end();
+      } else if (target) {
+        res.writeHead(301, { location: rawLocation(target) }).end();
+      } else if (req.url === encodeURI(CYRILLIC_PATH)) {
+        res.writeHead(200, { 'content-type': 'text/html' }).end(RECIPE);
+      } else if (req.url === '/caf%C3%A9') {
+        res.writeHead(200, { 'content-type': 'text/html' }).end(RECIPE);
+      } else if (req.url === encodeURI(photo)) {
+        res.writeHead(200, { 'content-type': 'image/jpeg' }).end(JPEG);
+      } else {
+        res.writeHead(404).end();
+      }
+    });
+    await new Promise<void>((resolve) => local.listen(0, '127.0.0.1', resolve));
+    site = `http://recepti.test:${(local.address() as AddressInfo).port}`;
+    const toLocal: LookupFunction = (_hostname, options, callback) => {
+      if (options.all) {
+        (callback as unknown as (e: null, a: object[]) => void)(null, [
+          { address: '127.0.0.1', family: 4 },
+        ]);
+      } else {
+        callback(null, '127.0.0.1', 4);
+      }
+    };
+    const request = nodeHttp.request.bind(nodeHttp);
+    vi.spyOn(nodeHttp, 'request').mockImplementation(((
+      url: URL,
+      options: RequestOptions,
+      callback: (res: nodeHttp.IncomingMessage) => void,
+    ) =>
+      request(
+        url,
+        { ...options, lookup: toLocal },
+        callback,
+      )) as unknown as typeof nodeHttp.request);
+  });
+  afterAll(async () => {
+    vi.restoreAllMocks();
+    await new Promise((resolve) => local.close(resolve));
+  });
+
+  it('reaches the page of a Cyrillic Location in raw UTF-8, absolute or relative', async () => {
+    for (const path of ['/absolute', '/relative']) {
+      expect(await fetchPage(`${site}${path}`), path).toEqual({
+        ok: true,
+        url: `${site}/%D1%80%D0%B5%D1%86%D0%B5%D0%BF%D1%82%D0%B0/1027/%D0%B1%D0%B0%D0%BD%D0%B8%D1%86%D0%B0-%D1%81%D1%8A%D1%81-%D1%81%D0%B8%D1%80%D0%B5%D0%BD%D0%B5`,
+        html: RECIPE,
+      });
+    }
+  });
+
+  it('reaches the photo of a step the same way', async () => {
+    expect(await fetchImage(`${site}/photo`)).toEqual({
+      ok: true,
+      url: `${site}/%D1%81%D0%BD%D0%B8%D0%BC%D0%BA%D0%B8/%D0%B1%D0%B0%D0%BD%D0%B8%D1%86%D0%B0.jpg`,
+      bytes: JPEG,
+    });
+  });
+
+  it('reads a Location that is not UTF-8 as latin1', async () => {
+    expect(await fetchPage(`${site}/latin1`)).toMatchObject({
+      ok: true,
+      url: `${site}/caf%C3%A9`,
     });
   });
 });
