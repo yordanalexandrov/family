@@ -10,6 +10,7 @@ import { useWakeLock } from '../../app/wake-lock';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { useRecipe } from '../recipes/queries';
+import { useLeaveCooking } from '../timers/leave-cooking';
 import { CookingView } from './CookingView';
 
 export interface CookingSearch {
@@ -35,14 +36,23 @@ export function CookingScreen() {
   // Телефон и браузър държат екрана включен само в Готвене; kiosk го държи навсякъде (RootLayout).
   const { mode } = useDeviceMode();
   useWakeLock(isPersonalDevice(mode));
-  // „Готово“ връща там, откъдето си влязъл; без предишен екран (отворено по адрес) — към изгледа на рецептата.
-  const exit = () => {
-    if (canGoBack) {
-      router.history.back();
-    } else {
-      void navigate({ to: '/recipes/$id', params: { id }, replace: true });
-    }
-  };
+  const { leave, confirmation } = useLeaveCooking();
+  // „Готово“ връща там, откъдето си влязъл; без предишен екран (отворено по адрес) — към изгледа на рецептата. С
+  // работещ таймер първо пита, а `onLeave` („Готово“ забравя напредъка) става чак при излизането.
+  const exit = (onLeave?: () => void) =>
+    leave(() => {
+      onLeave?.();
+      if (canGoBack) {
+        router.history.back({ ignoreBlocker: true });
+      } else {
+        void navigate({
+          to: '/recipes/$id',
+          params: { id },
+          replace: true,
+          ignoreBlocker: true,
+        });
+      }
+    });
 
   if (recipe.isPending) {
     return (
@@ -58,5 +68,10 @@ export function CookingScreen() {
       </main>
     );
   }
-  return <CookingView recipe={recipe.data} servings={servings} onExit={exit} />;
+  return (
+    <>
+      <CookingView recipe={recipe.data} servings={servings} onExit={exit} />
+      {confirmation}
+    </>
+  );
 }
