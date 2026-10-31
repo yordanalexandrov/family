@@ -15,9 +15,22 @@
   font: inherit;
   font-weight: 600;
   line-height: 1.2;
+  position: relative;
   white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Мястото за пръст е поне `--touch-target` и при най-дребния текст (A−), без да разтваря редовете: невидимо поле
+   над бутона, центрирано върху него. */
+.step-time::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: max(100%, var(--touch-target));
+  block-size: max(100%, var(--touch-target));
+  transform: translate(-50%, -50%);
 }
 
 .step-time:active {
