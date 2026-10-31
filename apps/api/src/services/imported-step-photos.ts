@@ -63,14 +63,16 @@ async function jpegOrNull(bytes: Buffer): Promise<Buffer | null> {
 /**
  * The agent's steps as a suggestion stores them, each with the photo it chose stored, once per photo even when it is
  * on several steps; and how many chosen photos were dropped, because they did not download or are not pictures. A
- * reference the page does not have leaves its step without a photo. Only inserts: the photos are ready already.
+ * reference the page does not have leaves its step without a photo. `kept` are photos stored already, by their
+ * references (those a refined recipe has). Only inserts: the photos are ready already.
  */
 export async function stepsWithPhotos(
   tx: DbExecutor,
   steps: readonly NormalizedStep[],
   prepared: PreparedStepPhotos | undefined,
+  kept: ReadonlyMap<string, string> = new Map(),
 ): Promise<{ steps: RecipeStep[]; dropped: number }> {
-  const stored = new Map<string, string | null>();
+  const stored = new Map<string, string | null>(kept);
   for (const [ref, jpeg] of prepared ?? []) {
     stored.set(ref, jpeg ? await insertStepPhoto(tx, jpeg) : null);
   }

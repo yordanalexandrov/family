@@ -2,7 +2,7 @@ import type { CONTRACT_FAILURES, ContractFailure } from '@family/shared';
 import { ApiError } from '../api/client';
 
 /**
- * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне): `POST` → `pending`, клиентът пита отново,
+ * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване): `POST` → `pending`, клиентът пита отново,
  * докато заявката не е `done`/`failed`; кодовете на `failed` са едни и същи.
  */
 
@@ -12,8 +12,13 @@ export const POLL_INTERVAL_MS = 3000;
 /** И за отказаната заявка (503 `openclaw_unavailable`), и за грешка `http_*` на агента. */
 const AI_UNAVAILABLE = 'AI не е на разположение в момента';
 
-/** Какво е поискано от AI: меню за седмица, друго ястие, предложения за рецепти или внасяне на рецепта. */
-export type AiRequestKind = 'menu' | 'replace' | 'suggest' | 'import';
+/** Какво е поискано от AI: меню за седмица, друго ястие, предложения за рецепти, внасяне или подобряване на рецепта. */
+export type AiRequestKind =
+  | 'menu'
+  | 'replace'
+  | 'suggest'
+  | 'import'
+  | 'refine';
 
 /** Полетата на заявката, от които зависи съобщението; общи за всички AI заявки. */
 export interface FailedAiRequest {
@@ -40,6 +45,10 @@ const KINDS: Record<AiRequestKind, { failed: string; next: string }> = {
     failed: 'AI не успя да прочете рецептата',
     next: 'Опитай пак.',
   },
+  refine: {
+    failed: 'AI не успя да подобри рецептата',
+    next: 'Опитай пак.',
+  },
 };
 
 type NamedFailure = (typeof CONTRACT_FAILURES)[number];
@@ -57,6 +66,7 @@ const OWN_MESSAGES: Partial<
   no_results: {
     suggest: 'Не намерих подходящи рецепти. Опитай пак или с друга подсказка.',
     import: 'Не намерих рецепта в източника.',
+    refine: 'Рецептата вече е наред.',
   },
   fetch_blocked: {
     import: 'Сайтът не позволява автоматично четене — постави текста.',

@@ -49,6 +49,7 @@ function openClawFields() {
     OPENCLAW_MENU_AGENT: z.string().min(1).default('family-menu'),
     OPENCLAW_MEAL_AGENT: z.string().min(1).default('family-meal'),
     OPENCLAW_IMPORT_AGENT: z.string().min(1).default('family-import'),
+    OPENCLAW_REFINE_AGENT: z.string().min(1).default('family-refine'),
     OPENCLAW_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
   };
 }
@@ -64,6 +65,7 @@ function toOpenClawConfig(env: OpenClawEnv) {
     menuAgent: env.OPENCLAW_MENU_AGENT,
     mealAgent: env.OPENCLAW_MEAL_AGENT,
     importAgent: env.OPENCLAW_IMPORT_AGENT,
+    refineAgent: env.OPENCLAW_REFINE_AGENT,
     timeoutMs: env.OPENCLAW_TIMEOUT_MS,
   };
 }

@@ -1,0 +1,50 @@
+{
+  "recipe": {
+    "title": "Пиле с картофи на фурна",
+    "servings": 4,
+    "prepMinutes": null,
+    "ingredients": [
+      { "name": "пилешко бутче", "quantity": 4, "unit": "pcs" },
+      { "name": "картоф", "quantity": 1, "unit": "kg" },
+      { "name": "олио", "quantity": 3, "unit": "tbsp" },
+      {
+        "name": "червен пипер",
+        "quantity": 1,
+        "unit": "tsp",
+        "note": "сладък"
+      },
+      { "name": "сол", "quantity": null, "unit": "pinch" }
+    ],
+    "steps": [
+      { "text": "Нарежи картофите и ги подреди в тава.", "image": null },
+      { "text": "Овкуси пилето и го сложи върху картофите.", "image": "e1" },
+      { "text": "Печи до готовност.", "image": null }
+    ]
+  },
+  "source": {
+    "url": "https://blog.example/pile-s-kartofi",
+    "jsonLd": {
+      "@type": "Recipe",
+      "name": "Пиле с картофи на фурна",
+      "totalTime": "PT1H15M",
+      "recipeInstructions": [
+        {
+          "@type": "HowToStep",
+          "text": "Обелете картофите, нарежете ги на кръгчета и ги подредете в намазнена тава.",
+          "image": "s1"
+        },
+        {
+          "@type": "HowToStep",
+          "text": "Натрийте бутчетата с олио, сол и червен пипер и ги сложете върху картофите.",
+          "image": "s2"
+        },
+        {
+          "@type": "HowToStep",
+          "text": "Печете в загрята на 200 градуса фурна с вентилатор около час, докато пилето порозовее.",
+          "image": "s3"
+        }
+      ]
+    },
+    "photos": ["s1", "s2", "s3"]
+  }
+}

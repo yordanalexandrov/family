@@ -20,6 +20,7 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   menuAgent: 'family-menu',
   mealAgent: 'family-meal',
   importAgent: 'family-import',
+  refineAgent: 'family-refine',
   timeoutMs: 2_000,
 };
 

@@ -2,6 +2,7 @@ import {
   mealReplace,
   menuPropose,
   recipeNormalize,
+  recipeRefine,
   recipeSuggest,
 } from '@family/shared';
 import Fastify, {
@@ -36,6 +37,7 @@ import { menuRoutes } from './routes/menu.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
 import { recipeImportsRoutes } from './routes/recipe-imports.js';
+import { recipeRefinementsRoutes } from './routes/recipe-refinements.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { shoppingRoutes } from './routes/shopping.js';
@@ -71,6 +73,10 @@ import {
   type RecipeImportsService,
 } from './services/recipe-imports.js';
 import {
+  createRecipeRefineStore,
+  type RecipeRefinements,
+} from './services/recipe-refinements.js';
+import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
   suggestionRequestStore,
@@ -94,6 +100,8 @@ declare module 'fastify' {
     recipeSuggestions: RecipeSuggestionsService;
     /** Imports of recipes (`recipe.normalize`); their suggestions are decided through `recipeSuggestions`. */
     recipeImports: RecipeImportsService;
+    /** „Подобри рецептата“ for a recipe (`recipe.refine`). */
+    recipeRefinements: RecipeRefinements;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
     /** The cron's proposal of next week's menu; `null` without OpenClaw. */
@@ -239,6 +247,7 @@ export function buildApp({
     menuAgent: '',
     mealAgent: '',
     importAgent: '',
+    refineAgent: '',
   };
   app.decorate(
     'recipeSuggestions',
@@ -286,6 +295,14 @@ export function buildApp({
       agents.mealAgent,
     ),
   );
+  app.decorate(
+    'recipeRefinements',
+    contractRequests.register(
+      recipeRefine,
+      createRecipeRefineStore(),
+      agents.refineAgent,
+    ),
+  );
   app.addHook('onClose', async () => {
     await contractRequests.close();
     await closeDb(db);
@@ -310,6 +327,7 @@ export function buildApp({
   app.register(recipesRoutes);
   app.register(recipeSuggestionsRoutes);
   app.register(recipeImportsRoutes);
+  app.register(recipeRefinementsRoutes);
   app.register(stepPhotosRoutes);
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);

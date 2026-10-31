@@ -1,9 +1,13 @@
 import type { RecipeInput } from '@family/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
+import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
+import { useOnline } from '../../lib/use-online';
 import { useRecipe, useSaveRecipe } from './queries';
-import { RecipeForm } from './RecipeForm';
+import { RecipeForm, type StepsReplacement } from './RecipeForm';
+import { RefineSheet } from './RefineSheet';
 import { recipeToFormValues } from './recipe-form-values';
 import './recipes.css';
 
@@ -52,6 +56,11 @@ export function EditRecipeScreen() {
   const recipe = useRecipe(id);
   const { save, submit } = useSaveAndView(id);
   const navigate = useNavigate();
+  const [refining, setRefining] = useState(false);
+  /** Подобряването, което още чака: затвореният и отворен пак лист продължава него. */
+  const [refineId, setRefineId] = useState<string>();
+  const [replacement, setReplacement] = useState<StepsReplacement>();
+  const connection = useNeedsConnection(useOnline(), 'recipe-form__hint');
   return (
     <main className="screen recipes">
       <header className="recipes__header">
@@ -76,6 +85,44 @@ export function EditRecipeScreen() {
           isSubmitting={save.isPending}
           submitError={save.error}
           onCancel={() => void navigate({ to: '/recipes/$id', params: { id } })}
+          replaceSteps={replacement}
+          stepsAction={
+            <>
+              <button
+                type="button"
+                className="button button--quiet recipe-form__refine"
+                disabled={connection.disabled}
+                aria-describedby={connection.describedBy}
+                onClick={() => setRefining(true)}
+              >
+                ✨ Подобри рецептата
+              </button>
+              {connection.hint}
+            </>
+          }
+        />
+      )}
+      {refining && recipe.data && (
+        <RefineSheet
+          recipeId={id}
+          steps={recipe.data.steps}
+          requestId={refineId}
+          onRequested={setRefineId}
+          onAccept={(refinement) => {
+            setReplacement((current) => ({
+              key: (current?.key ?? 0) + 1,
+              steps: refinement.steps,
+              prepMinutes: refinement.prepMinutes,
+            }));
+            setRefineId(undefined);
+            setRefining(false);
+          }}
+          onClose={(pending) => {
+            if (!pending) {
+              setRefineId(undefined);
+            }
+            setRefining(false);
+          }}
         />
       )}
     </main>
