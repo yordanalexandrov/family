@@ -555,6 +555,10 @@ fieldset.chips {
   gap: var(--space-3);
 }
 
+.refine > p {
+  margin: 0;
+}
+
 .refine__waiting {
   display: flex;
   flex-direction: column;
@@ -586,13 +590,21 @@ fieldset.chips {
   flex-direction: column;
   gap: var(--space-3);
   margin: 0;
-  padding-inline-start: var(--space-5);
+  padding-inline-start: 1.75em;
 }
 
+/* `list-item`, не flex: номерът на стъпката е важен за сравнението. */
 .refine__step {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: list-item;
+}
+
+.refine__step::marker {
+  color: var(--color-text-muted);
+}
+
+.refine__step > span {
+  display: block;
+  margin-block-end: var(--space-2);
 }
 
 .refine__actions {
