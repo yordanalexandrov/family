@@ -10,7 +10,7 @@ import { useWakeLock } from '../../app/wake-lock';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { useRecipe } from '../recipes/queries';
-import { useLeaveCooking } from '../timers/leave-cooking';
+import { useLeaveCooking } from '../timers/use-leave-cooking';
 import { CookingView } from './CookingView';
 
 export interface CookingSearch {

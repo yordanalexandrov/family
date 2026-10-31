@@ -1,21 +1,12 @@
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
-import type { TimerSource } from './timer-store';
+import { formatMinutes } from '../recipes/format';
+import { MINUTE_MS, type TimerSource } from './timer-store';
 import { useTimers } from './use-timers';
 import './timers.css';
 
 /** Бутоните, с които се избира времето: без клавиатура, само добавяне на минути. */
 const STEPS_MIN = [1, 5, 10];
-
-/** Избраното време с думи: „0 мин“, „45 мин“, „1 ч 30 мин“. */
-export function minutesLabel(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours === 0) {
-    return `${rest} мин`;
-  }
-  return rest === 0 ? `${hours} ч` : `${hours} ч ${rest} мин`;
-}
 
 interface ManualTimerProps {
   /** Рецептата и стъпката, под които е бутонът: надписът на пуснатия таймер („Таймер · Стъпка N“). */
@@ -47,7 +38,7 @@ export function ManualTimer({ source }: ManualTimerProps) {
         <Sheet title="Таймер" closeLabel="Затвори" onClose={close}>
           <div className="sheet__section manual-timer">
             <output className="manual-timer__time" aria-live="polite">
-              {minutesLabel(minutes)}
+              {formatMinutes(minutes)}
             </output>
             <div className="manual-timer__add">
               {STEPS_MIN.map((step) => (
@@ -76,8 +67,8 @@ export function ManualTimer({ source }: ManualTimerProps) {
               onClick={() => {
                 start({
                   ...source,
-                  label: minutesLabel(minutes),
-                  durationMs: minutes * 60_000,
+                  label: formatMinutes(minutes),
+                  durationMs: minutes * MINUTE_MS,
                   manual: true,
                 });
                 close();

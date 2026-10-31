@@ -1,6 +1,6 @@
 import { useMatch, useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { isActiveTimer } from '../features/timers/active-timers';
+import { isActiveTimer } from '../features/timers/timer-store';
 import { useTimers } from '../features/timers/use-timers';
 
 /** kiosk: без докосване толкова време екранът извън дашборда се връща сам. */

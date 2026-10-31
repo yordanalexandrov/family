@@ -4,6 +4,7 @@ import { ManualTimer } from '../timers/ManualTimer';
 import { StepText } from '../timers/StepText';
 import { TimerAlarms } from '../timers/TimerAlarms';
 import { TimerStrip } from '../timers/TimerStrip';
+import type { TimerSource } from '../timers/timer-store';
 import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
@@ -47,6 +48,12 @@ export function CookingSteps({
   const last = step === steps.length - 1;
   const current = steps[step];
   const photoId = current?.photoId;
+  // Откъде са таймерите на стъпката (времената в текста и ръчният): за надписа им.
+  const timerSource: TimerSource = {
+    recipeId: recipe.id,
+    recipeTitle: recipe.title,
+    step,
+  };
   const go = (to: number) => {
     if (to >= 0 && to < steps.length && to !== step) {
       onStepChange(to);
@@ -173,17 +180,10 @@ export function CookingSteps({
           className="cooking-steps__text"
           style={{ '--cooking-text-scale': textSize } as CSSProperties}
         >
-          {current && (
-            <StepText
-              text={current.text}
-              source={{ recipeId: recipe.id, recipeTitle: recipe.title, step }}
-            />
-          )}
+          {current && <StepText text={current.text} source={timerSource} />}
         </p>
       </div>
-      <ManualTimer
-        source={{ recipeId: recipe.id, recipeTitle: recipe.title, step }}
-      />
+      <ManualTimer source={timerSource} />
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (

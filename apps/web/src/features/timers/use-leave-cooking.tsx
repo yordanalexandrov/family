@@ -1,6 +1,6 @@
 import { useBlocker } from '@tanstack/react-router';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { isActiveTimer } from './active-timers';
+import { isActiveTimer } from './timer-store';
 import { useTimers } from './use-timers';
 import './leave-cooking.css';
 

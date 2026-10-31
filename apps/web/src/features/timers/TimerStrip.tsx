@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { TimerMenu } from './TimerMenu';
 import {
-  formatExpired,
-  formatRemaining,
+  isExpired,
+  isPaused,
   msToNextChange,
   remainingMs,
   type Timer,
   timerLabel,
+  timerTime,
 } from './timer-store';
 import { useTimers } from './use-timers';
 import './timers.css';
@@ -19,7 +20,7 @@ function useTick(timers: readonly Timer[], now: number): void {
   const [, setTick] = useState(0);
   useEffect(() => {
     // Таймер на пауза не се сменя: не тиктака.
-    const changing = timers.filter((timer) => timer.pausedAt === undefined);
+    const changing = timers.filter((timer) => !isPaused(timer));
     if (changing.length === 0) {
       return;
     }
@@ -54,12 +55,10 @@ export function TimerStrip({ recipeId }: TimerStripProps) {
     <section className="timer-strip" aria-label="Таймери">
       <ul className="timer-strip__list">
         {timers.map((timer) => {
-          const left = remainingMs(timer, now);
-          const expired = left <= 0;
-          const paused = timer.pausedAt !== undefined;
+          const paused = isPaused(timer);
           const modifier = paused
             ? ' timer-strip__timer--paused'
-            : expired
+            : isExpired(timer, now)
               ? ' timer-strip__timer--expired'
               : '';
           return (
@@ -80,7 +79,7 @@ export function TimerStrip({ recipeId }: TimerStripProps) {
                       <span className="visually-hidden">На пауза </span>
                     </>
                   )}
-                  {expired ? formatExpired(left) : formatRemaining(left)}
+                  {timerTime(timer, now)}
                 </span>
               </button>
             </li>

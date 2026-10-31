@@ -1,10 +1,10 @@
 import { Sheet } from '../../components/Sheet';
 import {
-  formatExpired,
-  formatRemaining,
-  remainingMs,
+  isExpired,
+  isPaused,
   type Timer,
   timerLabel,
+  timerTime,
 } from './timer-store';
 import { useTimers } from './use-timers';
 
@@ -23,16 +23,15 @@ interface TimerMenuProps {
  */
 export function TimerMenu({ timer, recipeId, now, onClose }: TimerMenuProps) {
   const { addMinute, pause, resume, restart, cancel } = useTimers();
-  const left = remainingMs(timer, now);
-  const expired = left <= 0;
-  const paused = timer.pausedAt !== undefined;
+  const expired = isExpired(timer, now);
+  const paused = isPaused(timer);
 
   return (
     <Sheet title={timerLabel(timer, recipeId)} onClose={onClose}>
       <p
         className={`timer-menu__time${expired ? ' timer-menu__time--expired' : ''}`}
       >
-        {expired ? formatExpired(left) : formatRemaining(left)}
+        {timerTime(timer, now)}
         {paused && <span className="timer-menu__state"> · на пауза</span>}
       </p>
       <div className="timer-menu__actions">

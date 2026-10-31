@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { remainingMs, type Timer, timerLabel } from './timer-store';
+import {
+  isExpired,
+  isPaused,
+  MINUTE_MS,
+  type Timer,
+  timerLabel,
+} from './timer-store';
 import { useAlarmSound, useTimers } from './use-timers';
 import './timers.css';
 
 /** Толкова звучи изтекъл таймер; банерът остава до „Спри“. */
-const ALARM_SOUND_MS = 2 * 60_000;
+const ALARM_SOUND_MS = 2 * MINUTE_MS;
 
 /** Вибрацията при изтичане (ms вибрира, пауза, вибрира…), където я има. */
 const VIBRATION = [400, 200, 400, 200, 400];
@@ -31,9 +37,9 @@ function alarmText(timer: Timer): string {
   }
   const extraMs = timer.maxDurationMs - timer.durationMs;
   const extra =
-    extraMs < 60_000
+    extraMs < MINUTE_MS
       ? `${Math.round(extraMs / 1000)} сек`
-      : `${Math.round(extraMs / 60_000)} мин`;
+      : `${Math.round(extraMs / MINUTE_MS)} мин`;
   return `Провери — още до ${extra}`;
 }
 
@@ -53,7 +59,7 @@ export function TimerAlarms({ recipeId }: TimerAlarmsProps) {
   const [openedAt] = useState(Date.now);
   const [, setTick] = useState(0);
   const now = Date.now();
-  const expired = timers.filter((timer) => remainingMs(timer, now) <= 0);
+  const expired = timers.filter((timer) => isExpired(timer, now));
   const ringing = expired.some(
     (timer) => now < ringingSince(timer, openedAt) + ALARM_SOUND_MS,
   );
@@ -61,7 +67,7 @@ export function TimerAlarms({ recipeId }: TimerAlarmsProps) {
   // Пречертава се в следващия момент, в който нещо се сменя: изтичане на работещ таймер или край на звука.
   useEffect(() => {
     const moments = timers.flatMap((timer) => {
-      if (timer.pausedAt !== undefined) {
+      if (isPaused(timer)) {
         return [];
       }
       const soundEnds = ringingSince(timer, openedAt) + ALARM_SOUND_MS;
