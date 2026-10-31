@@ -2,6 +2,7 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { useServerEvents } from '../api/events';
 import { usePushFollowsActingUser } from '../features/settings/push';
+import { TimersProvider } from '../features/timers/use-timers';
 import type { AppRouter } from './router';
 
 interface AppProps {
@@ -20,7 +21,10 @@ export function App({ router, queryClient }: AppProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <ServerEvents />
-      <RouterProvider router={router} />
+      {/* Таймерите са на устройството, не на екрана: над router-а, за да оцелеят смяната на рецептата. */}
+      <TimersProvider>
+        <RouterProvider router={router} />
+      </TimersProvider>
     </QueryClientProvider>
   );
 }

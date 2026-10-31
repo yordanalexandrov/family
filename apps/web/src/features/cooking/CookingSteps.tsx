@@ -1,9 +1,10 @@
-import {
-  type RecipeStep,
-  STEP_PHOTO_MAX_SIDE,
-  stepPhotoUrl,
-} from '@family/shared';
+import { type Recipe, STEP_PHOTO_MAX_SIDE, stepPhotoUrl } from '@family/shared';
 import { type CSSProperties, useRef } from 'react';
+import { ManualTimer } from '../timers/ManualTimer';
+import { StepText } from '../timers/StepText';
+import { TimerAlarms } from '../timers/TimerAlarms';
+import { TimerStrip } from '../timers/TimerStrip';
+import type { TimerSource } from '../timers/timer-store';
 import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
@@ -20,7 +21,8 @@ const PHOTO_WIDTHS = [640, 1024, STEP_PHOTO_MAX_SIDE];
 const PHOTO_SIZES = '(max-height: 32rem) 40vw, (min-width: 48rem) 34vw, 100vw';
 
 interface CookingStepsProps {
-  steps: RecipeStep[];
+  /** Рецептата: стъпките ѝ и откъде са таймерите, пуснати от текста. */
+  recipe: Recipe;
   /** Индексът на текущата стъпка, от 0. */
   step: number;
   onStepChange: (step: number) => void;
@@ -30,17 +32,28 @@ interface CookingStepsProps {
   onDone: () => void;
 }
 
-/** Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. */
+/**
+ * Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над лентата с таймерите и
+ * едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. Времената в
+ * текста („15 мин“) са бутони, които пускат таймер, а „⏱ Таймер“ под стъпката — ръчен.
+ */
 export function CookingSteps({
-  steps,
+  recipe,
   step,
   onStepChange,
   onClose,
   onDone,
 }: CookingStepsProps) {
+  const { steps } = recipe;
   const last = step === steps.length - 1;
   const current = steps[step];
   const photoId = current?.photoId;
+  // Откъде са таймерите на стъпката (времената в текста и ръчният): за надписа им.
+  const timerSource: TimerSource = {
+    recipeId: recipe.id,
+    recipeTitle: recipe.title,
+    step,
+  };
   const go = (to: number) => {
     if (to >= 0 && to < steps.length && to !== step) {
       onStepChange(to);
@@ -142,32 +155,35 @@ export function CookingSteps({
           </button>
         </div>
       </header>
-      <div
-        className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
-      >
-        {photoId && (
-          <img
-            // Новата стъпка не показва старата снимка, докато своята се зарежда.
-            key={photoId}
-            className="cooking-steps__photo"
-            src={stepPhotoUrl(photoId, PHOTO_WIDTHS[1])}
-            srcSet={PHOTO_WIDTHS.map(
-              (width) => `${stepPhotoUrl(photoId, width)} ${width}w`,
-            ).join(', ')}
-            sizes={PHOTO_SIZES}
-            alt={`Снимката на стъпка ${step + 1}`}
-            decoding="async"
-          />
-        )}
-        {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
-        <p
-          key={step}
-          className="cooking-steps__text"
+      {/* Банерите, лентата и текстът: средата на картата, която превърта сама, ако не се събират, вместо да расте. */}
+      <div className="cooking-steps__main">
+        <TimerAlarms recipeId={recipe.id} />
+        <TimerStrip recipeId={recipe.id} />
+        <div
+          className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
           style={{ '--cooking-text-scale': textSize } as CSSProperties}
         >
-          {current?.text}
-        </p>
+          {photoId && (
+            <img
+              // Новата стъпка не показва старата снимка, докато своята се зарежда.
+              key={photoId}
+              className="cooking-steps__photo"
+              src={stepPhotoUrl(photoId, PHOTO_WIDTHS[1])}
+              srcSet={PHOTO_WIDTHS.map(
+                (width) => `${stepPhotoUrl(photoId, width)} ${width}w`,
+              ).join(', ')}
+              sizes={PHOTO_SIZES}
+              alt={`Снимката на стъпка ${step + 1}`}
+              decoding="async"
+            />
+          )}
+          {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
+          <p key={step} className="cooking-steps__text">
+            {current && <StepText text={current.text} source={timerSource} />}
+          </p>
+        </div>
       </div>
+      <ManualTimer source={timerSource} />
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (

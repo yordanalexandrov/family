@@ -16,8 +16,11 @@ interface CookingViewProps {
   recipe: Recipe;
   /** Порциите при влизане (напр. на ястието); без тях — порциите на рецептата. */
   servings?: number;
-  /** „Готово“ на последната стъпка и „Затвори“: връщане там, откъдето си влязъл. */
-  onExit: () => void;
+  /**
+   * „Готово“ на последната стъпка и „Затвори“: връщане там, откъдето си влязъл. `onLeave` се вика точно преди
+   * излизането (може и да не стане: потвърждението при работещ таймер).
+   */
+  onExit: (onLeave?: () => void) => void;
 }
 
 /**
@@ -47,14 +50,11 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
 
   const steps = (
     <CookingSteps
-      steps={recipe.steps}
+      recipe={recipe}
       step={step}
       onStepChange={setStep}
-      onClose={onExit}
-      onDone={() => {
-        finish();
-        onExit();
-      }}
+      onClose={() => onExit()}
+      onDone={() => onExit(finish)}
     />
   );
 
