@@ -1,5 +1,5 @@
 import type { Recipe } from '@family/shared';
-import { act, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -147,6 +147,32 @@ describe('Таймери в Готвене', () => {
     const [row] = timerRows();
     expect(row).toHaveTextContent(`${stew.title} · Стъпка 2 · 15 мин`);
     expect(row).toHaveTextContent('14:00');
+  });
+
+  it('след презареждане таймерът продължава, а изтеклият междувременно казва преди колко минути', async () => {
+    const user = fakeClock();
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер 10–15 мин' }));
+
+    // Готвене се затваря (презареждане, заспал телефон) и се отваря след 12 минути.
+    cleanup();
+    act(() => vi.advanceTimersByTime(12 * MINUTE));
+    renderApp(`/recipes/${stew.id}/cook`);
+
+    // Готвене помни и стъпката.
+    expect(await screen.findByText(/^Пържи/)).toBeInTheDocument();
+    const [fry, simmer] = timerRows();
+    expect(fry).toHaveTextContent('Стъпка 2 · 15 мин');
+    expect(fry).toHaveTextContent('3:00');
+    expect(simmer).toHaveTextContent('Изтече преди 2 мин');
+
+    act(() => vi.advanceTimersByTime(MINUTE));
+    expect(timerRows()[1]).toHaveTextContent('Изтече преди 3 мин');
   });
 });
 

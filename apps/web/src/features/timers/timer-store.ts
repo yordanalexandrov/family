@@ -1,3 +1,6 @@
+import { type DateKey, dateKeyInSofia } from '@family/shared';
+import { logger } from '../../logger';
+
 /**
  * Таймерите (GLOSSARY: Таймер) на устройството: общи за всички рецепти, затова живеят над Готвене (`TimersProvider`
  * в `App`), а не в екрана на една рецепта. Store-ът е обикновен обект без React, с часовник отвън (`now`), за да се
@@ -38,6 +41,73 @@ export interface TimerStore {
   subscribe(listener: () => void): () => void;
 }
 
+export const TIMERS_KEY = 'family.timers';
+
+/** Записът на устройството: таймерите на един ден; запис от друг ден не важи (изтеклите и неспрени изчезват). */
+interface StoredTimers {
+  day: DateKey;
+  timers: readonly Timer[];
+}
+
+function today(): DateKey {
+  return dateKeyInSofia(new Date());
+}
+
+/** Днешните таймери от localStorage; липсващ или стар запис — празно, повреден или недостъпен — празно и предупреждение. */
+function readTimers(): readonly Timer[] {
+  try {
+    const raw = localStorage.getItem(TIMERS_KEY);
+    if (!raw) {
+      return [];
+    }
+    const stored = JSON.parse(raw) as Partial<StoredTimers> | null;
+    if (stored?.day !== today()) {
+      return [];
+    }
+    if (!Array.isArray(stored.timers) || !stored.timers.every(isTimer)) {
+      logger.warn('Таймерите на устройството са повредени', raw);
+      return [];
+    }
+    return stored.timers;
+  } catch (error) {
+    logger.warn('Таймерите на устройството не се прочетоха', error);
+    return [];
+  }
+}
+
+/** Записва таймерите за днес — целите записи, с всички полета (напр. паузата), за да продължат както са били. */
+function writeTimers(timers: readonly Timer[]): void {
+  try {
+    localStorage.setItem(
+      TIMERS_KEY,
+      JSON.stringify({ day: today(), timers } satisfies StoredTimers),
+    );
+  } catch (error) {
+    logger.warn('Таймерите на устройството не се записаха', error);
+  }
+}
+
+/** Задължителните полета на `Timer`; останалите (паузата от действията) се пазят каквито са. */
+function isTimer(value: unknown): value is Timer {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const timer = value as Record<string, unknown>;
+  const isNumber = (field: unknown) =>
+    typeof field === 'number' && Number.isFinite(field);
+  return (
+    typeof timer.id === 'string' &&
+    typeof timer.recipeId === 'string' &&
+    typeof timer.recipeTitle === 'string' &&
+    typeof timer.label === 'string' &&
+    Number.isInteger(timer.step) &&
+    (timer.step as number) >= 0 &&
+    isNumber(timer.durationMs) &&
+    (timer.maxDurationMs === undefined || isNumber(timer.maxDurationMs)) &&
+    isNumber(timer.endsAt)
+  );
+}
+
 interface TimerStoreOptions {
   /** Часовникът; тестовете подменят `Date` с фалшив часовник, не тази опция. */
   now?: () => number;
@@ -46,11 +116,13 @@ interface TimerStoreOptions {
 export function createTimerStore({
   now = Date.now,
 }: TimerStoreOptions = {}): TimerStore {
-  let timers: readonly Timer[] = [];
+  // Таймерите се помнят на устройството (localStorage): преживяват презареждане и заспиване, без сървър.
+  let timers: readonly Timer[] = readTimers();
   const listeners = new Set<() => void>();
 
   function set(next: readonly Timer[]): void {
     timers = next;
+    writeTimers(next);
     for (const listener of listeners) {
       listener();
     }
@@ -90,6 +162,19 @@ export function formatRemaining(ms: number): string {
   return hours > 0
     ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
     : `${minutes}:${seconds}`;
+}
+
+const MINUTE_MS = 60_000;
+
+/** Изтеклият таймер (`ms` ≤ 0 от `remainingMs`): „Изтече“ в първата минута, после „Изтече преди N мин“. */
+export function formatExpired(ms: number): string {
+  const minutes = Math.floor(-ms / MINUTE_MS);
+  return minutes > 0 ? `Изтече преди ${minutes} мин` : 'Изтече';
+}
+
+/** След колко ms се сменя надписът на таймер с оставащо `ms`: на цяла секунда, докато брои, на цяла минута след изтичане. */
+export function msToNextChange(ms: number): number {
+  return ms > 0 ? ms % 1000 || 1000 : MINUTE_MS - (-ms % MINUTE_MS);
 }
 
 /**
