@@ -52,8 +52,8 @@ export type RecipeImportParams = z.infer<typeof recipeImportParamsSchema>;
 
 /**
  * A page the api fetched by link (never the agent): its final URL (after redirects) and what the api extracted from
- * it, the schema.org `Recipe` of its JSON-LD (trimmed to the recipe's fields) or, without one, its main text. At least
- * one of the two.
+ * it, the schema.org `Recipe` of its JSON-LD (trimmed to the recipe's fields) or, without one, its main text, where
+ * each photo of the page stands as the marker `[снимка s1]` (#249). At least one of the two.
  */
 const pageSourceSchema = z
   .object({
@@ -157,14 +157,15 @@ export type NormalizedIngredient = z.infer<typeof normalizedIngredientSchema>;
 
 /**
  * The reference of a step photo of the page (GLOSSARY: Снимка на стъпка): in the input the api writes it in place of a
- * `HowToStep.image` of the JSON-LD (`s1`, `s2`, …; the agent never sees the photo's URL); in the output the agent puts
+ * `HowToStep.image` of the JSON-LD or of an `<img>` of the page text, there as `[снимка s1]` (`s1`, `s2`, …; the agent
+ * never sees the photo's URL); in the output the agent puts
  * it on the step of its own that shows it, since it may translate, merge and split steps.
  */
 export type StepImageRef = string;
 
 /**
- * A step of the recipe: its text and the reference of the page's photo for it, or `null` (always `null` for text and a
- * photo). The schema takes any reference: the api ignores one the input does not have, the step is then without a
+ * A step of the recipe: its text and the reference of the page's photo for it, or `null` (always `null` for pasted text
+ * and a photo). The schema takes any reference: the api ignores one the input does not have, the step is then without a
  * photo and the answer stands.
  */
 const normalizedStepSchema = z.object({

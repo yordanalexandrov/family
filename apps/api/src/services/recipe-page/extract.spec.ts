@@ -252,6 +252,134 @@ describe('extractRecipe: the page text without a Recipe', () => {
   });
 });
 
+describe('extractRecipe: the photos in the page text', () => {
+  const PAGE_URL =
+    'https://www.mycookingbookblog.com/siomga-s-taiatele-v-avokado-sos/';
+
+  /** The references of the markers in the text, in their order. */
+  function markers(text: string | undefined): string[] {
+    return [...(text ?? '').matchAll(/\[снимка (s\d+)\]/g)].map(
+      (match) => match[1] as string,
+    );
+  }
+
+  it('puts a marker in place of each photo of a microdata recipe and its URL in stepImages, once, without the rating stars', () => {
+    const result = extractRecipe(html('wp-microdata.html'), PAGE_URL);
+
+    expect(result.jsonLd).toBeUndefined();
+    // The featured photo (again in the post and in the recipe card), then the 14 photos of the post.
+    const refs = markers(result.text);
+    expect(refs).toEqual(
+      Array.from({ length: 15 }, (_, index) => `s${index + 1}`),
+    );
+    expect(Object.keys(result.stepImages ?? {})).toEqual(refs);
+    expect(result.stepImages?.s1).toBe(
+      'https://www.mycookingbookblog.com/wp-content/uploads/2017/07/IMG_0899.jpg',
+    );
+    expect(result.stepImages?.s2).toMatch(
+      /^https:\/\/lh3\.googleusercontent\.com\/fCBSq1Ysx.*=w1006-h503-no$/,
+    );
+    expect(Object.values(result.stepImages ?? {}).join(' ')).not.toContain(
+      '1star',
+    );
+    expect(result.text).not.toContain('googleusercontent');
+  });
+
+  /** A post without JSON-LD whose `steps` are its paragraphs, with the products first. */
+  function post(steps: string): string {
+    return `<html><head><title>Мусака</title></head><body><article><h2>Продукти</h2><p>1 кг картофи</p><h2>Начин на приготвяне</h2>${steps}</article></body></html>`;
+  }
+
+  it('takes a lazy-loaded photo by data-src, data-lazy-src or the widest of srcset, relative to the page, and skips icons, avatars and data:', () => {
+    const page = post(`
+      <p>Обелете картофите.</p>
+      <img src="data:image/gif;base64,R0lGOD" data-src="/uploads/kartofi.jpg">
+      <p>Нарежете ги.</p>
+      <img src="/lazy.gif" data-lazy-src="https://cdn.example.com/nareazani.webp">
+      <p>Запържете каймата. <img srcset="/kayma-300.jpg 300w, /kayma-1024.jpg 1024w, /kayma-640.jpg 640w" src="/kayma-300.jpg"></p>
+      <img src="/uploads/kartofi.jpg">
+      <img src="/smile.png" width="16" height="16">
+      <img src="/wp-content/themes/blog/images/logo.png">
+      <img class="avatar avatar-48" src="/u/42.jpg">
+      <img src="data:image/png;base64,iVBOR">
+      <img src="ftp://example.com/photo.jpg">
+      <p>Печете 40 минути.</p>`);
+
+    const result = extractRecipe(page, 'https://blog.example.com/musaka/');
+
+    expect(result.text).toBe(
+      [
+        'Мусака',
+        'Продукти',
+        '1 кг картофи',
+        'Начин на приготвяне',
+        'Обелете картофите.',
+        '[снимка s1]',
+        'Нарежете ги.',
+        '[снимка s2]',
+        'Запържете каймата. [снимка s3]',
+        'Печете 40 минути.',
+      ].join('\n'),
+    );
+    expect(result.stepImages).toEqual({
+      s1: 'https://blog.example.com/uploads/kartofi.jpg',
+      s2: 'https://cdn.example.com/nareazani.webp',
+      s3: 'https://blog.example.com/kayma-1024.jpg',
+    });
+  });
+
+  it('gives references to the first 40 photos only, and none to a photo the window cuts out', () => {
+    const photos = Array.from(
+      { length: 45 },
+      (_, index) =>
+        `<p>Стъпка ${index + 1}.</p><img src="/p/${index + 1}.jpg">`,
+    ).join('');
+    const story = `<p>${'Дълга история за лятото при баба. '.repeat(1_000)}</p><img src="/story.jpg">`;
+
+    const many = extractRecipe(post(photos), 'https://blog.example.com/');
+    const long = extractRecipe(
+      `<html><body><article>${story}<p>${'Още история. '.repeat(500)}</p><h2>Продукти</h2><p>1 кг картофи</p><p>Сварете ги.</p><img src="/p/1.jpg"></article></body></html>`,
+      'https://blog.example.com/',
+    );
+
+    expect(markers(many.text)).toHaveLength(40);
+    expect(Object.keys(many.stepImages ?? {})).toHaveLength(40);
+    expect(many.stepImages?.s40).toBe('https://blog.example.com/p/40.jpg');
+    expect(many.text).toContain('Стъпка 45.');
+    expect(many.text).not.toContain('');
+
+    expect(long.text?.length).toBeLessThanOrEqual(PAGE_TEXT_MAX);
+    expect(long.text).toContain('Сварете ги.\n[снимка s1]');
+    expect(long.stepImages).toEqual({ s1: 'https://blog.example.com/p/1.jpg' });
+  });
+
+  it('keeps the text within PAGE_TEXT_MAX with markers, and gives no reference to a photo the end of the window cuts', () => {
+    const photos = Array.from(
+      { length: 39 },
+      (_, index) =>
+        `<p>Стъпка ${index + 1}.</p><img src="/p/${index + 1}.jpg">`,
+    ).join('');
+    const seen = new Set<number>();
+
+    // The last photo stands right at the end of the window, before it, across it or after it.
+    for (let length = 10_900; length < 11_100; length++) {
+      const result = extractRecipe(
+        post(
+          `${photos}<p>${'я'.repeat(length)}</p><img src="/last.jpg"><p>${'Край. '.repeat(500)}</p>`,
+        ),
+        'https://blog.example.com/',
+      );
+      const refs = markers(result.text);
+      seen.add(refs.length);
+
+      expect(result.text?.length).toBeLessThanOrEqual(PAGE_TEXT_MAX);
+      expect(result.text).not.toMatch(/[]/);
+      expect(Object.keys(result.stepImages ?? {})).toEqual(refs);
+    }
+    expect(seen).toEqual(new Set([39, 40]));
+  });
+});
+
 describe('decodeHtml', () => {
   it('decodes a windows-1251 page by the charset of the Content-Type header', () => {
     const result = extractRecipe(

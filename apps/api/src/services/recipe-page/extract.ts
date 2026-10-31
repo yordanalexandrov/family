@@ -16,14 +16,15 @@ const BEFORE_INGREDIENTS = 1_000;
 export const STEP_IMAGES_MAX = 40;
 
 /**
- * The URL of each step photo of a JSON-LD Recipe by the reference that stands in its place (`s1`, `s2`, …, in the
- * order of the steps). Only the api reads it: the agent gets the references alone.
+ * The URL of each step photo by the reference that stands in its place (`s1`, `s2`, …): of a `HowToStep.image` of a
+ * JSON-LD Recipe, in the order of the steps, or of an `<img>` of the page text, in the order of the text. Only the api
+ * reads it: the agent gets the references alone.
  */
 export type StepImages = Record<string, string>;
 
 /**
- * What a page gives the agent: the JSON-LD Recipe (trimmed to its fields, a `HowToStep.image` as a reference) with the
- * URLs of those references, or, without one, the main text (no step photos).
+ * What a page gives the agent: the JSON-LD Recipe (trimmed to its fields, a `HowToStep.image` as a reference) or,
+ * without one, the main text (a photo as the marker `[снимка s1]` in its place), with the URLs of those references.
  */
 export type ExtractedRecipe =
   | {
@@ -31,7 +32,7 @@ export type ExtractedRecipe =
       stepImages: StepImages;
       text?: undefined;
     }
-  | { text: string; jsonLd?: undefined; stepImages?: undefined };
+  | { text: string; stepImages: StepImages; jsonLd?: undefined };
 
 /** The fields of a schema.org Recipe the agent needs; images, video, ratings, reviews and authors are left out. */
 const RECIPE_FIELDS = [
@@ -112,7 +113,8 @@ const INGREDIENTS_HEADING =
  * {@link PAGE_TEXT_MAX} around „Продукти“ / „Ingredients“. The lines of products are left as the page writes them.
  * A step with a `HowToStep.image` (the first of several; a URL relative to `pageUrl` too, `http(s)` only) becomes
  * `{ text, image: 's1' }` and its URL goes to `stepImages`, never into the JSON-LD; past {@link STEP_IMAGES_MAX} photos
- * a step stays text.
+ * a step stays text. In the main text an `<img>` becomes the marker `[снимка s1]` in its place, the same way (see
+ * {@link pageText}).
  */
 export function extractRecipe(html: string, pageUrl?: string): ExtractedRecipe {
   const document = parse(html);
@@ -133,7 +135,7 @@ export function extractRecipe(html: string, pageUrl?: string): ExtractedRecipe {
   if (recipe) {
     return { jsonLd: recipe, stepImages };
   }
-  return { text: pageText(document) };
+  return pageText(document, pageUrl);
 }
 
 /** Gives the URL of a step photo its reference, or none past {@link STEP_IMAGES_MAX}. */
@@ -348,7 +350,15 @@ function imageUrl(
   if (isRecord(value)) {
     return imageUrl(value.url, pageUrl) ?? imageUrl(value.contentUrl, pageUrl);
   }
-  if (typeof value !== 'string' || value.trim() === '') {
+  return typeof value === 'string' ? webUrl(value, pageUrl) : undefined;
+}
+
+/** `value` as an absolute URL against the page, `http(s)` only (no `data:`). */
+function webUrl(
+  value: string,
+  pageUrl: string | undefined,
+): string | undefined {
+  if (value.trim() === '') {
     return undefined;
   }
   try {
@@ -363,12 +373,125 @@ function imageUrl(
 
 // ── Text ────────────────────────────────────────────────────────────────
 
-/** The page's title, then its main text (the first sizeable `<article>`, else `<main>`, else `<body>`), windowed. */
-function pageText(document: Node): string {
+/**
+ * The page's title, then its main text (the first sizeable `<article>`, else `<main>`, else `<body>`), windowed, with
+ * each photo of it as a marker `[снимка s1]` in its place. Only a photo whose marker the window keeps gets a
+ * reference, once per URL and at most {@link STEP_IMAGES_MAX}: the agent gets no reference it does not see.
+ */
+function pageText(
+  document: Node,
+  pageUrl: string | undefined,
+): { text: string; stepImages: StepImages } {
   const title = cleanText(
     textOf(first(document, (e) => e.tagName === 'title') ?? emptyNode()),
   );
-  return windowed(title, readableText(mainElement(document)));
+  const photos: string[] = [];
+  const body = readableText(mainElement(document), (img) => {
+    const url = photoUrl(img, pageUrl);
+    if (!url) {
+      return '';
+    }
+    photos.push(url);
+    return ` ${photoMark(photos.length - 1)} `;
+  });
+  return numberedPhotos(windowed(title, body), photos);
+}
+
+/**
+ * Where a photo stands in the text until the window is cut: its index among the photos, as long as the longest
+ * marker (`[снимка s40]`), so the markers keep the text in {@link PAGE_TEXT_MAX}.
+ */
+function photoMark(index: number): string {
+  return `\uE000${String(index).padStart(10, '0')}\uE001`;
+}
+
+const PHOTO_MARK = /\uE000(\d{10})\uE001/g;
+
+/** The windowed text with its photo marks as markers `[снимка sN]`, numbered in order, and their URLs. */
+function numberedPhotos(
+  text: string,
+  photos: string[],
+): { text: string; stepImages: StepImages } {
+  const stepImages: StepImages = {};
+  const refs = new Set<string>();
+  const numbered = text
+    // A mark the window cut in half.
+    .replace(/\uE000\d*$/, '')
+    .replace(PHOTO_MARK, (_, index: string) => {
+      const url = photos[Number(index)] as string;
+      const count = refs.size;
+      if (refs.has(url) || count === STEP_IMAGES_MAX) {
+        return '';
+      }
+      refs.add(url);
+      stepImages[`s${count + 1}`] = url;
+      return `[снимка s${count + 1}]`;
+    });
+  return { text: tidyLines(numbered), stepImages };
+}
+
+/**
+ * The URL of a photo of the page text: the largest of its `srcset` (also lazy-loaded), else its lazy-loaded `src`,
+ * else its `src`; absolute against the page, `http(s)` only. None for an icon, an avatar, a logo, rating stars or a
+ * tracking pixel: smaller than {@link PHOTO_MIN_SIZE} in its attributes, hidden from screen readers, or named so in
+ * its class or address.
+ */
+function photoUrl(
+  img: Element,
+  pageUrl: string | undefined,
+): string | undefined {
+  const sizes = [attribute(img, 'width'), attribute(img, 'height')].map(
+    (value) => Number.parseInt(value ?? '', 10),
+  );
+  if (
+    sizes.some((size) => size < PHOTO_MIN_SIZE) ||
+    attribute(img, 'aria-hidden') === 'true' ||
+    attribute(img, 'role') === 'presentation' ||
+    NOT_A_PHOTO.test(attribute(img, 'class') ?? '')
+  ) {
+    return undefined;
+  }
+  const candidates = [
+    largestOfSrcset(
+      attribute(img, 'data-lazy-srcset') ??
+        attribute(img, 'data-srcset') ??
+        attribute(img, 'srcset'),
+    ),
+    attribute(img, 'data-lazy-src'),
+    attribute(img, 'data-src'),
+    attribute(img, 'src'),
+  ];
+  for (const candidate of candidates) {
+    const url = candidate && webUrl(candidate, pageUrl);
+    if (url) {
+      const { hostname, pathname } = new URL(url);
+      return NOT_A_PHOTO.test(`${hostname}${pathname}`) ? undefined : url;
+    }
+  }
+  return undefined;
+}
+
+/** Smaller than this many pixels in `width` or `height` is an icon, an avatar or a pixel, not a photo of a step. */
+const PHOTO_MIN_SIZE = 100;
+
+/** A class or an address of a picture that is not a photo of the recipe. */
+const NOT_A_PHOTO =
+  /(^|[^a-z])(avatars?|gravatar|emoji|icons?|logo|spinner|loader|sprite|pixel|spacer|rating|stars?)([^a-z]|$)/i;
+
+/** The URL of the widest candidate of a `srcset` (`640w`, or `2x`). */
+function largestOfSrcset(srcset: string | undefined): string | undefined {
+  let largest: { url: string; size: number } | undefined;
+  for (const candidate of (srcset ?? '').split(',')) {
+    const [url, descriptor] = candidate.trim().split(/\s+/);
+    if (!url) {
+      continue;
+    }
+    const size = Number.parseFloat(descriptor ?? '1') || 1;
+    if (!largest || size > largest.size) {
+      largest = { url, size };
+    }
+  }
+  return largest?.url;
 }
 
 function mainElement(document: Node): Node {
@@ -402,12 +525,19 @@ function windowed(title: string, body: string): string {
   return title ? `${title}\n${text}` : text;
 }
 
-/** The text a reader sees: skipped elements out, blocks on their own lines, whitespace collapsed, no empty lines. */
-function readableText(root: Node): string {
+/**
+ * The text a reader sees: skipped elements out, blocks on their own lines, whitespace collapsed, no empty lines; an
+ * `<img>` as what `photo` writes in its place, if given.
+ */
+function readableText(root: Node, photo?: (img: Element) => string): string {
   const parts: string[] = [];
   const walk = (node: Node): void => {
     if (node.nodeName === '#text') {
       parts.push((node as DefaultTreeAdapterTypes.TextNode).value);
+      return;
+    }
+    if (photo && 'tagName' in node && node.tagName === 'img') {
+      parts.push(photo(node));
       return;
     }
     if (!('childNodes' in node)) {
@@ -429,8 +559,12 @@ function readableText(root: Node): string {
     }
   };
   walk(root);
-  return parts
-    .join('')
+  return tidyLines(parts.join(''));
+}
+
+/** Whitespace collapsed in each line, no empty lines. */
+function tidyLines(text: string): string {
+  return text
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter((line) => line !== '')
