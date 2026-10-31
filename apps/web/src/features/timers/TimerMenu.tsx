@@ -1,5 +1,6 @@
 import { Sheet } from '../../components/Sheet';
 import {
+  formatExpired,
   formatRemaining,
   remainingMs,
   type Timer,
@@ -31,7 +32,7 @@ export function TimerMenu({ timer, recipeId, now, onClose }: TimerMenuProps) {
       <p
         className={`timer-menu__time${expired ? ' timer-menu__time--expired' : ''}`}
       >
-        {expired ? 'Изтече' : formatRemaining(left)}
+        {expired ? formatExpired(left) : formatRemaining(left)}
         {paused && <span className="timer-menu__state"> · на пауза</span>}
       </p>
       <div className="timer-menu__actions">

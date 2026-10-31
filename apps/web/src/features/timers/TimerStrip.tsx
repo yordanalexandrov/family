@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { TimerMenu } from './TimerMenu';
 import {
+  formatExpired,
   formatRemaining,
+  msToNextChange,
   remainingMs,
   type Timer,
   timerLabel,
@@ -10,20 +12,20 @@ import { useTimers } from './use-timers';
 import './timers.css';
 
 /**
- * Пречертава лентата, когато оставащото време на някой работещ таймер мине през цяла секунда (и при изтичането му),
- * а не през интервал от монтирането: показаното време не изостава до секунда от истинското.
+ * Пречертава лентата, когато оставащото време на някой работещ таймер мине през цяла секунда (и при изтичането му), а
+ * на изтекъл — през цяла минута („Изтече преди N мин“); не през интервал от монтирането, за да не изостава надписът.
  */
-function useSecondTick(timers: readonly Timer[], now: number): void {
+function useTick(timers: readonly Timer[], now: number): void {
   const [, setTick] = useState(0);
   useEffect(() => {
-    const running = timers
-      .filter((timer) => timer.pausedAt === undefined)
-      .map((timer) => remainingMs(timer, now))
-      .filter((left) => left > 0);
-    if (running.length === 0) {
+    // Таймер на пауза не се сменя: не тиктака.
+    const changing = timers.filter((timer) => timer.pausedAt === undefined);
+    if (changing.length === 0) {
       return;
     }
-    const delay = Math.min(...running.map((left) => left % 1000 || 1000));
+    const delay = Math.min(
+      ...changing.map((timer) => msToNextChange(remainingMs(timer, now))),
+    );
     const timeout = setTimeout(() => setTick((tick) => tick + 1), delay);
     return () => clearTimeout(timeout);
   });
@@ -35,16 +37,16 @@ interface TimerStripProps {
 }
 
 /**
- * Лентата с таймерите на устройството, на всяка стъпка: надпис и оставащо време, „на пауза“ или „Изтече“. Докосване на
+ * Лентата с таймерите на устройството, на всяка стъпка: надпис и оставащо време, „на пауза“ или „Изтече (преди N мин)“. Докосване на
  * таймер отваря менюто му (`TimerMenu`). Без таймери я няма.
  */
 export function TimerStrip({ recipeId }: TimerStripProps) {
   const { timers } = useTimers();
   const [openId, setOpenId] = useState<string | null>(null);
   const open = timers.find((timer) => timer.id === openId);
-  // Оставащото време се смята при всяко рисуване, а `useSecondTick` го пречертава точно когато се смени секундата.
+  // Оставащото време се смята при всяко рисуване, а `useTick` го пречертава точно когато се смени надписът.
   const now = Date.now();
-  useSecondTick(timers, now);
+  useTick(timers, now);
   if (timers.length === 0) {
     return null;
   }
@@ -78,7 +80,7 @@ export function TimerStrip({ recipeId }: TimerStripProps) {
                       <span className="visually-hidden">На пауза </span>
                     </>
                   )}
-                  {expired ? 'Изтече' : formatRemaining(left)}
+                  {expired ? formatExpired(left) : formatRemaining(left)}
                 </span>
               </button>
             </li>
