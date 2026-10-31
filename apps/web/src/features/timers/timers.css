@@ -179,3 +179,121 @@
     grid-column: 1 / -1;
   }
 }
+
+/*
+ * Сигналът на изтекъл таймер: голям банер над лентата, по един за всеки изтекъл, един под друг. Текстът и бутоните
+ * („Спри“, „+1 мин“, „Повтори“) са на един ред, когато има място; рамката пулсира, докато не се спре.
+ */
+.timer-alarms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.timer-alarm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 3px solid var(--color-danger);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface));
+  color: var(--color-text);
+  animation: timer-alarm-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes timer-alarm-pulse {
+  to {
+    border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-alarm {
+    animation: none;
+  }
+}
+
+.timer-alarm__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: 1.25;
+}
+
+.timer-alarm__label {
+  font-weight: 700;
+}
+
+.timer-alarm__what {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.timer-alarm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.timer-alarm__actions .button {
+  font-size: var(--font-size-lg);
+  white-space: nowrap;
+}
+
+.timer-alarm__stop {
+  min-inline-size: 6em;
+}
+
+/* Телефон изправен: по-малък текст, бутоните по три в ред на цялата ширина. */
+.cooking--narrow .timer-alarm__text {
+  font-size: var(--font-size-lg);
+}
+
+.cooking--narrow .timer-alarm__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  inline-size: 100%;
+}
+
+.cooking--narrow .timer-alarm__actions .button {
+  min-inline-size: 0;
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-md);
+}
+
+/*
+ * Нисък екран (телефон легнал): банерът е един ред — надписът на два реда отляво, бутоните отдясно, — за да остане
+ * място за текста на стъпката и при няколко банера.
+ */
+@media (max-height: 32rem) {
+  .timer-alarm {
+    flex-wrap: nowrap;
+    padding: var(--space-1) var(--space-3);
+    border-width: 2px;
+  }
+
+  .timer-alarm__text,
+  .cooking--narrow .timer-alarm__text {
+    flex-direction: column;
+    gap: 0;
+    font-size: var(--font-size-md);
+  }
+
+  .timer-alarm__actions,
+  .cooking--narrow .timer-alarm__actions {
+    display: flex;
+    flex-wrap: nowrap;
+    inline-size: auto;
+  }
+
+  .timer-alarm__actions .button {
+    padding-inline: var(--space-3);
+    font-size: var(--font-size-md);
+  }
+}

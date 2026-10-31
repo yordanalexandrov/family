@@ -2,6 +2,7 @@ import { type Recipe, STEP_PHOTO_MAX_SIDE, stepPhotoUrl } from '@family/shared';
 import { type CSSProperties, useRef } from 'react';
 import { ManualTimer } from '../timers/ManualTimer';
 import { StepText } from '../timers/StepText';
+import { TimerAlarms } from '../timers/TimerAlarms';
 import { TimerStrip } from '../timers/TimerStrip';
 import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
 
@@ -147,6 +148,7 @@ export function CookingSteps({
           </button>
         </div>
       </header>
+      <TimerAlarms recipeId={recipe.id} />
       <TimerStrip recipeId={recipe.id} />
       <div
         className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
