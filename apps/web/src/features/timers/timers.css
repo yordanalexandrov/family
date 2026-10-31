@@ -76,12 +76,25 @@
   background: color-mix(in srgb, var(--color-text) 12%, var(--color-surface-2));
 }
 
+/* Дълъг надпис (таймер от друга рецепта) в лентата на един ред: съкратен с „…“, а времето винаги се вижда. */
+.timer-strip__list > li {
+  min-inline-size: 0;
+}
+
+.timer-strip__timer {
+  max-inline-size: 100%;
+}
+
 .timer-strip__label {
+  min-inline-size: 0;
+  overflow: hidden;
   color: var(--color-text-muted);
   font-weight: 600;
+  text-overflow: ellipsis;
 }
 
 .timer-strip__time {
+  flex: none;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -141,6 +154,7 @@
 
 .cooking--narrow .timer-strip__list > li {
   flex: none;
+  max-inline-size: 90%;
 }
 
 .cooking--narrow .timer-strip__timer {
@@ -160,6 +174,7 @@
 
   .timer-strip__list > li {
     flex: none;
+    max-inline-size: 90%;
   }
 
   .timer-strip__timer {
