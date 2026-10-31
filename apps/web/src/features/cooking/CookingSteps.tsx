@@ -1,9 +1,7 @@
-import {
-  type RecipeStep,
-  STEP_PHOTO_MAX_SIDE,
-  stepPhotoUrl,
-} from '@family/shared';
+import { type Recipe, STEP_PHOTO_MAX_SIDE, stepPhotoUrl } from '@family/shared';
 import { type CSSProperties, useRef } from 'react';
+import { StepText } from '../timers/StepText';
+import { TimerStrip } from '../timers/TimerStrip';
 import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
 
 /** Толкова px хоризонтално плъзгане сменя стъпката. */
@@ -20,7 +18,8 @@ const PHOTO_WIDTHS = [640, 1024, STEP_PHOTO_MAX_SIDE];
 const PHOTO_SIZES = '(max-height: 32rem) 40vw, (min-width: 48rem) 34vw, 100vw';
 
 interface CookingStepsProps {
-  steps: RecipeStep[];
+  /** Рецептата: стъпките ѝ и откъде са таймерите, пуснати от текста. */
+  recipe: Recipe;
   /** Индексът на текущата стъпка, от 0. */
   step: number;
   onStepChange: (step: number) => void;
@@ -30,14 +29,19 @@ interface CookingStepsProps {
   onDone: () => void;
 }
 
-/** Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. */
+/**
+ * Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над лентата с таймерите и
+ * едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. Времената в
+ * текста („15 мин“) са бутони, които пускат таймер.
+ */
 export function CookingSteps({
-  steps,
+  recipe,
   step,
   onStepChange,
   onClose,
   onDone,
 }: CookingStepsProps) {
+  const { steps } = recipe;
   const last = step === steps.length - 1;
   const current = steps[step];
   const photoId = current?.photoId;
@@ -142,6 +146,7 @@ export function CookingSteps({
           </button>
         </div>
       </header>
+      <TimerStrip recipeId={recipe.id} />
       <div
         className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
       >
@@ -165,7 +170,12 @@ export function CookingSteps({
           className="cooking-steps__text"
           style={{ '--cooking-text-scale': textSize } as CSSProperties}
         >
-          {current?.text}
+          {current && (
+            <StepText
+              text={current.text}
+              source={{ recipeId: recipe.id, recipeTitle: recipe.title, step }}
+            />
+          )}
         </p>
       </div>
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}

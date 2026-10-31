@@ -1,0 +1,82 @@
+/*
+ * Таймерите в Готвене: времето в текста на стъпката е бутон на мястото си, а пуснатите таймери стоят в лента над
+ * текста. Мерките са в `em` спрямо текста на стъпката (A−/A+), за да е бутонът голям колкото думите около него.
+ */
+.step-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.15em;
+  margin-block: 0.06em;
+  padding: 0.06em 0.35em;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.step-time:active {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+
+.timer-strip__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timer-strip__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-target);
+  padding: var(--space-1) var(--space-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  font-size: var(--font-size-lg);
+}
+
+.timer-strip__label {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.timer-strip__time {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-strip__timer--expired {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+}
+
+.timer-strip__timer--expired .timer-strip__time {
+  color: var(--color-danger);
+}
+
+/* Тесен (телефон изправен) и нисък (телефон легнал) екран: по-дребни таймери, по два на ред, за да остане място за текста. */
+.cooking--narrow .timer-strip__timer {
+  gap: var(--space-2);
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-3);
+  font-size: var(--font-size-md);
+}
+
+@media (max-height: 32rem) {
+  .timer-strip__timer {
+    gap: var(--space-2);
+    min-block-size: 2.25rem;
+    padding-inline: var(--space-3);
+    font-size: var(--font-size-md);
+  }
+}
