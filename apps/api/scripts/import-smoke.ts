@@ -192,9 +192,10 @@ async function pageCases(links: string[]): Promise<SmokeCase[]> {
       continue;
     }
     const refs = Object.keys(page.stepImages ?? {});
+    const photos = `снимки на стъпки: ${refs.length === 0 ? 'няма' : `${refs.length} (${refs[0]}…${refs.at(-1)})`}`;
     const sent = page.jsonLd
-      ? `jsonLd ${JSON.stringify(page.jsonLd).length} знака, снимки на стъпки: ${refs.length === 0 ? 'няма' : `${refs.length} (${refs[0]}…${refs.at(-1)})`}`
-      : `text ${page.text?.length ?? 0} знака, без снимки на стъпки`;
+      ? `jsonLd ${JSON.stringify(page.jsonLd).length} знака, ${photos}`
+      : `text ${page.text?.length ?? 0} знака, ${photos}`;
     cases.push({
       name: link,
       page: `краен URL ${page.url}, ${sent}, свалено за ${seconds} s`,

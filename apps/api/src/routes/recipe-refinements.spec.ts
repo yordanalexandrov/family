@@ -310,6 +310,34 @@ describe('POST /api/recipes/:id/refinements', () => {
     );
   });
 
+  it('refines from a page without JSON-LD: its photos are markers in the text and their references in photos', async () => {
+    const { recipe } = await createdRecipe();
+    const fetched = serveSource(() =>
+      htmlResponse(`<!doctype html><html><head><title>Пиле с картофи</title></head><body><article>
+        <h2>Продукти</h2><p>4 пилешки бутчета<br>1 кг картофи</p>
+        <h2>Начин на приготвяне</h2>
+        <p>Нарежете картофите на кръгчета.</p><img src="${PHOTO_URL.s1}">
+        <p>Печете час на 200 градуса.</p>
+      </article></body></html>`),
+    );
+    const inputs = answerInTurn(
+      refined([
+        { text: 'Нарежи картофите на кръгчета.', image: 's1' },
+        { text: 'Сложи пилето отгоре.', image: 'e1' },
+      ]),
+    );
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(inputs[0]?.source).toEqual({
+      url: SOURCE_URL,
+      text: 'Пиле с картофи\nПродукти\n4 пилешки бутчета\n1 кг картофи\nНачин на приготвяне\nНарежете картофите на кръгчета.\n[снимка s1]\nПечете час на 200 градуса.',
+      photos: ['s1'],
+    });
+    expect(await storedWidth(done.refinement?.steps[0]?.photoId)).toBe(410);
+    expect(fetched).toEqual([SOURCE_URL, PHOTO_URL.s1]);
+  });
+
   it('refines a recipe without a link from the recipe alone', async () => {
     const { recipe } = await createdRecipe({ sourceUrl: undefined });
     const fetched = serveSource();

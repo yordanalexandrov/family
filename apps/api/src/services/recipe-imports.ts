@@ -152,7 +152,7 @@ interface AgentSource {
 /**
  * Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps
  * normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the URLs of the step photos of its
- * JSON-LD by the references the agent gets instead.
+ * JSON-LD or its text by the references the agent gets instead.
  */
 async function agentSource(db: DbExecutor, id: string): Promise<AgentSource> {
   const source = await findImportSource(db, id);
@@ -170,12 +170,12 @@ async function agentSource(db: DbExecutor, id: string): Promise<AgentSource> {
   if (url !== source.url) {
     await setImportUrl(db, id, url);
   }
-  return page.jsonLd
-    ? {
-        source: { kind: 'page', url, jsonLd: page.jsonLd },
-        ...(page.stepImages ? { stepImages: page.stepImages } : {}),
-      }
-    : { source: { kind: 'page', url, text: page.text } };
+  return {
+    source: page.jsonLd
+      ? { kind: 'page', url, jsonLd: page.jsonLd }
+      : { kind: 'page', url, text: page.text },
+    ...(page.stepImages ? { stepImages: page.stepImages } : {}),
+  };
 }
 
 export interface RecipeImportsService {

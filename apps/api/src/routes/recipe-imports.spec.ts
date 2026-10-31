@@ -825,6 +825,51 @@ describe('an import by link with photos of its steps', () => {
     expect(site.fetched).toEqual([SHAKSHUKA_URL]);
   });
 
+  it('sends a page without JSON-LD with its photos as markers in the text, and stores the ones the agent chose', async () => {
+    const story = 'https://panandplate.example/uploads/story.jpg';
+    const onion = 'https://panandplate.example/uploads/onion.jpg';
+    const eggs = 'https://cdn.panandplate.example/eggs.webp';
+    const site = serveShakshuka(
+      {
+        [story]: () => imageResponse(400),
+        [onion]: () => imageResponse(410),
+        [eggs]: () => imageResponse(420, 'webp'),
+      },
+      `<html><head><title>Шакшука</title></head><body><article>
+        <p>Шакшуката е закуска от Магреб.</p><img src="/uploads/story.jpg" width="800" height="600">
+        <h2>Продукти</h2><ul><li>4 яйца</li><li>1 глава лук</li></ul>
+        <h2>Начин на приготвяне</h2>
+        <p>Задушете лука.</p><img data-src="/uploads/onion.jpg" src="data:image/gif;base64,R0lGOD">
+        <p>Счупете яйцата.</p><img srcset="${eggs} 1024w, /eggs-300.webp 300w">
+      </article></body></html>`,
+    );
+    const calls = answerInTurn(
+      withSteps([
+        { text: 'Задушете лука.', image: 's2' },
+        { text: 'Счупете яйцата.', image: 's3' },
+      ]),
+    );
+
+    const body = await finished(
+      await imported({ kind: 'url', url: SHAKSHUKA_URL }),
+    );
+
+    expect(body.request.status).toBe('done');
+    const steps = body.suggestion?.payload.steps ?? [];
+    expect(await storedWidth(steps[0]?.photoId)).toBe(410);
+    expect(await storedWidth(steps[1]?.photoId)).toBe(420);
+    const { source } = JSON.parse(textOf(calls.bodies[0]?.messages[0]));
+    expect(source).not.toHaveProperty('jsonLd');
+    expect(source.text).toContain(
+      'Шакшуката е закуска от Магреб.\n[снимка s1]\nПродукти',
+    );
+    expect(source.text).toContain(
+      'Задушете лука.\n[снимка s2]\nСчупете яйцата.\n[снимка s3]',
+    );
+    expect(source.text).not.toContain('uploads');
+    expect(site.fetched).toEqual([SHAKSHUKA_URL, onion, eggs]);
+  });
+
   it('gives pasted text no photos, even when the agent names a reference', async () => {
     const site = serveShakshuka({});
     answerInTurn(withSteps([{ text: 'Нарежете пилето.', image: 's1' }]));
