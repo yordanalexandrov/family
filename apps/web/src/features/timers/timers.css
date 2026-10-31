@@ -233,12 +233,14 @@
 }
 
 /*
- * Сигналът на изтекъл таймер: голям банер над лентата, по един за всеки изтекъл, един под друг. Текстът и бутоните
- * („Спри“, „+1 мин“, „Повтори“) са на един ред, когато има място; рамката пулсира, докато не се спре. Банерите заемат
- * най-много 30% от екрана и отстъпват на трите реда текст до един банер (`--alarms-min`); останалите превъртат.
+ * Сигналът на изтекъл таймер: банер над лентата, по един за всеки изтекъл, един под друг. Банерът е един ред:
+ * надписът и какво е станало на два реда отляво (съкратени с „…“, ако не се събират), „Спри“, „+1 мин“ и „Повтори“
+ * отдясно, за да се съберат два банера изцяло и да остане място за текста. Рамката пулсира, докато не се спре.
+ * Банерите заемат най-много 30% от екрана и отстъпват на трите реда текст до един банер (`--alarms-min`); останалите
+ * превъртат.
  */
 .timer-alarms {
-  --alarms-min: 4.5rem;
+  --alarms-min: 4rem;
   flex: 0 1 auto;
   display: flex;
   flex-direction: column;
@@ -252,11 +254,10 @@
 .timer-alarm {
   flex: none;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2) var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border: 3px solid var(--color-danger);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface));
@@ -277,27 +278,30 @@
 }
 
 .timer-alarm__text {
+  flex: 1;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--space-2);
+  flex-direction: column;
+  min-inline-size: 0;
   margin: 0;
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   line-height: 1.25;
 }
 
-.timer-alarm__label {
+.timer-alarm__label,
+.timer-alarm__what {
+  overflow: hidden;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .timer-alarm__what {
   color: var(--color-danger);
-  font-weight: 700;
 }
 
 .timer-alarm__actions {
+  flex: none;
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
@@ -310,18 +314,31 @@
   min-inline-size: 6em;
 }
 
-/* Телефон изправен: тънка рамка, текстът на обикновен размер, бутоните по три в ред на цялата ширина. */
+/*
+ * Телефон изправен: няма място за бутоните до надписа — той е на един ред (пренесен, ако е дълъг), а бутоните по три
+ * в ред на цялата ширина под него.
+ */
 .cooking--narrow .timer-alarms {
   --alarms-min: 6rem;
 }
 
 .cooking--narrow .timer-alarm {
+  flex-wrap: wrap;
   padding: var(--space-2) var(--space-3);
   border-width: 2px;
 }
 
 .cooking--narrow .timer-alarm__text {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
   font-size: var(--font-size-md);
+}
+
+.cooking--narrow .timer-alarm__label,
+.cooking--narrow .timer-alarm__what {
+  white-space: normal;
 }
 
 .cooking--narrow .timer-alarm__actions {
@@ -336,10 +353,7 @@
   font-size: var(--font-size-md);
 }
 
-/*
- * Нисък екран (телефон легнал): банерът е един ред — надписът на два реда отляво, бутоните отдясно, — за да остане
- * място за текста на стъпката и при няколко банера.
- */
+/* Нисък екран (телефон легнал): по-тънък банер и по-дребен текст, както и при тесен телефон, легнал. */
 @media (max-height: 32rem) {
   .timer-alarms,
   .cooking--narrow .timer-alarms {
@@ -356,14 +370,20 @@
   .timer-alarm__text,
   .cooking--narrow .timer-alarm__text {
     flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
     gap: 0;
     font-size: var(--font-size-md);
+  }
+
+  .cooking--narrow .timer-alarm__label,
+  .cooking--narrow .timer-alarm__what {
+    white-space: nowrap;
   }
 
   .timer-alarm__actions,
   .cooking--narrow .timer-alarm__actions {
     display: flex;
-    flex-wrap: nowrap;
     inline-size: auto;
   }
 
