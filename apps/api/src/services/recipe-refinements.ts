@@ -143,19 +143,12 @@ export function createRecipeRefineStore(): ContractRequestStore<
       // The page's photos are stored here; the recipe's own keep their ids.
       const { steps, dropped } = await stepsWithPhotos(
         tx,
-        refined.steps.map((step) =>
-          step.image !== null && ownPhotos.has(step.image)
-            ? { ...step, image: null }
-            : step,
-        ),
+        refined.steps,
         prepared.photos,
+        ownPhotos,
       );
       await setRefinement(tx, request.id, {
-        steps: steps.map((step, index) => {
-          const ref = refined.steps[index]?.image;
-          const own = ref ? ownPhotos.get(ref) : undefined;
-          return own ? { ...step, photoId: own } : step;
-        }),
+        steps,
         ...(recipe.prepMinutes === undefined && refined.prepMinutes !== null
           ? { prepMinutes: refined.prepMinutes }
           : {}),

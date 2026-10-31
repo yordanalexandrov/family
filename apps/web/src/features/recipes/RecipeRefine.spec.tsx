@@ -204,6 +204,28 @@ describe('„Подобри рецептата“ в редакцията', () =
     expect(posts).toHaveLength(2);
   });
 
+  it('затворен, докато чака, и отворен пак продължава същата заявка, без нова', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { posts } = serveRefine({ status: 'done', refinement }, 1);
+    try {
+      const button = await openEdit();
+      await user.click(button);
+      const sheet = await screen.findByRole('dialog', {
+        name: 'Подобри рецептата',
+      });
+      await within(sheet).findByText('Мисля…');
+      await user.click(within(sheet).getByRole('button', { name: 'Затвори' }));
+      await user.click(button);
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      expect(await screen.findByText(refinement.changes)).toBeInTheDocument();
+      expect(posts).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('без връзка бутонът е изключен и казва „Иска връзка“', async () => {
     serveRefine({ status: 'done', refinement });
     const button = await openEdit();

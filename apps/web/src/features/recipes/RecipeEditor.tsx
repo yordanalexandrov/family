@@ -57,6 +57,8 @@ export function EditRecipeScreen() {
   const { save, submit } = useSaveAndView(id);
   const navigate = useNavigate();
   const [refining, setRefining] = useState(false);
+  /** Подобряването, което още чака: затвореният и отворен пак лист продължава него. */
+  const [refineId, setRefineId] = useState<string>();
   const [replacement, setReplacement] = useState<StepsReplacement>();
   const connection = useNeedsConnection(useOnline(), 'recipe-form__hint');
   return (
@@ -104,15 +106,23 @@ export function EditRecipeScreen() {
         <RefineSheet
           recipeId={id}
           steps={recipe.data.steps}
+          requestId={refineId}
+          onRequested={setRefineId}
           onAccept={(refinement) => {
             setReplacement((current) => ({
-              key: String(Number(current?.key ?? 0) + 1),
+              key: (current?.key ?? 0) + 1,
               steps: refinement.steps,
               prepMinutes: refinement.prepMinutes,
             }));
+            setRefineId(undefined);
             setRefining(false);
           }}
-          onClose={() => setRefining(false)}
+          onClose={(pending) => {
+            if (!pending) {
+              setRefineId(undefined);
+            }
+            setRefining(false);
+          }}
         />
       )}
     </main>

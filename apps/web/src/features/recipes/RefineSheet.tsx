@@ -1,5 +1,5 @@
 import type { RecipeRefinement, RecipeStep } from '@family/shared';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
@@ -12,9 +12,14 @@ interface RefineSheetProps {
   recipeId: string;
   /** Стъпките на записаната рецепта: тях подобрява AI и с тях се сравнява. */
   steps: readonly RecipeStep[];
+  /** Заявката, която листът чака: пусната при предишно отваряне и още неизчакана. Без нея листът пуска нова. */
+  requestId: string | undefined;
+  /** Листът пусна заявка (при отваряне или с „Опитай пак“). */
+  onRequested: (requestId: string) => void;
   /** „Приеми“: подобрението влиза във формата като незапазена промяна. */
   onAccept: (refinement: RecipeRefinement) => void;
-  onClose: () => void;
+  /** `pending`: заявката още чака, и отвореният пак лист продължава нея. */
+  onClose: (pending: boolean) => void;
 }
 
 /** „1 снимка не се свали.“, „2 снимки не се свалиха.“ */
@@ -53,33 +58,36 @@ function StepList({
 }
 
 /**
- * „✨ Подобри рецептата“ (`recipe.refine`): пуска заявката при отваряне, чака я и показва предложението до сегашните
- * стъпки. „Приеми“ го слага във формата, „Откажи“ не променя нищо. Рецептата се променя едва при „Запази“.
+ * „✨ Подобри рецептата“ (`recipe.refine`): пуска заявката при отваряне (или продължава чакащата), чака я и показва
+ * предложението до сегашните стъпки. „Приеми“ го слага във формата, „Откажи“ не променя нищо. Рецептата се променя
+ * едва при „Запази“.
  */
 export function RefineSheet({
   recipeId,
   steps,
+  requestId,
+  onRequested,
   onAccept,
   onClose,
 }: RefineSheetProps) {
   const start = useRequestRefinement();
-  const [requestId, setRequestId] = useState<string>();
   const request = useRefinement(requestId);
 
   const { mutate } = start;
-  function ask() {
-    mutate(recipeId, { onSuccess: (created) => setRequestId(created.id) });
-  }
-  // Заявката тръгва веднъж, при отваряне (и в StrictMode, който монтира два пъти); „Опитай пак“ пуска нова.
-  const asked = useRef(false);
+  const ask = useCallback(() => {
+    mutate(recipeId, { onSuccess: (created) => onRequested(created.id) });
+  }, [mutate, recipeId, onRequested]);
+  // Нова заявка тръгва веднъж, при отваряне без чакаща (и в StrictMode, който монтира два пъти); „Опитай пак“ пуска нова.
+  const asked = useRef(requestId !== undefined);
   useEffect(() => {
     if (!asked.current) {
       asked.current = true;
-      mutate(recipeId, { onSuccess: (created) => setRequestId(created.id) });
+      ask();
     }
-  }, [mutate, recipeId]);
+  }, [ask]);
 
   const current = request.data;
+  const close = () => onClose(current?.status === 'pending');
   const retry = (
     <button
       type="button"
@@ -151,7 +159,7 @@ export function RefineSheet({
           <button
             type="button"
             className="button button--quiet"
-            onClick={onClose}
+            onClick={close}
           >
             Откажи
           </button>
@@ -168,7 +176,7 @@ export function RefineSheet({
   }
 
   return (
-    <Sheet title="Подобри рецептата" onClose={onClose} closeLabel="Затвори">
+    <Sheet title="Подобри рецептата" onClose={close} closeLabel="Затвори">
       <div className="sheet__section refine">{body}</div>
     </Sheet>
   );

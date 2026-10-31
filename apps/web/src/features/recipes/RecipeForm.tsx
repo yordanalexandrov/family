@@ -63,7 +63,8 @@ export interface RecipeFormProps {
 
 /** Стъпките (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
 export interface StepsReplacement {
-  key: string;
+  /** Нов номер = ново подобрение за прилагане. */
+  key: number;
   steps: RecipeStep[];
   prepMinutes?: number | undefined;
 }
