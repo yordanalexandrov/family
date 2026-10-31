@@ -42,7 +42,16 @@
   border: 1px solid var(--color-line);
   border-radius: var(--radius-pill);
   background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
   font-size: var(--font-size-lg);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.timer-strip__timer:active {
+  background: color-mix(in srgb, var(--color-text) 12%, var(--color-surface-2));
 }
 
 .timer-strip__label {
@@ -64,10 +73,54 @@
   color: var(--color-danger);
 }
 
-/* Тесен (телефон изправен) и нисък (телефон легнал) екран: по-дребни таймери, по два на ред, за да остане място за текста. */
+/* На пауза: пунктир и приглушено време с ⏸, за да не се бърка с броящ таймер. */
+.timer-strip__timer--paused {
+  border-style: dashed;
+  border-color: var(--color-text-muted);
+  background: transparent;
+}
+
+.timer-strip__timer--paused .timer-strip__time {
+  color: var(--color-text-muted);
+}
+
+/* Менюто на таймера (`TimerMenu`): голямо оставащо време и действията по две на ред. */
+.timer-menu__time {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-menu__time--expired {
+  color: var(--color-danger);
+}
+
+.timer-menu__state {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.timer-menu__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.timer-menu__actions .button {
+  min-block-size: var(--touch-target);
+}
+
+.timer-menu__actions .timer-menu__cancel {
+  color: var(--color-danger);
+}
+
+/*
+ * Тесен (телефон изправен) и нисък (телефон легнал) екран: по-дребни таймери, за да остане място за текста, но с пълна
+ * височина за докосване — таймерът отваря менюто си.
+ */
 .cooking--narrow .timer-strip__timer {
   gap: var(--space-2);
-  min-block-size: 2.5rem;
   padding-inline: var(--space-3);
   font-size: var(--font-size-md);
 }
@@ -75,7 +128,6 @@
 @media (max-height: 32rem) {
   .timer-strip__timer {
     gap: var(--space-2);
-    min-block-size: 2.25rem;
     padding-inline: var(--space-3);
     font-size: var(--font-size-md);
   }

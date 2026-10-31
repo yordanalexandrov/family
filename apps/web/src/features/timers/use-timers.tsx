@@ -27,9 +27,13 @@ function useTimerStore(): TimerStore {
   return store;
 }
 
-/** Таймерите на устройството, следени от React, и действията с тях. */
+/**
+ * Таймерите на устройството, следени от React, и действията с тях по `id` (меню на таймера в лентата, сигналът при
+ * изтичане).
+ */
 export function useTimers() {
   const store = useTimerStore();
   const timers = useSyncExternalStore(store.subscribe, store.list);
-  return { timers, start: store.start };
+  const { start, addMinute, pause, resume, restart, cancel } = store;
+  return { timers, start, addMinute, pause, resume, restart, cancel };
 }

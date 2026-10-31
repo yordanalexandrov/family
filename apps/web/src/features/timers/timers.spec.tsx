@@ -149,3 +149,86 @@ describe('Таймери в Готвене', () => {
     expect(row).toHaveTextContent('14:00');
   });
 });
+
+describe('Действия с пуснат таймер', () => {
+  /** Готвене на `stew`, стъпка 2, с пуснат таймер „15 мин“. */
+  async function cookWithTimer(mode: 'kiosk' | 'phone' = 'kiosk') {
+    const user = fakeClock();
+    setUpDevice(mode, mode === 'kiosk' ? undefined : dani.id);
+    serveRecipes(stew);
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
+    return user;
+  }
+
+  async function openMenu(user: ReturnType<typeof fakeClock>) {
+    await user.click(
+      within(strip()).getByRole('button', { name: /^Стъпка 2 · 15 мин/ }),
+    );
+    return screen.getByRole('dialog', { name: 'Стъпка 2 · 15 мин' });
+  }
+
+  it.each(['kiosk', 'phone'] as const)(
+    'докосване на таймера отваря менюто, а „+1 мин“ добавя минута (%s)',
+    async (mode) => {
+      const user = await cookWithTimer(mode);
+      act(() => vi.advanceTimersByTime(5 * MINUTE));
+
+      const menu = await openMenu(user);
+      expect(menu).toHaveTextContent('10:00');
+      await user.click(within(menu).getByRole('button', { name: '+1 мин' }));
+
+      expect(menu).toHaveTextContent('11:00');
+      expect(timerRows()[0]).toHaveTextContent('11:00');
+    },
+  );
+
+  it('„Пауза“ спира броенето и се вижда в лентата, а „Продължи“ брои от същото време', async () => {
+    const user = await cookWithTimer();
+    act(() => vi.advanceTimersByTime(5 * MINUTE));
+
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Пауза' }));
+    act(() => vi.advanceTimersByTime(3 * MINUTE));
+    expect(timerRows()[0]).toHaveTextContent('На пауза');
+    expect(timerRows()[0]).toHaveTextContent('10:00');
+
+    await user.click(within(menu).getByRole('button', { name: 'Продължи' }));
+    act(() => vi.advanceTimersByTime(MINUTE));
+    expect(timerRows()[0]).not.toHaveTextContent('На пауза');
+    expect(timerRows()[0]).toHaveTextContent('9:00');
+  });
+
+  it('„Повтори“ пуска същото време отначало и затваря менюто', async () => {
+    const user = await cookWithTimer();
+    act(() => vi.advanceTimersByTime(5 * MINUTE));
+
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Повтори' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(timerRows()[0]).toHaveTextContent('15:00');
+  });
+
+  it('„Отмени“ маха таймера от лентата', async () => {
+    const user = await cookWithTimer();
+
+    const menu = await openMenu(user);
+    await user.click(within(menu).getByRole('button', { name: 'Отмени' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Таймери' })).toBeNull();
+  });
+
+  it('изтекъл таймер е без „Пауза“, а „+1 мин“ брои минута от сега', async () => {
+    const user = await cookWithTimer();
+    act(() => vi.advanceTimersByTime(20 * MINUTE));
+
+    const menu = await openMenu(user);
+    expect(within(menu).queryByRole('button', { name: 'Пауза' })).toBeNull();
+    await user.click(within(menu).getByRole('button', { name: '+1 мин' }));
+
+    expect(timerRows()[0]).toHaveTextContent('1:00');
+  });
+});

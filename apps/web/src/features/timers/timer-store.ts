@@ -4,6 +4,8 @@
  * тества и разширява (действия, запомняне, сигнал) без екрана.
  */
 
+const MINUTE_MS = 60_000;
+
 /** Откъде е таймерът: рецептата и стъпката, за надписа („Стъпка 2 · 15 мин“). */
 export interface TimerSource {
   recipeId: string;
@@ -27,12 +29,24 @@ export interface Timer extends NewTimer {
   id: string;
   /** Моментът на изтичане (ms от epoch). Крайният момент, не оставащото време: брои вярно и след заспиване. */
   endsAt: number;
+  /** На пауза от този момент (ms от epoch): оставащото е `endsAt - pausedAt` и не намалява. Без него таймерът брои. */
+  pausedAt?: number;
 }
 
 export interface TimerStore {
   /** Таймерите по реда на пускане; същият масив, докато нищо не се промени (`useSyncExternalStore`). */
   list(): readonly Timer[];
   start(timer: NewTimer): Timer;
+  /** „+1 мин“: минута към оставащото; изтекъл таймер брои минута от сега. */
+  addMinute(id: string): void;
+  /** Спира броенето; изтекъл таймер не се слага на пауза. */
+  pause(id: string): void;
+  /** „Продължи“: брои от същото оставащо време. */
+  resume(id: string): void;
+  /** „Повтори“: същото време отначало, и от пауза или изтекъл. */
+  restart(id: string): void;
+  /** „Отмени“: маха таймера. */
+  cancel(id: string): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -54,6 +68,23 @@ export function createTimerStore({
     }
   }
 
+  /** Сменя един таймер; непознат `id` или същият обект — без промяна и без уведомяване. */
+  function change(id: string, update: (timer: Timer, at: number) => Timer) {
+    const index = timers.findIndex((timer) => timer.id === id);
+    if (index === -1) {
+      return;
+    }
+    const before = timers[index] as Timer;
+    const after = update(before, now());
+    if (after !== before) {
+      set(timers.with(index, after));
+    }
+  }
+
+  function running({ pausedAt, ...timer }: Timer): Timer {
+    return timer;
+  }
+
   return {
     list: () => timers,
     start(input) {
@@ -65,6 +96,39 @@ export function createTimerStore({
       set([...timers, timer]);
       return timer;
     },
+    addMinute(id) {
+      change(id, (timer, at) => ({
+        ...timer,
+        endsAt:
+          remainingMs(timer, at) > 0
+            ? timer.endsAt + MINUTE_MS
+            : at + MINUTE_MS,
+      }));
+    },
+    pause(id) {
+      change(id, (timer, at) =>
+        timer.pausedAt !== undefined || remainingMs(timer, at) <= 0
+          ? timer
+          : { ...timer, pausedAt: at },
+      );
+    },
+    resume(id) {
+      change(id, (timer, at) =>
+        timer.pausedAt === undefined
+          ? timer
+          : running({ ...timer, endsAt: timer.endsAt + at - timer.pausedAt }),
+      );
+    },
+    restart(id) {
+      change(id, (timer, at) =>
+        running({ ...timer, endsAt: at + timer.durationMs }),
+      );
+    },
+    cancel(id) {
+      if (timers.some((timer) => timer.id === id)) {
+        set(timers.filter((timer) => timer.id !== id));
+      }
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -74,9 +138,9 @@ export function createTimerStore({
   };
 }
 
-/** Колко остава до изтичане към `now`; 0 или по-малко — изтекъл. */
+/** Колко остава до изтичане към `now` (на пауза — към момента на паузата); 0 или по-малко — изтекъл. */
 export function remainingMs(timer: Timer, now: number): number {
-  return timer.endsAt - now;
+  return timer.endsAt - (timer.pausedAt ?? now);
 }
 
 /** Оставащото време като на часовник: „14:59“, „1:05:00“; закръглено нагоре до секунда. */
