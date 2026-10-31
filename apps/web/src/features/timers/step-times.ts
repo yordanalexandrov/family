@@ -32,12 +32,20 @@ const UNITS: readonly { spellings: readonly string[]; seconds: number }[] = [
  */
 const NOT_WORD = String.raw`(?![\p{L}\d])(?!\.\s?\p{L}\.)`;
 
+const UNIT = UNITS.flatMap((unit) => unit.spellings).join('|');
+
 /**
- * Едно количество: число или интервал от две числа с единица, или „половин час“. Отпред не стои буква, цифра,
- * запетая или точка, за да не се хване краят на друго число или дума.
+ * Едно количество: число или интервал от две числа с единица („10–15 мин“, „10 мин–15 мин“), „половин час“ или
+ * „(1) час и половина“. Отпред не стои буква, цифра, запетая или точка, за да не се хване краят на друго число или дума.
  */
 const QUANTITY = new RegExp(
-  String.raw`(?<![\p{L}\d.,])(?:(?<half>половин\s+час)${NOT_WORD}|(?<from>${NUMBER})(?:\s*[–—-]\s*(?<to>${NUMBER}))?\s*(?<unit>${UNITS.flatMap((unit) => unit.spellings).join('|')})${NOT_WORD})`,
+  [
+    String.raw`(?<![\p{L}\d.,])(?:`,
+    String.raw`(?<half>половин\s+час)${NOT_WORD}`,
+    String.raw`|(?<andHalf>(?:(?<hours>${NUMBER})\s*(?:часа|час|ч)|час)${NOT_WORD}\.?\s+и\s+половина)${NOT_WORD}`,
+    String.raw`|(?<from>${NUMBER})(?:\s*(?:(?<fromUnit>${UNIT})${NOT_WORD}\.?)?\s*[–—-]\s*(?<to>${NUMBER}))?\s*(?<unit>${UNIT})${NOT_WORD}`,
+    ')',
+  ].join(''),
   'giu',
 );
 
@@ -66,12 +74,24 @@ function quantities(text: string): Quantity[] {
   return [...text.matchAll(QUANTITY)].map((match) => {
     const start = match.index;
     const end = start + match[0].length;
-    const { half, from = '', to, unit = '' } = match.groups ?? {};
+    const {
+      half,
+      andHalf,
+      hours,
+      from = '',
+      fromUnit,
+      to,
+      unit = '',
+    } = match.groups ?? {};
     if (half) {
       return { start, end, seconds: 1800, unit: 3600 };
     }
+    if (andHalf) {
+      const whole = hours === undefined ? 1 : toNumber(hours);
+      return { start, end, seconds: whole * 3600 + 1800, unit: 3600 };
+    }
     const size = unitSeconds(unit);
-    const seconds = Math.round(toNumber(from) * size);
+    const seconds = Math.round(toNumber(from) * unitSeconds(fromUnit ?? unit));
     return to === undefined
       ? { start, end, seconds, unit: size }
       : {
