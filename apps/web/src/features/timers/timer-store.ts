@@ -104,6 +104,7 @@ function isTimer(value: unknown): value is Timer {
     (timer.step as number) >= 0 &&
     isNumber(timer.durationMs) &&
     (timer.maxDurationMs === undefined || isNumber(timer.maxDurationMs)) &&
+    (timer.manual === undefined || timer.manual === true) &&
     isNumber(timer.endsAt)
   );
 }

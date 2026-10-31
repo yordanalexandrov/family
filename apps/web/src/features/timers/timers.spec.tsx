@@ -241,4 +241,29 @@ describe('Ръчен таймер', () => {
     await user.click(screen.getByRole('button', { name: 'Таймер' }));
     expect(manualSheet()).toHaveTextContent('0 мин');
   });
+
+  it('ръчният таймер остава „Таймер · Стъпка N“ и след презареждане', async () => {
+    const user = fakeClock();
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер' }));
+    await user.click(
+      within(manualSheet()).getByRole('button', { name: '+10 мин' }),
+    );
+    await user.click(
+      within(manualSheet()).getByRole('button', { name: 'Пусни' }),
+    );
+
+    cleanup();
+    act(() => vi.advanceTimersByTime(MINUTE));
+    renderApp(`/recipes/${stew.id}/cook`);
+
+    expect(await screen.findByText(/^Пържи/)).toBeInTheDocument();
+    const [row] = timerRows();
+    expect(row).toHaveTextContent(/^Таймер · Стъпка 2/);
+    expect(row).toHaveTextContent('9:00');
+  });
 });
