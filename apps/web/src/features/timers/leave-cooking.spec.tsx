@@ -203,7 +203,7 @@ describe('Излизане от Готвене с таймер', () => {
     // 23:59: изтекъл преди повече от 2 часа, още неспрян — Готвене чака.
     await act(() => vi.advanceTimersByTimeAsync(2 * HOUR + 59 * MINUTE));
     expect(router.state.location.pathname).toBe(cookPath);
-    expect(screen.getByRole('region', { name: 'Таймери' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Стъпка 2 · 15 мин');
 
     await act(() => vi.advanceTimersByTimeAsync(2 * MINUTE));
     expect(screen.queryByRole('region', { name: 'Таймери' })).toBeNull();

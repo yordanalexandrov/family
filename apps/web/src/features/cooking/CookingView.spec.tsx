@@ -582,23 +582,24 @@ describe('Готвене', () => {
     serveRecipe();
 
     const first = renderApp(`/recipes/${stew.id}/cook`);
-    const text = await screen.findByText('Нарежи пилето.');
+    // Размерът е на тялото на стъпката: по него е и запазеното място за текста (`cooking.css`).
+    const text = (await screen.findByText('Нарежи пилето.')).parentElement;
     const smaller = screen.getByRole('button', { name: 'По-дребен текст' });
-    expect(text.style.getPropertyValue('--cooking-text-scale')).toBe('1');
+    expect(text?.style.getPropertyValue('--cooking-text-scale')).toBe('1');
 
     for (let i = 0; i < 4; i++) {
       await user.click(smaller);
     }
-    expect(text.style.getPropertyValue('--cooking-text-scale')).toBe('0.6');
+    expect(text?.style.getPropertyValue('--cooking-text-scale')).toBe('0.6');
     expect(smaller).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'По-едър текст' }));
     first.unmount();
 
     renderApp(`/recipes/${stew.id}/cook`);
     expect(
-      (await screen.findByText('Нарежи пилето.')).style.getPropertyValue(
-        '--cooking-text-scale',
-      ),
+      (
+        await screen.findByText('Нарежи пилето.')
+      ).parentElement?.style.getPropertyValue('--cooking-text-scale'),
     ).toBe('0.7');
   });
 

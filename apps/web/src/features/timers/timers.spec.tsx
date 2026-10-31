@@ -110,7 +110,7 @@ describe('Таймери в Готвене', () => {
     expect(timerRows()[0]).toHaveTextContent('Стъпка 2 · 15 мин');
   });
 
-  it('изтеклият таймер остава в лентата като изтекъл', async () => {
+  it('изтеклият таймер излиза от лентата: остава само банерът му', async () => {
     const user = fakeClock();
     setUpDevice('kiosk');
     serveRecipes(stew);
@@ -122,9 +122,10 @@ describe('Таймери в Готвене', () => {
     expect(timerRows()[0]).toHaveTextContent('0:01');
 
     act(() => vi.advanceTimersByTime(1000));
-    const [row] = timerRows();
-    expect(row).toHaveTextContent('Стъпка 2 · 15 мин');
-    expect(row).toHaveTextContent('Изтече');
+    expect(screen.queryByRole('region', { name: 'Таймери' })).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Стъпка 2 · 15 мин — времето изтече',
+    );
   });
 
   it('таймер от друга рецепта се вижда в Готвене ѝ със заглавието на рецептата си', async () => {
@@ -167,13 +168,18 @@ describe('Таймери в Готвене', () => {
 
     // Готвене помни и стъпката.
     expect(await screen.findByText(/^Пържи/)).toBeInTheDocument();
-    const [fry, simmer] = timerRows();
+    const [fry] = timerRows();
+    expect(timerRows()).toHaveLength(1);
     expect(fry).toHaveTextContent('Стъпка 2 · 15 мин');
     expect(fry).toHaveTextContent('3:00');
-    expect(simmer).toHaveTextContent('Изтече преди 2 мин');
+    // Изтеклият е в банера си, не в лентата.
+    const simmer = screen.getByRole('alert');
+    expect(simmer).toHaveTextContent(
+      'Стъпка 2 · 10–15 мин Провери — изтече преди 2 мин',
+    );
 
     act(() => vi.advanceTimersByTime(MINUTE));
-    expect(timerRows()[1]).toHaveTextContent('Изтече преди 3 мин');
+    expect(screen.getByRole('alert')).toHaveTextContent('изтече преди 3 мин');
   });
   it('таймер, пуснат или отменен в друг таб, се вижда в лентата', async () => {
     const user = fakeClock();
@@ -280,11 +286,12 @@ describe('Действия с пуснат таймер', () => {
     expect(screen.queryByRole('region', { name: 'Таймери' })).toBeNull();
   });
 
-  it('изтекъл таймер е без „Пауза“, а „+1 мин“ брои минута от сега', async () => {
+  it('таймер, изтекъл при отворено меню, е без „Пауза“, а „+1 мин“ брои минута от сега', async () => {
     const user = await cookWithTimer();
+    const menu = await openMenu(user);
     act(() => vi.advanceTimersByTime(20 * MINUTE));
 
-    const menu = await openMenu(user);
+    expect(menu).toHaveTextContent('Изтече преди 5 мин');
     expect(within(menu).queryByRole('button', { name: 'Пауза' })).toBeNull();
     await user.click(within(menu).getByRole('button', { name: '+1 мин' }));
 

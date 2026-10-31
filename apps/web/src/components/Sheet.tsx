@@ -3,6 +3,14 @@ import './Sheet.css';
 import { useSheetDrag } from './sheet-drag';
 import { useSheetHistory } from './sheet-history';
 
+/**
+ * Заглавието за окото: непрекъсваем интервал преди „·“ („Пиле с ориз · Стъпка 2 · 15 мин“), за да не почва
+ * пренесеният ред с точката. Името на листа за екранния четец остава както е.
+ */
+function noLeadingDot(title: string): string {
+  return title.replaceAll(' · ', '\u00a0· ');
+}
+
 interface SheetProps {
   title: string;
   onClose: () => void;
@@ -58,7 +66,7 @@ export function Sheet({
       >
         <header className="sheet__header">
           <span className="sheet__handle" aria-hidden="true" />
-          <h2 className="sheet__title">{title}</h2>
+          <h2 className="sheet__title">{noLeadingDot(title)}</h2>
           {!hideClose && (
             <button
               ref={closeRef}

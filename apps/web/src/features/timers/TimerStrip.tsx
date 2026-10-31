@@ -38,8 +38,9 @@ interface TimerStripProps {
 }
 
 /**
- * Лентата с таймерите на устройството, на всяка стъпка: надпис и оставащо време, „на пауза“ или „Изтече (преди N мин)“. Докосване на
- * таймер отваря менюто му (`TimerMenu`). Без таймери я няма.
+ * Лентата с работещите таймери на устройството (и тези на пауза), на всяка стъпка: надпис и оставащо време или „на
+ * пауза“. Изтеклият е само в банера си (`TimerAlarms`), не и тук. Докосване на таймер отваря менюто му (`TimerMenu`).
+ * Без работещи таймери я няма.
  */
 export function TimerStrip({ recipeId }: TimerStripProps) {
   const { timers } = useTimers();
@@ -48,19 +49,16 @@ export function TimerStrip({ recipeId }: TimerStripProps) {
   // Оставащото време се смята при всяко рисуване, а `useTick` го пречертава точно когато се смени надписът.
   const now = Date.now();
   useTick(timers, now);
-  if (timers.length === 0) {
+  const running = timers.filter((timer) => !isExpired(timer, now));
+  if (running.length === 0 && !open) {
     return null;
   }
   return (
     <section className="timer-strip" aria-label="Таймери">
       <ul className="timer-strip__list">
-        {timers.map((timer) => {
+        {running.map((timer) => {
           const paused = isPaused(timer);
-          const modifier = paused
-            ? ' timer-strip__timer--paused'
-            : isExpired(timer, now)
-              ? ' timer-strip__timer--expired'
-              : '';
+          const modifier = paused ? ' timer-strip__timer--paused' : '';
           return (
             <li key={timer.id}>
               <button

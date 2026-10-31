@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  formatExpired,
   isExpired,
   isPaused,
   MINUTE_MS,
+  msToNextChange,
+  remainingMs,
   type Timer,
   timerLabel,
 } from './timer-store';
@@ -29,9 +32,15 @@ function ringingSince(timer: Timer, openedAt: number): number {
 
 /**
  * Какво казва банерът след надписа: „— времето изтече“, а за интервал („10–15 мин“), който звъни на долната граница,
- * „Провери — още до 5 мин“.
+ * „Провери — още до 5 мин“. След първата минута (напр. изтекъл, докато Готвене е било затворено) — „— изтече преди
+ * N мин“: изтеклият таймер е само в банера, не и в лентата.
  */
-function alarmText(timer: Timer): string {
+function alarmText(timer: Timer, now: number): string {
+  const prefix = timer.maxDurationMs === undefined ? '—' : 'Провери —';
+  const expired = formatExpired(remainingMs(timer, now));
+  if (expired !== 'Изтече') {
+    return `${prefix} ${expired.toLowerCase()}`;
+  }
   if (timer.maxDurationMs === undefined) {
     return '— времето изтече';
   }
@@ -50,7 +59,7 @@ interface TimerAlarmsProps {
 
 /**
  * Сигналът на изтеклите таймери, докато Готвене е отворено: банер за всеки („Стъпка 2 · 20 мин — времето изтече“),
- * подредени един под друг, и повтарящ се тон до 2 минути. „Спри“ маха таймера; „+1 мин“ и „Повтори“ го пускат
+ * подредени един под друг в област, която превърта, ако са повече, отколкото събира, и повтарящ се тон до 2 минути. „Спри“ маха таймера; „+1 мин“ и „Повтори“ го пускат
  * отново (и спират звука до новото изтичане).
  */
 export function TimerAlarms({ recipeId }: TimerAlarmsProps) {
@@ -64,14 +73,20 @@ export function TimerAlarms({ recipeId }: TimerAlarmsProps) {
     (timer) => now < ringingSince(timer, openedAt) + ALARM_SOUND_MS,
   );
 
-  // Пречертава се в следващия момент, в който нещо се сменя: изтичане на работещ таймер или край на звука.
+  // Пречертава се в следващия момент, в който нещо се сменя: изтичане на работещ таймер, край на звука или нова
+  // минута в „изтече преди N мин“.
   useEffect(() => {
     const moments = timers.flatMap((timer) => {
       if (isPaused(timer)) {
         return [];
       }
       const soundEnds = ringingSince(timer, openedAt) + ALARM_SOUND_MS;
-      return [timer.endsAt, soundEnds].filter((moment) => moment > now);
+      const nextMinute = isExpired(timer, now)
+        ? [now + msToNextChange(remainingMs(timer, now))]
+        : [];
+      return [timer.endsAt, soundEnds, ...nextMinute].filter(
+        (moment) => moment > now,
+      );
     });
     if (moments.length === 0) {
       return;
@@ -134,7 +149,7 @@ export function TimerAlarms({ recipeId }: TimerAlarmsProps) {
             <span className="timer-alarm__label">
               {timerLabel(timer, recipeId)}
             </span>{' '}
-            <span className="timer-alarm__what">{alarmText(timer)}</span>
+            <span className="timer-alarm__what">{alarmText(timer, now)}</span>
           </p>
           <div className="timer-alarm__actions">
             <button

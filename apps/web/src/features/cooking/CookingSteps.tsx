@@ -155,33 +155,33 @@ export function CookingSteps({
           </button>
         </div>
       </header>
-      <TimerAlarms recipeId={recipe.id} />
-      <TimerStrip recipeId={recipe.id} />
-      <div
-        className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
-      >
-        {photoId && (
-          <img
-            // Новата стъпка не показва старата снимка, докато своята се зарежда.
-            key={photoId}
-            className="cooking-steps__photo"
-            src={stepPhotoUrl(photoId, PHOTO_WIDTHS[1])}
-            srcSet={PHOTO_WIDTHS.map(
-              (width) => `${stepPhotoUrl(photoId, width)} ${width}w`,
-            ).join(', ')}
-            sizes={PHOTO_SIZES}
-            alt={`Снимката на стъпка ${step + 1}`}
-            decoding="async"
-          />
-        )}
-        {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
-        <p
-          key={step}
-          className="cooking-steps__text"
+      {/* Банерите, лентата и текстът: средата на картата, която превърта сама, ако не се събират, вместо да расте. */}
+      <div className="cooking-steps__main">
+        <TimerAlarms recipeId={recipe.id} />
+        <TimerStrip recipeId={recipe.id} />
+        <div
+          className={`cooking-steps__body${photoId ? ' cooking-steps__body--photo' : ''}`}
           style={{ '--cooking-text-scale': textSize } as CSSProperties}
         >
-          {current && <StepText text={current.text} source={timerSource} />}
-        </p>
+          {photoId && (
+            <img
+              // Новата стъпка не показва старата снимка, докато своята се зарежда.
+              key={photoId}
+              className="cooking-steps__photo"
+              src={stepPhotoUrl(photoId, PHOTO_WIDTHS[1])}
+              srcSet={PHOTO_WIDTHS.map(
+                (width) => `${stepPhotoUrl(photoId, width)} ${width}w`,
+              ).join(', ')}
+              sizes={PHOTO_SIZES}
+              alt={`Снимката на стъпка ${step + 1}`}
+              decoding="async"
+            />
+          )}
+          {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
+          <p key={step} className="cooking-steps__text">
+            {current && <StepText text={current.text} source={timerSource} />}
+          </p>
+        </div>
       </div>
       <ManualTimer source={timerSource} />
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}

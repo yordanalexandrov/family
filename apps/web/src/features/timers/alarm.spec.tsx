@@ -283,7 +283,7 @@ describe('Сигнал при изтичане на таймер', () => {
     renderApp(`/recipes/${stew.id}/cook`);
 
     const [banner] = await screen.findAllByRole('alert');
-    expect(banner).toHaveTextContent('Стъпка 2 · 15 мин — времето изтече');
+    expect(banner).toHaveTextContent('Стъпка 2 · 15 мин — изтече преди 5 мин');
     expect(soundsOn()).toBe(false);
 
     await user.click(screen.getByRole('button', { name: 'Назад' }));

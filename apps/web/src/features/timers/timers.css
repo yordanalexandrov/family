@@ -37,13 +37,22 @@
   background: color-mix(in srgb, var(--color-accent) 28%, transparent);
 }
 
+/* До два реда таймери; повечето превъртат в лентата, за да остане мястото за текста. */
+.timer-strip {
+  flex: none;
+}
+
 .timer-strip__list {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  max-block-size: calc(2 * var(--touch-target) + var(--space-2));
   margin: 0;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
+  /* Скритото „На пауза“ (`.visually-hidden`, absolute) на таймер извън видимото остава в лентата, а не разширява страницата. */
+  position: relative;
 }
 
 .timer-strip__timer {
@@ -75,15 +84,6 @@
 .timer-strip__time {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.timer-strip__timer--expired {
-  border-color: var(--color-danger);
-  background: color-mix(in srgb, var(--color-danger) 16%, transparent);
-}
-
-.timer-strip__timer--expired .timer-strip__time {
-  color: var(--color-danger);
 }
 
 /* На пауза: пунктир и приглушено време с ⏸, за да не се бърка с броящ таймер. */
@@ -129,20 +129,44 @@
 }
 
 /*
- * Тесен (телефон изправен) и нисък (телефон легнал) екран: по-дребни таймери, за да остане място за текста, но с пълна
- * височина за докосване — таймерът отваря менюто си.
+ * Тесен (телефон изправен) и нисък (телефон легнал) екран: лентата е един ред, който се плъзга встрани, и таймерите са
+ * по-дребни, за да остане място за текста, но с пълна височина за докосване — таймерът отваря менюто си.
  */
+.cooking--narrow .timer-strip__list {
+  flex-wrap: nowrap;
+  max-block-size: none;
+  overflow: auto hidden;
+  overscroll-behavior-inline: contain;
+}
+
+.cooking--narrow .timer-strip__list > li {
+  flex: none;
+}
+
 .cooking--narrow .timer-strip__timer {
   gap: var(--space-2);
   padding-inline: var(--space-3);
   font-size: var(--font-size-md);
+  white-space: nowrap;
 }
 
 @media (max-height: 32rem) {
+  .timer-strip__list {
+    flex-wrap: nowrap;
+    max-block-size: none;
+    overflow: auto hidden;
+    overscroll-behavior-inline: contain;
+  }
+
+  .timer-strip__list > li {
+    flex: none;
+  }
+
   .timer-strip__timer {
     gap: var(--space-2);
     padding-inline: var(--space-3);
     font-size: var(--font-size-md);
+    white-space: nowrap;
   }
 }
 
@@ -195,15 +219,23 @@
 
 /*
  * Сигналът на изтекъл таймер: голям банер над лентата, по един за всеки изтекъл, един под друг. Текстът и бутоните
- * („Спри“, „+1 мин“, „Повтори“) са на един ред, когато има място; рамката пулсира, докато не се спре.
+ * („Спри“, „+1 мин“, „Повтори“) са на един ред, когато има място; рамката пулсира, докато не се спре. Банерите заемат
+ * най-много 30% от екрана и отстъпват на трите реда текст до един банер (`--alarms-min`); останалите превъртат.
  */
 .timer-alarms {
+  --alarms-min: 4.5rem;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  min-block-size: var(--alarms-min);
+  max-block-size: 30dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .timer-alarm {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -263,9 +295,18 @@
   min-inline-size: 6em;
 }
 
-/* Телефон изправен: по-малък текст, бутоните по три в ред на цялата ширина. */
+/* Телефон изправен: тънка рамка, текстът на обикновен размер, бутоните по три в ред на цялата ширина. */
+.cooking--narrow .timer-alarms {
+  --alarms-min: 6rem;
+}
+
+.cooking--narrow .timer-alarm {
+  padding: var(--space-2) var(--space-3);
+  border-width: 2px;
+}
+
 .cooking--narrow .timer-alarm__text {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
 }
 
 .cooking--narrow .timer-alarm__actions {
@@ -285,7 +326,13 @@
  * място за текста на стъпката и при няколко банера.
  */
 @media (max-height: 32rem) {
-  .timer-alarm {
+  .timer-alarms,
+  .cooking--narrow .timer-alarms {
+    --alarms-min: 3.5rem;
+  }
+
+  .timer-alarm,
+  .cooking--narrow .timer-alarm {
     flex-wrap: nowrap;
     padding: var(--space-1) var(--space-3);
     border-width: 2px;
