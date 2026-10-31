@@ -149,3 +149,70 @@ describe('Таймери в Готвене', () => {
     expect(row).toHaveTextContent('14:00');
   });
 });
+
+describe('Ръчен таймер', () => {
+  function manualSheet() {
+    return screen.getByRole('dialog', { name: 'Таймер' });
+  }
+
+  it.each(['kiosk', 'phone', 'browser'] as const)(
+    '„⏱ Таймер“ под стъпката отваря лист с време от 0, а „Пусни“ пуска таймер „Таймер · Стъпка N“ (%s)',
+    async (mode) => {
+      const user = fakeClock();
+      setUpDevice(mode, mode === 'kiosk' ? undefined : dani.id);
+      serveRecipes(stew);
+
+      renderApp(`/recipes/${stew.id}/cook`);
+      await user.click(await screen.findByRole('button', { name: 'Напред' }));
+      await user.click(screen.getByRole('button', { name: 'Таймер' }));
+
+      const sheet = manualSheet();
+      const start = within(sheet).getByRole('button', { name: 'Пусни' });
+      expect(sheet).toHaveTextContent('0 мин');
+      expect(start).toBeDisabled();
+
+      await user.click(within(sheet).getByRole('button', { name: '+5 мин' }));
+      await user.click(within(sheet).getByRole('button', { name: '+1 мин' }));
+      await user.click(within(sheet).getByRole('button', { name: '+1 мин' }));
+      expect(sheet).toHaveTextContent('7 мин');
+      expect(start).toBeEnabled();
+
+      await user.click(start);
+
+      expect(screen.queryByRole('dialog')).toBeNull();
+      const [row] = timerRows();
+      expect(row).toHaveTextContent(/^Таймер · Стъпка 2/);
+      expect(row).toHaveTextContent('7:00');
+
+      act(() => vi.advanceTimersByTime(MINUTE));
+      expect(row).toHaveTextContent('6:00');
+    },
+  );
+
+  it('„Нулирай“ връща избраното на 0, а затворен без „Пусни“ листът не пуска таймер', async () => {
+    const user = fakeClock();
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Таймер' }));
+    const sheet = manualSheet();
+    for (let i = 0; i < 7; i++) {
+      await user.click(within(sheet).getByRole('button', { name: '+10 мин' }));
+    }
+    await user.click(within(sheet).getByRole('button', { name: '+5 мин' }));
+    expect(sheet).toHaveTextContent('1 ч 15 мин');
+
+    await user.click(within(sheet).getByRole('button', { name: 'Нулирай' }));
+    expect(sheet).toHaveTextContent('0 мин');
+    expect(within(sheet).getByRole('button', { name: 'Пусни' })).toBeDisabled();
+
+    await user.click(within(sheet).getByRole('button', { name: '+1 мин' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Затвори' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Таймери' })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Таймер' }));
+    expect(manualSheet()).toHaveTextContent('0 мин');
+  });
+});

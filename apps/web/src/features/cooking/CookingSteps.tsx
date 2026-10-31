@@ -1,5 +1,6 @@
 import { type Recipe, STEP_PHOTO_MAX_SIDE, stepPhotoUrl } from '@family/shared';
 import { type CSSProperties, useRef } from 'react';
+import { ManualTimer } from '../timers/ManualTimer';
 import { StepText } from '../timers/StepText';
 import { TimerStrip } from '../timers/TimerStrip';
 import { COOKING_TEXT_SIZES, useCookingTextSize } from './cooking-memory';
@@ -32,7 +33,7 @@ interface CookingStepsProps {
 /**
  * Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над лентата с таймерите и
  * едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. Времената в
- * текста („15 мин“) са бутони, които пускат таймер.
+ * текста („15 мин“) са бутони, които пускат таймер, а „⏱ Таймер“ под стъпката — ръчен.
  */
 export function CookingSteps({
   recipe,
@@ -178,6 +179,9 @@ export function CookingSteps({
           )}
         </p>
       </div>
+      <ManualTimer
+        source={{ recipeId: recipe.id, recipeTitle: recipe.title, step }}
+      />
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (
