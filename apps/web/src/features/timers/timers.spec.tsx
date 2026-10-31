@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dani, server } from '../../test/msw';
 import { chickenWithRice, omelette } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
+import { createTimerStore, TIMERS_KEY } from './timer-store';
 
 const MINUTE = 60_000;
 
@@ -173,6 +174,38 @@ describe('Таймери в Готвене', () => {
 
     act(() => vi.advanceTimersByTime(MINUTE));
     expect(timerRows()[1]).toHaveTextContent('Изтече преди 3 мин');
+  });
+  it('таймер, пуснат или отменен в друг таб, се вижда в лентата', async () => {
+    const user = fakeClock();
+    setUpDevice('phone', dani.id);
+    serveRecipes(stew);
+
+    renderApp(`/recipes/${stew.id}/cook`);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
+
+    // Другият таб пише в същия localStorage; браузърът казва на този със `storage`.
+    const otherTab = createTimerStore();
+    const simmer = otherTab.start({
+      recipeId: stew.id,
+      recipeTitle: stew.title,
+      step: 1,
+      label: '10–15 мин',
+      durationMs: 10 * MINUTE,
+    });
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: TIMERS_KEY }));
+    });
+    expect(timerRows().map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Стъпка 2 · 15 мин'),
+      expect.stringContaining('Стъпка 2 · 10–15 мин'),
+    ]);
+
+    otherTab.cancel(simmer.id);
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: TIMERS_KEY }));
+    });
+    expect(timerRows()).toHaveLength(1);
   });
 });
 

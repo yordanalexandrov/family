@@ -1,13 +1,18 @@
-import { type DateKey, dateKeyInSofia } from '@family/shared';
+import {
+  addDays,
+  dateKeyInSofia,
+  startOfDayInSofia,
+  storedTimersSchema,
+} from '@family/shared';
 import { logger } from '../../logger';
 
 /**
  * Таймерите (GLOSSARY: Таймер) на устройството: общи за всички рецепти, затова живеят над Готвене (`TimersProvider`
- * в `App`), а не в екрана на една рецепта. Store-ът е обикновен обект без React, с часовник отвън (`now`), за да се
- * тества и разширява (действия, запомняне, сигнал) без екрана.
+ * в `App`), а не в екрана на една рецепта. Store-ът е обикновен обект без React, за да се тества и разширява
+ * (действия, запомняне, сигнал) без екрана.
  */
 
-const MINUTE_MS = 60_000;
+export const MINUTE_MS = 60_000;
 
 /** Откъде е таймерът: рецептата и стъпката, за надписа („Стъпка 2 · 15 мин“). */
 export interface TimerSource {
@@ -57,91 +62,71 @@ export interface TimerStore {
 
 export const TIMERS_KEY = 'family.timers';
 
-/** Записът на устройството: таймерите на един ден; запис от друг ден не важи (изтеклите и неспрени изчезват). */
-interface StoredTimers {
-  day: DateKey;
-  timers: readonly Timer[];
+/**
+ * Изтеклите и неспрени таймери изчезват в края на деня по софийско време: остава само изтеклият днес. Работещ (и
+ * започнал вчера, напр. в 23:50 за 30 мин) и на пауза остават.
+ */
+function isStale(timer: Timer, at: number): boolean {
+  return (
+    isExpired(timer, at) &&
+    timer.endsAt < startOfDayInSofia(new Date(at)).getTime()
+  );
 }
 
-function today(): DateKey {
-  return dateKeyInSofia(new Date());
-}
-
-/** Днешните таймери от localStorage; липсващ или стар запис — празно, повреден или недостъпен — празно и предупреждение. */
+/**
+ * Таймерите от localStorage без изтеклите от предишен ден; липсващ запис — празно, повреден или недостъпен — празно и
+ * предупреждение.
+ */
 function readTimers(): readonly Timer[] {
   try {
     const raw = localStorage.getItem(TIMERS_KEY);
     if (!raw) {
       return [];
     }
-    const stored = JSON.parse(raw) as Partial<StoredTimers> | null;
-    if (stored?.day !== today()) {
-      return [];
-    }
-    if (!Array.isArray(stored.timers) || !stored.timers.every(isTimer)) {
+    const stored = storedTimersSchema.safeParse(JSON.parse(raw));
+    if (!stored.success) {
       logger.warn('Таймерите на устройството са повредени', raw);
       return [];
     }
-    return stored.timers;
+    const timers: readonly Timer[] = stored.data;
+    const at = Date.now();
+    return timers.filter((timer) => !isStale(timer, at));
   } catch (error) {
     logger.warn('Таймерите на устройството не се прочетоха', error);
     return [];
   }
 }
 
-/** Записва таймерите за днес — целите записи, с всички полета (напр. паузата), за да продължат както са били. */
+/** Записва целите таймери, с всички полета (напр. паузата), за да продължат както са били. */
 function writeTimers(timers: readonly Timer[]): void {
   try {
-    localStorage.setItem(
-      TIMERS_KEY,
-      JSON.stringify({ day: today(), timers } satisfies StoredTimers),
-    );
+    localStorage.setItem(TIMERS_KEY, JSON.stringify(timers));
   } catch (error) {
     logger.warn('Таймерите на устройството не се записаха', error);
   }
 }
 
-/** Задължителните полета на `Timer`; останалите (паузата от действията) се пазят каквито са. */
-function isTimer(value: unknown): value is Timer {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const timer = value as Record<string, unknown>;
-  const isNumber = (field: unknown) =>
-    typeof field === 'number' && Number.isFinite(field);
-  return (
-    typeof timer.id === 'string' &&
-    typeof timer.recipeId === 'string' &&
-    typeof timer.recipeTitle === 'string' &&
-    typeof timer.label === 'string' &&
-    Number.isInteger(timer.step) &&
-    (timer.step as number) >= 0 &&
-    isNumber(timer.durationMs) &&
-    (timer.maxDurationMs === undefined || isNumber(timer.maxDurationMs)) &&
-    (timer.manual === undefined || timer.manual === true) &&
-    isNumber(timer.endsAt) &&
-    (timer.pausedAt === undefined || isNumber(timer.pausedAt))
-  );
+/** Колко ms остават до следващата полунощ в София. */
+function msToMidnight(at: number): number {
+  const tomorrow = addDays(dateKeyInSofia(new Date(at)), 1);
+  return startOfDayInSofia(tomorrow).getTime() - at;
 }
 
-interface TimerStoreOptions {
-  /** Часовникът; тестовете подменят `Date` с фалшив часовник, не тази опция. */
-  now?: () => number;
-}
-
-export function createTimerStore({
-  now = Date.now,
-}: TimerStoreOptions = {}): TimerStore {
+export function createTimerStore(): TimerStore {
   // Таймерите се помнят на устройството (localStorage): преживяват презареждане и заспиване, без сървър.
   let timers: readonly Timer[] = readTimers();
   const listeners = new Set<() => void>();
 
-  function set(next: readonly Timer[]): void {
-    timers = next;
-    writeTimers(next);
+  function notify(): void {
     for (const listener of listeners) {
       listener();
     }
+  }
+
+  function set(next: readonly Timer[]): void {
+    timers = next;
+    writeTimers(next);
+    notify();
   }
 
   /** Сменя един таймер; непознат `id` или същият обект — без промяна и без уведомяване. */
@@ -151,7 +136,7 @@ export function createTimerStore({
       return;
     }
     const before = timers[index] as Timer;
-    const after = update(before, now());
+    const after = update(before, Date.now());
     if (after !== before) {
       set(timers.with(index, after));
     }
@@ -161,13 +146,33 @@ export function createTimerStore({
     return timer;
   }
 
+  /** Друг таб е записал таймерите: този ги взема, без да пише обратно. */
+  function onStorage(event: StorageEvent): void {
+    if (event.key === TIMERS_KEY || event.key === null) {
+      timers = readTimers();
+      notify();
+    }
+  }
+
+  // Докато някой гледа таймерите (отворено приложение, kiosk без презареждане), в полунощ изтеклите от деня изчезват.
+  let midnight: ReturnType<typeof setTimeout> | undefined;
+  function scheduleMidnight(): void {
+    midnight = setTimeout(() => {
+      const at = Date.now();
+      if (timers.some((timer) => isStale(timer, at))) {
+        set(timers.filter((timer) => !isStale(timer, at)));
+      }
+      scheduleMidnight();
+    }, msToMidnight(Date.now()));
+  }
+
   return {
     list: () => timers,
     start(input) {
       const timer: Timer = {
         ...input,
         id: crypto.randomUUID(),
-        endsAt: now() + input.durationMs,
+        endsAt: Date.now() + input.durationMs,
       };
       set([...timers, timer]);
       return timer;
@@ -175,15 +180,14 @@ export function createTimerStore({
     addMinute(id) {
       change(id, (timer, at) => ({
         ...timer,
-        endsAt:
-          remainingMs(timer, at) > 0
-            ? timer.endsAt + MINUTE_MS
-            : at + MINUTE_MS,
+        endsAt: isExpired(timer, at)
+          ? at + MINUTE_MS
+          : timer.endsAt + MINUTE_MS,
       }));
     },
     pause(id) {
       change(id, (timer, at) =>
-        timer.pausedAt !== undefined || remainingMs(timer, at) <= 0
+        isPaused(timer) || isExpired(timer, at)
           ? timer
           : { ...timer, pausedAt: at },
       );
@@ -206,9 +210,17 @@ export function createTimerStore({
       }
     },
     subscribe(listener) {
+      if (listeners.size === 0) {
+        window.addEventListener('storage', onStorage);
+        scheduleMidnight();
+      }
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+        if (listeners.size === 0) {
+          window.removeEventListener('storage', onStorage);
+          clearTimeout(midnight);
+        }
       };
     },
   };
@@ -217,6 +229,30 @@ export function createTimerStore({
 /** Колко остава до изтичане към `now` (на пауза — към момента на паузата); 0 или по-малко — изтекъл. */
 export function remainingMs(timer: Timer, now: number): number {
   return timer.endsAt - (timer.pausedAt ?? now);
+}
+
+/** Изтекъл към `now`: оставащото е 0 или по-малко. Таймер на пауза не изтича. */
+export function isExpired(timer: Timer, now: number): boolean {
+  return remainingMs(timer, now) <= 0;
+}
+
+/** На пауза: не брои и не се сменя. */
+export function isPaused(timer: Timer): boolean {
+  return timer.pausedAt !== undefined;
+}
+
+/**
+ * Таймерът звъни или ще звъни само докато Готвене е отворено, затова излизането с него иска потвърждение, а kiosk не
+ * се връща сам на дашборда. Активен е и изтеклият, още неспрян таймер (звънящ); на пауза не може да звънне и не е.
+ */
+export function isActiveTimer(timer: Timer): boolean {
+  return !isPaused(timer);
+}
+
+/** Времето на таймера в лентата и в менюто му: оставащото („14:59“) или „Изтече (преди N мин)“. */
+export function timerTime(timer: Timer, now: number): string {
+  const left = remainingMs(timer, now);
+  return left > 0 ? formatRemaining(left) : formatExpired(left);
 }
 
 /** Оставащото време като на часовник: „14:59“, „1:05:00“; закръглено нагоре до секунда. */

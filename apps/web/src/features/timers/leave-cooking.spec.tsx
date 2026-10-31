@@ -190,6 +190,29 @@ describe('Излизане от Готвене с таймер', () => {
     expect(confirmation()).toBeNull();
   });
 
+  it('kiosk без презареждане: в края на деня изтеклият неспрян таймер изчезва и Готвене пак се връща на дашборда', async () => {
+    const user = fakeClock();
+    vi.setSystemTime(new Date('2026-10-31T21:00:00+02:00'));
+    setUpDevice('kiosk');
+    serveRecipes(stew);
+
+    const { router } = renderApp(cookPath);
+    await user.click(await screen.findByRole('button', { name: 'Напред' }));
+    await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
+
+    // 23:59: изтекъл преди повече от 2 часа, още неспрян — Готвене чака.
+    await act(() => vi.advanceTimersByTimeAsync(2 * HOUR + 59 * MINUTE));
+    expect(router.state.location.pathname).toBe(cookPath);
+    expect(screen.getByRole('region', { name: 'Таймери' })).toBeInTheDocument();
+
+    await act(() => vi.advanceTimersByTimeAsync(2 * MINUTE));
+    expect(screen.queryByRole('region', { name: 'Таймери' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    await act(() => vi.advanceTimersByTimeAsync(2 * HOUR));
+    expect(router.state.location.pathname).toBe('/');
+  });
+
   /** kiosk в Готвене на стъпка 2 с таймер „15 мин“, отворено менюто му. */
   async function kioskTimerMenu(user: ReturnType<typeof fakeClock>) {
     const rendered = renderApp(cookPath);

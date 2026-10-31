@@ -5,7 +5,6 @@ import {
   type NewTimer,
   remainingMs,
   TIMERS_KEY,
-  type Timer,
 } from './timer-store';
 
 const MINUTE = 60_000;
@@ -30,19 +29,6 @@ afterEach(() => {
 });
 
 describe('таймерите се помнят на устройството', () => {
-  it('нов store (презареждане) продължава таймерите с вярното оставащо време', () => {
-    atTime('2026-10-31T12:00:00+02:00');
-    const started = createTimerStore().start(fry);
-
-    vi.setSystemTime(Date.now() + 4 * MINUTE);
-    const timers = createTimerStore().list();
-
-    expect(timers).toEqual([started]);
-    expect(timers.map((timer) => remainingMs(timer, Date.now()))).toEqual([
-      11 * MINUTE,
-    ]);
-  });
-
   it('таймер на пауза остава на пауза със същото оставащо време', () => {
     atTime('2026-10-31T12:00:00+02:00');
     // Паузата е от действията (#257); записът пази целия таймер, с полетата, които store-ът не познава.
@@ -52,10 +38,7 @@ describe('таймерите се помнят на устройството', (
       endsAt: Date.now() + 5 * MINUTE,
       pausedAt: Date.now(),
     };
-    localStorage.setItem(
-      TIMERS_KEY,
-      JSON.stringify({ day: '2026-10-31', timers: [paused] }),
-    );
+    localStorage.setItem(TIMERS_KEY, JSON.stringify([paused]));
 
     vi.setSystemTime(Date.now() + 30 * MINUTE);
     const store = createTimerStore();
@@ -65,25 +48,32 @@ describe('таймерите се помнят на устройството', (
     expect(createTimerStore().list()[0]).toEqual(paused);
   });
 
-  it('запис от предишен ден не важи', () => {
-    atTime('2026-10-30T23:50:00+02:00');
+  it('след полунощ изтеклите от предишния ден изчезват, а работещите и на пауза остават', () => {
+    atTime('2026-10-30T23:30:00+02:00');
     createTimerStore().start(fry);
+    vi.setSystemTime(new Date('2026-10-30T23:50:00+02:00'));
+    const store = createTimerStore();
+    store.start({ ...fry, label: '30 мин', durationMs: 30 * MINUTE });
+    const paused = store.start({
+      ...fry,
+      label: '1 ч',
+      durationMs: 60 * MINUTE,
+    });
+    store.pause(paused.id);
 
     vi.setSystemTime(new Date('2026-10-31T00:05:00+02:00'));
 
-    expect(createTimerStore().list()).toEqual([]);
+    expect(
+      createTimerStore()
+        .list()
+        .map((timer) => timer.label),
+    ).toEqual(['30 мин', '1 ч']);
   });
 
   it.each([
     ['не е JSON', '{'],
-    ['без таймери', JSON.stringify({ day: '2026-10-31' })],
-    [
-      'таймер без край',
-      JSON.stringify({
-        day: '2026-10-31',
-        timers: [{ ...fry, id: 't1' }],
-      }),
-    ],
+    ['не е списък', JSON.stringify({ timers: [] })],
+    ['таймер без край', JSON.stringify([{ ...fry, id: 't1' }])],
   ])('повреден запис (%s) дава празен списък и предупреждение', (_, raw) => {
     atTime('2026-10-31T12:00:00+02:00');
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
@@ -105,118 +95,30 @@ describe('таймерите се помнят на устройството', (
   });
 });
 
-/** Store с ръчен часовник: `clock.at` е „сега“ в ms. */
-function storeWithClock() {
-  const clock = { at: 1_000_000 };
-  const store = createTimerStore({ now: () => clock.at });
-  const timer = store.start({
-    recipeId: 'r1',
-    recipeTitle: 'Яхния',
-    step: 1,
-    label: '15 мин',
-    durationMs: 15 * MINUTE,
-  });
-  const left = () => remainingMs(current(), clock.at);
-  function current(): Timer {
-    const found = store.list().find((t) => t.id === timer.id);
-    if (!found) {
-      throw new Error('няма таймер');
-    }
-    return found;
-  }
-  return { clock, store, id: timer.id, left, current };
-}
-
+// Действията се виждат през екрана (timers.spec.tsx, alarm.spec.tsx); тук остават случаите без бутон за тях.
 describe('действия с пуснат таймер', () => {
-  it('„+1 мин“ добавя минута към оставащото време', () => {
-    const { clock, store, id, left } = storeWithClock();
-    clock.at += 5 * MINUTE;
-
-    store.addMinute(id);
-
-    expect(left()).toBe(11 * MINUTE);
-  });
-
-  it('„+1 мин“ на изтекъл таймер брои минута от сега', () => {
-    const { clock, store, id, left } = storeWithClock();
-    clock.at += 20 * MINUTE;
-
-    store.addMinute(id);
-
-    expect(left()).toBe(MINUTE);
-  });
-
-  it('пауза спира броенето, а „Продължи“ го пуска от същото оставащо време', () => {
-    const { clock, store, id, left, current } = storeWithClock();
-    clock.at += 5 * MINUTE;
-
-    store.pause(id);
-    clock.at += 30 * MINUTE;
-    expect(current().pausedAt).toBeDefined();
-    expect(left()).toBe(10 * MINUTE);
-
-    store.resume(id);
-    expect(current().pausedAt).toBeUndefined();
-    expect(left()).toBe(10 * MINUTE);
-    clock.at += 4 * MINUTE;
-    expect(left()).toBe(6 * MINUTE);
-  });
-
   it('„+1 мин“ на пауза добавя минута, без да пуска броенето', () => {
-    const { clock, store, id, left } = storeWithClock();
-    clock.at += 5 * MINUTE;
+    atTime('2026-10-31T12:00:00+02:00');
+    const store = createTimerStore();
+    const { id } = store.start(fry);
+    vi.setSystemTime(Date.now() + 5 * MINUTE);
     store.pause(id);
 
     store.addMinute(id);
-    clock.at += 3 * MINUTE;
+    vi.setSystemTime(Date.now() + 3 * MINUTE);
 
-    expect(left()).toBe(11 * MINUTE);
-  });
-
-  it('изтекъл таймер не се слага на пауза', () => {
-    const { clock, store, id, current } = storeWithClock();
-    clock.at += 16 * MINUTE;
-
-    store.pause(id);
-
-    expect(current().pausedAt).toBeUndefined();
-  });
-
-  it('„Повтори“ пуска същото време отначало, и от пауза', () => {
-    const { clock, store, id, left, current } = storeWithClock();
-    clock.at += 5 * MINUTE;
-    store.pause(id);
-    clock.at += MINUTE;
-
-    store.restart(id);
-
-    expect(current().pausedAt).toBeUndefined();
-    expect(left()).toBe(15 * MINUTE);
-    clock.at += MINUTE;
-    expect(left()).toBe(14 * MINUTE);
-  });
-
-  it('„Отмени“ маха таймера, а другите остават', () => {
-    const { store, id } = storeWithClock();
-    const other = store.start({
-      recipeId: 'r1',
-      recipeTitle: 'Яхния',
-      step: 2,
-      label: '5 мин',
-      durationMs: 5 * MINUTE,
-    });
-
-    store.cancel(id);
-
-    expect(store.list().map((t) => t.id)).toEqual([other.id]);
+    const [timer] = store.list();
+    expect(timer && remainingMs(timer, Date.now())).toBe(11 * MINUTE);
   });
 
   it('действие уведомява абонатите, а непознат таймер не променя нищо', () => {
-    const { store, id } = storeWithClock();
+    const store = createTimerStore();
+    const { id } = store.start(fry);
     let calls = 0;
-    store.subscribe(() => {
+    const unsubscribe = store.subscribe(() => {
       calls += 1;
     });
+    onTestFinished(unsubscribe);
     const before = store.list();
 
     store.addMinute('няма-такъв');
