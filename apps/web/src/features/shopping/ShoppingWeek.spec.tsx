@@ -24,14 +24,24 @@ import {
 import { UNSENT_AFTER_MS } from './sync';
 
 /** Заглавията на редовете в щанда, по реда им. */
-function rowTitles(aisle: string): string[] {
-  const section = screen.getByRole('region', { name: aisle });
+function rowTitles(
+  aisle: string,
+  scope: HTMLElement = document.body,
+): string[] {
+  const section = within(scope).getAllByRole('region', { name: aisle })[0];
+  if (!section) throw new Error(`няма щанд ${aisle}`);
   return within(section)
     .getAllByRole('listitem')
     .map(
       (row) =>
         within(row).getByRole('checkbox').getAttribute('aria-label') ?? '',
     );
+}
+
+/** Разгъва „Купени (N)“ и връща секцията му. */
+async function openBought(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^Купени \(/ }));
+  return screen.getByRole('region', { name: 'Купени' });
 }
 
 describe('ShoppingWeek', () => {
@@ -154,6 +164,7 @@ describe('ShoppingWeek', () => {
   });
 
   it('списък: щандовете в реда на api-то, редове с количество и единица, брояч', async () => {
+    const user = userEvent.setup();
     serveShopping({ [thisWeek]: shoppingList() });
 
     renderApp('/shopping');
@@ -167,18 +178,12 @@ describe('ShoppingWeek', () => {
       'Подправки, сосове и бакалия',
       'Друго',
     ]);
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук']);
     const rows = within(
       screen.getByRole('region', { name: 'Плод и зеленчук' }),
     ).getAllByRole('listitem');
     expect(rows[0]).toHaveTextContent('500 г');
     expect(rows[1]).toHaveTextContent('2 бр. + 750 г');
-    expect(rows[2]).toHaveTextContent('3 бр.');
-    const peppersRow = rows[2] as HTMLElement;
-    expect(within(peppersRow).getByRole('checkbox')).toBeChecked();
-    expect(
-      within(peppersRow).getByTitle('Отметнато от Дани'),
-    ).toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: 'Млечни и яйца' }),
     ).toHaveTextContent('1000 мл');
@@ -194,6 +199,13 @@ describe('ShoppingWeek', () => {
       within(coffeeRow).getByRole('img', { name: 'добавен на ръка' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('Олио')).not.toBeInTheDocument();
+    const bought = await openBought(user);
+    const peppersRow = within(bought).getByRole('listitem');
+    expect(peppersRow).toHaveTextContent('3 бр.');
+    expect(within(peppersRow).getByRole('checkbox')).toBeChecked();
+    expect(
+      within(peppersRow).getByTitle('Отметнато от Дани'),
+    ).toBeInTheDocument();
   });
 
   it('отметка праща PUT …/checked с действащия потребител', async () => {
@@ -281,28 +293,110 @@ describe('ShoppingWeek', () => {
     ).toHaveTextContent('');
   });
 
-  it('отметнат ред остава на мястото си и слиза в края на щанда 1.5 s след последното докосване', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(fixtureNow);
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    serveShopping({ [thisWeek]: shoppingList() });
+  describe('Купени (#306)', () => {
+    it('отметнатият ред стои задраскан на мястото си и излиза в „Купени (N)“ 1.5 s след последното докосване; броячът не се сменя', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(fixtureNow);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      serveShopping({ [thisWeek]: shoppingList() });
 
-    renderApp('/shopping');
-    await user.click(await screen.findByText('Домати'));
-    expect(await screen.findByText('4 от 6')).toBeInTheDocument();
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+      renderApp('/shopping');
+      expect(
+        await screen.findByRole('button', { name: 'Купени (1)' }),
+      ).toHaveAttribute('aria-expanded', 'false');
+      await user.click(screen.getByText('Домати'));
+      expect(await screen.findByText('4 от 6')).toBeInTheDocument();
+      expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук']);
 
-    await act(() => vi.advanceTimersByTimeAsync(1000));
-    // Докосване другаде в списъка отлага местенето.
-    await user.pointer({
-      keys: '[MouseLeft>]',
-      target: screen.getByText('Лук'),
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      // Докосване другаде в списъка отлага местенето.
+      await user.pointer({
+        keys: '[MouseLeft>]',
+        target: screen.getByText('Лук'),
+      });
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук']);
+
+      await act(() => vi.advanceTimersByTimeAsync(600));
+      expect(rowTitles('Плод и зеленчук')).toEqual(['Лук']);
+      expect(screen.getByText('4 от 6')).toBeInTheDocument();
+      const bought = await openBought(user);
+      expect(rowTitles('Плод и зеленчук', bought)).toEqual(['Домати', 'Чушки']);
     });
-    await act(() => vi.advanceTimersByTimeAsync(1000));
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
 
-    await act(() => vi.advanceTimersByTimeAsync(600));
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Лук', 'Домати', 'Чушки']);
+    it('„Купени“ е под списъка и над „Скрити“, с редовете по щанд', async () => {
+      const user = userEvent.setup();
+      serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await screen.findByText('5 от 6');
+      expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук']);
+      const bought = await openBought(user);
+
+      expect(
+        within(bought)
+          .getAllByRole('region')
+          .map((r) => r.getAttribute('aria-label')),
+      ).toEqual(['Плод и зеленчук']);
+      expect(
+        within(bought).getByRole('checkbox', { name: 'Чушки' }),
+      ).toBeChecked();
+      const lastAisle = screen.getByRole('region', { name: 'Друго' });
+      const hidden = screen.getByRole('button', { name: 'Скрити (1)' });
+      expect(lastAisle.compareDocumentPosition(bought)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      expect(bought.compareDocumentPosition(hidden)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    });
+
+    it('махане на отметка в „Купени“ връща реда в щанда му', async () => {
+      const user = userEvent.setup();
+      const shopping = serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await screen.findByText('5 от 6');
+      const bought = await openBought(user);
+      await user.click(within(bought).getByRole('checkbox', { name: 'Чушки' }));
+
+      expect(await screen.findByText('6 от 6')).toBeInTheDocument();
+      expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+      expect(
+        screen.queryByRole('button', { name: /^Купени/ }),
+      ).not.toBeInTheDocument();
+      await vi.waitFor(() =>
+        expect(shopping.requests.map((r) => r.body)).toEqual([
+          { checked: false },
+        ]),
+      );
+
+      // Нова отметка веднага след това: редът стои задраскан в щанда, докато не мине задържането.
+      await user.click(screen.getByRole('checkbox', { name: 'Чушки' }));
+      expect(await screen.findByText('5 от 6')).toBeInTheDocument();
+      expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+    });
+
+    it('отметнат свършил постоянен продукт е в „Купени“, не в „Скрити от килера“', async () => {
+      const user = userEvent.setup();
+      const list = pantryShoppingList();
+      serveShopping({
+        [thisWeek]: withCheck(list, ranOutMilk.key, {
+          checkedBy: dani.id,
+          checkedAt: '2026-11-04T08:00:00.000Z',
+        }),
+      });
+
+      renderApp('/shopping');
+      const bought = await openBought(user);
+
+      expect(
+        within(bought).getByRole('checkbox', { name: ranOutMilk.title }),
+      ).toBeChecked();
+      expect(
+        screen.getAllByRole('checkbox', { name: ranOutMilk.title }),
+      ).toHaveLength(1);
+    });
   });
 
   it('докосване на името отмята реда и не отваря листа', async () => {
@@ -319,22 +413,6 @@ describe('ShoppingWeek', () => {
     );
   });
 
-  it('разотметка праща checked: false и връща реда при неотметнатите', async () => {
-    const user = userEvent.setup();
-    const shopping = serveShopping({ [thisWeek]: shoppingList() });
-
-    renderApp('/shopping');
-    await user.click(await screen.findByRole('checkbox', { name: 'Чушки' }));
-
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
-    expect(await screen.findByText('6 от 6')).toBeInTheDocument();
-    await vi.waitFor(() =>
-      expect(shopping.requests.map((r) => r.body)).toEqual([
-        { checked: false },
-      ]),
-    );
-  });
-
   describe('чужда отметка (#129 D-04)', () => {
     beforeEach(() => setUpDevice('phone', poli.id));
 
@@ -343,7 +421,9 @@ describe('ShoppingWeek', () => {
       const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
       renderApp('/shopping');
-      await user.click(await screen.findByRole('checkbox', { name: 'Чушки' }));
+      // Отметнатото от Дани е в „Купени“ (#306).
+      await openBought(user);
+      await user.click(screen.getByRole('checkbox', { name: 'Чушки' }));
 
       const row = screen.getByRole('checkbox', { name: 'Чушки' }).closest('li');
       expect(row).not.toBeNull();
@@ -374,7 +454,8 @@ describe('ShoppingWeek', () => {
       const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
       renderApp('/shopping');
-      await user.click(await screen.findByText('Чушки'));
+      await openBought(user);
+      await user.click(screen.getByText('Чушки'));
       await user.click(screen.getByRole('button', { name: 'Махни' }));
 
       expect(
@@ -422,7 +503,8 @@ describe('ShoppingWeek', () => {
       const shopping = serveShopping({ [thisWeek]: shoppingList() });
 
       renderApp('/shopping');
-      await user.click(await screen.findByText('Чушки'));
+      await openBought(user);
+      await user.click(screen.getByText('Чушки'));
       await user.click(screen.getByText('Чушки'));
 
       expect(screen.queryByRole('button', { name: 'Махни' })).toBeNull();

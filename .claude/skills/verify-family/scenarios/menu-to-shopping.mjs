@@ -109,9 +109,13 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
   // Second view: a fresh load shows the same state, and the rows are in the database.
   await page.reload({ waitUntil: 'networkidle' });
   await tap(page.getByRole('tab', { name: 'Следваща седмица' }));
+  // A checked row lives in the collapsed „Купени (N)“ (#306).
+  await tap(page.getByRole('button', { name: /Купени \(1\)/ }), 'Купени (1)');
   await see(
-    page.getByRole('checkbox', { name: 'лук', checked: true }),
-    'лук still checked after reload',
+    page
+      .getByRole('region', { name: 'Купени' })
+      .getByRole('checkbox', { name: 'лук', checked: true }),
+    'лук still checked after reload, under Купени',
   );
   const rows = psql(
     'select si.kind, coalesce(si.title, i.name) as item, si.aisle, si.checked_by is not null as checked ' +

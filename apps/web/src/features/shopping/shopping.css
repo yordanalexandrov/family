@@ -445,3 +445,10 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+
+/* „Купени (N)“ под списъка, над „Скрити“ (#306): свит, с щандовете като в списъка. */
+.shopping__bought {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
