@@ -663,6 +663,12 @@ fieldset.chips {
   align-self: flex-start;
 }
 
+/* Полето при отворена поправка личи изключено, като изключен бутон. */
+.feedback .field__input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .refine__lines {
   display: flex;
   flex-direction: column;
