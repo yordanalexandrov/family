@@ -129,3 +129,9 @@ export type RecipeRevisionResponse = z.infer<
 export const revisionOpenSchema = refusalBody('conflict', 'revision_open', {
   revisionId: z.uuid(),
 });
+
+/**
+ * 409 `revision_stale`: the recipe was saved after the revision was asked for (`stale`), so saving it with the revision
+ * would undo that save; nothing is saved.
+ */
+export const revisionStaleSchema = refusalBody('conflict', 'revision_stale');

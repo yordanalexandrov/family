@@ -83,7 +83,8 @@ export type RecipeInput = z.infer<typeof recipeInputSchema>;
 
 /**
  * `PUT /api/recipes/:id`: the recipe and, when the form holds an accepted revision (GLOSSARY: Поправка на рецепта),
- * its id; the save marks it `accepted`.
+ * its id; the save marks it `accepted`. 409 `revision_stale` (`revisionStaleSchema`) when the recipe was saved after
+ * the revision was asked for: nothing is saved.
  */
 export const replaceRecipeInputSchema = recipeInputSchema.extend({
   revisionId: z.uuid().optional(),

@@ -624,6 +624,36 @@ describe('stale of a revision', () => {
       status: 'done',
     });
   });
+
+  it('is not accepted: PUT with its revisionId answers 409 revision_stale and keeps the newer save', async () => {
+    const { recipe, input } = await createdRecipe();
+    answering(reviseAnswer);
+    const done = await finished(await requested(recipe.id));
+    await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+      payload: { ...input, title: 'Мусака с тиквички' },
+    });
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+      payload: { ...input, prepMinutes: 110, revisionId: done.id },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'conflict',
+      code: 'revision_stale',
+    });
+    expect(await getRecipe(recipe.id)).toMatchObject({
+      title: 'Мусака с тиквички',
+      openRevision: { id: done.id, status: 'done' },
+    });
+    expect((await finished(done)).decision).toBeUndefined();
+  });
 });
 
 /** A suggestion of `recipe.suggest`, still waiting for a decision. */

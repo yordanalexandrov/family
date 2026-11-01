@@ -47,6 +47,8 @@ const REVISION_OPEN = 'Предложението вече има поправк
 const NO_SUCH_REVISION = 'Няма такава поправка на рецепта';
 const ALREADY_DECIDED = 'Поправката вече е приета или отхвърлена';
 const NOT_READY = 'Поправката още не е готова';
+const REVISION_STALE =
+  'Рецептата е записана след поправката; пусни поправката пак';
 const RECIPE_REVISION_OPEN = 'Рецептата вече има поправка, която чака преглед';
 const NO_SUCH_CHANGE = 'Няма такава промяна за готвенето на рецептата';
 
@@ -285,7 +287,8 @@ export function rejectRevision(
 
 /**
  * The recipe is saved with the revision (`PUT /api/recipes/:id` with `revisionId`), in the save's transaction: 404 for
- * a revision of another recipe, 409 for one without a revised recipe or already decided.
+ * a revision of another recipe, 409 for one without a revised recipe or already decided, and 409 `revision_stale` for
+ * a stale one (the recipe was saved after it was asked for).
  */
 export function acceptRevision(
   tx: DbExecutor,
@@ -329,6 +332,10 @@ async function accept(
   }
   if (!found.revision) {
     throw new ConflictError(NOT_READY);
+  }
+  // Accepting would undo the newer save of the recipe (a revision of a suggestion is never stale).
+  if (found.stale) {
+    throw refuse('revision_stale', REVISION_STALE);
   }
   await decideRevisionRequest(tx, id, 'accepted', decidedBy);
 }
