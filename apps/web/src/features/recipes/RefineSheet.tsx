@@ -155,8 +155,11 @@ export function RefineSheet({
       );
   } else if (current.refinement) {
     const refinement = current.refinement;
+    // Подобрение отпреди подготовката е без нея и не я сменя: няма какво да се сравнява.
+    const proposed = refinement.preparation;
     const comparesPreparation =
-      preparation.length > 0 || refinement.preparation.length > 0;
+      proposed !== undefined &&
+      (preparation.length > 0 || proposed.length > 0);
     body = (
       <>
         <p>{refinement.changes}</p>
@@ -182,9 +185,7 @@ export function RefineSheet({
           <Column
             name="Предложение"
             steps={refinement.steps}
-            preparation={
-              comparesPreparation ? refinement.preparation : undefined
-            }
+            preparation={comparesPreparation ? proposed : undefined}
           />
         </div>
         <div className="refine__actions">

@@ -216,6 +216,39 @@ describe('„Подобри рецептата“ в редакцията', () =
     ).not.toBeInTheDocument();
   });
 
+  it('подобрение отпреди подготовката (без поле) не пипа подготовката на рецептата', async () => {
+    const user = userEvent.setup();
+    const oven = {
+      kind: 'oven',
+      degrees: 180,
+      fan: 'conventional',
+      rack: 'middle',
+    } as const;
+    const { preparation: _, ...older } = refinement;
+    const { saved } = serveRefine({ status: 'done', refinement: older }, 0, [
+      oven,
+    ]);
+    await user.click(await openEdit());
+
+    await screen.findByText(refinement.changes);
+    expect(screen.queryByText('Без подготовка')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Подготовка: предложение' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Приеми' }));
+    expect(stepTexts('Стъпки')).toEqual(
+      refinement.steps.map((step) => step.text),
+    );
+    expect(preparationTexts('Подготовка')).toEqual([
+      '🔥180° · без вентилатор · средна скара',
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]?.preparation).toEqual([oven]);
+  });
+
   it('„Откажи“ в прегледа не променя формата', async () => {
     const user = userEvent.setup();
     serveRefine({ status: 'done', refinement });

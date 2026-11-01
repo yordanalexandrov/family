@@ -74,8 +74,8 @@ export interface StepsReplacement {
   /** Нов номер = ново подобрение за прилагане. */
   key: number;
   steps: RecipeStep[];
-  /** Цялата подготовка: заменя сегашната, и `[]` я маха. */
-  preparation: Preparation;
+  /** Цялата подготовка: заменя сегашната, и `[]` я маха; `undefined` (подобрение отпреди подготовката) не я пипа. */
+  preparation?: Preparation | undefined;
   prepMinutes?: number | undefined;
 }
 
@@ -203,7 +203,9 @@ export function RecipeForm({
     setValues((current) => ({
       ...current,
       steps: replaceSteps.steps.map((step) => ({ ...step })),
-      preparation: preparationToValues(replaceSteps.preparation),
+      ...(replaceSteps.preparation === undefined
+        ? {}
+        : { preparation: preparationToValues(replaceSteps.preparation) }),
       ...(replaceSteps.prepMinutes === undefined
         ? {}
         : { prepMinutes: String(replaceSteps.prepMinutes) }),

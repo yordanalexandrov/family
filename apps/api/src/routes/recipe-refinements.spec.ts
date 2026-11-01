@@ -6,11 +6,13 @@ import {
   recipeRefineRequestSchema,
   recipeResponseSchema,
 } from '@family/shared';
+import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import sharp from 'sharp';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
+import { testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -367,6 +369,26 @@ describe('POST /api/recipes/:id/refinements', () => {
 
     expect(inputs[0]?.recipe.preparation).toEqual(preparation);
     expect(done.refinement?.preparation).toEqual([]);
+  });
+
+  it('a refinement stored before the preparation reads without one, so it leaves the recipe preparation alone', async () => {
+    const { recipe } = await createdRecipe({ sourceUrl: undefined });
+    answerInTurn(refined([{ text: 'Сложи пилето отгоре.', image: 'e1' }]));
+    const done = await finished(await requested(recipe.id));
+    await testDb().execute(
+      sql`update recipe_refine_request set refinement = refinement - 'preparation' where id = ${done.id}`,
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/refinements/${done.id}`,
+      headers,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().request.refinement).not.toHaveProperty(
+      'preparation',
+    );
   });
 
   it('refines from a page without JSON-LD: its photos are markers in the text and their references in photos', async () => {
