@@ -1,6 +1,7 @@
 import {
   recipeRevisionResponseSchema,
   requestRevisionSchema,
+  requestSuggestionRevisionSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { actorOf } from '../plugins/acting-user.js';
@@ -12,10 +13,11 @@ const NO_SUCH_REVISION = 'Няма такава поправка на рецеп
 
 /**
  * „✏️ Поправи с AI“ (`recipe.revise`, GLOSSARY: Поправка на рецепта): `POST` answers 202 at once (404 for an unknown
- * recipe, 409 `revision_open` with the id of the open revision while there is one), the client polls
+ * recipe or suggestion, 409 `revision_open` with the id of the open revision while there is one), the client polls
  * `GET /api/recipes/revisions/:id` until the status is not `pending`; `stale` there says the recipe was saved since. „Отхвърли“ is
  * `POST …/reject`; „Приеми“ writes nothing: the recipe changes with `PUT /api/recipes/:id` and `revisionId`, which
- * marks the revision `accepted`. All three work without an acting user, as on the kiosk.
+ * marks the revision `accepted`. All three work without an acting user, as on the kiosk. A suggestion is revised from
+ * its review form's recipe (409 when it is decided or has an open revision) and approved with `revisionId`.
  */
 export const recipeRevisionsRoutes: FastifyPluginAsyncZod = async (app) => {
   const revisions = app.recipeRevisions;
@@ -33,6 +35,25 @@ export const recipeRevisionsRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       const created = await revisions.request(
         { recipeId: request.params.id, instruction: request.body.instruction },
+        actorOf(request)?.id ?? null,
+      );
+      return reply.code(202).send({ request: created });
+    },
+  );
+
+  app.post(
+    '/api/recipe-suggestions/:id/revisions',
+    {
+      config: { actingUser: 'optional' },
+      schema: {
+        params: idParamsSchema,
+        body: requestSuggestionRevisionSchema,
+        response: { 202: recipeRevisionResponseSchema },
+      },
+    },
+    async (request, reply) => {
+      const created = await revisions.request(
+        { suggestionId: request.params.id, ...request.body },
         actorOf(request)?.id ?? null,
       );
       return reply.code(202).send({ request: created });

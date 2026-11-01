@@ -1,8 +1,9 @@
 import type {
-  Recipe,
+  ContractRecipe,
   RecipeReviseInput,
   RecipeReviseOutput,
   RecipeRevisionRequest,
+  RevisableRecipe,
   RevisionLine,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
@@ -13,6 +14,8 @@ import {
 import {
   decideRevisionRequest,
   findOpenRevisions,
+  findOpenSuggestionRevision,
+  findRevisionBaseRecipe,
   findRevisionRequest,
   insertRevisionRequest,
   lockRecipeUpdatedAt,
@@ -20,9 +23,14 @@ import {
   setRevision,
   setRevisionNoResults,
 } from '../db/repositories/recipe-revisions.js';
+import { lockSuggestion } from '../db/repositories/recipe-suggestions.js';
 import { findRecipe } from '../db/repositories/recipes.js';
 import { recipeRevisionRequest } from '../db/schema/food.js';
-import { contractRecipe, photosByRef } from './contract-recipe.js';
+import {
+  contractRecipe,
+  photosByRef,
+  revisableContractRecipe,
+} from './contract-recipe.js';
 import type {
   ContractRequestHandle,
   ContractRequestStore,
@@ -30,16 +38,22 @@ import type {
 import { ConflictError, NotFoundError, refuse } from './errors.js';
 
 const NO_SUCH_RECIPE = 'Няма такава рецепта';
+const NO_SUCH_SUGGESTION = 'Няма такова предложение';
+const SUGGESTION_DECIDED = 'Предложението вече е одобрено или отхвърлено';
+const REVISION_OPEN = 'Предложението вече има поправка, която чака преглед';
 const NO_SUCH_REVISION = 'Няма такава поправка на рецепта';
 const ALREADY_DECIDED = 'Поправката вече е приета или отхвърлена';
 const NOT_READY = 'Поправката още не е готова';
-const REVISION_OPEN = 'Поправка чака преглед';
+const RECIPE_REVISION_OPEN = 'Рецептата вече има поправка, която чака преглед';
 
-/** What „✏️ Поправи с AI“ asks: the recipe and the instruction. */
-export interface RevisionParams {
-  recipeId: string;
-  instruction: string;
-}
+/**
+ * What „✏️ Поправи с AI“ asks: the instruction, and the recipe of the registry, or the suggestion with its review form's
+ * recipe (the form is not saved).
+ */
+export type RevisionParams = { instruction: string } & (
+  | { recipeId: string }
+  | { suggestionId: string; recipe: RevisableRecipe }
+);
 
 /**
  * „✏️ Поправи с AI“ (GLOSSARY: Поправка на рецепта): `recipe.revise` as AI requests, registered in `buildApp()` as
@@ -51,9 +65,9 @@ export type RecipeRevisions = ContractRequestHandle<
   string | null
 >;
 
-/** What the run read when it started: the recipe and its photos by reference. */
+/** What the run read when it started: the recipe as the agent reads it and its photos by reference. */
 interface Loaded {
-  recipe: Recipe;
+  recipe: ContractRecipe;
   /** The photo of each step that has one, by its reference `e1`, `e2`, … in the input. */
   ownPhotos: Map<string, string>;
 }
@@ -76,7 +90,29 @@ export function createRecipeRevisionStore(): ContractRequestStore<
   return {
     table: recipeRevisionRequest,
 
-    async insert(tx, { recipeId, instruction }, requestedBy) {
+    async insert(tx, params, requestedBy) {
+      const { instruction } = params;
+      if ('suggestionId' in params) {
+        const { suggestionId, recipe } = params;
+        const suggestion = await lockSuggestion(tx, suggestionId);
+        if (!suggestion) {
+          throw new NotFoundError(NO_SUCH_SUGGESTION);
+        }
+        if (suggestion.status !== 'proposed') {
+          throw new ConflictError(SUGGESTION_DECIDED);
+        }
+        const open = await findOpenSuggestionRevision(tx, suggestionId);
+        if (open) {
+          throw refuse('revision_open', REVISION_OPEN, { revisionId: open });
+        }
+        return insertRevisionRequest(tx, {
+          suggestionId,
+          instruction,
+          requestedBy,
+          baseRecipe: recipe,
+        });
+      }
+      const { recipeId } = params;
       const baseUpdatedAt = await lockRecipeUpdatedAt(tx, recipeId);
       if (!baseUpdatedAt) {
         throw new NotFoundError(NO_SUCH_RECIPE);
@@ -84,7 +120,9 @@ export function createRecipeRevisionStore(): ContractRequestStore<
       // The recipe's row is held, so a second request waits here and sees this one.
       const open = (await findOpenRevisions(tx, [recipeId])).get(recipeId);
       if (open) {
-        throw refuse('revision_open', REVISION_OPEN, { revisionId: open.id });
+        throw refuse('revision_open', RECIPE_REVISION_OPEN, {
+          revisionId: open.id,
+        });
       }
       return insertRevisionRequest(tx, {
         recipeId,
@@ -97,16 +135,27 @@ export function createRecipeRevisionStore(): ContractRequestStore<
     find: findRevisionRequest,
 
     async load(db, request) {
+      if (request.recipeId === undefined) {
+        const base = await findRevisionBaseRecipe(db, request.id);
+        if (!base) {
+          throw new Error(
+            'revision request of a suggestion without its recipe',
+          );
+        }
+        const ownPhotos = photosByRef(base);
+        return { recipe: revisableContractRecipe(base, ownPhotos), ownPhotos };
+      }
       const recipe = await findRecipe(db, request.recipeId);
       if (!recipe) {
         throw new Error('recipe of a revision request vanished');
       }
-      return { recipe, ownPhotos: photosByRef(recipe) };
+      const ownPhotos = photosByRef(recipe);
+      return { recipe: contractRecipe(recipe, ownPhotos), ownPhotos };
     },
 
-    async buildInput(db, request, { recipe, ownPhotos }) {
+    async buildInput(db, request, { recipe }) {
       return {
-        recipe: contractRecipe(recipe, ownPhotos),
+        recipe,
         instruction: request.instruction,
         // The cooking changes come with the cooking feedback (#303).
         cookingChanges: [],
@@ -202,14 +251,41 @@ export function rejectRevision(
  * The recipe is saved with the revision (`PUT /api/recipes/:id` with `revisionId`), in the save's transaction: 404 for
  * a revision of another recipe, 409 for one without a revised recipe or already decided.
  */
-export async function acceptRevision(
+export function acceptRevision(
   tx: DbExecutor,
   id: string,
   recipeId: string,
   decidedBy: string,
 ): Promise<void> {
+  return accept(tx, id, (found) => found.recipeId === recipeId, decidedBy);
+}
+
+/**
+ * The suggestion is approved with the revision (`POST /api/recipe-suggestions/:id/approve` with `revisionId`), in the
+ * approval's transaction: 404 for a revision of another suggestion, 409 as for {@link acceptRevision}.
+ */
+export function acceptSuggestionRevision(
+  tx: DbExecutor,
+  id: string,
+  suggestionId: string,
+  decidedBy: string,
+): Promise<void> {
+  return accept(
+    tx,
+    id,
+    (found) => found.suggestionId === suggestionId,
+    decidedBy,
+  );
+}
+
+async function accept(
+  tx: DbExecutor,
+  id: string,
+  isOfTarget: (found: RecipeRevisionRequest) => boolean,
+  decidedBy: string,
+): Promise<void> {
   const found = await lockRevisionRequest(tx, id);
-  if (!found || found.recipeId !== recipeId) {
+  if (!found || !isOfTarget(found)) {
     throw new NotFoundError(NO_SUCH_REVISION);
   }
   if (found.decision) {

@@ -2,6 +2,7 @@ import type {
   OpenRevision,
   RecipeRevision,
   RecipeRevisionRequest,
+  RevisableRecipe,
   RevisionDecision,
 } from '@family/shared';
 import {
@@ -21,7 +22,7 @@ import { recipe, recipeRevisionRequest } from '../schema/food.js';
 
 /**
  * The recipe was saved after the revision was asked for (`base_updated_at`). The base went through a JS `Date`, so the
- * recipe's time is compared to the millisecond.
+ * recipe's time is compared to the millisecond. A revision of a suggestion has no recipe, so it is never stale.
  */
 const stale = sql<boolean>`exists (select 1 from ${recipe} where ${recipe.id} = ${recipeRevisionRequest.recipeId} and date_trunc('milliseconds', ${recipe.updatedAt}) > ${recipeRevisionRequest.baseUpdatedAt})`;
 
@@ -39,7 +40,8 @@ type RevisionRow = typeof recipeRevisionRequest.$inferSelect & {
 function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
   return {
     id: row.id,
-    recipeId: row.recipeId,
+    recipeId: row.recipeId ?? undefined,
+    suggestionId: row.suggestionId ?? undefined,
     instruction: row.instruction,
     status: row.status,
     error: row.error ?? undefined,
@@ -87,7 +89,7 @@ export async function findOpenRevisions(
     .orderBy(asc(recipeRevisionRequest.createdAt));
   return new Map(
     rows.flatMap(({ id, recipeId, status }) =>
-      status === 'pending' || status === 'done'
+      recipeId !== null && (status === 'pending' || status === 'done')
         ? [[recipeId, { id, status }] as const]
         : [],
     ),
@@ -109,12 +111,10 @@ export async function lockRecipeUpdatedAt(
 
 export async function insertRevisionRequest(
   db: DbExecutor,
-  values: {
-    recipeId: string;
-    instruction: string;
-    requestedBy: string | null;
-    baseUpdatedAt: Date;
-  },
+  values: { instruction: string; requestedBy: string | null } & (
+    | { recipeId: string; baseUpdatedAt: Date }
+    | { suggestionId: string; baseRecipe: RevisableRecipe }
+  ),
 ): Promise<RecipeRevisionRequest> {
   const [row] = await db
     .insert(recipeRevisionRequest)
@@ -136,6 +136,32 @@ export async function findRevisionRequest(
     .where(eq(recipeRevisionRequest.id, id))
     .limit(1);
   return row && toRevisionRequest(row);
+}
+
+/** The review form's recipe a revision of a suggestion was asked for; `undefined` for a revision of a recipe. */
+export async function findRevisionBaseRecipe(
+  db: DbExecutor,
+  id: string,
+): Promise<RevisableRecipe | undefined> {
+  const [row] = await db
+    .select({ baseRecipe: recipeRevisionRequest.baseRecipe })
+    .from(recipeRevisionRequest)
+    .where(eq(recipeRevisionRequest.id, id))
+    .limit(1);
+  return row?.baseRecipe ?? undefined;
+}
+
+/** The id of the suggestion's open revision (still `pending`, or `done` with a revision and no decision), if any. */
+export async function findOpenSuggestionRevision(
+  db: DbExecutor,
+  suggestionId: string,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ id: recipeRevisionRequest.id })
+    .from(recipeRevisionRequest)
+    .where(and(eq(recipeRevisionRequest.suggestionId, suggestionId), isOpen))
+    .limit(1);
+  return row?.id;
 }
 
 /** The revision, its row held until the transaction ends, so that a decision on it is the only one. */

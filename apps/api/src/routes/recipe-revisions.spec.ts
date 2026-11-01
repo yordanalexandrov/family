@@ -625,3 +625,237 @@ describe('stale of a revision', () => {
     });
   });
 });
+
+/** A suggestion of `recipe.suggest`, still waiting for a decision. */
+async function aSuggestion(): Promise<string> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/recipe-suggestions/requests',
+    headers,
+    payload: { slots: ['dinner'] },
+  });
+  expect(response.statusCode).toBe(202);
+  const requestId: string = response.json().request.id;
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/recipe-suggestions/requests/${requestId}`,
+      headers,
+    });
+    const body = detail.json();
+    if (body.request.status !== 'pending') {
+      return body.suggestions[0].id;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`suggestion request ${requestId} still pending`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}
+
+/** The review form as „✏️ Поправи с AI“ sends it: the moussaka of the fixture, its own photos on steps 2 and 5. */
+async function formRecipe() {
+  const photos = [await storedStepPhoto(app), await storedStepPhoto(app)];
+  const { recipe } = fixtureInput;
+  return {
+    photos,
+    recipe: {
+      title: recipe.title,
+      servings: recipe.servings,
+      prepMinutes: recipe.prepMinutes,
+      ingredients: recipe.ingredients,
+      steps: recipe.steps.map((step) => ({
+        text: step.text,
+        ...(step.image === 'e1' ? { photoId: photos[0] } : {}),
+        ...(step.image === 'e2' ? { photoId: photos[1] } : {}),
+      })),
+      preparation: recipe.preparation,
+    },
+  };
+}
+
+function postSuggestionRevision(suggestionId: string, recipe: object) {
+  return app.inject({
+    method: 'POST',
+    url: `/api/recipe-suggestions/${suggestionId}/revisions`,
+    headers,
+    payload: { instruction: INSTRUCTION, recipe },
+  });
+}
+
+async function requestedForSuggestion(
+  suggestionId: string,
+  recipe: object,
+): Promise<RecipeRevisionRequest> {
+  const response = await postSuggestionRevision(suggestionId, recipe);
+  expect(response.statusCode).toBe(202);
+  return recipeRevisionRequestSchema.parse(response.json().request);
+}
+
+describe('POST /api/recipe-suggestions/:id/revisions', () => {
+  it('answers 202 with a pending revision of the suggestion, then holds the revised recipe with the form’s photos', async () => {
+    const suggestionId = await aSuggestion();
+    const { recipe, photos } = await formRecipe();
+    answering(reviseAnswer);
+
+    const created = await requestedForSuggestion(suggestionId, recipe);
+    expect(created).toMatchObject({
+      suggestionId,
+      instruction: INSTRUCTION,
+      status: 'pending',
+      requestedBy: DANI.id,
+    });
+    expect(created.recipeId).toBeUndefined();
+    const done = await finished(created);
+
+    expect(done.status).toBe('done');
+    expect(done.stale).toBe(false);
+    expect(done.revision?.prepMinutes).toBe(110);
+    expect(done.revision?.steps.map((step) => step.photoId)).toEqual([
+      undefined,
+      photos[0],
+      undefined,
+      undefined,
+      photos[1],
+    ]);
+  });
+
+  it('sends the agent the recipe of the form, not the suggestion as it is stored', async () => {
+    const suggestionId = await aSuggestion();
+    const { recipe } = await formRecipe();
+    const inputs = answering(reviseAnswer);
+
+    await finished(await requestedForSuggestion(suggestionId, recipe));
+
+    expect(inputs[0]?.recipe).toEqual(fixtureInput.recipe);
+    expect(inputs[0]?.instruction).toBe(INSTRUCTION);
+    expect(inputs[0]?.cookingChanges).toEqual([]);
+  });
+
+  it('answers 404 for an unknown suggestion', async () => {
+    const { recipe } = await formRecipe();
+
+    const response = await postSuggestionRevision(
+      '00000000-0000-4000-8000-000000000000',
+      recipe,
+    );
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: 'not_found' });
+  });
+
+  it('answers 409 for a suggestion already decided', async () => {
+    const suggestionId = await aSuggestion();
+    const { recipe } = await formRecipe();
+    await app.inject({
+      method: 'POST',
+      url: `/api/recipe-suggestions/${suggestionId}/reject`,
+      headers,
+    });
+
+    const response = await postSuggestionRevision(suggestionId, recipe);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ error: 'conflict' });
+  });
+
+  it('answers 409 revision_open with the open revision while one waits for review, and takes a new one once it is rejected', async () => {
+    const suggestionId = await aSuggestion();
+    const { recipe } = await formRecipe();
+    answering(reviseAnswer);
+    const done = await finished(
+      await requestedForSuggestion(suggestionId, recipe),
+    );
+
+    const again = await postSuggestionRevision(suggestionId, recipe);
+
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({
+      error: 'conflict',
+      code: 'revision_open',
+      revisionId: done.id,
+    });
+    await app.inject({
+      method: 'POST',
+      url: `/api/recipes/revisions/${done.id}/reject`,
+    });
+    expect(
+      (await postSuggestionRevision(suggestionId, recipe)).statusCode,
+    ).toBe(202);
+  });
+});
+
+describe('POST /api/recipe-suggestions/:id/approve with revisionId', () => {
+  /** The form after „Приеми“: the revised recipe with the seed products, ready to approve. */
+  async function approvalInput(revision: RecipeRevisionRequest['revision']) {
+    if (!revision) {
+      throw new Error('no revision');
+    }
+    return {
+      title: 'Мусака',
+      servings: revision.servings,
+      prepMinutes: revision.prepMinutes,
+      tags: ['dinner'],
+      steps: revision.steps,
+      preparation: revision.preparation,
+      ingredients: revision.ingredients.flatMap((line) =>
+        line.ingredient
+          ? [
+              {
+                ingredientId: line.ingredient.id,
+                quantity: line.quantity,
+                unit: line.unit,
+              },
+            ]
+          : [],
+      ),
+    };
+  }
+
+  function approve(suggestionId: string, payload: object) {
+    return app.inject({
+      method: 'POST',
+      url: `/api/recipe-suggestions/${suggestionId}/approve`,
+      headers,
+      payload,
+    });
+  }
+
+  it('creates the recipe and marks the revision accepted', async () => {
+    const suggestionId = await aSuggestion();
+    const { recipe } = await formRecipe();
+    answering(reviseAnswer);
+    const done = await finished(
+      await requestedForSuggestion(suggestionId, recipe),
+    );
+
+    const response = await approve(suggestionId, {
+      ...(await approvalInput(done.revision)),
+      revisionId: done.id,
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().recipe.prepMinutes).toBe(110);
+    expect((await finished(done)).decision).toBe('accepted');
+  });
+
+  it('answers 404 for a revision of another suggestion and approves nothing', async () => {
+    const first = await aSuggestion();
+    const second = await aSuggestion();
+    const { recipe } = await formRecipe();
+    answering(reviseAnswer);
+    const done = await finished(await requestedForSuggestion(first, recipe));
+
+    const response = await approve(second, {
+      ...(await approvalInput(done.revision)),
+      revisionId: done.id,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect((await finished(done)).decision).toBeUndefined();
+    expect(
+      (await approve(second, await approvalInput(done.revision))).statusCode,
+    ).toBe(201);
+  });
+});

@@ -171,6 +171,7 @@ export function EditRecipeScreen() {
       {revising && recipe.data && (
         <ReviseSheet
           recipe={recipe.data}
+          target={{ recipeId: id }}
           requestId={
             revisionId === undefined
               ? recipe.data.openRevision?.id
