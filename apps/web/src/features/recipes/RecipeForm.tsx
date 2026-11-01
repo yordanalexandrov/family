@@ -61,20 +61,23 @@ export interface RecipeFormProps {
   /** Изборът в „Уред“ се смени (`''` = „Без уред“), напр. за значката над формата при преглед. */
   onApplianceChange?: (appliance: string) => void;
   /**
-   * Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията; като функция получава полетата, както
-   * са сега (напр. „✏️ Поправи с AI“ при преглед праща незаписаната форма).
+   * AI действията под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ и „✏️ Поправи с AI“ в редакцията; като функция
+   * получава полетата, както са сега (напр. „✏️ Поправи с AI“ при преглед праща незаписаната форма).
    */
-  stepsAction?: ReactNode | ((values: RecipeFormValues) => ReactNode);
+  aiActions?: ReactNode | ((values: RecipeFormValues) => ReactNode);
   /**
    * Прието подобрение (GLOSSARY: Подобряване на рецепта) или поправка (GLOSSARY: Поправка на рецепта): заменя стъпките и
    * подготовката, попълва времето, ако го има, а поправката — и порциите и продуктите, веднъж за всеки нов `key`;
    * другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
    */
-  replaceSteps?: StepsReplacement | undefined;
+  aiReplacement?: AiReplacement | undefined;
 }
 
-/** Стъпките, подготовката (и времето, порциите и продуктите), които влизат във формата наведнъж, напр. от прието подобрение. */
-export interface StepsReplacement {
+/**
+ * Каквото прието подобрение или поправка слага във формата наведнъж: стъпките и подготовката, и времето, порциите и
+ * продуктите, ако ги има.
+ */
+export interface AiReplacement {
   /** Нов номер = ново подобрение за прилагане. */
   key: number;
   steps: RecipeStep[];
@@ -199,30 +202,30 @@ export function RecipeForm({
   primaryAction,
   onTitleChange,
   onApplianceChange,
-  stepsAction,
-  replaceSteps,
+  aiActions,
+  aiReplacement,
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
   );
-  const [replacedKey, setReplacedKey] = useState(replaceSteps?.key);
-  if (replaceSteps && replaceSteps.key !== replacedKey) {
-    setReplacedKey(replaceSteps.key);
+  const [replacedKey, setReplacedKey] = useState(aiReplacement?.key);
+  if (aiReplacement && aiReplacement.key !== replacedKey) {
+    setReplacedKey(aiReplacement.key);
     setValues((current) => ({
       ...current,
-      steps: replaceSteps.steps.map((step) => ({ ...step })),
-      ...(replaceSteps.preparation === undefined
+      steps: aiReplacement.steps.map((step) => ({ ...step })),
+      ...(aiReplacement.preparation === undefined
         ? {}
-        : { preparation: preparationToValues(replaceSteps.preparation) }),
-      ...(replaceSteps.prepMinutes === undefined
+        : { preparation: preparationToValues(aiReplacement.preparation) }),
+      ...(aiReplacement.prepMinutes === undefined
         ? {}
-        : { prepMinutes: String(replaceSteps.prepMinutes) }),
-      ...(replaceSteps.servings === undefined
+        : { prepMinutes: String(aiReplacement.prepMinutes) }),
+      ...(aiReplacement.servings === undefined
         ? {}
-        : { servings: String(replaceSteps.servings) }),
-      ...(replaceSteps.ingredients === undefined
+        : { servings: String(aiReplacement.servings) }),
+      ...(aiReplacement.ingredients === undefined
         ? {}
-        : { ingredients: replaceSteps.ingredients }),
+        : { ingredients: aiReplacement.ingredients }),
     }));
   }
   /**
@@ -604,9 +607,7 @@ export function RecipeForm({
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Стъпки</legend>
-          {typeof stepsAction === 'function'
-            ? stepsAction(values)
-            : stepsAction}
+          {typeof aiActions === 'function' ? aiActions(values) : aiActions}
           {errors.steps && <p className="field__error">{errors.steps}</p>}
           <ol className="step-lines" aria-label="Стъпки">
             {values.steps.map((step, index) => {

@@ -1,5 +1,6 @@
 import {
   type Preparation,
+  type RecipeRevision,
   type RecipeRevisionRequest,
   type RecipeStep,
   type RevisableRecipe,
@@ -15,6 +16,7 @@ import {
 import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { POLL_INTERVAL_MS, requestErrorFor } from '../../lib/ai-requests';
 import { recipeKeys } from './queries';
+import type { AiReplacement } from './RecipeForm';
 import {
   emptyIngredientRow,
   type IngredientRowValues,
@@ -169,7 +171,7 @@ export function useRejectRevision() {
  * Продуктите на поправката като редове на формата: свързаните с продукта си, а предложеният нов продукт неразрешен, с
  * името си и попълнена форма „Нов продукт“, както при внасяне.
  */
-export function revisionToIngredientRows(
+function revisionToIngredientRows(
   lines: readonly RevisionLine[],
 ): IngredientRowValues[] {
   return lines.map((line) =>
@@ -182,4 +184,19 @@ export function revisionToIngredientRows(
       ...(line.newProduct ? { isNew: true, newProduct: line.newProduct } : {}),
     }),
   );
+}
+
+/** „Приеми“ на поправка: цялата поправка влиза във формата като следващата замяна след `current`. */
+export function revisionReplacement(
+  revision: RecipeRevision,
+  current: AiReplacement | undefined,
+): AiReplacement {
+  return {
+    key: (current?.key ?? 0) + 1,
+    steps: revision.steps,
+    prepMinutes: revision.prepMinutes,
+    preparation: revision.preparation,
+    servings: revision.servings,
+    ingredients: revisionToIngredientRows(revision.ingredients),
+  };
 }

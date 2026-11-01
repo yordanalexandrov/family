@@ -1,8 +1,6 @@
 import {
-  type Preparation,
   RECIPE_REVISION_INSTRUCTION_MAX,
   type RecipeRevision,
-  type RecipeStep,
 } from '@family/shared';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { refusalOf } from '../../api/client';
@@ -69,33 +67,29 @@ function droppedText(count: number): string {
   return count === 1 ? '1 снимка отпада.' : `${count} снимки отпадат.`;
 }
 
-/** Едната колона: порциите и времето, продуктите, подготовката и стъпките. */
+/** Едната колона: порциите и времето, продуктите, подготовката (ако `withPreparation`) и стъпките. */
 function RevisionColumn({
   name,
-  servings,
-  prepMinutes,
-  lines,
-  steps,
-  preparation,
+  recipe,
+  withPreparation,
 }: {
   name: string;
-  servings: number;
-  prepMinutes: number | undefined;
-  lines: readonly ComparedLine[];
-  steps: readonly RecipeStep[];
-  preparation: Preparation | undefined;
+  recipe: RevisionBase;
+  withPreparation: boolean;
 }) {
   const lower = name.toLocaleLowerCase('bg');
   return (
     <ComparisonColumn
       name={name}
-      steps={steps}
-      preparation={preparation}
+      steps={recipe.steps}
+      preparation={withPreparation ? recipe.preparation : undefined}
       stepsLabel={`Стъпки: ${lower}`}
     >
-      <p className="refine__note">{servingsText(servings, prepMinutes)}</p>
+      <p className="refine__note">
+        {servingsText(recipe.servings, recipe.prepMinutes)}
+      </p>
       <ul className="refine__lines" aria-label={`Продукти: ${lower}`}>
-        {lines.map((line, index) => (
+        {recipe.ingredients.map((line, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: редовете нямат id; редът е идентичността им.
           <li key={index}>{lineText(line)}</li>
         ))}
@@ -270,19 +264,13 @@ export function ReviseSheet({
         <div className="refine__compare">
           <RevisionColumn
             name="Сега"
-            servings={recipe.servings}
-            prepMinutes={recipe.prepMinutes}
-            lines={recipe.ingredients}
-            steps={recipe.steps}
-            preparation={comparesPreparation ? recipe.preparation : undefined}
+            recipe={recipe}
+            withPreparation={comparesPreparation}
           />
           <RevisionColumn
             name="С поправката"
-            servings={revision.servings}
-            prepMinutes={revision.prepMinutes}
-            lines={revision.ingredients}
-            steps={revision.steps}
-            preparation={comparesPreparation ? revision.preparation : undefined}
+            recipe={revision}
+            withPreparation={comparesPreparation}
           />
         </div>
         {current.stale && (

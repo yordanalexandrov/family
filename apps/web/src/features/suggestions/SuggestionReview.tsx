@@ -18,14 +18,14 @@ import { useObjectUrl } from '../../lib/use-object-url';
 import { useOnline } from '../../lib/use-online';
 import { ApplianceBadge } from '../recipes/ApplianceBadge';
 import { ingredientSearchQuery, useRecipes } from '../recipes/queries';
-import { RecipeForm, type StepsReplacement } from '../recipes/RecipeForm';
+import { type AiReplacement, RecipeForm } from '../recipes/RecipeForm';
 import { ReviseSheet } from '../recipes/ReviseSheet';
 import { toRevisableRecipe } from '../recipes/recipe-form-values';
 import {
   type RevisionBase,
   type RevisionTarget,
   revisionBaseOf,
-  revisionToIngredientRows,
+  revisionReplacement,
 } from '../recipes/revisions';
 import {
   useApproveSuggestion,
@@ -319,7 +319,7 @@ export function ReviewSuggestion({
   const connection = useNeedsConnection(useOnline(), 'recipe-form__hint');
   const [revising, setRevising] = useState(false);
   /** Рецептата от формата, която листът „Поправи с AI“ поправя и с която сравнява; взета при отваряне без поправка. */
-  const [revised, setRevised] = useState<{
+  const [snapshot, setSnapshot] = useState<{
     base: RevisionBase;
     target: RevisionTarget;
   }>();
@@ -327,7 +327,7 @@ export function ReviewSuggestion({
   const [revisionId, setRevisionId] = useState<string>();
   /** Приетата поправка във формата: одобрението я маркира приета. */
   const [acceptedRevision, setAcceptedRevision] = useState<string>();
-  const [replacement, setReplacement] = useState<StepsReplacement>();
+  const [replacement, setReplacement] = useState<AiReplacement>();
   const rejectAction = {
     label: 'Отхвърли',
     disabled: reject.isPending,
@@ -436,8 +436,8 @@ export function ReviewSuggestion({
           extraActions={[rejectAction]}
           onTitleChange={setTitle}
           onApplianceChange={setChosenAppliance}
-          replaceSteps={replacement}
-          stepsAction={(values) => {
+          aiReplacement={replacement}
+          aiActions={(values) => {
             const revisable = toRevisableRecipe(values);
             return (
               <div className="recipe-form__ai">
@@ -451,7 +451,7 @@ export function ReviewSuggestion({
                   aria-describedby={connection.describedBy}
                   onClick={() => {
                     if (revisionId === undefined && revisable) {
-                      setRevised({
+                      setSnapshot({
                         base: revisionBaseOf(
                           revisable.recipe,
                           revisable.linked,
@@ -473,21 +473,14 @@ export function ReviewSuggestion({
           }}
         />
       )}
-      {revising && revised && (
+      {revising && snapshot && (
         <ReviseSheet
-          recipe={revised.base}
-          target={revised.target}
+          recipe={snapshot.base}
+          target={snapshot.target}
           requestId={revisionId}
           onRequested={setRevisionId}
           onAccept={(accepted, revision) => {
-            setReplacement((current) => ({
-              key: (current?.key ?? 0) + 1,
-              steps: revision.steps,
-              prepMinutes: revision.prepMinutes,
-              preparation: revision.preparation,
-              servings: revision.servings,
-              ingredients: revisionToIngredientRows(revision.ingredients),
-            }));
+            setReplacement((current) => revisionReplacement(revision, current));
             setAcceptedRevision(accepted);
             setRevisionId(undefined);
             setRevising(false);
