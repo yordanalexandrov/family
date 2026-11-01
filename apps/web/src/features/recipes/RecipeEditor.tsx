@@ -6,6 +6,7 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 import { useState } from 'react';
+import { refusalOf } from '../../api/client';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
@@ -15,11 +16,18 @@ import { type AiReplacement, RecipeForm } from './RecipeForm';
 import { RefineSheet } from './RefineSheet';
 import { ReviseSheet } from './ReviseSheet';
 import { recipeToFormValues } from './recipe-form-values';
-import { revisionReplacement } from './revisions';
+import { revisionReplacement, useRefreshRevision } from './revisions';
 import './recipes.css';
 
-/** Запис и после към прегледа на рецептата; с `revisionId` — с приетата поправка. */
-function useSaveAndView(id?: string, revisionId?: string) {
+/**
+ * Запис и после към прегледа на рецептата; с `revisionId` — с приетата поправка, а ако рецептата е записана след нея
+ * (`409 revision_stale`), нищо не се записва и `onStale` получава поправката.
+ */
+function useSaveAndView(
+  id?: string,
+  revisionId?: string,
+  onStale?: (revisionId: string) => void,
+) {
   const save = useSaveRecipe();
   const navigate = useNavigate();
   return {
@@ -33,6 +41,13 @@ function useSaveAndView(id?: string, revisionId?: string) {
         {
           onSuccess(recipe) {
             void navigate({ to: '/recipes/$id', params: { id: recipe.id } });
+          },
+          onError(error) {
+            if (revisionId && onStale && refusalOf(error, 'revision_stale')) {
+              // Листът казва защо; грешката под формата би го повторила.
+              save.reset();
+              onStale(revisionId);
+            }
           },
         },
       );
@@ -80,15 +95,22 @@ export function EditRecipeScreen() {
   const recipe = useRecipe(id);
   /** Приетата поправка във формата: записът я маркира приета. */
   const [acceptedRevision, setAcceptedRevision] = useState<string>();
-  const { save, submit } = useSaveAndView(id, acceptedRevision);
-  const navigate = useNavigate();
-  const [refining, setRefining] = useState(false);
   const [revising, setRevising] = useState(revise === true);
   /**
    * Поправката, която листът пусна или към която го води „Поправка чака преглед“; `null` — решена тук. Без нея листът
    * продължава отворената поправка на рецептата, ако има такава, иначе иска указание.
    */
   const [revisionId, setRevisionId] = useState<string | null>();
+  const refreshRevision = useRefreshRevision();
+  // Рецептата е записана след приетата поправка: листът я показва `stale`, без „Приеми“. Приета остава, докато листът
+  // не я отхвърли или пусне наново, така че нов запис пак не затрива по-новия.
+  const { save, submit } = useSaveAndView(id, acceptedRevision, (stale) => {
+    refreshRevision(stale);
+    setRevisionId(stale);
+    setRevising(true);
+  });
+  const navigate = useNavigate();
+  const [refining, setRefining] = useState(false);
   /** Подобряването, което още чака: затвореният и отворен пак лист продължава него. */
   const [refineId, setRefineId] = useState<string>();
   const [replacement, setReplacement] = useState<AiReplacement>();
@@ -177,7 +199,10 @@ export function EditRecipeScreen() {
               ? recipe.data.openRevision?.id
               : (revisionId ?? undefined)
           }
-          onRequested={setRevisionId}
+          onRequested={(requested) => {
+            setAcceptedRevision(undefined);
+            setRevisionId(requested);
+          }}
           onAccept={(accepted, revision) => {
             setReplacement((current) => revisionReplacement(revision, current));
             setAcceptedRevision(accepted);
@@ -185,6 +210,7 @@ export function EditRecipeScreen() {
             setRevising(false);
           }}
           onRejected={() => {
+            setAcceptedRevision(undefined);
             setRevisionId(null);
             setRevising(false);
           }}

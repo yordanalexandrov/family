@@ -150,6 +150,16 @@ export function useRevision(id: string | undefined) {
   });
 }
 
+/**
+ * Поправката с `id` се чете пак, напр. щом записът с нея върне `409 revision_stale`: листът вижда `stale` и няма
+ * „Приеми“.
+ */
+export function useRefreshRevision() {
+  const queryClient = useQueryClient();
+  return (id: string) =>
+    void queryClient.invalidateQueries({ queryKey: revisionKey(id) });
+}
+
 /** „Отхвърли“: поправката е решена и не чака повече. */
 export function useRejectRevision() {
   const queryClient = useQueryClient();

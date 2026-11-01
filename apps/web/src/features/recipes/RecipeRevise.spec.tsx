@@ -217,6 +217,52 @@ describe('„Поправи с AI“ в редакцията', () => {
     expect(saved[0]?.prepMinutes).toBe(55);
   });
 
+  it('записана междувременно рецепта не се затрива: „Запази“ с поправката отваря листа без „Приеми“', async () => {
+    const user = userEvent.setup();
+    // Без новия продукт: формата се записва веднага.
+    const linked = {
+      ...revision,
+      ingredients: revision.ingredients.slice(0, 3),
+    };
+    const { saved } = serveRevise({ status: 'done', revision: linked });
+    let stale = false;
+    server.use(
+      http.get(`/api/recipes/revisions/${pending.id}`, () =>
+        HttpResponse.json({
+          request: { ...pending, status: 'done', revision: linked, stale },
+        }),
+      ),
+      http.put(`/api/recipes/${recipe.id}`, async ({ request }) => {
+        saved.push((await request.json()) as ReplaceRecipeInput);
+        stale = true;
+        return HttpResponse.json(
+          {
+            error: 'conflict',
+            code: 'revision_stale',
+            message: 'Рецептата е записана след поправката',
+          },
+          { status: 409 },
+        );
+      }),
+    );
+    await send(user);
+    await user.click(await screen.findByRole('button', { name: 'Приеми' }));
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    const sheet = await screen.findByRole('dialog', { name: 'Поправи с AI' });
+    expect(
+      await within(sheet).findByText('Рецептата е записана след поправката.'),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole('button', { name: 'Пусни пак' }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('button', { name: 'Приеми' }),
+    ).not.toBeInTheDocument();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.revisionId).toBe(pending.id);
+  });
+
   it('„Отхвърли“ отхвърля поправката и не пипа формата', async () => {
     const user = userEvent.setup();
     const { rejected, saved } = serveRevise({ status: 'done', revision });
