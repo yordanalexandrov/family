@@ -106,6 +106,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       step={step}
       changes={changes}
       servings={shownServings}
+      reading={reading}
       onAsk={(question, replaces) =>
         questions.ask(
           {
