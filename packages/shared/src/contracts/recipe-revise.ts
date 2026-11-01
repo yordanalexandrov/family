@@ -1,17 +1,20 @@
 import { z } from 'zod';
 import { preparationSchema } from '../food/preparation.js';
-import { checkPinchQuantity } from '../food/units.js';
 import type { AiContract } from './contract.js';
 import {
   preparationFromStrict,
   preparationStrictSchema,
 } from './preparation.js';
 import {
-  checkOneProduct,
   normalizedIngredientFields,
+  normalizedIngredientSchema,
   registryIngredientSchema,
 } from './recipe-normalize.js';
-import { recipePhotoRefs, refineRecipeSchema } from './recipe-refine.js';
+import {
+  recipePhotoRefs,
+  refineRecipeSchema,
+  refineStepSchema,
+} from './recipe-refine.js';
 import { stepImageProblems } from './step-images.js';
 import { isRecord } from './strict-mode.js';
 
@@ -48,20 +51,6 @@ const recipeReviseInputSchema = z.object({
 
 export type RecipeReviseInput = z.infer<typeof recipeReviseInputSchema>;
 
-/** A line of the revised recipe: a registry product or a new one, as in `recipe.normalize`. */
-const revisedIngredientSchema = z
-  .object(normalizedIngredientFields)
-  .superRefine(checkPinchQuantity)
-  .superRefine(checkOneProduct);
-
-export type RevisedIngredient = z.infer<typeof revisedIngredientSchema>;
-
-const revisedStepSchema = z.object({
-  text: z.string().trim().min(1),
-  /** The reference of a photo of the recipe (`e1`, …) or `null`. */
-  image: z.string().trim().min(1).nullable(),
-});
-
 const revisedRecipeFields = {
   /** What changed, a sentence or two; shown above the comparison. */
   changes: z.string().trim().min(1),
@@ -69,10 +58,14 @@ const revisedRecipeFields = {
   prepMinutes: z.int().positive().nullable(),
 };
 
+/**
+ * The revised recipe: its lines are a registry product or a new one, as in `recipe.normalize`; its steps take the
+ * reference of a photo of the recipe (`e1`, …) or `null`, as in `recipe.refine`.
+ */
 const revisedRecipeSchema = z.object({
   ...revisedRecipeFields,
-  ingredients: z.array(revisedIngredientSchema),
-  steps: z.array(revisedStepSchema).min(1),
+  ingredients: z.array(normalizedIngredientSchema),
+  steps: z.array(refineStepSchema).min(1),
   preparation: preparationSchema,
 });
 
@@ -139,7 +132,7 @@ function fromStrictMode(value: unknown): unknown {
  * What a schema cannot see, checked against the input: every `ingredientId` from the input's registry, and only the
  * recipe's own photos, each on at most one step (a photo may go with a step that is gone). In Bulgarian, for the retry.
  */
-export function validateRevision(
+function validateRevision(
   input: RecipeReviseInput,
   revision: RevisedRecipe,
 ): string[] {

@@ -141,7 +141,7 @@ export const normalizedIngredientFields = {
 };
 
 /** Exactly one of `ingredientId` and `newProduct`. */
-export function checkOneProduct(
+function checkOneProduct(
   line: { ingredientId: string | null; newProduct: NewProduct | null },
   ctx: z.RefinementCtx,
 ): void {
