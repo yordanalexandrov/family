@@ -21,6 +21,8 @@ export interface TimerSource {
   recipeTitle: string;
   /** Индексът на стъпката, от 0. */
   step: number;
+  /** От време в отговора на въпрос в Готвене, не в текста на стъпката: надписът е „Въпрос · 10 мин“. */
+  question?: true;
 }
 
 /** Какво е нужно, за да се пусне таймер. */
@@ -278,12 +280,14 @@ export function msToNextChange(ms: number): number {
 }
 
 /**
- * Надписът на таймера в Готвене на `recipeId`: стъпката и времето („Стъпка 2 · 15 мин“) или за ръчен „Таймер · Стъпка
- * 2“, а пред тях заглавието на рецептата, ако таймерът е от друга.
+ * Надписът на таймера в Готвене на `recipeId`: стъпката и времето („Стъпка 2 · 15 мин“), за ръчен „Таймер · Стъпка 2“,
+ * а от отговор на въпрос „Въпрос · 10 мин“; пред тях заглавието на рецептата, ако таймерът е от друга.
  */
 export function timerLabel(timer: Timer, recipeId: string): string {
   const own = timer.manual
     ? `Таймер · Стъпка ${timer.step + 1}`
-    : `Стъпка ${timer.step + 1} · ${timer.label}`;
+    : timer.question
+      ? `Въпрос · ${timer.label}`
+      : `Стъпка ${timer.step + 1} · ${timer.label}`;
   return timer.recipeId === recipeId ? own : `${timer.recipeTitle} · ${own}`;
 }

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { applianceExistsSchema } from './appliance.js';
+import {
+  noAppliedChangeSchema,
+  noEarlierQuestionSchema,
+} from './cooking-question.js';
 import { noReplacementSchema } from './meal-replacement.js';
 import {
   emptyMealSchema,
@@ -30,6 +34,8 @@ export const refusalSchemas = {
   past_meal: pastMealSchema,
   appliance_exists: applianceExistsSchema,
   empty_meal: emptyMealSchema,
+  no_earlier_question: noEarlierQuestionSchema,
+  no_applied_change: noAppliedChangeSchema,
 } as const;
 
 export const refusalSchema = z.discriminatedUnion(

@@ -1,4 +1,10 @@
-import { type Recipe, STEP_PHOTO_MAX_SIDE, stepPhotoUrl } from '@family/shared';
+import {
+  type CookingStep,
+  type Recipe,
+  type RecipeStep,
+  STEP_PHOTO_MAX_SIDE,
+  stepPhotoUrl,
+} from '@family/shared';
 import { type CSSProperties, type ReactNode, useRef } from 'react';
 import { ManualTimer } from '../timers/ManualTimer';
 import { StepText } from '../timers/StepText';
@@ -21,8 +27,13 @@ const PHOTO_WIDTHS = [640, 1024, STEP_PHOTO_MAX_SIDE];
 const PHOTO_SIZES = '(max-height: 32rem) 40vw, (min-width: 48rem) 34vw, 100vw';
 
 interface CookingStepsProps {
-  /** Рецептата: стъпките ѝ и откъде са таймерите, пуснати от текста. */
+  /** Рецептата: откъде са таймерите, пуснати от текста. */
   recipe: Recipe;
+  /**
+   * Стъпките с приложените промени за готвенето (`useCookingChanges`): толкова, колкото са в рецептата, сменената със
+   * знак „променено“; без тях — стъпките на рецептата.
+   */
+  steps?: readonly CookingStep<RecipeStep>[];
   /** Индексът на текущата стъпка, от 0. */
   step: number;
   onStepChange: (step: number) => void;
@@ -32,22 +43,26 @@ interface CookingStepsProps {
   onDone: () => void;
   /** Редът с подготовката (`CookingPreparation`): най-отгоре, над стъпката, на всяка стъпка. */
   preparation?: ReactNode;
+  /** „Питай“ (`AskButton`): в инструментите горе, преди A−/A+. */
+  ask?: ReactNode;
 }
 
 /**
  * Стъпките на Готвене една по една: „‹ Стъпка X от N ›“ (на последната › е ✓ „Готово“) над лентата с таймерите и
  * едрия текст с A−/A+ (със снимката на стъпката, ако има), точки за прескачане и плъзгане наляво/надясно. Времената в
- * текста („15 мин“) са бутони, които пускат таймер, а „⏱ Таймер“ под стъпката — ръчен.
+ * текста („15 мин“) са бутони, които пускат таймер, а „⏱ Таймер“ под стъпката — ръчен. Стъпка с нов текст от
+ * приложена промяна за готвенето има знак „променено“ над текста.
  */
 export function CookingSteps({
   recipe,
+  steps = recipe.steps,
   step,
   onStepChange,
   onClose,
   onDone,
   preparation,
+  ask,
 }: CookingStepsProps) {
-  const { steps } = recipe;
   const last = step === steps.length - 1;
   const current = steps[step];
   const photoId = current?.photoId;
@@ -127,6 +142,7 @@ export function CookingSteps({
           )}
         </div>
         <div className="cooking-steps__tools">
+          {ask}
           <button
             type="button"
             className="button button--quiet cooking-steps__size"
@@ -183,6 +199,9 @@ export function CookingSteps({
           )}
           {/* `key` по стъпката: нова стъпка е нов елемент, така че дълга стъпка не наследява превъртането на предишната. */}
           <p key={step} className="cooking-steps__text">
+            {current?.changed && (
+              <span className="cooking-steps__mark">променено </span>
+            )}
             {current && <StepText text={current.text} source={timerSource} />}
           </p>
         </div>

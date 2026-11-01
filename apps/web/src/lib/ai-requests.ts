@@ -2,8 +2,8 @@ import type { CONTRACT_FAILURES, ContractFailure } from '@family/shared';
 import { ApiError } from '../api/client';
 
 /**
- * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване): `POST` → `pending`, клиентът пита отново,
- * докато заявката не е `done`/`failed`; кодовете на `failed` са едни и същи.
+ * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване, въпрос в Готвене): `POST`
+ * → `pending`, клиентът пита отново, докато заявката не е `done`/`failed`; кодовете на `failed` са едни и същи.
  */
 
 /** Колко често се пита за заявка, която още е `pending`. */
@@ -12,13 +12,17 @@ export const POLL_INTERVAL_MS = 3000;
 /** И за отказаната заявка (503 `openclaw_unavailable`), и за грешка `http_*` на агента. */
 const AI_UNAVAILABLE = 'AI не е на разположение в момента';
 
-/** Какво е поискано от AI: меню за седмица, друго ястие, предложения за рецепти, внасяне или подобряване на рецепта. */
+/**
+ * Какво е поискано от AI: меню за седмица, друго ястие, предложения за рецепти, внасяне или подобряване на рецепта,
+ * отговор на въпрос в Готвене.
+ */
 export type AiRequestKind =
   | 'menu'
   | 'replace'
   | 'suggest'
   | 'import'
-  | 'refine';
+  | 'refine'
+  | 'ask';
 
 /** Полетата на заявката, от които зависи съобщението; общи за всички AI заявки. */
 export interface FailedAiRequest {
@@ -47,6 +51,10 @@ const KINDS: Record<AiRequestKind, { failed: string; next: string }> = {
   },
   refine: {
     failed: 'AI не успя да подобри рецептата',
+    next: 'Опитай пак.',
+  },
+  ask: {
+    failed: 'AI не успя да отговори',
     next: 'Опитай пак.',
   },
 };
@@ -87,9 +95,9 @@ function waited(ms: number): string {
 }
 
 /** Причината, преди действието: изречение без точка. */
-function reason(kind: AiRequestKind, request: FailedAiRequest): string {
-  const { error } = request;
-  if (error === 'timeout') {
+function reason(kind: AiRequestKind, request?: FailedAiRequest): string {
+  const error = request?.error;
+  if (request && error === 'timeout') {
     if (request.finishedAt === undefined) {
       return 'AI не отговори навреме';
     }
@@ -113,13 +121,14 @@ function reason(kind: AiRequestKind, request: FailedAiRequest): string {
 
 /**
  * Съобщение за неуспешна AI заявка от името на приложението: какво не е станало и какво може човекът, без кодове.
- * `timeout` казва колко е чакано (`createdAt` → `finishedAt`).
+ * `timeout` казва колко е чакано (`createdAt` → `finishedAt`); без заявка (напр. api вече не я знае) — общото
+ * („AI не успя да отговори. Опитай пак.“).
  */
 export function failureMessage(
   kind: AiRequestKind,
-  request: FailedAiRequest,
+  request?: FailedAiRequest,
 ): string {
-  const { error } = request;
+  const error = request?.error;
   const own =
     error === undefined || isHttpFailure(error)
       ? undefined

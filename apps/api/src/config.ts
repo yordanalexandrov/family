@@ -1,6 +1,9 @@
 import { calendarColorTokenSchema } from '@family/shared';
 import { z } from 'zod';
 
+/** The time limit of `cooking.ask` (GLOSSARY: Въпрос в Готвене); the other contracts have OPENCLAW_TIMEOUT_MS. */
+const COOKING_ASK_TIMEOUT_MS = 120_000;
+
 /** An optional variable; empty (a blank line in .env) counts as missing. */
 function optional<T extends z.ZodType>(schema: T) {
   return z.preprocess(
@@ -50,6 +53,7 @@ function openClawFields() {
     OPENCLAW_MEAL_AGENT: z.string().min(1).default('family-meal'),
     OPENCLAW_IMPORT_AGENT: z.string().min(1).default('family-import'),
     OPENCLAW_REFINE_AGENT: z.string().min(1).default('family-refine'),
+    OPENCLAW_COOK_AGENT: z.string().min(1).default('family-cook'),
     OPENCLAW_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
   };
 }
@@ -66,7 +70,10 @@ function toOpenClawConfig(env: OpenClawEnv) {
     mealAgent: env.OPENCLAW_MEAL_AGENT,
     importAgent: env.OPENCLAW_IMPORT_AGENT,
     refineAgent: env.OPENCLAW_REFINE_AGENT,
+    cookAgent: env.OPENCLAW_COOK_AGENT,
     timeoutMs: env.OPENCLAW_TIMEOUT_MS,
+    // A question in Готвене is asked standing at the stove: it gets less than the other contracts (#262).
+    cookTimeoutMs: Math.min(env.OPENCLAW_TIMEOUT_MS, COOKING_ASK_TIMEOUT_MS),
   };
 }
 
