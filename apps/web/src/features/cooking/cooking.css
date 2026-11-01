@@ -523,6 +523,12 @@
   min-block-size: 4.5rem;
 }
 
+/* Докато предишният въпрос чака, като изключените бутони. */
+.cooking-question__input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .cooking-question__count {
   margin: 0;
   color: var(--color-text-muted);
