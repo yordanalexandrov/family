@@ -6,17 +6,24 @@
 // follow-up questions of #273 after some of them („а колко дълго да я варя тогава?“): a follow-up goes with the earlier
 // questions of its chain and the answers the agent gave them in this run (`history`, as the api sends it).
 // `--chain` asks the `--question`s as one chain, each following the one before.
+// Cooking changes (#276): a built-in case says whether its answer must bring a `change` (the substitutions with pulp and
+// whole tomatoes) or must not (doneness, servings, outside cooking); a mismatch is a failure. A change the agent brings
+// is applied for the rest of its chain, as „Промени“ does, so the follow-ups see the recipe with it, marked `changed`.
 // Without `--recipe` the recipe is the fixture `cooking-ask.input.json` (for 4, shown for 2). `--recipe` is a recipe as
 // `GET /api/recipes/:id` answers it (the body or its `recipe`), built into the input as the api does (`cookingAskInput`)
 // with the enabled appliances of the seed; `--servings` and `--step` (from 1) are then the screen's.
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
+  type AppliedCookingChange,
+  applyCookingChanges,
   COOKING_ANSWER_MAX,
   COOKING_HISTORY_MAX,
   type CookingAskInput,
+  type CookingChange,
   cookingAsk,
   recipeSchema,
+  UNIT_LABELS_BG,
 } from '@family/shared';
 import fixtureInput from '@family/shared/fixtures/cooking-ask.input.json' with {
   type: 'json',
@@ -82,11 +89,12 @@ if (values.chain && !values.question) {
   usage('--chain needs --question.');
 }
 
-/** One question to ask, at its step (from 1). */
+/** One question to ask, at its step (from 1); `change`: whether the answer must bring a change, unchecked if absent. */
 interface Case {
   name: string;
   question: string;
   step: number;
+  change?: boolean;
 }
 
 /** Questions asked one after another, each a follow-up of the ones before; a single question is a chain of one. */
@@ -99,6 +107,7 @@ const BUILT_IN: Chain[] = [
       name: 'pulp',
       question: 'Мога ли да заменя настърганите домати с консерва pulp и как?',
       step: 3,
+      change: true,
     },
     {
       name: 'pulp → колко дълго',
@@ -117,6 +126,7 @@ const BUILT_IN: Chain[] = [
       question:
         'имам само цели белени доматки от консерва става ли с тях вместо пресните',
       step: 3,
+      change: true,
     },
     {
       name: 'цели доматки → сокът',
@@ -129,11 +139,13 @@ const BUILT_IN: Chain[] = [
       name: 'готовност',
       question: 'как да разбера че пилето и оризът са готови',
       step: 4,
+      change: false,
     },
     {
       name: 'готовност → още твърд',
       question: 'оризът е още твърд а водата свърши какво да правя',
       step: 4,
+      change: false,
     },
   ],
   [
@@ -141,6 +153,7 @@ const BUILT_IN: Chain[] = [
       name: 'порции',
       question: 'ако дойдат още 4 души колко ориз и вода да сложа',
       step: 4,
+      change: false,
     },
   ],
   [
@@ -156,6 +169,7 @@ const BUILT_IN: Chain[] = [
       name: 'извън готвенето',
       question: 'какво ще е времето утре в София',
       step: 2,
+      change: false,
     },
   ],
 ];
@@ -186,14 +200,34 @@ const SEED_APPLIANCES = [
 
 type History = CookingAskInput['history'];
 
+/** The fixture's lines, already for its shown servings, with the changes applied in this chain (as the api does). */
+function fixtureIngredients(applied: AppliedCookingChange[]) {
+  const { shownServings, ingredients } = fixtureInput.recipe;
+  const lines = applyCookingChanges(
+    ingredients.map(({ index: _, unit, ...line }) => ({
+      ...line,
+      unit: unit as CookingAskInput['recipe']['ingredients'][number]['unit'],
+      servings: shownServings,
+    })),
+    applied,
+  );
+  return lines.map(({ servings: _, ...line }, index) => ({ index, ...line }));
+}
+
 /**
- * The input for one case after `history` (the answered questions before it in its chain): from the recipe file as the
- * api builds it, or the fixture with the case's question and step.
+ * The input for one case after `history` (the answered questions before it in its chain) and with the changes applied
+ * in its chain: from the recipe file as the api builds it, or the fixture with the case's question and step.
  */
-async function inputFor(): Promise<(each: Case, history: History) => unknown> {
+async function inputFor(): Promise<
+  (each: Case, history: History, applied: AppliedCookingChange[]) => unknown
+> {
   if (!values.recipe) {
-    return (each, history) => ({
+    return (each, history, applied) => ({
       ...fixtureInput,
+      recipe: {
+        ...fixtureInput.recipe,
+        ingredients: fixtureIngredients(applied),
+      },
       currentStep: each.step,
       history,
       question: each.question,
@@ -202,7 +236,7 @@ async function inputFor(): Promise<(each: Case, history: History) => unknown> {
   const file: unknown = JSON.parse(await readFile(values.recipe, 'utf8'));
   const body = z.object({ recipe: z.unknown() }).safeParse(file);
   const recipe = recipeSchema.parse(body.success ? body.data.recipe : file);
-  return (each, history) =>
+  return (each, history, applied) =>
     cookingAskInput(
       recipe,
       {
@@ -212,7 +246,36 @@ async function inputFor(): Promise<(each: Case, history: History) => unknown> {
       },
       SEED_APPLIANCES,
       history,
+      applied,
     );
+}
+
+/** A change as one line: „замени 1 → консерва pulp 200 г; махни 5; добави захар 1 ч.л.“. */
+function changeLine(change: CookingChange | undefined): string {
+  if (!change) {
+    return 'няма';
+  }
+  const product = ({
+    name,
+    quantity,
+    unit,
+  }: {
+    name: string;
+    quantity: number | null;
+    unit: keyof typeof UNIT_LABELS_BG;
+  }) =>
+    [name, quantity, UNIT_LABELS_BG[unit]]
+      .filter((part) => part !== null)
+      .join(' ');
+  return change.ingredients
+    .map((entry) =>
+      entry.kind === 'replace'
+        ? `замени ${entry.index} → ${product(entry.ingredient)}`
+        : entry.kind === 'remove'
+          ? `махни ${entry.index}`
+          : `добави ${product(entry.ingredient)}`,
+    )
+    .join('; ');
 }
 
 const build = await inputFor();
@@ -231,15 +294,22 @@ if (!client) {
   process.exit(2);
 }
 
-const saved: Record<string, { seconds: number; answer: string }[]> = {};
+const saved: Record<
+  string,
+  { seconds: number; answer: string; change: CookingChange | null }[]
+> = {};
 let failed = false;
 for (let attempt = 1; attempt <= repeat; attempt++) {
   for (const chain of chains) {
     // The api sends the last COOKING_HISTORY_MAX answered questions of the chain; a failed one is passed over.
     let history: History = [];
+    // The changes of the chain applied so far, as „Промени“ does after each answer with one.
+    let applied: AppliedCookingChange[] = [];
     for (const each of chain) {
       const label = repeat > 1 ? `${each.name} #${attempt}` : each.name;
-      const parsed = cookingAsk.inputSchema.safeParse(build(each, history));
+      const parsed = cookingAsk.inputSchema.safeParse(
+        build(each, history, applied),
+      );
       if (!parsed.success) {
         failed = true;
         process.stdout.write(
@@ -260,6 +330,16 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
         const seconds = Number(
           ((performance.now() - started) / 1000).toFixed(1),
         );
+        const brought = output.change !== undefined;
+        const expected =
+          each.change === undefined
+            ? ''
+            : each.change === brought
+              ? ' ✓'
+              : ` ✗ очаквана ${each.change ? 'промяна' : 'без промяна'}`;
+        if (each.change !== undefined && each.change !== brought) {
+          failed = true;
+        }
         process.stdout.write(
           [
             `[${label}] ${input.recipe.title}, ${input.recipe.shownServings} порции, стъпка ${input.currentStep} от ${input.recipe.steps.length}`,
@@ -267,16 +347,29 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
               (before, index) =>
                 `   Преди ${index + 1}: ${before.question} → ${before.answer}`,
             ),
+            ...input.recipe.ingredients
+              .filter((line) => line.changed || line.removed)
+              .map(
+                (line) =>
+                  `   Приложено: ${line.index} ${line.name}${line.removed ? ' (махнат)' : ''}`,
+              ),
             `   Въпрос: ${input.question}`,
             `   Отговор (${output.answer.length}/${COOKING_ANSWER_MAX} знака, ${seconds} s): ${output.answer}`,
+            `   Промяна: ${changeLine(output.change)}${expected}`,
             '',
             '',
           ].join('\n'),
         );
         saved[each.name] = [
           ...(saved[each.name] ?? []),
-          { seconds, answer: output.answer },
+          { seconds, answer: output.answer, change: output.change ?? null },
         ];
+        if (output.change) {
+          applied = [
+            ...applied,
+            { change: output.change, servings: input.recipe.shownServings },
+          ];
+        }
         history = [
           ...history,
           { question: input.question, answer: output.answer },
