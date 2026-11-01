@@ -237,6 +237,22 @@ describe('Сигнал при изтичане на таймер', () => {
     expect(soundsOn()).toBe(true);
   });
 
+  it('заглушеният с „спри“ таймер не звъни пак след презареждане', async () => {
+    const recognition = fakeRecognition();
+    const { user } = await ringing();
+    await user.click(screen.getByRole('button', { name: 'Слушай' }));
+    recognition.say('спри');
+    expect(soundsOn()).toBe(false);
+
+    cleanup();
+    FakeAudioContext.instances = [];
+    renderApp(`/recipes/${stew.id}/cook`);
+    expect(await screen.findAllByRole('alert')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Назад' }));
+
+    expect(soundsOn()).toBe(false);
+  });
+
   it('интервалът звъни на долната граница с „Провери — още до N мин“', async () => {
     const user = await cookStew();
     await user.click(screen.getByRole('button', { name: 'Таймер 10–15 мин' }));

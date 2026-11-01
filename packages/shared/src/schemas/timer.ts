@@ -18,6 +18,7 @@ export const storedTimersSchema = z.array(
     question: z.literal(true).optional(),
     endsAt: z.number(),
     pausedAt: z.number().optional(),
+    silenced: z.literal(true).optional(),
   }),
 );
 
