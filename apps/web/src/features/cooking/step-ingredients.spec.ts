@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findStepIngredients } from './step-ingredients';
+import { findStepIngredients, findStepLines } from './step-ingredients';
 
 /** Имената на намерените редове, за да чете тестът смисъла, не индексите. */
 function found(text: string, names: readonly string[]): string[] {
@@ -110,5 +110,17 @@ describe('findStepIngredients', () => {
 
   it('име без букви не се търси', () => {
     expect(findStepIngredients('Добави 2 с.л.', ['', '2'])).toEqual([]);
+  });
+});
+
+describe('findStepLines', () => {
+  it('махнат ред не е продукт на стъпката, дори текстът да го назовава', () => {
+    expect(
+      findStepLines('Задуши лука и доматите със солта.', [
+        { name: 'лук', removed: true },
+        { name: 'домат' },
+        { name: 'сол', removed: false },
+      ]),
+    ).toEqual([1, 2]);
   });
 });

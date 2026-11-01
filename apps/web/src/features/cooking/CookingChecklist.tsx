@@ -11,7 +11,10 @@ export interface CookingProducts {
   onServingsChange: (servings: number) => void;
   /** Текущата стъпка: при смяната ѝ списъкът превърта до продуктите ѝ. */
   step: number;
-  /** Индексите в `lines` на продуктите на текущата стъпка (GLOSSARY: Продукти на стъпката): те се подчертават. */
+  /**
+   * Индексите в `lines` на продуктите на текущата стъпка (GLOSSARY: Продукти на стъпката), без махнатите: те се
+   * подчертават.
+   */
   stepLines: readonly number[];
   /** Индексите на отметнатите („използвани“) редове в `lines`. */
   used: readonly number[];
@@ -41,10 +44,8 @@ function useScrollToStep(
       return;
     }
     shownStep.current = step;
-    const first = stepLines.find(
-      (index) =>
-        !isUsedLine(products, index) && products.lines[index]?.removed !== true,
-    );
+    // `stepLines` вече са без махнатите редове.
+    const first = stepLines.find((index) => !isUsedLine(products, index));
     if (first === undefined) {
       return;
     }
@@ -76,6 +77,7 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
   const [usedOpen, setUsedOpen] = useState(false);
   const id = useId();
   const lineId = (index: number) => `${id}-line-${index}`;
+  const stepNoteId = (index: number) => `${id}-step-${index}`;
   useScrollToStep(products, lineId);
   const lines = source.map((line, index) => ({
     index,
@@ -90,7 +92,13 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
     <li
       key={line.index}
       id={lineId(line.index)}
-      className={`cooking-ingredients__line${line.removed ? ' cooking-ingredients__line--removed' : ''}${line.inStep ? ' cooking-ingredients__line--step' : ''}`}
+      className={[
+        'cooking-ingredients__line',
+        line.removed && 'cooking-ingredients__line--removed',
+        line.inStep && 'cooking-ingredients__line--step',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <label className="cooking-ingredients__check">
         <input
@@ -98,15 +106,13 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
           checked={isUsed(line.index)}
           disabled={line.removed}
           aria-label={`${line.name} ${line.amount}`}
-          aria-describedby={
-            line.inStep ? `${id}-step-${line.index}` : undefined
-          }
+          aria-describedby={line.inStep ? stepNoteId(line.index) : undefined}
           onChange={() => onToggleUsed(line.index)}
         />
         <span className="cooking-ingredients__name">
           {line.name}
           {line.inStep && (
-            <span id={`${id}-step-${line.index}`} className="visually-hidden">
+            <span id={stepNoteId(line.index)} className="visually-hidden">
               в тази стъпка
             </span>
           )}

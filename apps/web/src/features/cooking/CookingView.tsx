@@ -15,7 +15,7 @@ import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
 import { ListenButton } from './ListeningControls';
 import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
-import { findStepIngredients } from './step-ingredients';
+import { findStepLines } from './step-ingredients';
 import { useCookingChanges } from './use-cooking-changes';
 import { useCookingListening } from './use-cooking-listening';
 import { useCookingQuestions } from './use-cooking-questions';
@@ -78,12 +78,8 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     servings: shownServings,
     onServingsChange: setShownServings,
     step,
-    // Върху показаното: текстът на стъпката и имената на редовете с приложените промени. Махнат ред не е продукт на
-    // стъпката, дори текстът да го назовава.
-    stepLines: findStepIngredients(
-      changes.steps[step]?.text ?? '',
-      changes.lines.map((line) => line.name),
-    ).filter((index) => changes.lines[index]?.removed !== true),
+    // Върху показаното: текстът на стъпката и редовете с приложените промени.
+    stepLines: findStepLines(changes.steps[step]?.text ?? '', changes.lines),
     used,
     onToggleUsed: toggleUsed,
   };

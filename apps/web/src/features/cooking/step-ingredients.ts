@@ -35,12 +35,14 @@ const ENDINGS = [
   'овете',
   'ия',
   'ият',
-].join('|');
+];
+
+/** Всички окончания като алтернативи в шаблон. */
+const ANY_ENDING = ENDINGS.join('|');
 
 /** Окончанията, които започват с гласна: само те следват основа с изпаднала гласна („черн-ия“, не „черн-та“). */
-const VOWEL_ENDINGS = ENDINGS.split('|')
-  .filter((ending) => /^[аяоеи]/u.test(ending))
-  .join('|');
+const VOWEL_ENDINGS = ENDINGS.filter((ending) => /^[аяоеи]/u.test(ending));
+const VOWEL_ENDING = VOWEL_ENDINGS.join('|');
 
 /** Изпадащо „е“ или „ъ“ пред последната съгласна („черен“ → „черния“, „пресен“ → „пресните“). */
 const FLEETING_VOWEL = /[еъ](?=[бвгджзклмнпрстфхцчшщ]$)/u;
@@ -57,8 +59,8 @@ function wordPattern(word: string): string {
   }
   const short = stem.replace(FLEETING_VOWEL, '');
   return short === stem || short.length < 3
-    ? `${stem}(?:${ENDINGS})`
-    : `(?:${stem}(?:${ENDINGS})|${short}(?:${VOWEL_ENDINGS}))`;
+    ? `${stem}(?:${ANY_ENDING})`
+    : `(?:${stem}(?:${ANY_ENDING})|${short}(?:${VOWEL_ENDING}))`;
 }
 
 /** Думите на името, малки букви; цифри и знаци не са думи. */
@@ -117,4 +119,24 @@ export function findStepIngredients(
     }
   }
   return [...found].sort((a, b) => a - b);
+}
+
+/** Редът, както го вижда Готвене: името му и дали промяна за готвенето го е махнала. */
+export interface StepLine {
+  name: string;
+  removed?: boolean;
+}
+
+/**
+ * Продуктите на стъпката сред показаните редове (с приложените промени): `findStepIngredients` по имената им, без
+ * махнатите. Махнат ред никога не е продукт на стъпката, дори текстът да го назовава.
+ */
+export function findStepLines(
+  text: string,
+  lines: readonly StepLine[],
+): number[] {
+  return findStepIngredients(
+    text,
+    lines.map((line) => line.name),
+  ).filter((index) => lines[index]?.removed !== true);
 }
