@@ -77,6 +77,21 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
           ))}
           {recipe.appliance && <ApplianceBadge name={recipe.appliance} />}
           {archived && <span className="badge">Архивирана</span>}
+          {recipe.openRevision &&
+            (canWrite ? (
+              <Link
+                to="/recipes/$id/edit"
+                params={{ id: recipe.id }}
+                search={{ revise: true }}
+                className="badge badge--revision"
+              >
+                Поправка чака преглед
+              </Link>
+            ) : (
+              <span className="badge badge--revision">
+                Поправка чака преглед
+              </span>
+            ))}
         </p>
         {canCook && (
           <Link

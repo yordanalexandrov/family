@@ -1,5 +1,10 @@
 import type { RecipeInput } from '@family/shared';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearch,
+} from '@tanstack/react-router';
 import { useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
@@ -56,17 +61,34 @@ export function NewRecipeScreen() {
   );
 }
 
+export interface EditRecipeSearch {
+  /** „Поправка чака преглед“: редакцията се отваря с листа на поправката. */
+  revise?: true;
+}
+
+export function parseEditRecipeSearch(
+  search: Record<string, unknown>,
+): EditRecipeSearch {
+  return search.revise === true || search.revise === 'true'
+    ? { revise: true }
+    : {};
+}
+
 export function EditRecipeScreen() {
   const { id } = useParams({ from: '/recipes/$id/edit' });
+  const { revise } = useSearch({ from: '/recipes/$id/edit' });
   const recipe = useRecipe(id);
   /** Приетата поправка във формата: записът я маркира приета. */
   const [acceptedRevision, setAcceptedRevision] = useState<string>();
   const { save, submit } = useSaveAndView(id, acceptedRevision);
   const navigate = useNavigate();
   const [refining, setRefining] = useState(false);
-  const [revising, setRevising] = useState(false);
-  /** Поправката, която още чака или не е решена: затвореният и отворен пак лист продължава нея. */
-  const [revisionId, setRevisionId] = useState<string>();
+  const [revising, setRevising] = useState(revise === true);
+  /**
+   * Поправката, която листът пусна или към която го води „Поправка чака преглед“; `null` — решена тук. Без нея листът
+   * продължава отворената поправка на рецептата, ако има такава, иначе иска указание.
+   */
+  const [revisionId, setRevisionId] = useState<string | null>();
   /** Подобряването, което още чака: затвореният и отворен пак лист продължава него. */
   const [refineId, setRefineId] = useState<string>();
   const [replacement, setReplacement] = useState<StepsReplacement>();
@@ -149,7 +171,11 @@ export function EditRecipeScreen() {
       {revising && recipe.data && (
         <ReviseSheet
           recipe={recipe.data}
-          requestId={revisionId}
+          requestId={
+            revisionId === undefined
+              ? recipe.data.openRevision?.id
+              : (revisionId ?? undefined)
+          }
           onRequested={setRevisionId}
           onAccept={(accepted, revision) => {
             setReplacement((current) => ({
@@ -161,11 +187,11 @@ export function EditRecipeScreen() {
               ingredients: revisionToIngredientRows(revision.ingredients),
             }));
             setAcceptedRevision(accepted);
-            setRevisionId(undefined);
+            setRevisionId(null);
             setRevising(false);
           }}
           onRejected={() => {
-            setRevisionId(undefined);
+            setRevisionId(null);
             setRevising(false);
           }}
           onClose={() => setRevising(false)}

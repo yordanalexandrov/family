@@ -6,6 +6,7 @@ import {
   type RevisionLine,
 } from '@family/shared';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
+import { refusalOf } from '../../api/client';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { useNeedsConnection } from '../../components/NeedsConnection';
@@ -104,6 +105,8 @@ function RevisionColumn({
  * връзка“), после „Мисли…“, докато AI работи (листът може да се затвори и отвори пак), и сравнението „Сега“ / „С
  * поправката“ с какво е сменено и „Ти написа: …“ отгоре. „Приеми“ слага поправката във формата, „Отхвърли“ я отхвърля.
  * Неуспехът има „Опитай пак“ със същото указание; „няма какво да се поправи“ казва причината и пуска ново указание.
+ * Рецепта с поправка, която чака преглед, не пуска втора: листът води към чакащата. Записана след поправката рецепта
+ * (`stale`) няма „Приеми“, а „Пусни пак“ отхвърля старата и пуска същото указание.
  */
 export function ReviseSheet({
   recipe,
@@ -182,8 +185,29 @@ export function ReviseSheet({
     </button>
   );
 
+  // Рецептата вече има поправка, която чака преглед: листът води към нея.
+  const openRevision = refusalOf(start.error, 'revision_open');
+
   let body: ReactNode;
-  if (start.isError) {
+  if (openRevision) {
+    body = (
+      <>
+        <p role="status">Поправка чака преглед</p>
+        <div className="refine__actions">
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              start.reset();
+              onRequested(openRevision.revisionId);
+            }}
+          >
+            Отвори поправката
+          </button>
+        </div>
+      </>
+    );
+  } else if (start.isError) {
     body = (
       <>
         <ErrorBox error={start.error} />
@@ -254,6 +278,11 @@ export function ReviseSheet({
             preparation={comparesPreparation ? revision.preparation : undefined}
           />
         </div>
+        {current.stale && (
+          <p className="refine__note" role="status">
+            Рецептата е записана след поправката.
+          </p>
+        )}
         {reject.isError && <ErrorBox error={reject.error} />}
         <div className="refine__actions">
           <button
@@ -266,13 +295,30 @@ export function ReviseSheet({
           >
             Отхвърли
           </button>
-          <button
-            type="button"
-            className="button"
-            onClick={() => onAccept(current.id, revision)}
-          >
-            Приеми
-          </button>
+          {current.stale ? (
+            // Приемането би изтрило по-новия запис: старата се отхвърля и същото указание се пуска върху него.
+            <button
+              type="button"
+              className="button"
+              disabled={reject.isPending || connection.disabled}
+              aria-describedby={connection.describedBy}
+              onClick={() =>
+                reject.mutate(current.id, {
+                  onSuccess: () => send(current.instruction),
+                })
+              }
+            >
+              Пусни пак
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="button"
+              onClick={() => onAccept(current.id, revision)}
+            >
+              Приеми
+            </button>
+          )}
         </div>
       </>
     );

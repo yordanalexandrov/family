@@ -45,6 +45,7 @@ export const chickenWithRice: Recipe = {
   rating: null,
   createdAt: '2026-10-20T10:00:00.000Z',
   updatedAt: '2026-10-20T10:00:00.000Z',
+  openRevision: null,
 };
 
 export const omelette: Recipe = {
@@ -60,11 +61,30 @@ export const omelette: Recipe = {
   rating: null,
   createdAt: '2026-10-21T10:00:00.000Z',
   updatedAt: '2026-10-21T10:00:00.000Z',
+  openRevision: null,
 };
 
 export function toSummary(recipe: Recipe): RecipeSummary {
-  const { id, title, servings, prepMinutes, tags, archivedAt, rating } = recipe;
-  return { id, title, servings, prepMinutes, tags, archivedAt, rating };
+  const {
+    id,
+    title,
+    servings,
+    prepMinutes,
+    tags,
+    archivedAt,
+    rating,
+    openRevision,
+  } = recipe;
+  return {
+    id,
+    title,
+    servings,
+    prepMinutes,
+    tags,
+    archivedAt,
+    rating,
+    openRevision,
+  };
 }
 
 /** Една заявка за оценка: `rating: null` е `DELETE`. */

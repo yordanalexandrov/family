@@ -160,6 +160,11 @@ export function RecipeList() {
                       {recipe.archivedAt && (
                         <span className="badge">архивирана</span>
                       )}
+                      {recipe.openRevision && (
+                        <span className="badge badge--revision">
+                          Поправка чака преглед
+                        </span>
+                      )}
                     </span>
                     {recipe.tags.length > 0 && (
                       <span className="recipe-card__tags">

@@ -3,15 +3,29 @@ import {
   type RevisionLine,
   recipeRevisionResponseSchema,
 } from '@family/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { apiFetch, JSON_HEADERS } from '../../api/client';
 import { POLL_INTERVAL_MS, requestErrorFor } from '../../lib/ai-requests';
+import { recipeKeys } from './queries';
 import {
   emptyIngredientRow,
   type IngredientRowValues,
 } from './recipe-form-values';
 
 const revisionKey = (id: string) => ['recipes', 'revision', id] as const;
+
+/** „Поправка чака преглед“ в регистъра и в изгледа се сменя: рецептите се презареждат, поправките не. */
+function refreshOpenRevision(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({
+    queryKey: recipeKeys.all,
+    predicate: (query) => query.queryKey[1] !== 'revision',
+  });
+}
 
 /** „Изпрати“ в „✏️ Поправи с AI“ → `202` с `pending`; агентът работи във фона на api. */
 export function useRequestRevision() {
@@ -36,6 +50,7 @@ export function useRequestRevision() {
     onSuccess(request) {
       // Веднага пита отново: заявката може вече да е свършила.
       void queryClient.invalidateQueries({ queryKey: revisionKey(request.id) });
+      refreshOpenRevision(queryClient);
     },
   });
 }
@@ -66,6 +81,7 @@ export function useRejectRevision() {
       ).then((body) => body.request),
     onSuccess(request) {
       queryClient.setQueryData(revisionKey(request.id), request);
+      refreshOpenRevision(queryClient);
     },
   });
 }

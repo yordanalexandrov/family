@@ -161,6 +161,13 @@
   font-size: var(--font-size-sm);
 }
 
+/* „Поправка чака преглед“ (GLOSSARY: Поправка на рецепта): иска действие, затова е с акцента. */
+.badge--revision {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  text-decoration: none;
+}
+
 /* Списък */
 .recipe-cards {
   display: grid;
