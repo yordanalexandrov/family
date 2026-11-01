@@ -243,11 +243,23 @@ const REFINED_STEPS = [
   },
 ];
 
-function refined(steps = REFINED_STEPS, prepMinutes: number | null = 75) {
+/** The preparation as the agent answers it: `null` for a rack or a time before it does not give. */
+const REFINED_PREPARATION = [
+  { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
+  { kind: 'fridge', text: 'извади пилето от хладилника', minutesBefore: 30 },
+  { kind: 'pan', text: 'намазни тава с олио', minutesBefore: null },
+];
+
+function refined(
+  steps = REFINED_STEPS,
+  prepMinutes: number | null = 75,
+  preparation: unknown[] = REFINED_PREPARATION,
+) {
   return () => ({
     recipe: {
       steps,
       prepMinutes,
+      preparation,
       changes: 'Стъпките са по-подробни, времето е от източника.',
     },
     noResults: null,
@@ -277,6 +289,7 @@ describe('POST /api/recipes/:id/refinements', () => {
         { text: 'Сложи пилето отгоре.', image: 'e1' },
         { text: 'Печи.', image: null },
       ],
+      preparation: [],
     });
     expect(inputs[0]?.source).toMatchObject({
       url: SOURCE_URL,
@@ -309,6 +322,51 @@ describe('POST /api/recipes/:id/refinements', () => {
     expect(recipeResponseSchema.parse(stored.json()).recipe.steps).toEqual(
       recipe.steps,
     );
+  });
+
+  it('proposes the whole preparation for a recipe without one, and the recipe keeps none until it is saved', async () => {
+    const { recipe } = await createdRecipe();
+    serveSource();
+    answerInTurn(refined());
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(done.refinement?.preparation).toEqual([
+      { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
+      {
+        kind: 'fridge',
+        text: 'извади пилето от хладилника',
+        minutesBefore: 30,
+      },
+      { kind: 'pan', text: 'намазни тава с олио' },
+    ]);
+    const stored = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(
+      recipeResponseSchema.parse(stored.json()).recipe.preparation,
+    ).toEqual([]);
+  });
+
+  it('sends the preparation the recipe has, and keeps an answer that needs none', async () => {
+    const preparation = [
+      { kind: 'oven' as const, degrees: 180, fan: 'conventional' as const },
+      { kind: 'soak' as const, text: 'накисни боба', minutesBefore: 480 },
+    ];
+    const { recipe } = await createdRecipe({
+      sourceUrl: undefined,
+      preparation,
+    });
+    const inputs = answerInTurn(
+      refined([{ text: 'Сложи пилето отгоре.', image: 'e1' }], 75, []),
+    );
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(inputs[0]?.recipe.preparation).toEqual(preparation);
+    expect(done.refinement?.preparation).toEqual([]);
   });
 
   it('refines from a page without JSON-LD: its photos are markers in the text and their references in photos', async () => {

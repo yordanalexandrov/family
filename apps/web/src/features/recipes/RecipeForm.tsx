@@ -1,4 +1,10 @@
-import type { Ingredient, RecipeInput, RecipeStep, Tag } from '@family/shared';
+import type {
+  Ingredient,
+  Preparation,
+  RecipeInput,
+  RecipeStep,
+  Tag,
+} from '@family/shared';
 import {
   type FormEvent,
   type ReactNode,
@@ -13,6 +19,7 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { applianceShortName, useAppliances } from '../appliances/queries';
 import { PreparationField } from '../preparation/PreparationField';
+import { preparationToValues } from '../preparation/preparation-values';
 import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
@@ -56,17 +63,19 @@ export interface RecipeFormProps {
   /** Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията. */
   stepsAction?: ReactNode;
   /**
-   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и попълва времето, ако го има, веднъж за
-   * всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
+   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и подготовката и попълва времето, ако го
+   * има, веднъж за всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
    */
   replaceSteps?: StepsReplacement | undefined;
 }
 
-/** Стъпките (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
+/** Стъпките, подготовката (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
 export interface StepsReplacement {
   /** Нов номер = ново подобрение за прилагане. */
   key: number;
   steps: RecipeStep[];
+  /** Цялата подготовка: заменя сегашната, и `[]` я маха. */
+  preparation: Preparation;
   prepMinutes?: number | undefined;
 }
 
@@ -194,6 +203,7 @@ export function RecipeForm({
     setValues((current) => ({
       ...current,
       steps: replaceSteps.steps.map((step) => ({ ...step })),
+      preparation: preparationToValues(replaceSteps.preparation),
       ...(replaceSteps.prepMinutes === undefined
         ? {}
         : { prepMinutes: String(replaceSteps.prepMinutes) }),
