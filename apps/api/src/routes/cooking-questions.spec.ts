@@ -212,9 +212,15 @@ describe('POST /api/recipes/:id/questions', () => {
         servings: 4,
         shownServings: 2,
         ingredients: [
-          { name: 'домат', quantity: 2, unit: 'pcs', note: 'зрели' },
-          { name: 'ориз', quantity: 750, unit: 'g' },
-          { name: 'сол', quantity: null, unit: 'pinch' },
+          {
+            index: 0,
+            name: 'домат',
+            quantity: 2,
+            unit: 'pcs',
+            note: 'зрели',
+          },
+          { index: 1, name: 'ориз', quantity: 750, unit: 'g' },
+          { index: 2, name: 'сол', quantity: null, unit: 'pinch' },
         ],
         steps: [
           { number: 1, text: 'Нарежи лука и го запържи 5 минути.' },
@@ -443,6 +449,128 @@ describe('a follow-up question (follows)', () => {
       follows: '00000000-0000-4000-8000-000000000000',
     });
     expect(unknown.statusCode).toBe(404);
+  });
+});
+
+describe('a cooking change (change, applied)', () => {
+  const PULP = {
+    ingredients: [
+      {
+        kind: 'replace',
+        index: 0,
+        ingredient: { name: 'консерва pulp', quantity: 200, unit: 'g' },
+      },
+    ],
+  } as const;
+
+  it('holds the change the answer brings, and none for an answer without one', async () => {
+    const recipe = await createdRecipe();
+    answering({ answer: ANSWER, change: PULP });
+    const withChange = await finished(await asked(recipe.id));
+    expect(withChange).toMatchObject({ status: 'done', change: PULP });
+
+    openclaw.resetHandlers();
+    answering({ answer: ANSWER, change: null });
+    const without = await finished(await asked(recipe.id));
+    expect(without.status).toBe('done');
+    expect(without.change).toBeUndefined();
+  });
+
+  it('fails invalid_output for a change of a line the recipe does not have, even after the retry', async () => {
+    const recipe = await createdRecipe();
+    const sent = answering({
+      answer: ANSWER,
+      change: { ingredients: [{ kind: 'remove', index: 3 }] },
+    });
+
+    const done = await finished(await asked(recipe.id));
+
+    expect(done).toMatchObject({ status: 'failed', error: 'invalid_output' });
+    expect(done.change).toBeUndefined();
+    expect(sent).toHaveLength(2);
+  });
+
+  it('sends the agent the recipe with the applied changes in their order, marked and scaled to the servings on the screen, and never changes the recipe', async () => {
+    const recipe = await createdRecipe();
+    answering({ answer: ANSWER, change: PULP });
+    // Asked for 2: 200 g pulp for 2.
+    const pulp = await finished(await asked(recipe.id));
+    openclaw.resetHandlers();
+    answering({
+      answer: 'Махни солта и добави захар.',
+      change: {
+        ingredients: [
+          { kind: 'remove', index: 2 },
+          {
+            kind: 'add',
+            ingredient: { name: 'захар', quantity: 1, unit: 'tsp' },
+          },
+        ],
+      },
+    });
+    const sugar = await finished(
+      await asked(recipe.id, { ...QUESTION, applied: [pulp.id] }),
+    );
+    openclaw.resetHandlers();
+    const sent = answering();
+
+    // Now for 4: the pulp of the change is scaled from 2.
+    const last = await finished(
+      await asked(recipe.id, {
+        ...QUESTION,
+        servings: 4,
+        question: 'а колко дълго тогава?',
+        applied: [pulp.id, sugar.id],
+      }),
+    );
+
+    expect(last.status).toBe('done');
+    expect(sent[0]?.input.recipe.ingredients).toEqual([
+      {
+        index: 0,
+        name: 'консерва pulp',
+        quantity: 400,
+        unit: 'g',
+        changed: true,
+      },
+      { index: 1, name: 'ориз', quantity: 1.5, unit: 'kg' },
+      { index: 2, name: 'сол', quantity: null, unit: 'pinch', removed: true },
+      { index: 3, name: 'захар', quantity: 2, unit: 'tsp', changed: true },
+    ]);
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+    });
+    expect(recipeResponseSchema.parse(response.json()).recipe).toEqual(recipe);
+  });
+
+  it('answers 404 for an applied that is not a question of this recipe with a change', async () => {
+    const recipe = await createdRecipe();
+    const other = await createdRecipe();
+    answering({ answer: ANSWER, change: PULP });
+    const ofOther = await finished(await asked(other.id));
+
+    const fromOther = await ask(recipe.id, {
+      ...QUESTION,
+      applied: [ofOther.id],
+    });
+    expect(fromOther.statusCode).toBe(404);
+    expect(fromOther.json()).toMatchObject({ error: 'not_found' });
+
+    const unknown = await ask(recipe.id, {
+      ...QUESTION,
+      applied: ['00000000-0000-4000-8000-000000000000'],
+    });
+    expect(unknown.statusCode).toBe(404);
+
+    openclaw.resetHandlers();
+    answering();
+    const withoutChange = await finished(await asked(recipe.id));
+    const nothingToApply = await ask(recipe.id, {
+      ...QUESTION,
+      applied: [withoutChange.id],
+    });
+    expect(nothingToApply.statusCode).toBe(404);
   });
 });
 

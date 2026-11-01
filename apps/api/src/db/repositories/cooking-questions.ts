@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import type { AskCookingQuestion, CookingQuestion } from '@family/shared';
-import { and, eq, sql } from 'drizzle-orm';
+import type {
+  AppliedCookingChange,
+  AskCookingQuestion,
+  CookingChange,
+  CookingQuestion,
+} from '@family/shared';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { cookingQuestionRequest } from '../schema/food.js';
 
@@ -18,15 +23,17 @@ function toCookingQuestion(row: QuestionRow): CookingQuestion {
     status: row.status,
     error: row.error ?? undefined,
     answer: row.answer ?? undefined,
+    change: row.change ?? undefined,
     requestedBy: row.requestedBy,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? undefined,
   };
 }
 
-/** A question as it is stored: with the chain it belongs to. */
+/** A question as it is stored: with the chain it belongs to and the questions whose changes were applied. */
 export interface StoredCookingQuestion extends CookingQuestion {
   chainId: string;
+  appliedIds: string[];
 }
 
 /**
@@ -51,6 +58,7 @@ export async function insertCookingQuestion(
       question: asked.question,
       step: asked.step,
       servings: asked.servings,
+      appliedIds: asked.applied,
       requestedBy,
     })
     .returning();
@@ -72,15 +80,54 @@ export async function findCookingQuestion(
   return row && toCookingQuestion(row);
 }
 
+/** The answer and its cooking change, if it brings one. */
 export async function setCookingAnswer(
   db: DbExecutor,
   id: string,
   answer: string,
+  change: CookingChange | undefined,
 ): Promise<void> {
   await db
     .update(cookingQuestionRequest)
-    .set({ answer })
+    .set({ answer, change: change ?? null })
     .where(eq(cookingQuestionRequest.id, id));
+}
+
+/**
+ * The changes of the questions `ids` of the recipe, in the order of `ids`, each with the servings it was asked for.
+ * `undefined` when one of them is not a question of the recipe with a change.
+ */
+export async function findAppliedChanges(
+  db: DbExecutor,
+  recipeId: string,
+  ids: readonly string[],
+): Promise<AppliedCookingChange[] | undefined> {
+  if (ids.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .select({
+      id: cookingQuestionRequest.id,
+      change: cookingQuestionRequest.change,
+      servings: cookingQuestionRequest.servings,
+    })
+    .from(cookingQuestionRequest)
+    .where(
+      and(
+        eq(cookingQuestionRequest.recipeId, recipeId),
+        inArray(cookingQuestionRequest.id, [...ids]),
+      ),
+    );
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const applied: AppliedCookingChange[] = [];
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (!row?.change) {
+      return undefined;
+    }
+    applied.push({ change: row.change, servings: row.servings });
+  }
+  return applied;
 }
 
 /** The question with the chain it belongs to; for checking a `follows`. */
@@ -93,7 +140,13 @@ export async function findStoredCookingQuestion(
     .from(cookingQuestionRequest)
     .where(eq(cookingQuestionRequest.id, id))
     .limit(1);
-  return row && { ...toCookingQuestion(row), chainId: row.chainId };
+  return (
+    row && {
+      ...toCookingQuestion(row),
+      chainId: row.chainId,
+      appliedIds: row.appliedIds,
+    }
+  );
 }
 
 /** Holds the chain until the transaction ends, so two questions cannot both wait in it. */

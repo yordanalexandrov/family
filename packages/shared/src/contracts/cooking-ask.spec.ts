@@ -51,6 +51,28 @@ describe('cookingAsk.inputSchema', () => {
     expect(withHistory(COOKING_HISTORY_MAX + 1)).toBe(false);
   });
 
+  it('reads the lines by their index, with the ones changed or removed by applied changes marked', () => {
+    const lines = [
+      { index: 0, name: 'пилешко филе', quantity: 300, unit: 'g' },
+      {
+        index: 1,
+        name: 'консерва pulp',
+        quantity: 200,
+        unit: 'g',
+        changed: true,
+      },
+      { index: 2, name: 'сол', quantity: null, unit: 'pinch', removed: true },
+    ];
+    const parse = (ingredients: unknown[]) =>
+      cookingAsk.inputSchema.safeParse({
+        ...fixtureInput,
+        recipe: { ...fixtureInput.recipe, ingredients },
+      }).success;
+
+    expect(parse(lines)).toBe(true);
+    expect(parse([lines[1], lines[0]])).toBe(false);
+  });
+
   it('refuses a current step the recipe does not have', () => {
     expect(
       cookingAsk.inputSchema.safeParse({ ...fixtureInput, currentStep: 5 })
@@ -80,11 +102,68 @@ describe('cookingAsk.outputSchema', () => {
     ).not.toEqual([]);
   });
 
-  it('asks the gateway for an object with the answer only', () => {
+  it('asks the gateway for the answer and a change or null', () => {
     expect(cookingAsk.responseFormat.schema).toMatchObject({
       type: 'object',
-      required: ['answer'],
+      required: ['answer', 'change'],
       additionalProperties: false,
     });
+  });
+});
+
+describe('cookingAsk.outputSchema: the change', () => {
+  const PULP = {
+    kind: 'replace',
+    index: 1,
+    ingredient: { name: 'консерва pulp', quantity: 200, unit: 'g' },
+  };
+
+  it('reads a null change as none', () => {
+    expect(outputSchema.parse({ answer: 'Да.', change: null })).toEqual({
+      answer: 'Да.',
+    });
+  });
+
+  it('accepts a change of the lines of the input', () => {
+    const output = { answer: 'Да.', change: { ingredients: [PULP] } };
+    expect(outputSchema.parse(output)).toEqual(output);
+  });
+
+  it('refuses a line the input does not have', () => {
+    const last = INPUT.recipe.ingredients.length - 1;
+    const remove = (index: number) => ({
+      answer: 'Да.',
+      change: { ingredients: [{ kind: 'remove', index }] },
+    });
+
+    expect(messages(remove(last))).toEqual([]);
+    expect(messages(remove(last + 1))).toEqual([
+      `Ред ${last + 1} го няма в продуктите на рецептата.`,
+    ]);
+  });
+
+  it('refuses two entries for one line and an empty change', () => {
+    expect(
+      messages({
+        answer: 'Да.',
+        change: { ingredients: [PULP, { kind: 'remove', index: 1 }] },
+      }),
+    ).not.toEqual([]);
+    expect(
+      messages({ answer: 'Да.', change: { ingredients: [] } }),
+    ).not.toEqual([]);
+  });
+
+  it('refuses a unit outside the list', () => {
+    expect(
+      messages({
+        answer: 'Да.',
+        change: {
+          ingredients: [
+            { ...PULP, ingredient: { ...PULP.ingredient, unit: 'консерва' } },
+          ],
+        },
+      }),
+    ).not.toEqual([]);
   });
 });

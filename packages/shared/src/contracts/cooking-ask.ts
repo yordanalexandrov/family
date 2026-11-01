@@ -1,7 +1,12 @@
 import { z } from 'zod';
+import {
+  type CookingChange,
+  cookingChangeSchema,
+} from '../food/cooking-change.js';
 import { preparationSchema } from '../food/preparation.js';
 import { quantitySchema, unitSchema } from '../food/units.js';
 import type { AiContract } from './contract.js';
+import { isRecord, withoutNulls } from './strict-mode.js';
 
 /**
  * AI contract `cooking.ask` (GLOSSARY: Въпрос в Готвене, ADR-0009): the recipe being cooked, with its products by the
@@ -12,8 +17,10 @@ import type { AiContract } from './contract.js';
  * A follow-up question brings up to {@link COOKING_HISTORY_MAX} earlier questions of its chain with their answers
  * (`history`, oldest first), so the agent reads it as a conversation.
  *
- * Not yet here (epic #270): the cooking changes applied to the recipe and marked as changed (`applied`), and the
- * optional `change` of the answer.
+ * The recipe comes with the cooking changes applied on the screen (GLOSSARY: Промяна за готвенето): its lines by their
+ * index, the ones a change replaced or added marked `changed`, the removed ones still in their place and marked
+ * `removed`. The answer may bring a `change` of its own, by those indices; only the products for now (#276), the steps
+ * follow (#277).
  */
 
 /** Longest question a cook types; the sheet's field stops there. */
@@ -32,12 +39,18 @@ export const cookingQuestionTextSchema = z
   .min(1)
   .max(COOKING_QUESTION_MAX);
 
-/** An ingredient line as the agent reads it: the product's name and the amount for the shown servings. */
+/**
+ * An ingredient line as the agent reads it: its index (from 0, what a change names it by), the product's name and the
+ * amount for the shown servings; `changed` when an applied change replaced or added it, `removed` when one removed it.
+ */
 const askIngredientSchema = z.object({
+  index: z.int().min(0),
   name: z.string().trim().min(1),
   quantity: quantitySchema,
   unit: unitSchema,
   note: z.string().optional(),
+  changed: z.literal(true).optional(),
+  removed: z.literal(true).optional(),
 });
 
 /** A step by its number on the screen („Стъпка 3 от 4“), from 1. */
@@ -46,16 +59,21 @@ const askStepSchema = z.object({
   text: z.string().trim().min(1),
 });
 
-const askRecipeSchema = z.object({
-  title: z.string().trim().min(1),
-  /** The servings the recipe is written for. */
-  servings: z.int().min(1),
-  /** The servings on the screen; the ingredients are already scaled to them. */
-  shownServings: z.int().min(1),
-  ingredients: z.array(askIngredientSchema),
-  steps: z.array(askStepSchema).min(1),
-  preparation: preparationSchema,
-});
+const askRecipeSchema = z
+  .object({
+    title: z.string().trim().min(1),
+    /** The servings the recipe is written for. */
+    servings: z.int().min(1),
+    /** The servings on the screen; the ingredients are already scaled to them. */
+    shownServings: z.int().min(1),
+    ingredients: z.array(askIngredientSchema),
+    steps: z.array(askStepSchema).min(1),
+    preparation: preparationSchema,
+  })
+  .refine(
+    (recipe) => recipe.ingredients.every((line, at) => line.index === at),
+    { path: ['ingredients'], message: 'Индексите на продуктите не са по ред.' },
+  );
 
 /** An earlier question of the chain and the answer it got. */
 const askHistorySchema = z.object({
@@ -81,24 +99,79 @@ const cookingAskInputSchema = z
 
 export type CookingAskInput = z.infer<typeof cookingAskInputSchema>;
 
-const cookingAskOutputSchema = z.object({
-  /** The answer, in Bulgarian, with amounts for the shown servings when they matter. */
-  answer: z.string().trim().min(1).max(COOKING_ANSWER_MAX),
+const cookingAskOutputSchema = z.preprocess(
+  (value) => (isRecord(value) ? withoutNulls(value, ['change']) : value),
+  z.object({
+    /** The answer, in Bulgarian, with amounts for the shown servings when they matter. */
+    answer: z.string().trim().min(1).max(COOKING_ANSWER_MAX),
+    /** A cooking change for a real substitution the cook would apply; `null` from the agent when there is none. */
+    change: cookingChangeSchema.optional(),
+  }),
+);
+
+export type CookingAskOutput = { answer: string; change?: CookingChange };
+
+/** Every line a change names is a line of the input's recipe. */
+function checkChangeLines(
+  input: CookingAskInput,
+  output: CookingAskOutput,
+  ctx: z.RefinementCtx,
+): void {
+  output.change?.ingredients.forEach((entry, at) => {
+    if (
+      entry.kind !== 'add' &&
+      entry.index >= input.recipe.ingredients.length
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['change', 'ingredients', at, 'index'],
+        message: `Ред ${entry.index} го няма в продуктите на рецептата.`,
+      });
+    }
+  });
+}
+
+/** A product of a change under strict structured outputs: the same fields, all required. */
+const strictIngredient = z.object({
+  name: z.string(),
+  quantity: z.number().nullable(),
+  unit: unitSchema,
 });
 
-export type CookingAskOutput = z.infer<typeof cookingAskOutputSchema>;
-
-/** JSON Schema of the output for strict structured outputs; the length rules are not in it. */
+/** JSON Schema of the output for strict structured outputs; the length and line rules are not in it. */
 const COOKING_ASK_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
-  z.object({ answer: z.string() }),
+  z.object({
+    answer: z.string(),
+    change: z
+      .object({
+        ingredients: z.array(
+          z.union([
+            z.object({
+              kind: z.literal('replace'),
+              index: z.int(),
+              ingredient: strictIngredient,
+            }),
+            z.object({ kind: z.literal('remove'), index: z.int() }),
+            z.object({ kind: z.literal('add'), ingredient: strictIngredient }),
+          ]),
+        ),
+      })
+      .nullable(),
+  }),
   { io: 'output', unrepresentable: 'any' },
 );
 
-/** `cooking.ask`. An empty or too long answer goes through the client's single retry, then fails `invalid_output`. */
+/**
+ * `cooking.ask`. An empty or too long answer, or a change that names a line the recipe does not have, has two entries
+ * for one line or changes nothing, goes through the client's single retry, then fails `invalid_output`.
+ */
 export const cookingAsk: AiContract<CookingAskInput, CookingAskOutput> = {
   id: 'cooking.ask',
   inputSchema: cookingAskInputSchema,
-  outputSchema: () => cookingAskOutputSchema,
+  outputSchema: (input) =>
+    cookingAskOutputSchema.superRefine((output, ctx) =>
+      checkChangeLines(input, output, ctx),
+    ),
   responseFormat: {
     name: 'cooking_ask',
     schema: COOKING_ASK_RESPONSE_JSON_SCHEMA,

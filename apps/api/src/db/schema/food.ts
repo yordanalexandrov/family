@@ -3,6 +3,7 @@ import {
   aisleSchema,
   type BaseUnit,
   baseUnitSchema,
+  type CookingChange,
   contractRequestStatusSchema,
   type ImportPayload,
   type Nutrition,
@@ -276,6 +277,13 @@ export const cookingQuestionRequest = pgTable(
       { onDelete: 'set null' },
     ),
     chainId: uuid('chain_id').notNull(),
+    // The cooking change of the answer, for `servings`; `null` for an answer without one.
+    change: jsonb('change').$type<CookingChange>(),
+    // The questions whose changes were applied on the screen when this one was asked, in their order.
+    appliedIds: uuid('applied_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
   },
   (t) => [
     index('cooking_question_request_recipe_idx').on(t.recipeId),
