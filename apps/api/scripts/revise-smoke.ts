@@ -5,6 +5,9 @@
 // `recipe-revise.input.json` with „картофите искат още 20 мин“, „заливката е малко, двойна доза“ and „никъде не пише
 // сол“; a risotto for 1 whose pesto is for 5 with „пестото е за 5 порции, направи го за 1“; an instruction that needs
 // a search (a béchamel topping instead of the yoghurt one, salt in grams); the moussaka for 6; and one outside the recipe, which must end `noResults`.
+// The cases of #321 bring cooking changes applied in the last cooking (`cookingChanges`, described as the api does):
+// „запази замяната“ with tomatoes replaced by canned pulp and with new text of the baking step, which must end up in
+// the recipe; and an instruction about something else with the pulp applied, which must leave the tomatoes as they are.
 // Every case says which products and steps the instruction may change; every other product and step must come back
 // word for word (✗ otherwise), and so must the servings, the time and the preparation unless the case expects them to
 // change; a revision that changes nothing is a ✗ too (it should be `noResults`). A failure exits 1.
@@ -14,7 +17,9 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
+  type AppliedCookingChange,
   type ContractRecipe,
+  describeCookingChanges,
   type Preparation,
   preparationKind,
   preparationLabel,
@@ -78,6 +83,10 @@ interface Case {
   servings?: boolean;
   /** The preparation may change. */
   preparation?: boolean;
+  /** The cooking changes applied in the last cooking, in their order; none by default. */
+  applied?: AppliedCookingChange[];
+  /** Text that must be in the revision, in a product's name or a step. */
+  includes?: string[];
 }
 
 const moussaka = fixtureInput.recipe as ContractRecipe;
@@ -121,6 +130,40 @@ const risotto: ContractRecipe = {
     },
   ],
   preparation: [],
+};
+
+/** In the last cooking for 4: the 2 tomatoes replaced by 400 g canned pulp. */
+const PULP: AppliedCookingChange = {
+  servings: 4,
+  change: {
+    ingredients: [
+      {
+        kind: 'replace',
+        index: 3,
+        ingredient: { name: 'консерва pulp', quantity: 400, unit: 'g' },
+      },
+    ],
+    steps: [
+      {
+        number: 3,
+        text: 'Смеси картофите с каймата и консервата pulp, подреди в тава и залей с 250 ml вода.',
+      },
+    ],
+  },
+};
+
+/** In the last cooking: the moussaka baked under foil for the first 20 minutes. */
+const FOIL: AppliedCookingChange = {
+  servings: 4,
+  change: {
+    ingredients: [],
+    steps: [
+      {
+        number: 4,
+        text: 'Печи 40 минути на 200 °C с вентилатор, покрита с фолио първите 20 минути.',
+      },
+    ],
+  },
 };
 
 const CASES: Case[] = [
@@ -176,6 +219,32 @@ const CASES: Case[] = [
     ingredients: moussaka.ingredients.map((i) => i.name),
     servings: true,
     steps: 5,
+  },
+  {
+    name: 'мусака-запази-замяната',
+    recipe: moussaka,
+    instruction: 'запази замяната',
+    applied: [PULP],
+    ingredients: ['домат', 'консерва pulp'],
+    adds: true,
+    steps: [3],
+    includes: ['pulp'],
+  },
+  {
+    name: 'мусака-запази-стъпката',
+    recipe: moussaka,
+    instruction: 'запази замяната, с фолиото стана по-сочна',
+    applied: [FOIL],
+    steps: [4],
+    includes: ['фолио'],
+  },
+  {
+    name: 'мусака-време-с-промяна',
+    recipe: moussaka,
+    instruction: 'картофите искат още 20 мин',
+    applied: [PULP],
+    steps: [4],
+    prepMinutes: 110,
   },
   {
     name: 'извън-рецептата',
@@ -399,6 +468,15 @@ function report(
       problems.push('подготовката не е поискана, а е сменена');
     }
   }
+  const texts = [
+    ...revised.ingredients.map(nameOf),
+    ...revised.steps.map((step) => step.text),
+  ];
+  for (const text of checked ? (check.includes ?? []) : []) {
+    if (!texts.some((each) => each.includes(text))) {
+      problems.push(`„${text}“ го няма в поправката`);
+    }
+  }
   return { lines, problems };
 }
 
@@ -408,7 +486,17 @@ for (const check of cases) {
   const parsed = recipeRevise.inputSchema.safeParse({
     recipe: check.recipe,
     instruction: check.instruction,
-    cookingChanges: [],
+    cookingChanges: describeCookingChanges(
+      {
+        servings: check.recipe.servings,
+        lines: check.recipe.ingredients.map((line) => ({
+          ...line,
+          servings: check.recipe.servings,
+        })),
+        steps: check.recipe.steps,
+      },
+      check.applied ?? [],
+    ),
     ingredients: registry(check.recipe),
   });
   if (!parsed.success) {
@@ -422,7 +510,7 @@ for (const check of cases) {
   for (let run = 1; run <= repeat; run += 1) {
     const label = `[${check.name} ${run}/${repeat}]`;
     process.stderr.write(
-      `→ ${config.url} openclaw/${config.reviseAgent}, timeout ${config.timeoutMs} ms, ${label} „${check.instruction}“\n`,
+      `→ ${config.url} openclaw/${config.reviseAgent}, timeout ${config.timeoutMs} ms, ${label} „${check.instruction}“${input.cookingChanges.length > 0 ? ` с ${JSON.stringify(input.cookingChanges)}` : ''}\n`,
     );
     const started = performance.now();
     try {
