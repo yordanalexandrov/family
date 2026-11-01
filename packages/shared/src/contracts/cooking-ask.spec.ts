@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   COOKING_ANSWER_MAX,
+  COOKING_HISTORY_MAX,
   COOKING_QUESTION_MAX,
   cookingAsk,
 } from './cooking-ask.js';
@@ -34,6 +35,20 @@ describe('cookingAsk.inputSchema', () => {
     expect(at('а'.repeat(COOKING_QUESTION_MAX))).toBe(true);
     expect(at('а'.repeat(COOKING_QUESTION_MAX + 1))).toBe(false);
     expect(at('   ')).toBe(false);
+  });
+
+  it(`accepts up to ${COOKING_HISTORY_MAX} earlier questions of the chain with their answers`, () => {
+    const withHistory = (count: number) =>
+      cookingAsk.inputSchema.safeParse({
+        ...fixtureInput,
+        history: Array.from({ length: count }, (_, n) => ({
+          question: `Въпрос ${n + 1}`,
+          answer: `Отговор ${n + 1}`,
+        })),
+      }).success;
+
+    expect(withHistory(COOKING_HISTORY_MAX)).toBe(true);
+    expect(withHistory(COOKING_HISTORY_MAX + 1)).toBe(false);
   });
 
   it('refuses a current step the recipe does not have', () => {

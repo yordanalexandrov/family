@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import type { AskCookingQuestion, CookingQuestion } from '@family/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { cookingQuestionRequest } from '../schema/food.js';
 
@@ -13,6 +14,7 @@ function toCookingQuestion(row: QuestionRow): CookingQuestion {
     question: row.question,
     step: row.step,
     servings: row.servings,
+    follows: row.followsId ?? undefined,
     status: row.status,
     error: row.error ?? undefined,
     answer: row.answer ?? undefined,
@@ -22,16 +24,29 @@ function toCookingQuestion(row: QuestionRow): CookingQuestion {
   };
 }
 
-/** A new `pending` question for the recipe; `requestedBy` is `null` on the kiosk. */
+/** A question as it is stored: with the chain it belongs to. */
+export interface StoredCookingQuestion extends CookingQuestion {
+  chainId: string;
+}
+
+/**
+ * A new `pending` question for the recipe; `requestedBy` is `null` on the kiosk. `chainId` is the chain of the question
+ * it follows; without one it starts its own chain.
+ */
 export async function insertCookingQuestion(
   db: DbExecutor,
   recipeId: string,
   asked: AskCookingQuestion,
   requestedBy: string | null,
+  chainId?: string,
 ): Promise<CookingQuestion> {
+  const id = randomUUID();
   const [row] = await db
     .insert(cookingQuestionRequest)
     .values({
+      id,
+      chainId: chainId ?? id,
+      followsId: asked.follows ?? null,
       recipeId,
       question: asked.question,
       step: asked.step,
@@ -66,4 +81,70 @@ export async function setCookingAnswer(
     .update(cookingQuestionRequest)
     .set({ answer })
     .where(eq(cookingQuestionRequest.id, id));
+}
+
+/** The question with the chain it belongs to; for checking a `follows`. */
+export async function findStoredCookingQuestion(
+  db: DbExecutor,
+  id: string,
+): Promise<StoredCookingQuestion | undefined> {
+  const [row] = await db
+    .select()
+    .from(cookingQuestionRequest)
+    .where(eq(cookingQuestionRequest.id, id))
+    .limit(1);
+  return row && { ...toCookingQuestion(row), chainId: row.chainId };
+}
+
+/** Holds the chain until the transaction ends, so two questions cannot both wait in it. */
+export async function lockCookingChain(
+  db: DbExecutor,
+  chainId: string,
+): Promise<void> {
+  await db.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`cooking_chain:${chainId}`}))`,
+  );
+}
+
+export async function hasPendingInChain(
+  db: DbExecutor,
+  chainId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: cookingQuestionRequest.id })
+    .from(cookingQuestionRequest)
+    .where(
+      and(
+        eq(cookingQuestionRequest.chainId, chainId),
+        eq(cookingQuestionRequest.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * The questions before `question` in its chain, by `follows`, at most `limit` of those with an answer, oldest first.
+ * One without an answer (a failed one) is passed over.
+ */
+export async function answeredBefore(
+  db: DbExecutor,
+  question: CookingQuestion,
+  limit: number,
+): Promise<{ question: string; answer: string }[]> {
+  const found: { question: string; answer: string }[] = [];
+  const seen = new Set<string>([question.id]);
+  let next = question.follows;
+  while (next !== undefined && found.length < limit && !seen.has(next)) {
+    seen.add(next);
+    const earlier = await findCookingQuestion(db, next);
+    if (!earlier) {
+      break;
+    }
+    if (earlier.answer !== undefined) {
+      found.push({ question: earlier.question, answer: earlier.answer });
+    }
+    next = earlier.follows;
+  }
+  return found.reverse();
 }

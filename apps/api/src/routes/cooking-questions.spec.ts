@@ -191,7 +191,7 @@ describe('POST /api/recipes/:id/questions', () => {
     expect(sent.map(({ model }) => model)).toEqual(['openclaw/family-cook']);
   });
 
-  it('sends the agent the recipe by the shown servings, the current step, the enabled appliances and the question', async () => {
+  it('sends the agent the recipe by the shown servings, the current step, the enabled appliances and the question, with no history for the first of a chain', async () => {
     const recipe = await createdRecipe();
     const disabled = await app.inject({
       method: 'PUT',
@@ -225,6 +225,7 @@ describe('POST /api/recipes/:id/questions', () => {
       },
       currentStep: 2,
       appliances: expect.any(Array),
+      history: [],
       question: QUESTION.question,
     });
     expect(input?.appliances).toHaveLength(5);
@@ -311,6 +312,137 @@ describe('POST /api/recipes/:id/questions', () => {
       url: `/api/recipes/${recipe.id}`,
     });
     expect(recipeResponseSchema.parse(response.json()).recipe).toEqual(recipe);
+  });
+});
+
+describe('a follow-up question (follows)', () => {
+  it('sends the agent the last 5 questions of the chain with their answers, oldest first', async () => {
+    const recipe = await createdRecipe();
+    const sent: CookingAskInput[] = [];
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, async ({ request }) => {
+        const body = (await request.json()) as ChatBody;
+        const input = JSON.parse(
+          body.messages[0]?.content ?? '',
+        ) as CookingAskInput;
+        sent.push(input);
+        return HttpResponse.json(
+          completion(
+            JSON.stringify({ answer: `Отговор на ${input.question}` }),
+          ),
+        );
+      }),
+    );
+
+    let follows: string | undefined;
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const done = await finished(
+        await asked(recipe.id, {
+          ...QUESTION,
+          question: `Въпрос ${n}`,
+          ...(follows ? { follows } : {}),
+        }),
+      );
+      expect(done.follows).toBe(follows);
+      follows = done.id;
+    }
+    const last = await finished(
+      await asked(recipe.id, {
+        ...QUESTION,
+        question: 'а колко дълго да я варя тогава?',
+        follows,
+      }),
+    );
+
+    expect(last.status).toBe('done');
+    expect(sent[0]?.history).toEqual([]);
+    expect(sent.at(-1)?.history).toEqual(
+      [2, 3, 4, 5, 6].map((n) => ({
+        question: `Въпрос ${n}`,
+        answer: `Отговор на Въпрос ${n}`,
+      })),
+    );
+  });
+
+  it('answers 409 while a question of the chain still waits, and takes a new chain meanwhile', async () => {
+    const recipe = await createdRecipe();
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, async () => {
+        calls += 1;
+        if (calls === 2) {
+          await held;
+        }
+        return HttpResponse.json(
+          completion(JSON.stringify({ answer: ANSWER })),
+        );
+      }),
+    );
+    const first = await finished(await asked(recipe.id));
+    const waiting = await asked(recipe.id, {
+      ...QUESTION,
+      question: 'А цели доматки?',
+      follows: first.id,
+    });
+
+    try {
+      const onWaiting = await ask(recipe.id, {
+        ...QUESTION,
+        question: 'а колко дълго да я варя тогава?',
+        follows: waiting.id,
+      });
+      expect(onWaiting.statusCode).toBe(409);
+      expect(onWaiting.json()).toMatchObject({ error: 'conflict' });
+
+      const besideWaiting = await ask(recipe.id, {
+        ...QUESTION,
+        question: 'а колко дълго да я варя тогава?',
+        follows: first.id,
+      });
+      expect(besideWaiting.statusCode).toBe(409);
+
+      const newChain = await ask(recipe.id, {
+        ...QUESTION,
+        question: 'Колко сол?',
+      });
+      expect(newChain.statusCode).toBe(202);
+    } finally {
+      release();
+    }
+
+    const answered = await finished(waiting);
+    expect(answered.status).toBe('done');
+    const afterAnswer = await ask(recipe.id, {
+      ...QUESTION,
+      question: 'а колко дълго да я варя тогава?',
+      follows: answered.id,
+    });
+    expect(afterAnswer.statusCode).toBe(202);
+    await finished(cookingQuestionSchema.parse(afterAnswer.json().request));
+  });
+
+  it('answers 404 for a follows that is not a question of this recipe', async () => {
+    const recipe = await createdRecipe();
+    const other = await createdRecipe();
+    answering();
+    const ofOther = await finished(await asked(other.id));
+
+    const fromOther = await ask(recipe.id, {
+      ...QUESTION,
+      follows: ofOther.id,
+    });
+    expect(fromOther.statusCode).toBe(404);
+    expect(fromOther.json()).toMatchObject({ error: 'not_found' });
+
+    const unknown = await ask(recipe.id, {
+      ...QUESTION,
+      follows: '00000000-0000-4000-8000-000000000000',
+    });
+    expect(unknown.statusCode).toBe(404);
   });
 });
 

@@ -211,6 +211,13 @@
       "when": 1793543603371,
       "tag": "0029_cooking_question_request",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793544663925,
+      "tag": "0030_cooking_question_follows",
+      "breakpoints": true
     }
   ]
 }

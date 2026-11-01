@@ -9,8 +9,11 @@ import type { AiContract } from './contract.js';
  * question → a short answer in Bulgarian for this recipe, step and servings. The agent (`family-cook`) has `web_search`
  * and `web_fetch` and searches only when its knowledge is not enough.
  *
- * Not yet here (epic #270): the earlier questions of the chain (`follows`), the cooking changes applied to the recipe and
- * marked as changed (`applied`), and the optional `change` of the answer.
+ * A follow-up question brings up to {@link COOKING_HISTORY_MAX} earlier questions of its chain with their answers
+ * (`history`, oldest first), so the agent reads it as a conversation.
+ *
+ * Not yet here (epic #270): the cooking changes applied to the recipe and marked as changed (`applied`), and the
+ * optional `change` of the answer.
  */
 
 /** Longest question a cook types; the sheet's field stops there. */
@@ -18,6 +21,9 @@ export const COOKING_QUESTION_MAX = 300;
 
 /** Longest answer the agent may give: a few sentences, read standing at the stove. */
 export const COOKING_ANSWER_MAX = 800;
+
+/** How many earlier questions of the chain the agent sees. */
+export const COOKING_HISTORY_MAX = 5;
 
 /** The question as typed: trimmed, 1–300 characters. */
 export const cookingQuestionTextSchema = z
@@ -51,6 +57,12 @@ const askRecipeSchema = z.object({
   preparation: preparationSchema,
 });
 
+/** An earlier question of the chain and the answer it got. */
+const askHistorySchema = z.object({
+  question: z.string().trim().min(1),
+  answer: z.string().trim().min(1),
+});
+
 const cookingAskInputSchema = z
   .object({
     recipe: askRecipeSchema,
@@ -58,6 +70,8 @@ const cookingAskInputSchema = z
     currentStep: z.int().min(1),
     /** The enabled household appliances (GLOSSARY: Уред), by name. */
     appliances: z.array(z.string()),
+    /** The earlier questions of the chain with their answers, oldest first; empty for the first question. */
+    history: z.array(askHistorySchema).max(COOKING_HISTORY_MAX),
     question: cookingQuestionTextSchema,
   })
   .refine((input) => input.currentStep <= input.recipe.steps.length, {

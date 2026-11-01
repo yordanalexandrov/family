@@ -1,8 +1,11 @@
 // Asks questions in Готвене through the real `family-cook` agent, through the api's OpenClaw client, and prints the answers.
 // Manual check against the gateway (docs/openclaw/README.md → "Smoke преди merge"); not part of `pnpm test`.
-//   pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--repeat N] [--save out.json]
+//   pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--chain] [--repeat N] [--save out.json]
 // Without `--question` it asks the built-in cases of #272 (substitution with pulp and with whole canned tomatoes, a sign
-// of doneness, scaling the servings, a question that needs a search, one outside cooking), each at its own step.
+// of doneness, scaling the servings, a question that needs a search, one outside cooking), each at its own step, and the
+// follow-up questions of #273 after some of them („а колко дълго да я варя тогава?“): a follow-up goes with the earlier
+// questions of its chain and the answers the agent gave them in this run (`history`, as the api sends it).
+// `--chain` asks the `--question`s as one chain, each following the one before.
 // Without `--recipe` the recipe is the fixture `cooking-ask.input.json` (for 4, shown for 2). `--recipe` is a recipe as
 // `GET /api/recipes/:id` answers it (the body or its `recipe`), built into the input as the api does (`cookingAskInput`)
 // with the enabled appliances of the seed; `--servings` and `--step` (from 1) are then the screen's.
@@ -10,6 +13,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
   COOKING_ANSWER_MAX,
+  COOKING_HISTORY_MAX,
   type CookingAskInput,
   cookingAsk,
   recipeSchema,
@@ -22,13 +26,14 @@ import { loadOpenClawConfig } from '../src/config.js';
 import { createOpenClawClient } from '../src/openclaw/client.js';
 import { cookingAskInput } from '../src/services/cooking-questions.js';
 
-const USAGE = `Usage: pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--repeat N] [--save out.json]
+const USAGE = `Usage: pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--chain] [--repeat N] [--save out.json]
   no options          the built-in cases on the fixture recipe
   --recipe <file>     a recipe as GET /api/recipes/:id answers it; replaces the fixture recipe
   --servings <N>      the servings on the screen (with --recipe; default: the recipe's)
   --step <N>          the step on the screen, from 1 (default: each case's own, or 1)
   --question "…"      ask this instead of the built-in cases (repeatable)
-  --repeat <N>        ask every question N times (default 1)
+  --chain             the --question's are one chain: each follows the one before
+  --repeat <N>        ask every chain N times (default 1)
   --save <file>       every answer by case, as JSON
 `;
 
@@ -40,6 +45,7 @@ const { values } = parseArgs({
     servings: { type: 'string' },
     step: { type: 'string' },
     question: { type: 'string', multiple: true },
+    chain: { type: 'boolean' },
     repeat: { type: 'string' },
     save: { type: 'string' },
     help: { type: 'boolean' },
@@ -72,6 +78,9 @@ const step = positive('step', values.step);
 if (servings !== undefined && !values.recipe) {
   usage('--servings needs --recipe: the fixture is already scaled.');
 }
+if (values.chain && !values.question) {
+  usage('--chain needs --question.');
+}
 
 /** One question to ask, at its step (from 1). */
 interface Case {
@@ -80,49 +89,90 @@ interface Case {
   step: number;
 }
 
-/** The cases of #272 on the fixture recipe (tomatoes on step 3, chicken and rice on step 4). */
-const BUILT_IN: Case[] = [
-  {
-    name: 'pulp',
-    question: 'Мога ли да заменя настърганите домати с консерва pulp и как?',
-    step: 3,
-  },
-  {
-    name: 'цели доматки',
-    question:
-      'имам само цели белени доматки от консерва става ли с тях вместо пресните',
-    step: 3,
-  },
-  {
-    name: 'готовност',
-    question: 'как да разбера че пилето и оризът са готови',
-    step: 4,
-  },
-  {
-    name: 'порции',
-    question: 'ако дойдат още 4 души колко ориз и вода да сложа',
-    step: 4,
-  },
-  {
-    name: 'търсене',
-    question:
-      'колко грама нетно тегло е консервата цели белени домати на Mutti и колко от нея да сложа',
-    step: 3,
-  },
-  {
-    name: 'извън готвенето',
-    question: 'какво ще е времето утре в София',
-    step: 2,
-  },
+/** Questions asked one after another, each a follow-up of the ones before; a single question is a chain of one. */
+type Chain = Case[];
+
+/** The cases of #272 and the follow-ups of #273 on the fixture recipe (tomatoes on step 3, chicken and rice on step 4). */
+const BUILT_IN: Chain[] = [
+  [
+    {
+      name: 'pulp',
+      question: 'Мога ли да заменя настърганите домати с консерва pulp и как?',
+      step: 3,
+    },
+    {
+      name: 'pulp → колко дълго',
+      question: 'а колко дълго да я варя тогава?',
+      step: 3,
+    },
+    {
+      name: 'pulp → а ако е гъста',
+      question: 'ами ако стане много гъсто да сложа ли вода и колко',
+      step: 3,
+    },
+  ],
+  [
+    {
+      name: 'цели доматки',
+      question:
+        'имам само цели белени доматки от консерва става ли с тях вместо пресните',
+      step: 3,
+    },
+    {
+      name: 'цели доматки → сокът',
+      question: 'а сока от консервата и него ли да сложа',
+      step: 3,
+    },
+  ],
+  [
+    {
+      name: 'готовност',
+      question: 'как да разбера че пилето и оризът са готови',
+      step: 4,
+    },
+    {
+      name: 'готовност → още твърд',
+      question: 'оризът е още твърд а водата свърши какво да правя',
+      step: 4,
+    },
+  ],
+  [
+    {
+      name: 'порции',
+      question: 'ако дойдат още 4 души колко ориз и вода да сложа',
+      step: 4,
+    },
+  ],
+  [
+    {
+      name: 'търсене',
+      question:
+        'колко грама нетно тегло е консервата цели белени домати на Mutti и колко от нея да сложа',
+      step: 3,
+    },
+  ],
+  [
+    {
+      name: 'извън готвенето',
+      question: 'какво ще е времето утре в София',
+      step: 2,
+    },
+  ],
 ];
 
-const cases: Case[] = values.question
-  ? values.question.map((question, index) => ({
-      name: `въпрос ${index + 1}`,
-      question,
-      step: step ?? 1,
-    }))
-  : BUILT_IN.map((each) => ({ ...each, step: step ?? each.step }));
+const asked: Case[] =
+  values.question?.map((question, index) => ({
+    name: `въпрос ${index + 1}`,
+    question,
+    step: step ?? 1,
+  })) ?? [];
+const chains: Chain[] = values.question
+  ? values.chain
+    ? [asked]
+    : asked.map((each) => [each])
+  : BUILT_IN.map((chain) =>
+      chain.map((each) => ({ ...each, step: step ?? each.step })),
+    );
 
 /** The appliances of the seed (`drizzle/0023_seed_appliances.sql`), all enabled, for a recipe from `--recipe`. */
 const SEED_APPLIANCES = [
@@ -134,19 +184,25 @@ const SEED_APPLIANCES = [
   'пасатор',
 ];
 
-/** The input for one case: from the recipe file as the api builds it, or the fixture with the case's question and step. */
-async function inputFor(): Promise<(each: Case) => unknown> {
+type History = CookingAskInput['history'];
+
+/**
+ * The input for one case after `history` (the answered questions before it in its chain): from the recipe file as the
+ * api builds it, or the fixture with the case's question and step.
+ */
+async function inputFor(): Promise<(each: Case, history: History) => unknown> {
   if (!values.recipe) {
-    return (each) => ({
+    return (each, history) => ({
       ...fixtureInput,
       currentStep: each.step,
+      history,
       question: each.question,
     });
   }
   const file: unknown = JSON.parse(await readFile(values.recipe, 'utf8'));
   const body = z.object({ recipe: z.unknown() }).safeParse(file);
   const recipe = recipeSchema.parse(body.success ? body.data.recipe : file);
-  return (each) =>
+  return (each, history) =>
     cookingAskInput(
       recipe,
       {
@@ -155,6 +211,7 @@ async function inputFor(): Promise<(each: Case) => unknown> {
         servings: servings ?? recipe.servings,
       },
       SEED_APPLIANCES,
+      history,
     );
 }
 
@@ -176,47 +233,61 @@ if (!client) {
 
 const saved: Record<string, { seconds: number; answer: string }[]> = {};
 let failed = false;
-for (const each of cases) {
-  const parsed = cookingAsk.inputSchema.safeParse(build(each));
-  if (!parsed.success) {
-    failed = true;
-    process.stdout.write(
-      `[${each.name}] ✗ невалиден вход:\n${z.prettifyError(parsed.error)}\n\n`,
-    );
-    continue;
-  }
-  const input: CookingAskInput = parsed.data;
-  for (let attempt = 1; attempt <= repeat; attempt++) {
-    const label = repeat > 1 ? `${each.name} #${attempt}` : each.name;
-    process.stderr.write(
-      `→ ${config.url} openclaw/${config.cookAgent}, timeout ${config.cookTimeoutMs} ms, ${label}\n`,
-    );
-    const started = performance.now();
-    try {
-      const output = await client.complete(cookingAsk, input, {
-        agent: config.cookAgent,
-        timeoutMs: config.cookTimeoutMs,
-      });
-      const seconds = Number(((performance.now() - started) / 1000).toFixed(1));
-      process.stdout.write(
-        [
-          `[${label}] ${input.recipe.title}, ${input.recipe.shownServings} порции, стъпка ${input.currentStep} от ${input.recipe.steps.length}`,
-          `   Въпрос: ${input.question}`,
-          `   Отговор (${output.answer.length}/${COOKING_ANSWER_MAX} знака, ${seconds} s): ${output.answer}`,
-          '',
-          '',
-        ].join('\n'),
-      );
-      saved[each.name] = [
-        ...(saved[each.name] ?? []),
-        { seconds, answer: output.answer },
-      ];
-    } catch (error) {
-      const seconds = ((performance.now() - started) / 1000).toFixed(1);
-      failed = true;
+for (let attempt = 1; attempt <= repeat; attempt++) {
+  for (const chain of chains) {
+    // The api sends the last COOKING_HISTORY_MAX answered questions of the chain; a failed one is passed over.
+    let history: History = [];
+    for (const each of chain) {
+      const label = repeat > 1 ? `${each.name} #${attempt}` : each.name;
+      const parsed = cookingAsk.inputSchema.safeParse(build(each, history));
+      if (!parsed.success) {
+        failed = true;
+        process.stdout.write(
+          `[${label}] ✗ невалиден вход:\n${z.prettifyError(parsed.error)}\n\n`,
+        );
+        continue;
+      }
+      const input: CookingAskInput = parsed.data;
       process.stderr.write(
-        `✗ [${label}] след ${seconds} s: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}\n`,
+        `→ ${config.url} openclaw/${config.cookAgent}, timeout ${config.cookTimeoutMs} ms, ${label}\n`,
       );
+      const started = performance.now();
+      try {
+        const output = await client.complete(cookingAsk, input, {
+          agent: config.cookAgent,
+          timeoutMs: config.cookTimeoutMs,
+        });
+        const seconds = Number(
+          ((performance.now() - started) / 1000).toFixed(1),
+        );
+        process.stdout.write(
+          [
+            `[${label}] ${input.recipe.title}, ${input.recipe.shownServings} порции, стъпка ${input.currentStep} от ${input.recipe.steps.length}`,
+            ...input.history.map(
+              (before, index) =>
+                `   Преди ${index + 1}: ${before.question} → ${before.answer}`,
+            ),
+            `   Въпрос: ${input.question}`,
+            `   Отговор (${output.answer.length}/${COOKING_ANSWER_MAX} знака, ${seconds} s): ${output.answer}`,
+            '',
+            '',
+          ].join('\n'),
+        );
+        saved[each.name] = [
+          ...(saved[each.name] ?? []),
+          { seconds, answer: output.answer },
+        ];
+        history = [
+          ...history,
+          { question: input.question, answer: output.answer },
+        ].slice(-COOKING_HISTORY_MAX);
+      } catch (error) {
+        const seconds = ((performance.now() - started) / 1000).toFixed(1);
+        failed = true;
+        process.stderr.write(
+          `✗ [${label}] след ${seconds} s: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}\n`,
+        );
+      }
     }
   }
 }

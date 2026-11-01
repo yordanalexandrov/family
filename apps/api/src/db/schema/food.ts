@@ -25,6 +25,7 @@ import {
 } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   check,
   index,
   integer,
@@ -254,7 +255,8 @@ export const recipeRefineRequest = pgTable(
 /**
  * GLOSSARY: Въпрос в Готвене. One run of `cooking.ask` for a recipe: the question, the step (index from 0) and the
  * servings it was asked at, and `answer` once it is `done`. The kiosk has no acting user, so `requested_by` may be
- * `null`. The recipe itself is never changed by it.
+ * `null`. The recipe itself is never changed by it. A follow-up `follows` an earlier question of the same recipe;
+ * `chain_id` is the id of the first question of its chain (its own for the first), with at most one `pending` per chain.
  */
 export const cookingQuestionRequest = pgTable(
   'cooking_question_request',
@@ -269,9 +271,17 @@ export const cookingQuestionRequest = pgTable(
     step: integer('step').notNull(),
     servings: integer('servings').notNull(),
     answer: text('answer'),
+    followsId: uuid('follows_id').references(
+      (): AnyPgColumn => cookingQuestionRequest.id,
+      { onDelete: 'set null' },
+    ),
+    chainId: uuid('chain_id').notNull(),
   },
   (t) => [
     index('cooking_question_request_recipe_idx').on(t.recipeId),
+    uniqueIndex('cooking_question_request_pending_chain_key')
+      .on(t.chainId)
+      .where(sql`${t.status} = 'pending'`),
     check(
       'cooking_question_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
