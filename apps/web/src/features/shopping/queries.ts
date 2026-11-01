@@ -145,16 +145,16 @@ function requireOnline() {
   }
 }
 
-/** Промяна, която изисква връзка; после списъкът се презарежда. */
-function useListChange<T>(
+/** Промяна, която изисква връзка; после списъкът се презарежда, а отговорът ѝ стига до `onSuccess` на извикващия. */
+function useListChange<T, R = unknown>(
   weekStart: DateKey,
-  change: (input: T) => Promise<unknown>,
+  change: (input: T) => Promise<R>,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: T) => {
       requireOnline();
-      await change(input);
+      return change(input);
     },
     networkMode: 'always',
     onSuccess: () =>

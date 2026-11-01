@@ -1,10 +1,13 @@
-/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`); редът на списъка ≥ 56 px (3.5rem). */
+/* Екранът „Пазаруване“: телефон (една колона) и таблет (по-широк лист). Докосване ≥ 48 px (`--touch-target`); редът на списъка е висок точно толкова и е на един ред (#307). */
+
+/* „2–8 ноем · 5 от 12 за купуване“: датите и броячът на един ред (#307). */
 .shopping__count {
   display: flex;
   align-items: baseline;
   gap: 0.3em;
   margin: 0;
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* Иконата за синхронизация (#208): вдясно в реда, винаги там и с фиксиран размер, за да не мести нищо. Отрицателното
@@ -105,7 +108,6 @@
   font-weight: 600;
 }
 
-.shopping__aisle,
 .shopping__hidden,
 .shopping__pantry {
   display: flex;
@@ -113,8 +115,23 @@
   gap: var(--space-2);
 }
 
+/* Щандовете са един непрекъснат списък (#307): обща кутия, щанд под щанд с линия помежду им. Без `overflow`, за да
+   може етикетът на щанда да е `sticky` (#308). */
+.shopping__aisles {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  /* Тъмна тема: основата под стъклото пази приглушения текст (количества, ⓘ, „покажи“) над 4.5:1 и над светла аурора (#138). */
+  background:
+    linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
+}
+
+.shopping__aisle + .shopping__aisle {
+  border-block-start: 1px solid var(--color-line);
+}
+
 .shopping__aisle-title {
-  margin: var(--space-2) 0 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: 700;
@@ -135,17 +152,48 @@
   list-style: none;
 }
 
+/* Редовете на щанда са в общата кутия, без своя. */
+.shopping__aisles .shopping__items {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
 /* Без собствена кутия: щандовете остават деца на екрана с неговия отстъп. */
 .shopping__list {
   display: contents;
 }
 
-/* Редът е една цел за отметка: етикетът и отметката вдясно покриват цялата му височина. */
+/* Редът е една цел за отметка: етикетът и отметката вдясно покриват цялата му височина. Висок е `--touch-target`;
+   по-висок е само с „Махни отметката?“ под него. */
 .shopping-item {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
-  min-block-size: 3.5rem;
+  min-block-size: var(--touch-target);
+  scroll-margin-block: var(--space-4);
+}
+
+/* Току-що добавен с „+ Добави“ (#307): тонът на акцента за ~2 s; с движение той избледнява. */
+.shopping-item[data-added] {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shopping-item[data-added] {
+    animation: shopping-item-added 2s ease-in forwards;
+  }
+}
+
+@keyframes shopping-item-added {
+  0%,
+  60% {
+    background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+
+  100% {
+    background: transparent;
+  }
 }
 
 .shopping-item + .shopping-item {
@@ -165,7 +213,7 @@
   align-items: center;
   gap: var(--space-2);
   min-inline-size: 0;
-  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  padding: 0 0 0 var(--space-3);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -191,37 +239,41 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  inline-size: 3.5rem;
+  inline-size: var(--touch-target);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
 .shopping-item__check {
-  inline-size: 2rem;
-  block-size: 2rem;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
   margin: 0;
   accent-color: var(--color-accent);
   cursor: pointer;
 }
 
+/* Един ред (#307): името се реже с многоточие, количеството е приглушено веднага след него и не се реже. */
 .shopping-item__main {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-2);
   min-inline-size: 0;
+  white-space: nowrap;
 }
 
 .shopping-item__title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
   color: var(--color-text);
   font-weight: 600;
-  overflow-wrap: break-word;
-  hyphens: auto;
+  text-overflow: ellipsis;
 }
 
 .shopping-item__quantity,
 .shopping-item__manual {
+  flex: none;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
@@ -397,6 +449,10 @@
 
 /* Значките на килера до количеството: „свърши“ е акцент, „в килера — провери“ е подсказка. */
 .shopping-item__badge {
+  flex: 0 4 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 0.1em 0.55em;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
@@ -451,4 +507,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+/* Ред без количество: празното поле не оставя двоен отстъп пред ✎. */
+.shopping-item__quantity:empty {
+  display: none;
 }
