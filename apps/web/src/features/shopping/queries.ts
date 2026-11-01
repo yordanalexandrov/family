@@ -145,10 +145,14 @@ function requireOnline() {
   }
 }
 
-/** Промяна, която изисква връзка; после списъкът се презарежда, а отговорът ѝ стига до `onSuccess` на извикващия. */
+/**
+ * Промяна, която изисква връзка; после списъкът се презарежда, а отговорът ѝ стига до `onSuccess` на извикващия.
+ * `listOf` дава списъка от отговор, който го носи цял: той се показва веднага, преди презареждането.
+ */
 function useListChange<T, R = unknown>(
   weekStart: DateKey,
   change: (input: T) => Promise<R>,
+  listOf?: (result: R) => ShoppingList,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -157,10 +161,16 @@ function useListChange<T, R = unknown>(
       return change(input);
     },
     networkMode: 'always',
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: shoppingKeys.list(weekStart),
-      }),
+    onSuccess: (result) => {
+      const queryKey = shoppingKeys.list(weekStart);
+      if (listOf) {
+        queryClient.setQueryData<ShoppingWeekData>(queryKey, {
+          list: listOf(result),
+          staleSince: null,
+        });
+      }
+      return queryClient.invalidateQueries({ queryKey });
+    },
   });
 }
 
@@ -206,32 +216,14 @@ export function useDeleteManualItem(weekStart: DateKey) {
  * Отговорът е целият списък: показва се веднага, после списъкът се презарежда.
  */
 export function useSetMealListed(weekStart: DateKey) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      mealId,
-      listed,
-    }: {
-      mealId: string;
-      listed: boolean;
-    }) => {
-      requireOnline();
-      return (
-        await apiFetch(
-          `${listPath(weekStart)}/meals/${mealId}`,
-          shoppingListResponseSchema,
-          { method: listed ? 'PUT' : 'DELETE' },
-        )
-      ).list;
-    },
-    networkMode: 'always',
-    onSuccess: async (list) => {
-      const queryKey = shoppingKeys.list(weekStart);
-      queryClient.setQueryData<ShoppingWeekData>(queryKey, {
-        list,
-        staleSince: null,
-      });
-      await queryClient.invalidateQueries({ queryKey });
-    },
-  });
+  return useListChange(
+    weekStart,
+    ({ mealId, listed }: { mealId: string; listed: boolean }) =>
+      apiFetch(
+        `${listPath(weekStart)}/meals/${mealId}`,
+        shoppingListResponseSchema,
+        { method: listed ? 'PUT' : 'DELETE' },
+      ),
+    (response) => response.list,
+  );
 }

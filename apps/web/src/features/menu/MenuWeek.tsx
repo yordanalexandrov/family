@@ -25,6 +25,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -553,9 +554,9 @@ function PlanView({
   const mealsId = useId();
   const vote = useVote(plan.weekStart);
   const rate = useRateRecipe();
-  const listedMealIds = new Set(
-    useShoppingWeek(plan.weekStart).data?.list.listedMealIds,
-  );
+  const shopping = useShoppingWeek(plan.weekStart);
+  const listedIds = shopping.data?.list.listedMealIds;
+  const listedMealIds = useMemo(() => new Set(listedIds), [listedIds]);
   const openMeal = plan.meals.find((meal) => meal.id === openMealId);
   // Ястието от адреса (известие) е някъде в седмицата: редът му идва в изгледа под листа. Докоснат ред вече се вижда.
   const fromUrl = useRef(openMealId);
