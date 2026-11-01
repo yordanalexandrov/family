@@ -19,7 +19,8 @@
       { "text": "Нарежи картофите и ги подреди в тава.", "image": null },
       { "text": "Овкуси пилето и го сложи върху картофите.", "image": "e1" },
       { "text": "Печи до готовност.", "image": null }
-    ]
+    ],
+    "preparation": []
   },
   "source": {
     "url": "https://blog.example/pile-s-kartofi",

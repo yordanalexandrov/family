@@ -116,6 +116,7 @@ export function createRecipeRefineStore(): ContractRequestStore<
             text: step.text,
             image: (step.photoId && refs.get(step.photoId)) ?? null,
           })),
+          preparation: recipe.preparation,
         },
         source: page,
       };
@@ -152,6 +153,7 @@ export function createRecipeRefineStore(): ContractRequestStore<
         ...(recipe.prepMinutes === undefined && refined.prepMinutes !== null
           ? { prepMinutes: refined.prepMinutes }
           : {}),
+        preparation: refined.preparation,
         changes: refined.changes,
         source,
         droppedPhotos: dropped,

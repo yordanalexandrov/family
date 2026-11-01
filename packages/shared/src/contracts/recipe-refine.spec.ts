@@ -33,6 +33,25 @@ describe('recipeRefine.inputSchema', () => {
     expect(recipeRefine.inputSchema.parse(input)).toEqual(input);
   });
 
+  it('accepts the preparation the recipe has, and none for an older one', () => {
+    const preparation = [
+      { kind: 'oven', degrees: 180, fan: 'conventional' },
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 480 },
+    ] as const;
+
+    expect(
+      recipeRefine.inputSchema.parse({
+        ...INPUT,
+        recipe: { ...INPUT.recipe, preparation },
+      }).recipe.preparation,
+    ).toEqual(preparation);
+    const { preparation: _, ...older } = INPUT.recipe;
+    expect(
+      recipeRefine.inputSchema.parse({ ...INPUT, recipe: older }).recipe
+        .preparation,
+    ).toEqual([]);
+  });
+
   it('refuses a page without JSON-LD and without text', () => {
     const result = recipeRefine.inputSchema.safeParse({
       ...INPUT,
@@ -46,6 +65,55 @@ describe('recipeRefine.inputSchema', () => {
 describe('recipeRefine.outputSchema', () => {
   it('accepts the recorded answer', () => {
     expect(outputSchema.parse(validOutput())).toEqual(validOutput());
+  });
+
+  it('reads a missing rack or time before as none', () => {
+    const output = validOutput();
+    output.recipe.preparation = [
+      { kind: 'oven', degrees: 180, fan: 'conventional', rack: null },
+      { kind: 'pan', text: 'тава 30×20 с хартия', minutesBefore: null },
+    ];
+
+    expect(outputSchema.parse(output).recipe?.preparation).toEqual([
+      { kind: 'oven', degrees: 180, fan: 'conventional' },
+      { kind: 'pan', text: 'тава 30×20 с хартия' },
+    ]);
+  });
+
+  it('accepts a refinement without preparation', () => {
+    const output = validOutput();
+    output.recipe.preparation = [];
+
+    expect(outputSchema.parse(output).recipe?.preparation).toEqual([]);
+  });
+
+  it('refuses a preparation the recipe cannot keep: two ovens, an oven without its fan, text on an oven, too long a text', () => {
+    const oven = { kind: 'oven', degrees: 200, fan: 'fan', rack: null };
+    const cases = [
+      [oven, { ...oven, degrees: 180 }],
+      [{ ...oven, fan: null }],
+      [{ ...oven, text: 'загрей фурната' }],
+      [{ kind: 'other', text: 'х'.repeat(61), minutesBefore: null }],
+      [{ kind: 'soak', text: 'накисни боба', minutesBefore: 3000 }],
+      Array.from({ length: 9 }, () => ({
+        kind: 'other',
+        text: 'нещо',
+        minutesBefore: null,
+      })),
+    ];
+    for (const preparation of cases) {
+      const output = validOutput();
+      output.recipe.preparation = preparation;
+
+      expect(messages(output)).not.toEqual([]);
+    }
+  });
+
+  it('refuses a refinement without preparation in it', () => {
+    const output = validOutput();
+    delete output.recipe.preparation;
+
+    expect(messages(output)).not.toEqual([]);
   });
 
   it('accepts no refinement with the reason', () => {
@@ -118,5 +186,33 @@ describe('recipeRefine.outputSchema', () => {
     output.recipe.steps = [];
 
     expect(messages(output)).not.toEqual([]);
+  });
+});
+
+describe('recipeRefine.responseFormat', () => {
+  it('is a strict JSON Schema: every object closed, every property required, no oneOf', () => {
+    const { schema } = recipeRefine.responseFormat;
+
+    function check(node: unknown): void {
+      if (Array.isArray(node)) {
+        node.forEach(check);
+        return;
+      }
+      if (typeof node !== 'object' || node === null) {
+        return;
+      }
+      const record = node as Record<string, unknown>;
+      expect(record).not.toHaveProperty('oneOf');
+      if (record.type === 'object' && record.properties) {
+        expect(record.additionalProperties).toBe(false);
+        expect([...(record.required as string[])].sort()).toEqual(
+          Object.keys(record.properties as object).sort(),
+        );
+      }
+      Object.values(record).forEach(check);
+    }
+
+    check(schema);
+    expect(JSON.stringify(schema)).toContain('"preparation"');
   });
 });
