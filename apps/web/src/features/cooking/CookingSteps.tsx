@@ -32,6 +32,8 @@ interface CookingStepsProps {
   onDone: () => void;
   /** Редът с подготовката (`CookingPreparation`): най-отгоре, над стъпката, на всяка стъпка. */
   preparation?: ReactNode;
+  /** „Питай“ (`AskButton`): в инструментите горе, преди A−/A+. */
+  ask?: ReactNode;
 }
 
 /**
@@ -46,6 +48,7 @@ export function CookingSteps({
   onClose,
   onDone,
   preparation,
+  ask,
 }: CookingStepsProps) {
   const { steps } = recipe;
   const last = step === steps.length - 1;
@@ -127,6 +130,7 @@ export function CookingSteps({
           )}
         </div>
         <div className="cooking-steps__tools">
+          {ask}
           <button
             type="button"
             className="button button--quiet cooking-steps__size"

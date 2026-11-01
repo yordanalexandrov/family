@@ -3,14 +3,17 @@ import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { SHEET_WINDOW_QUERY } from '../../components/sheet-drag';
 import { useMediaQuery } from '../../lib/use-media-query';
+import { AskButton } from './AskButton';
 import { type CookingProducts, productsLabel } from './CookingChecklist';
 import {
   CookingIngredients,
   CookingIngredientsBody,
 } from './CookingIngredients';
 import { CookingPreparation } from './CookingPreparation';
+import { CookingQuestionSheet } from './CookingQuestionSheet';
 import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
+import { useCookingQuestions } from './use-cooking-questions';
 import './cooking.css';
 
 interface CookingViewProps {
@@ -29,7 +32,7 @@ interface CookingViewProps {
  * стъпката е на целия екран, а продуктите са в лист отдолу зад бутона „Продукти (N)“. Границата е тази на листа:
  * от нея нагоре той е прозорец, не лист отдолу. Нищо не стига до сървъра: порциите и дали листът е отворен живеят
  * само на екрана, стъпката и отметките се помнят на устройството до края на деня или до „Готово“, а дали колоната е отворена — на
- * устройството.
+ * устройството. „Питай“ отваря листа „Въпрос“ (GLOSSARY: Въпрос в Готвене); чакащият отговор живее тук, над листа.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
@@ -39,6 +42,8 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     useCookingProgress(recipe);
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  const questions = useCookingQuestions(recipe.id);
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
   const products: CookingProducts = {
     ingredients: recipe.ingredients,
@@ -56,6 +61,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       onStepChange={setStep}
       onClose={() => onExit()}
       onDone={() => onExit(finish)}
+      ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
       preparation={
         <CookingPreparation
           preparation={recipe.preparation}
@@ -63,6 +69,17 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
           onToggle={togglePrepared}
         />
       }
+    />
+  );
+
+  // Въпросът е за стъпката и порциите в момента на питането, и „Опитай пак“ също.
+  const questionSheet = askOpen && (
+    <CookingQuestionSheet
+      questions={questions}
+      onAsk={(question, replaces) =>
+        questions.ask({ question, step, servings: shownServings }, replaces)
+      }
+      onClose={() => setAskOpen(false)}
     />
   );
 
@@ -86,6 +103,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
             </div>
           </Sheet>
         )}
+        {questionSheet}
       </main>
     );
   }
@@ -101,6 +119,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
         onOpenChange={setIngredientsOpen}
       />
       {steps}
+      {questionSheet}
     </main>
   );
 }

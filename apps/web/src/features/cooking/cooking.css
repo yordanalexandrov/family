@@ -184,10 +184,22 @@
 
 .cooking-steps__tools {
   display: flex;
+  justify-content: flex-end;
   /* Пренесени на втори ред (тесен екран) остават вдясно. */
   margin-inline-start: auto;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* „Иска връзка“ под изключения „Питай“: на свой ред, най-отдясно. */
+.cooking-steps__tools:has(.cooking-steps__hint) {
+  flex-wrap: wrap;
+}
+
+.cooking-steps__hint {
+  order: 1;
+  flex-basis: 100%;
+  text-align: end;
 }
 
 .cooking-steps__size {
@@ -438,4 +450,89 @@
   .cooking-ingredients {
     padding: var(--space-3);
   }
+}
+
+/* Листът „Въпрос“: зададените въпроси с отговорите им, под тях полето за нов. */
+.cooking-question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cooking-question__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cooking-question__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--color-line);
+}
+
+.cooking-question__asked {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Отговорът се чете отдалеч, до котлона. */
+.cooking-question__answer {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.cooking-question__waiting {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.cooking-question__waiting p {
+  margin: 0;
+}
+
+/* Малък кръг до „Мисли…“, не големият на целия екран. */
+.cooking-question__waiting .spinner {
+  padding: 0;
+}
+
+.cooking-question__waiting .spinner__ring {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-width: 0.15rem;
+}
+
+.cooking-question__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cooking-question__input {
+  resize: vertical;
+  min-block-size: 4.5rem;
+}
+
+.cooking-question__count {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: end;
+}
+
+.cooking-question__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
