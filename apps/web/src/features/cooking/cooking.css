@@ -270,6 +270,7 @@
  * цветът е в рамката и бледия фон, текстът остава с цвета на текста. Чипът е поне `--touch-target` висок.
  */
 .cooking-preparation {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -294,6 +295,12 @@
   transition:
     background var(--motion-fast),
     border-color var(--motion-fast);
+}
+
+/* Телефон изправен: по-дребен надпис, за да се събират повече чипове на ред. */
+.cooking--narrow .cooking-preparation__chip {
+  padding-inline: var(--space-3);
+  font-size: var(--font-size-md);
 }
 
 .cooking-preparation__chip--done {
@@ -418,7 +425,17 @@
     display: none;
   }
 
+  /* Един ред, който се превърта встрани (като лентата с таймерите): височината остава за текста на стъпката. */
+  .cooking-preparation {
+    flex: none;
+    flex-wrap: nowrap;
+    overflow: auto hidden;
+    overscroll-behavior-inline: contain;
+  }
+
   .cooking-preparation__chip {
+    flex: none;
+    max-inline-size: 90%;
     font-size: var(--font-size-md);
   }
 
