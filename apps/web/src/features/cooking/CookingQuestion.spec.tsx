@@ -54,8 +54,8 @@ function pendingQuestion(body: Posted['body']): CookingQuestion {
 }
 
 /**
- * The recipe and its questions: each `POST` stores a pending question, and its `GET` answers with `finished[n]` (for the
- * n-th question asked) once it has been read `pendingPolls` times. Returns the posted bodies.
+ * The recipe and its questions: each `POST` stores a pending question, and its `GET` answers with `finished[n]` (for
+ * the n-th question asked) once it has been read `pendingPolls` times. Returns the posted bodies.
  */
 function serveQuestions(
   finished: Partial<CookingQuestion>[],

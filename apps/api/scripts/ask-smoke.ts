@@ -1,20 +1,22 @@
-// Asks questions in Готвене through the real `family-cook` agent, through the api's OpenClaw client, and prints the answers.
+// Asks questions in Готвене through the real `family-cook` agent via the api's OpenClaw client and prints the answers.
 // Manual check against the gateway (docs/openclaw/README.md → "Smoke преди merge"); not part of `pnpm test`.
 //   pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--chain] [--repeat N] [--save out.json]
-// Without `--question` it asks the built-in cases of #272 (substitution with pulp and with whole canned tomatoes, a sign
-// of doneness, scaling the servings, a question that needs a search, one outside cooking), each at its own step, and the
-// follow-up questions of #273 after some of them („а колко дълго да я варя тогава?“): a follow-up goes with the earlier
-// questions of its chain and the answers the agent gave them in this run (`history`, as the api sends it).
+// Without `--question` it asks the built-in cases of #272 (substitution with pulp and with whole canned tomatoes, a
+// sign of doneness, scaling the servings, a question that needs a search, one outside cooking), each at its own step,
+// and the follow-up questions of #273 after some of them („а колко дълго да я варя тогава?“): a follow-up goes with the
+// earlier questions of its chain and the answers the agent gave them in this run (`history`, as the api sends it).
 // `--chain` asks the `--question`s as one chain, each following the one before.
-// Cooking changes (#276): a built-in case says whether its answer must bring a `change` (the substitutions with pulp and
-// whole tomatoes) or must not (doneness, servings, outside cooking); a mismatch is a failure. A change the agent brings
-// is applied for the rest of its chain, as „Промени“ does, so the follow-ups see the recipe with it, marked `changed`.
+// Cooking changes (#276): a built-in case says whether its answer must bring a `change` (the substitutions with pulp
+// and whole tomatoes) or must not (doneness, servings, outside cooking); a mismatch is a failure. A change the agent
+// brings is applied for the rest of its chain, as „Промени“ does, so the follow-ups see the recipe with it, marked
+// `changed`.
 // New text of steps (#277): a case may also say whether its change must bring new step text (`steps`: a substitution
 // that changes the method too, as bulgur for rice or onion powder for onion); every answer checks that the number of
 // steps the agent sees never changes (steps are never added or removed), and a mismatch is a failure.
 // Without `--recipe` the recipe is the fixture `cooking-ask.input.json` (for 4, shown for 2). `--recipe` is a recipe as
-// `GET /api/recipes/:id` answers it (the body or its `recipe`), built into the input as the api does (`cookingAskInput`)
-// with the enabled appliances of the seed; `--servings` and `--step` (from 1) are then the screen's.
+// `GET /api/recipes/:id` answers it (the body or its `recipe`), built into the input as the api does
+// (`cookingAskInput`) with the enabled appliances of the seed; `--servings` and `--step` (from 1) are then the
+// screen's.
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
@@ -108,7 +110,9 @@ interface Case {
 /** Questions asked one after another, each a follow-up of the ones before; a single question is a chain of one. */
 type Chain = Case[];
 
-/** The cases of #272 and the follow-ups of #273 on the fixture recipe (tomatoes on step 3, chicken and rice on step 4). */
+/**
+ * The cases of #272 and the follow-ups of #273 on the fixture recipe (tomatoes on step 3, chicken and rice on step 4).
+ */
 const BUILT_IN: Chain[] = [
   [
     {
@@ -409,7 +413,7 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
         if (each.steps !== undefined && each.steps !== stepsBrought) {
           failed = true;
         }
-        // Steps are never added or removed: the steps the agent saw after the chain's changes, and the ones its change names.
+        // Steps are never added or removed: those the agent saw after the chain's changes and those its change names.
         const outside =
           output.change?.steps.filter(
             (entry) => entry.number < 1 || entry.number > stepCount,

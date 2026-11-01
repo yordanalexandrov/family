@@ -29,6 +29,7 @@ export * from './menu/week.js';
 export * from './schemas/appliance.js';
 export * from './schemas/budget.js';
 export * from './schemas/calendar.js';
+export * from './schemas/cooking-memory.js';
 export * from './schemas/cooking-question.js';
 export * from './schemas/dashboard.js';
 export * from './schemas/dates.js';

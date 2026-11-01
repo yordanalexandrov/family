@@ -116,11 +116,12 @@ export function cookingAskInput(
 }
 
 /**
- * How `cooking.ask` requests are stored: refused for an unknown recipe (404), a step it does not have (400), a `follows`
- * that is not a question of this recipe (404), an `applied` that is not a question of this recipe with a change (404)
- * and while a question of the chain still waits (409). The run reads the recipe, the last {@link COOKING_HISTORY_MAX}
- * answered questions of the chain and the applied changes from the database when it starts, never from the client;
- * the answer and its change are kept in the request and the recipe is never changed.
+ * How `cooking.ask` requests are stored: refused for an unknown recipe (404), a step it does not have (400), a
+ * `follows` that is not a question of this recipe (404 `no_earlier_question`), an `applied` that is not a question of
+ * this recipe with a change (404 `no_applied_change`, with those ids) and while a question of the chain still waits
+ * (409). The run reads the recipe, the last {@link COOKING_HISTORY_MAX} answered questions of the chain and the applied
+ * changes from the database when it starts, never from the client; the answer and its change are kept in the request
+ * and the recipe is never changed.
  */
 export function createCookingQuestionStore(): ContractRequestStore<
   CookingQuestionParams,

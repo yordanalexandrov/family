@@ -26,8 +26,9 @@ export type AskCookingQuestion = z.infer<typeof askCookingQuestionSchema>;
 export type AskCookingQuestionBody = z.input<typeof askCookingQuestionSchema>;
 
 /**
- * One run of `cooking.ask` for a recipe (GLOSSARY: Въпрос в Готвене): what was asked, at which step and servings, what it
- * follows, and `answer` once it is `done`, with the cooking change it brings, if any (`change`, for `servings`). `requestedBy` is `null` for a question from the kiosk, which has no acting user.
+ * One run of `cooking.ask` for a recipe (GLOSSARY: Въпрос в Готвене): what was asked, at which step and servings, what
+ * it follows, and `answer` once it is `done`, with the cooking change it brings, if any (`change`, for `servings`).
+ * `requestedBy` is `null` for a question from the kiosk, which has no acting user.
  */
 export const cookingQuestionSchema = z.object({
   id: z.uuid(),

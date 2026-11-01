@@ -2,8 +2,8 @@ import type { CONTRACT_FAILURES, ContractFailure } from '@family/shared';
 import { ApiError } from '../api/client';
 
 /**
- * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване, въпрос в Готвене): `POST` → `pending`, клиентът пита отново,
- * докато заявката не е `done`/`failed`; кодовете на `failed` са едни и същи.
+ * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване, въпрос в Готвене): `POST`
+ * → `pending`, клиентът пита отново, докато заявката не е `done`/`failed`; кодовете на `failed` са едни и същи.
  */
 
 /** Колко често се пита за заявка, която още е `pending`. */
@@ -95,9 +95,9 @@ function waited(ms: number): string {
 }
 
 /** Причината, преди действието: изречение без точка. */
-function reason(kind: AiRequestKind, request: FailedAiRequest): string {
-  const { error } = request;
-  if (error === 'timeout') {
+function reason(kind: AiRequestKind, request?: FailedAiRequest): string {
+  const error = request?.error;
+  if (request && error === 'timeout') {
     if (request.finishedAt === undefined) {
       return 'AI не отговори навреме';
     }
@@ -121,13 +121,14 @@ function reason(kind: AiRequestKind, request: FailedAiRequest): string {
 
 /**
  * Съобщение за неуспешна AI заявка от името на приложението: какво не е станало и какво може човекът, без кодове.
- * `timeout` казва колко е чакано (`createdAt` → `finishedAt`).
+ * `timeout` казва колко е чакано (`createdAt` → `finishedAt`); без заявка (напр. api вече не я знае) — общото
+ * („AI не успя да отговори. Опитай пак.“).
  */
 export function failureMessage(
   kind: AiRequestKind,
-  request: FailedAiRequest,
+  request?: FailedAiRequest,
 ): string {
-  const { error } = request;
+  const error = request?.error;
   const own =
     error === undefined || isHttpFailure(error)
       ? undefined
