@@ -1,5 +1,5 @@
 import { type CookingLine, scaleCookingLine } from '@family/shared';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { formatQuantity } from '../../lib/format';
 
 /** Продуктите на Готвене с порциите и отметките: едно и също в колоната на широк екран и в листа на тесен. */
@@ -9,6 +9,13 @@ export interface CookingProducts {
   /** Порциите на екрана; количествата са мащабирани към тях. */
   servings: number;
   onServingsChange: (servings: number) => void;
+  /** Текущата стъпка: при смяната ѝ списъкът превърта до продуктите ѝ. */
+  step: number;
+  /**
+   * Индексите в `lines` на продуктите на текущата стъпка (GLOSSARY: Продукти на стъпката), без махнатите: те се
+   * подчертават.
+   */
+  stepLines: readonly number[];
   /** Индексите на отметнатите („използвани“) редове в `lines`. */
   used: readonly number[];
   onToggleUsed: (index: number) => void;
@@ -17,6 +24,38 @@ export interface CookingProducts {
 /** Отметнат е ред, който още е там и не е махнат от промяна. */
 function isUsedLine({ lines, used }: CookingProducts, index: number): boolean {
   return used.includes(index) && lines[index]?.removed !== true;
+}
+
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+
+/**
+ * При смяна на стъпката превърта до първия неотметнат продукт на стъпката, ако не се вижда (`block: 'nearest'`);
+ * без анимация при `prefers-reduced-motion`. Отварянето на списъка не превърта.
+ */
+function useScrollToStep(
+  products: CookingProducts,
+  lineId: (index: number) => string,
+) {
+  const { step, stepLines } = products;
+  const shownStep = useRef(step);
+  // Без зависимости: върви след всяко рендериране, а превърта само когато стъпката е друга.
+  useEffect(() => {
+    if (shownStep.current === step) {
+      return;
+    }
+    shownStep.current = step;
+    // `stepLines` вече са без махнатите редове.
+    const first = stepLines.find((index) => !isUsedLine(products, index));
+    if (first === undefined) {
+      return;
+    }
+    const reduce =
+      typeof matchMedia === 'function' && matchMedia(REDUCED_MOTION).matches;
+    document.getElementById(lineId(first))?.scrollIntoView({
+      block: 'nearest',
+      behavior: reduce ? 'auto' : 'smooth',
+    });
+  });
 }
 
 /** Надписът на прибраните продукти: „Продукти (N)“, N е колко още не са отметнати (без махнатите). */
@@ -30,23 +69,36 @@ export function productsLabel(products: CookingProducts): string {
 /**
  * Продуктите на Готвене с отметки: неотметнатите в реда на рецептата, а отметнатите в група „Използвани (N)“ в
  * дъното, прибрана по подразбиране. Махането на отметката връща реда на мястото му. Ред от промяна за готвенето има
- * знак „променено“, а махнатият остава задраскан с „не се ползва“ и не се отмята.
+ * знак „променено“, а махнатият остава задраскан с „не се ползва“ и не се отмята. Продуктите на текущата стъпка са
+ * подчертани на мястото си (и в „Използвани“), с „в тази стъпка“ за екранен четец.
  */
 export function CookingChecklist({ products }: { products: CookingProducts }) {
-  const { lines: source, servings, onToggleUsed } = products;
+  const { lines: source, servings, onToggleUsed, stepLines } = products;
   const [usedOpen, setUsedOpen] = useState(false);
+  const id = useId();
+  const lineId = (index: number) => `${id}-line-${index}`;
+  const stepNoteId = (index: number) => `${id}-step-${index}`;
+  useScrollToStep(products, lineId);
   const lines = source.map((line, index) => ({
     index,
     name: line.name,
     amount: formatQuantity(scaleCookingLine(line, servings)),
     changed: line.changed === true && line.removed !== true,
     removed: line.removed === true,
+    inStep: stepLines.includes(index),
   }));
   const isUsed = (index: number) => isUsedLine(products, index);
   const renderLine = (line: (typeof lines)[number]) => (
     <li
       key={line.index}
-      className={`cooking-ingredients__line${line.removed ? ' cooking-ingredients__line--removed' : ''}`}
+      id={lineId(line.index)}
+      className={[
+        'cooking-ingredients__line',
+        line.removed && 'cooking-ingredients__line--removed',
+        line.inStep && 'cooking-ingredients__line--step',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <label className="cooking-ingredients__check">
         <input
@@ -54,10 +106,16 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
           checked={isUsed(line.index)}
           disabled={line.removed}
           aria-label={`${line.name} ${line.amount}`}
+          aria-describedby={line.inStep ? stepNoteId(line.index) : undefined}
           onChange={() => onToggleUsed(line.index)}
         />
         <span className="cooking-ingredients__name">
           {line.name}
+          {line.inStep && (
+            <span id={stepNoteId(line.index)} className="visually-hidden">
+              в тази стъпка
+            </span>
+          )}
           {line.changed && (
             <span className="cooking-ingredients__mark">променено</span>
           )}
