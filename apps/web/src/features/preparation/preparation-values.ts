@@ -112,5 +112,8 @@ export function preparationValuesLabel(item: PreparationItemValues): string {
   });
 }
 
-/** Изборът „Колко преди“: минути с надписа си; 720 е „от вечерта“. */
+/**
+ * Изборът „Колко преди“, в минути. Надписът е от `formatMinutesBefore`: всичко от `FROM_THE_EVENING_MINUTES` (8 ч) нагоре
+ * е „от вечерта“, затова изборът има само една такава стойност — 720 (12 ч), с която и AI записва „от вечерта“ без часове.
+ */
 export const MINUTES_BEFORE_CHOICES = [15, 30, 60, 120, 240, 720] as const;
