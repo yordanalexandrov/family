@@ -99,7 +99,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       onStepChange={setStep}
       onClose={() => onExit()}
       onDone={() => {
-        rememberLastCooking(recipe.id, changes.appliedIds);
+        rememberLastCooking(recipe.id, changes.applied);
         setFeedbackOpen(true);
       }}
       ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
@@ -132,7 +132,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
             question,
             step,
             servings: shownServings,
-            applied: changes.appliedIds,
+            applied: changes.applied,
           },
           replaces,
         )

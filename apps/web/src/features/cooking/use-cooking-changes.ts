@@ -31,27 +31,27 @@ export function useCookingChanges(
   recipe: Recipe,
   onLinesChanged: (indices: number[]) => void,
 ) {
-  const { applied, update } = useAppliedChanges(recipe.id);
+  const { changes: appliedChanges, update } = useAppliedChanges(recipe.id);
   const base = recipeCookingLines(recipe);
   const linesOf = (changes: readonly AppliedChange[]) =>
     applyCookingChanges(base, changes);
-  const lines = linesOf(applied);
+  const lines = linesOf(appliedChanges);
   const change = (
     next: (current: readonly AppliedChange[]) => readonly AppliedChange[],
   ) => {
-    const after = next(applied);
+    const after = next(appliedChanges);
     update(next);
     onLinesChanged(differing(lines, linesOf(after)));
   };
   return {
     lines,
-    steps: applyStepChanges(recipe.steps, applied),
-    /** id-тата на въпросите с приложени промени, по реда на прилагане. */
-    appliedIds: applied.map(({ id }) => id),
-    isApplied: (id: string) => applied.some((other) => other.id === id),
+    steps: applyStepChanges(recipe.steps, appliedChanges),
+    /** `applied` на поправка и на въпрос: id-тата на въпросите с приложени промени, по реда на прилагане. */
+    applied: appliedChanges.map(({ id }) => id),
+    isApplied: (id: string) => appliedChanges.some((other) => other.id === id),
     /** Редовете, към които сочи промяната на въпроса `id`: без нея самата, както при въпроса. */
     linesBefore: (id: string) =>
-      linesOf(applied.filter((other) => other.id !== id)),
+      linesOf(appliedChanges.filter((other) => other.id !== id)),
     apply(question: { id: string; servings: number; change: CookingChange }) {
       const { id, servings } = question;
       change((current) => [

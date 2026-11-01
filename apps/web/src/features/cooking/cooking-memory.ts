@@ -39,6 +39,7 @@ export type { AppliedChange, RememberedQuestion } from '@family/shared';
 interface StoredRecipeProgress extends CookingProgress {
   preparedFor: string;
   questions: readonly RememberedQuestion[];
+  /** Приложените промени (не само id-тата им, както `applied` на поправка); името остава заради записите по устройствата. */
   applied: readonly AppliedChange[];
   lastApplied: readonly string[];
 }
@@ -237,7 +238,7 @@ export function useAppliedChanges(recipeId: string) {
     'applied',
     LISTS.applied,
   );
-  return { applied: list, update };
+  return { changes: list, update };
 }
 
 const ingredientsOpen = storedSetting<boolean>({
