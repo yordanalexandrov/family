@@ -607,3 +607,21 @@
   justify-content: flex-end;
   gap: var(--space-3);
 }
+
+/* „По-рано (n)“: въпросите от другите стъпки, свити над разговора на тази. */
+.cooking-question__earlier {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.cooking-question__earlier > .cooking-question__list {
+  align-self: stretch;
+}
+
+.cooking-question__step {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

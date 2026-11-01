@@ -8,11 +8,17 @@ import { cookingChangeSchema } from '../food/cooking-change.js';
  */
 
 /**
- * The questions in Готвене asked from the device, in the order asked (GLOSSARY: Въпрос в Готвене): the id in api and
- * the text, so that the question shows and can be asked again when api no longer knows it (404).
+ * The questions in Готвене asked from the device, in the order asked (GLOSSARY: Въпрос в Готвене): the id in api, the
+ * text, so that the question shows and can be asked again when api no longer knows it (404), and the step it was asked
+ * on (the index from 0), since the questions are a chain per step. One remembered before the steps has none: it belongs
+ * to no step.
  */
 export const rememberedQuestionsSchema = z.array(
-  z.object({ id: z.string().min(1), question: z.string().min(1) }),
+  z.object({
+    id: z.string().min(1),
+    question: z.string().min(1),
+    step: z.int().min(0).optional(),
+  }),
 );
 
 export type RememberedQuestion = z.infer<

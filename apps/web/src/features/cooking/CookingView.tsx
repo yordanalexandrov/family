@@ -83,11 +83,13 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     />
   );
 
-  // Въпросът е за стъпката, порциите и приложените промени в момента на питането, и „Опитай пак“ също.
+  // Въпросът е за стъпката, порциите и приложените промени в момента на питането; „Опитай пак“ е за стъпката на
+  // неуспешния (`useCookingQuestions`), с порциите и промените в момента.
   const questionSheet = askOpen && (
     <CookingQuestionSheet
       recipe={recipe}
       questions={questions}
+      step={step}
       changes={changes}
       servings={shownServings}
       onAsk={(question, replaces) =>

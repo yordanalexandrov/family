@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, type RefObject, useEffect, useRef } from 'react';
 import './Sheet.css';
 import { useSheetDrag } from './sheet-drag';
 import { useSheetHistory } from './sheet-history';
@@ -19,6 +19,8 @@ interface SheetProps {
   hideClose?: boolean;
   /** Надписът на бутона в заглавието, ако не е „Готово“ (напр. „Затвори“, когато записът е отделен бутон в листа). */
   closeLabel?: string;
+  /** Получава фокуса при отваряне вместо „Готово“ (напр. полето на листа, в което се пише веднага). */
+  focusRef?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -32,13 +34,18 @@ export function Sheet({
   children,
   hideClose,
   closeLabel = 'Готово',
+  focusRef,
 }: SheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   useSheetHistory(onClose);
   useSheetDrag(panelRef, onClose);
+  // Само при отваряне: ново изобразяване на родителя (нов `onClose`) не мести фокуса.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `focusRef` е ref, чете се при отваряне
   useEffect(() => {
-    closeRef.current?.focus();
+    (focusRef?.current ?? closeRef.current)?.focus();
+  }, []);
+  useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         onClose();
