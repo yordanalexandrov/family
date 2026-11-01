@@ -47,12 +47,15 @@ interface MealRowProps {
   handle?: ReactNode;
   /** Ястието е в списъка за пазаруване (GLOSSARY: Ястие в списъка): малък 🛒 до заглавието. */
   listed?: boolean;
+  /** „Как мина?“ (GLOSSARY: Обратна връзка след готвене): само за днешно или минало ястие с рецепта. */
+  onFeedback?: () => void;
 }
 
 /**
  * Един ден от менюто: ден и дата, ястието, готвачът, порциите и „защо“; на телефона и гласовете с изхода и последният
  * ред от разговора. Заглавието е до 3 реда, а „защо“ на 1 ред (с „…“): целите са в листа на ястието. Минал ден е приглушен, без бутони за глас и без изход; празен ден е без гласове и без изход: чака ястие. Под минало ястие с неоценена рецепта
- * телефонът пита „Как беше?“: оценката е на рецептата, не на ястието, затова денят остава само за четене.
+ * телефонът пита „Как беше?“: оценката е на рецептата, не на ястието, затова денят остава само за четене. До
+ * звездите (или сам, ако ги няма) е „Как мина?“, когато екранът го дава (`onFeedback`).
  */
 export function MealRow({
   meal,
@@ -61,6 +64,7 @@ export function MealRow({
   voting,
   handle,
   listed = false,
+  onFeedback,
 }: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
   const title = mealTitle(meal);
@@ -174,14 +178,27 @@ export function MealRow({
           </span>
         </div>
       )}
-      {voting && rateRecipeId !== null && (
+      {((voting && rateRecipeId !== null) || onFeedback) && (
         <div className="meal-row__rate">
-          <span aria-hidden="true">Как беше?</span>
-          <RatingStars
-            label="Как беше?"
-            rating={null}
-            onRate={(rating) => voting.onRate(rateRecipeId, rating)}
-          />
+          {voting && rateRecipeId !== null && (
+            <span className="meal-row__stars">
+              <span aria-hidden="true">Как беше?</span>
+              <RatingStars
+                label="Как беше?"
+                rating={null}
+                onRate={(rating) => voting.onRate(rateRecipeId, rating)}
+              />
+            </span>
+          )}
+          {onFeedback && (
+            <button
+              type="button"
+              className="button button--quiet meal-row__feedback"
+              onClick={onFeedback}
+            >
+              Как мина?
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -32,7 +32,11 @@ import {
 import { refusalOf } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
-import { isPersonalDevice, useDeviceMode } from '../../app/device-mode';
+import {
+  isInteractiveDevice,
+  isPersonalDevice,
+  useDeviceMode,
+} from '../../app/device-mode';
 import { ScreenHeader } from '../../app/ScreenHeader';
 import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -43,6 +47,7 @@ import { useNow } from '../../lib/use-now';
 import { useRateRecipe } from '../recipes/queries';
 import { useShoppingWeek } from '../shopping/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
+import { MealFeedbackSheet } from './MealFeedback';
 import { MealRow, mealRowId } from './MealRow';
 import { MealSheet, type RemovedRecipe, RemovedRecipeToast } from './MealSheet';
 import {
@@ -176,6 +181,7 @@ export function MenuWeek() {
         readOnly={isPast || !canEdit}
         canDelete={!hasWeekStarted(weekStart, now)}
         voterId={canEdit ? actingUserId : null}
+        feedback={!isPast && isInteractiveDevice(mode)}
         today={dateKeyInSofia(now)}
         proposalId={search.proposal}
         onProposal={setProposal}
@@ -192,6 +198,8 @@ interface WeekProps {
   readOnly: boolean;
   canDelete: boolean;
   voterId: string | null;
+  /** „Как мина?“ на днешното и миналите ястия: тази седмица, на всяко устройство без TV (и без действащ потребител). */
+  feedback: boolean;
   today: DateKey;
   proposalId: string | undefined;
   onProposal: (id: string | undefined) => void;
@@ -207,6 +215,7 @@ function Week({
   readOnly,
   canDelete,
   voterId,
+  feedback,
   today,
   proposalId,
   onProposal,
@@ -314,6 +323,7 @@ function Week({
       readOnly={readOnly}
       canDelete={canDelete}
       voterId={voterId}
+      feedback={feedback}
       today={today}
       openMealId={openMealId}
       sheetWaits={sheetWaits}
@@ -520,6 +530,8 @@ interface PlanViewProps {
   canDelete: boolean;
   /** Действащият потребител, който гласува; `null` без гласове (kiosk). */
   voterId: string | null;
+  /** „Как мина?“ на днешното и миналите ястия: тази седмица, на всяко устройство без TV (и без действащ потребител). */
+  feedback: boolean;
   today: DateKey;
   openMealId: string | null;
   sheetWaits: boolean;
@@ -542,12 +554,15 @@ function PlanView({
   readOnly,
   canDelete,
   voterId,
+  feedback,
   today,
   openMealId,
   sheetWaits,
   onOpenMeal,
 }: PlanViewProps) {
   const [chosen, setChosen] = useState<Filter>('all');
+  // Рецептата на ястието с отворен „Как мина?“.
+  const [feedbackRecipeId, setFeedbackRecipeId] = useState<string | null>(null);
   const [pastOpen, setPastOpen] = useState(false);
   const [removed, setRemoved] = useState<RemovedRecipe | null>(null);
   const hideRemoved = useCallback(() => setRemoved(null), []);
@@ -609,6 +624,13 @@ function PlanView({
       {rows}
     </ol>
   );
+  // „Как мина?“ е за ястие, което вече е сготвено: днешно или минало, с рецепта.
+  const feedbackOf = (meal: MealPlan['meals'][number]) => {
+    const recipeId = meal.recipeId;
+    return feedback && recipeId !== null && meal.date <= today
+      ? { onFeedback: () => setFeedbackRecipeId(recipeId) }
+      : {};
+  };
   const voting = voterId
     ? {
         userId: voterId,
@@ -680,6 +702,7 @@ function PlanView({
                     voting={voting}
                     handle={handle}
                     listed={listedMealIds.has(meal.id)}
+                    {...feedbackOf(meal)}
                   />
                 )}
               </DraggableMeal>
@@ -698,6 +721,7 @@ function PlanView({
                   : { onOpen: () => onOpenMeal(meal.id) })}
                 {...(voting ? { voting } : {})}
                 listed={listedMealIds.has(meal.id)}
+                {...feedbackOf(meal)}
               />
             </li>
           )),
@@ -718,6 +742,12 @@ function PlanView({
           {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
           onRecipeRemoved={setRemoved}
           onClose={() => onOpenMeal(null)}
+        />
+      )}
+      {feedbackRecipeId !== null && (
+        <MealFeedbackSheet
+          recipeId={feedbackRecipeId}
+          onClose={() => setFeedbackRecipeId(null)}
         />
       )}
       <RemovedRecipeToast
