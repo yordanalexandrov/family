@@ -3,11 +3,11 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { COOKING_PROGRESS_KEY } from '../../lib/cooking-record';
 import { dani, server } from '../../test/msw';
 import { goOffline } from '../../test/network';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
-import { COOKING_PROGRESS_KEY } from './cooking-memory';
 
 /** Една стъпка: „Готово“ е веднага. */
 const stew: Recipe = {
