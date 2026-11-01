@@ -213,6 +213,8 @@
 
 .cooking-steps__tools {
   display: flex;
+  /* С 🔊 и „Чети стъпките“ не се събират на телефон изправен: пренасят се вдясно, вместо да излязат от картата. */
+  flex-wrap: wrap;
   justify-content: flex-end;
   /* Пренесени на втори ред (тесен екран) остават вдясно. */
   margin-inline-start: auto;
@@ -236,6 +238,27 @@
   padding: 0;
   font-size: var(--font-size-lg);
   font-weight: 600;
+}
+
+/* „Чети стъпките“: превключвател, включеният е в цвета на акцента. */
+.button.cooking-steps__read-steps {
+  /* По-тесни полета от `.button` (global.css идва след този файл), за да се събере до „⏱ Таймер“ на телефон изправен. */
+  padding-inline: var(--space-4);
+  white-space: nowrap;
+}
+
+/* Под стъпката: „⏱ Таймер“ вляво, „Чети стъпките“ вдясно. */
+.cooking-steps__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.cooking-steps__read-steps[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 .cooking-steps__count {

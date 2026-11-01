@@ -7,6 +7,7 @@ import { dani, server } from '../../test/msw';
 import { goOffline } from '../../test/network';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
+import { fakeSpeech } from '../../test/speech';
 import { COOKING_PROGRESS_KEY } from './cooking-memory';
 
 const stew: Recipe = {
@@ -1071,6 +1072,25 @@ describe('„Промени“ (промяна за готвенето)', () => 
 
       expect(timerRows()).toHaveLength(1);
       expect(timerRows()[0]).toHaveTextContent(/^Стъпка 2 · 5 мин/);
+    });
+
+    it('🔊 чете новия текст на стъпката, без знака „променено“', async () => {
+      const user = userEvent.setup();
+      const speech = fakeSpeech();
+      serveQuestions([WITH_DRAIN]);
+      await openCooking('browser');
+
+      await appliedOnStep2(user);
+      await user.click(
+        screen.getByRole('button', { name: 'Прочети стъпката' }),
+      );
+
+      expect(speech.spoken).toEqual([
+        {
+          text: 'Стъпка 2. Отцеди консервата pulp, добави я и задуши 5 минути.',
+          voice: 'bg-BG',
+        },
+      ]);
     });
 
     it('„Върни“ връща стария текст без знака, а другите стъпки не се пипат', async () => {

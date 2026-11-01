@@ -13,8 +13,10 @@ import { CookingPreparation } from './CookingPreparation';
 import { CookingQuestionSheet } from './CookingQuestionSheet';
 import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
+import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
 import { useCookingChanges } from './use-cooking-changes';
 import { useCookingQuestions } from './use-cooking-questions';
+import { useCookingReading } from './use-cooking-reading';
 import './cooking.css';
 
 interface CookingViewProps {
@@ -51,6 +53,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     finish,
   } = useCookingProgress(recipe);
   const changes = useCookingChanges(recipe, forgetUsed);
+  const reading = useCookingReading(changes.steps, step);
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
@@ -73,6 +76,8 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       onClose={() => onExit()}
       onDone={() => onExit(finish)}
       ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
+      readStep={<ReadStepButton reading={reading} />}
+      readSteps={<ReadStepsToggle reading={reading} />}
       preparation={
         <CookingPreparation
           preparation={recipe.preparation}
