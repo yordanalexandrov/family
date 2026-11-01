@@ -60,8 +60,11 @@ export interface RecipeFormProps {
   onTitleChange?: (title: string) => void;
   /** Изборът в „Уред“ се смени (`''` = „Без уред“), напр. за значката над формата при преглед. */
   onApplianceChange?: (appliance: string) => void;
-  /** Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията. */
-  stepsAction?: ReactNode;
+  /**
+   * Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията; като функция получава полетата, както
+   * са сега (напр. „✏️ Поправи с AI“ при преглед праща незаписаната форма).
+   */
+  stepsAction?: ReactNode | ((values: RecipeFormValues) => ReactNode);
   /**
    * Прието подобрение (GLOSSARY: Подобряване на рецепта) или поправка (GLOSSARY: Поправка на рецепта): заменя стъпките и
    * подготовката, попълва времето, ако го има, а поправката — и порциите и продуктите, веднъж за всеки нов `key`;
@@ -601,7 +604,9 @@ export function RecipeForm({
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Стъпки</legend>
-          {stepsAction}
+          {typeof stepsAction === 'function'
+            ? stepsAction(values)
+            : stepsAction}
           {errors.steps && <p className="field__error">{errors.steps}</p>}
           <ol className="step-lines" aria-label="Стъпки">
             {values.steps.map((step, index) => {

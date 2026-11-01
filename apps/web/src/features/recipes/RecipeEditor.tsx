@@ -149,6 +149,7 @@ export function EditRecipeScreen() {
       {revising && recipe.data && (
         <ReviseSheet
           recipe={recipe.data}
+          target={{ recipeId: id }}
           requestId={revisionId}
           onRequested={setRevisionId}
           onAccept={(accepted, revision) => {

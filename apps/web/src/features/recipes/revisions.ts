@@ -1,5 +1,8 @@
 import {
+  type Preparation,
   type RecipeRevisionRequest,
+  type RecipeStep,
+  type RevisableRecipe,
   type RevisionLine,
   recipeRevisionResponseSchema,
 } from '@family/shared';
@@ -13,22 +16,75 @@ import {
 
 const revisionKey = (id: string) => ['recipes', 'revision', id] as const;
 
+/**
+ * Какво поправя „✏️ Поправи с AI“: записана рецепта от регистъра, или предложение с рецептата от формата за преглед
+ * (тя не е записана).
+ */
+export type RevisionTarget =
+  | { recipeId: string }
+  | { suggestionId: string; recipe: RevisableRecipe };
+
+/** Ред в сравнението: продукт от регистъра или нов (несвързан), по име. */
+export interface ComparedLine {
+  ingredient?: { name: string } | undefined;
+  newProduct?: { name: string } | undefined;
+  quantity: RevisionLine['quantity'];
+  unit: RevisionLine['unit'];
+  note?: string | undefined;
+}
+
+/** Рецептата, която AI поправя, както я показва колоната „Сега“ в сравнението. */
+export interface RevisionBase {
+  servings: number;
+  prepMinutes?: number | undefined;
+  ingredients: readonly ComparedLine[];
+  steps: readonly RecipeStep[];
+  preparation: Preparation;
+}
+
+/** Рецептата от формата за преглед като колоната „Сега“; `linked` казва кои редове са свързани (`toRevisableRecipe`). */
+export function revisionBaseOf(
+  recipe: RevisableRecipe,
+  linked: readonly boolean[],
+): RevisionBase {
+  return {
+    servings: recipe.servings,
+    prepMinutes: recipe.prepMinutes ?? undefined,
+    ingredients: recipe.ingredients.map(({ name, ...line }, index) => ({
+      ...line,
+      ...(linked[index] ? { ingredient: { name } } : { newProduct: { name } }),
+    })),
+    steps: recipe.steps,
+    preparation: recipe.preparation,
+  };
+}
+
 /** „Изпрати“ в „✏️ Поправи с AI“ → `202` с `pending`; агентът работи във фона на api. */
 export function useRequestRevision() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
-      recipeId,
+      target,
       instruction,
     }: {
-      recipeId: string;
+      target: RevisionTarget;
       instruction: string;
     }) =>
-      apiFetch(`/recipes/${recipeId}/revisions`, recipeRevisionResponseSchema, {
-        method: 'POST',
-        headers: JSON_HEADERS,
-        body: JSON.stringify({ instruction }),
-      })
+      apiFetch(
+        'suggestionId' in target
+          ? `/recipe-suggestions/${target.suggestionId}/revisions`
+          : `/recipes/${target.recipeId}/revisions`,
+        recipeRevisionResponseSchema,
+        {
+          method: 'POST',
+          headers: JSON_HEADERS,
+          body: JSON.stringify(
+            'suggestionId' in target
+              ? { instruction, recipe: target.recipe }
+              : { instruction },
+          ),
+        },
+      )
         .then((body) => body.request)
         .catch((error: unknown) => {
           throw requestErrorFor(error);

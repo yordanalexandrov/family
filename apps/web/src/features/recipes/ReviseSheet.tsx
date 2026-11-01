@@ -1,9 +1,8 @@
 import {
   type Preparation,
   RECIPE_REVISION_INSTRUCTION_MAX,
-  type Recipe,
   type RecipeRevision,
-  type RevisionLine,
+  type RecipeStep,
 } from '@family/shared';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -17,6 +16,9 @@ import { useOnline } from '../../lib/use-online';
 import { formatMinutes } from './format';
 import { ComparisonColumn } from './RefineSheet';
 import {
+  type ComparedLine,
+  type RevisionBase,
+  type RevisionTarget,
   useRejectRevision,
   useRequestRevision,
   useRevision,
@@ -26,8 +28,10 @@ import {
 const COUNT_FROM = RECIPE_REVISION_INSTRUCTION_MAX - 50;
 
 interface ReviseSheetProps {
-  /** Записаната рецепта: нея поправя AI и с нея се сравнява. */
-  recipe: Recipe;
+  /** Рецептата, която AI поправя, и с която се сравнява: записаната, или формата за преглед на предложение. */
+  recipe: RevisionBase;
+  /** Къде се пуска поправката: на рецептата или на предложението, с рецептата от формата. */
+  target: RevisionTarget;
   /** Поправката, която листът чака: пусната при предишно отваряне и още нерешена. Без нея листът иска указание. */
   requestId: string | undefined;
   /** Листът пусна поправка („Изпрати“ или „Опитай пак“). */
@@ -49,7 +53,7 @@ function servingsText(servings: number, prepMinutes: number | undefined) {
 }
 
 /** „черен пипер · по вкус (нов продукт)“, „червен пипер · 1 ч.л. (сладък)“. */
-function lineText(line: RevisionLine): string {
+function lineText(line: ComparedLine): string {
   const name = line.ingredient?.name ?? line.newProduct?.name ?? '';
   const amount = formatQuantity(line);
   return [
@@ -76,8 +80,8 @@ function RevisionColumn({
   name: string;
   servings: number;
   prepMinutes: number | undefined;
-  lines: readonly RevisionLine[];
-  steps: Recipe['steps'];
+  lines: readonly ComparedLine[];
+  steps: readonly RecipeStep[];
   preparation: Preparation | undefined;
 }) {
   const lower = name.toLocaleLowerCase('bg');
@@ -107,6 +111,7 @@ function RevisionColumn({
  */
 export function ReviseSheet({
   recipe,
+  target,
   requestId,
   onRequested,
   onAccept,
@@ -122,7 +127,7 @@ export function ReviseSheet({
 
   const send = (instruction: string) =>
     start.mutate(
-      { recipeId: recipe.id, instruction },
+      { target, instruction },
       { onSuccess: (created) => onRequested(created.id) },
     );
   const current = request.data;
