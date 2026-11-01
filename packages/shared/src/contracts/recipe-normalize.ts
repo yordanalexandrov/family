@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { aisleSchema } from '../food/aisles.js';
+import { preparationSchema } from '../food/preparation.js';
 import { tagSchema } from '../food/tags.js';
 import {
   baseUnitSchema,
@@ -9,6 +10,10 @@ import {
 } from '../food/units.js';
 import { nutritionSchema } from '../schemas/recipe.js';
 import type { AiContract } from './contract.js';
+import {
+  preparationFromStrict,
+  preparationStrictSchema,
+} from './preparation.js';
 
 /**
  * AI contract `recipe.normalize` (GLOSSARY: Внасяне на рецепта): a foreign recipe (pasted text, a page the api
@@ -184,6 +189,11 @@ const normalizedRecipeFields = {
   assumptions: z.string().trim(),
   ingredients: z.array(normalizedIngredientSchema).min(1),
   steps: z.array(normalizedStepSchema).min(1),
+  /**
+   * GLOSSARY: Подготовка — what the source has done before the first step or alongside it (the oven with its first
+   * temperature, soaking, marinating…), without rewriting the steps; empty when there is nothing. Always present.
+   */
+  preparation: preparationSchema,
 };
 
 /** The one recipe of an import (GLOSSARY: Предложение за рецепта), as stored and shown for review. */
@@ -240,6 +250,7 @@ const recipeNormalizeWireSchema = z.object({
         z.object({ text: z.string(), image: z.string().nullable() }),
       ),
       nutritionPer100g: nutritionSchema.nullable(),
+      preparation: preparationStrictSchema,
     })
     .nullable(),
   noResults: z.string().nullable(),
@@ -259,17 +270,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** `recipe.nutritionPer100g: null` (how strict mode says "none") becomes absent; anything else is left for the contract. */
-function withoutNullNutrition(value: unknown): unknown {
-  if (
-    !isRecord(value) ||
-    !isRecord(value.recipe) ||
-    value.recipe.nutritionPer100g !== null
-  ) {
+/**
+ * How strict mode says "none" becomes absent: `recipe.nutritionPer100g: null`, and `rack: null` and
+ * `minutesBefore: null` of the preparation items. Anything else is left for the contract.
+ */
+function fromStrictMode(value: unknown): unknown {
+  if (!isRecord(value) || !isRecord(value.recipe)) {
     return value;
   }
-  const { nutritionPer100g: _none, ...recipe } = value.recipe;
-  return { ...value, recipe };
+  const { nutritionPer100g, preparation, ...recipe } = value.recipe;
+  return {
+    ...value,
+    recipe: {
+      ...recipe,
+      ...(nutritionPer100g === null || nutritionPer100g === undefined
+        ? {}
+        : { nutritionPer100g }),
+      ...(preparation === undefined
+        ? {}
+        : { preparation: preparationFromStrict(preparation) }),
+    },
+  };
 }
 
 /** Every `ingredientId` is one of the registry ingredients of the input. */
@@ -289,8 +310,8 @@ function checkRegistryIds(input: RecipeNormalizeInput) {
 }
 
 /**
- * `recipe.normalize`. The output for an input is {@link recipeNormalizeOutputSchema} (with `nutritionPer100g: null`
- * read as none) and every `ingredientId` from that input's registry, so a foreign id fails parsing and goes through the
+ * `recipe.normalize`. The output for an input is {@link recipeNormalizeOutputSchema} (with `nutritionPer100g: null`,
+ * `rack: null` and `minutesBefore: null` read as none) and every `ingredientId` from that input's registry, so a foreign id fails parsing and goes through the
  * same single retry.
  */
 export const recipeNormalize: AiContract<
@@ -301,7 +322,7 @@ export const recipeNormalize: AiContract<
   inputSchema: recipeNormalizeInputSchema,
   outputSchema: (input) =>
     z.preprocess(
-      withoutNullNutrition,
+      fromStrictMode,
       recipeNormalizeOutputSchema.superRefine(checkRegistryIds(input)),
     ),
   responseFormat: {

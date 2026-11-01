@@ -72,6 +72,7 @@ export const importedSuggestion: ImportedSuggestion = {
       },
     ],
     steps: [{ text: 'Овкусете пилето.' }, { text: 'Изпечете го 30 минути.' }],
+    preparation: [],
   },
 };
 

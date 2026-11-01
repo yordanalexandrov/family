@@ -6,6 +6,9 @@
     "tags": ["lunch", "dinner"],
     "assumptions": "Порциите са „4–6“ в източника: взех 4. 1 чаша ориз е около 200 г, а 2 скилидки чесън са 2 бр.",
     "nutritionPer100g": null,
+    "preparation": [
+      { "kind": "oven", "degrees": 200, "fan": "conventional", "rack": null }
+    ],
     "ingredients": [
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000001",
