@@ -171,6 +171,61 @@ describe('recipeSuggest.outputSchema', () => {
   });
 });
 
+describe('recipeSuggest.outputSchema: preparation', () => {
+  it('keeps the preparation of each suggestion in its order, reading rack: null and minutesBefore: null from strict mode as absent', () => {
+    const output = validOutput();
+    output.suggestions[0].preparation = [
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+      { kind: 'oven', degrees: 180, fan: 'fan', rack: null },
+      { kind: 'fridge', text: 'извади маслото', minutesBefore: null },
+    ];
+    output.suggestions[1].preparation = [
+      { kind: 'oven', degrees: 220, fan: 'conventional', rack: 'low' },
+    ];
+
+    const [first, second, third] = outputSchema.parse(output).suggestions;
+
+    expect(first?.preparation).toEqual([
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+      { kind: 'oven', degrees: 180, fan: 'fan' },
+      { kind: 'fridge', text: 'извади маслото' },
+    ]);
+    expect(second?.preparation).toEqual([
+      { kind: 'oven', degrees: 220, fan: 'conventional', rack: 'low' },
+    ]);
+    expect(third?.preparation).toEqual([]);
+  });
+
+  it('refuses a suggestion without the preparation field', () => {
+    const output = validOutput();
+    delete output.suggestions[1].preparation;
+
+    expect(issuePaths(output)).toEqual(['suggestions.1.preparation']);
+  });
+
+  it('refuses a second oven, degrees outside 30–300, text over 60 characters and an unknown kind', () => {
+    const output = validOutput();
+    output.suggestions[0].preparation = [
+      { kind: 'oven', degrees: 180, fan: 'fan', rack: null },
+      { kind: 'oven', degrees: 200, fan: 'fan', rack: null },
+    ];
+    output.suggestions[1].preparation = [
+      { kind: 'oven', degrees: 350, fan: 'conventional', rack: null },
+    ];
+    output.suggestions[2].preparation = [
+      { kind: 'marinate', text: 'м'.repeat(61), minutesBefore: null },
+      { kind: 'microwave', text: 'загрей', minutesBefore: null },
+    ];
+
+    expect(issuePaths(output)).toEqual([
+      'suggestions.0.preparation.1.kind',
+      'suggestions.1.preparation.0.degrees',
+      'suggestions.2.preparation.0.text',
+      'suggestions.2.preparation.1.kind',
+    ]);
+  });
+});
+
 describe('recipeSuggest.outputSchema: appliance', () => {
   it('accepts a suggestion for one of the appliances of the input, by its exact name', () => {
     const output = validOutput();
@@ -311,6 +366,7 @@ describe('recipeSuggest.responseFormat', () => {
         'tags',
         'ingredients',
         'steps',
+        'preparation',
       ]),
     );
   });

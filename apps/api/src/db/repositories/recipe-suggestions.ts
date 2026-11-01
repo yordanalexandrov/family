@@ -42,18 +42,23 @@ function decisionOf(row: SuggestionRow) {
   };
 }
 
-/** A suggestion of a suggestion request; the row must have `request_id` (read by it). */
+/**
+ * A suggestion of a suggestion request; the row must have `request_id` (read by it). A payload stored before the
+ * preparation (GLOSSARY: Подготовка, #284) has none.
+ */
 function toSuggestion(row: SuggestionRow): RecipeSuggestion {
   if (row.requestId === null) {
     throw new Error(
       `recipe_suggestion ${row.id} is not of a suggestion request`,
     );
   }
+  const payload = row.payload as Omit<SuggestionPayload, 'preparation'> &
+    Partial<Pick<SuggestionPayload, 'preparation'>>;
   return {
     ...decisionOf(row),
     origin: 'suggest',
     requestId: row.requestId,
-    payload: row.payload as SuggestionPayload,
+    payload: { ...payload, preparation: payload.preparation ?? [] },
   };
 }
 

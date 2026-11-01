@@ -143,6 +143,24 @@ function answerInTurn(...contents: string[]) {
 const VALID = () => JSON.stringify(suggestFixture());
 const NO_RESULTS = (reason: string) =>
   JSON.stringify({ suggestions: [], noResults: reason });
+/** The recorded answer with each suggestion's `preparation` as the agent writes it under strict mode. */
+function withPreparation(...preparations: unknown[][]) {
+  const fixture = suggestFixture();
+  return JSON.stringify({
+    ...fixture,
+    suggestions: fixture.suggestions.map((s, index) => ({
+      ...s,
+      preparation: preparations[index] ?? [],
+    })),
+  });
+}
+
+const BEANS_IN_THE_OVEN = [
+  { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+  { kind: 'oven', degrees: 200, fan: 'conventional', rack: null },
+  { kind: 'pan', text: 'намажи гювеча', minutesBefore: null },
+];
+
 const TOO_FEW = () =>
   JSON.stringify({
     suggestions: suggestFixture().suggestions.slice(0, 2),
@@ -249,6 +267,46 @@ describe('the recipe.suggest run', () => {
     expect(body.request.status).toBe('done');
     expect(calls.bodies).toHaveLength(1);
     expect(body.suggestions[0].payload).not.toHaveProperty('nutritionPer100g');
+  });
+
+  it('stores the preparation of each suggestion, rack and minutesBefore of null left out', async () => {
+    answerInTurn(
+      withPreparation(BEANS_IN_THE_OVEN, [
+        { kind: 'oven', degrees: 220, fan: 'fan', rack: 'high' },
+      ]),
+    );
+
+    const body = await finished(await requested({ slots: ['dinner'] }));
+
+    expect(
+      body.suggestions.map((s: RecipeSuggestion) => s.payload.preparation),
+    ).toEqual([
+      [
+        { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+        { kind: 'oven', degrees: 200, fan: 'conventional' },
+        { kind: 'pan', text: 'намажи гювеча' },
+      ],
+      [{ kind: 'oven', degrees: 220, fan: 'fan', rack: 'high' }],
+      [],
+    ]);
+  });
+
+  it('fails with invalid_output after two answers with two ovens, naming the preparation in the retry', async () => {
+    const twoOvens = withPreparation([
+      { kind: 'oven', degrees: 180, fan: 'fan', rack: null },
+      { kind: 'oven', degrees: 220, fan: 'fan', rack: null },
+    ]);
+    const calls = answerInTurn(twoOvens);
+
+    const body = await finished(await requested({ slots: ['dinner'] }));
+
+    expect(calls.bodies).toHaveLength(2);
+    expect(JSON.stringify(calls.bodies[1]?.messages)).toContain('preparation');
+    expect(body.request).toMatchObject({
+      status: 'failed',
+      error: 'invalid_output',
+    });
+    expect(body.suggestions).toEqual([]);
   });
 
   it('fails with invalid_output after two invalid answers and stores no suggestions', async () => {
@@ -381,7 +439,7 @@ async function editedInput(suggestion: RecipeSuggestion): Promise<RecipeInput> {
     prepMinutes,
     tags,
     ...(appliance === undefined ? {} : { appliance }),
-    preparation: [],
+    preparation: suggestion.payload.preparation,
     ingredients: lines,
   };
 }
@@ -608,6 +666,53 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
     expect(
       approvedSuggestionResponseSchema.parse(none.json()).recipe,
     ).not.toHaveProperty('appliance');
+  });
+
+  it('the preparation of the suggestion goes into the recipe with approval, as the review sends it', async () => {
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () =>
+        HttpResponse.json(completion(withPreparation(BEANS_IN_THE_OVEN))),
+      ),
+    );
+    const suggestion = await aSuggestion();
+    expect(suggestion.payload.preparation).toHaveLength(3);
+    // The review changes the oven to fan and drops the last item.
+    const preparation = [
+      { kind: 'soak' as const, text: 'накисни боба', minutesBefore: 720 },
+      { kind: 'oven' as const, degrees: 200, fan: 'fan' as const },
+    ];
+
+    const response = await decide(suggestion.id, 'approve', {
+      ...(await editedInput(suggestion)),
+      preparation,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe.preparation).toEqual(preparation);
+    const stored = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(stored.json().recipe.preparation).toEqual(preparation);
+  });
+
+  it('a suggestion stored before the preparation reads with none', async () => {
+    const suggestion = await aSuggestion();
+    await testDb().execute(
+      sql`update recipe_suggestion set payload = payload - 'preparation' where id = ${suggestion.id}`,
+    );
+
+    const detail = await getRequest(suggestion.requestId);
+
+    expect(detail.statusCode).toBe(200);
+    expect(
+      detail
+        .json()
+        .suggestions.find((s: RecipeSuggestion) => s.id === suggestion.id)
+        .payload.preparation,
+    ).toEqual([]);
   });
 
   it('leaves the suggestion proposed when the recipe points at an unknown ingredient', async () => {
