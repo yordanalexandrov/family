@@ -97,9 +97,7 @@ describe('ShoppingWeek', () => {
     renderApp('/shopping');
 
     expect(
-      await screen.findByText(
-        'Менюто ще добави продуктите си, когато е готово',
-      ),
+      await screen.findByText('Когато има меню, добави ястия от него'),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: '+ Добави' }),
@@ -129,7 +127,7 @@ describe('ShoppingWeek', () => {
     );
     expect(screen.queryByText('Списъкът е празен.')).not.toBeInTheDocument();
     expect(
-      screen.queryByText('Менюто ще добави продуктите си, когато е готово'),
+      screen.queryByText('Когато има меню, добави ястия от него'),
     ).not.toBeInTheDocument();
   });
 
@@ -167,7 +165,7 @@ describe('ShoppingWeek', () => {
     ]);
     expect(screen.getByText('1 от 1')).toBeInTheDocument();
     expect(
-      screen.getByText('Менюто ще добави продуктите си, когато е готово'),
+      screen.getByText('Когато има меню, добави ястия от него'),
     ).toBeInTheDocument();
   });
 
@@ -860,9 +858,7 @@ describe('ShoppingWeek', () => {
     await user.click(screen.getByRole('tab', { name: 'Следваща седмица' }));
 
     expect(
-      await screen.findByText(
-        'Менюто ще добави продуктите си, когато е готово',
-      ),
+      await screen.findByText('Когато има меню, добави ястия от него'),
     ).toBeInTheDocument();
     expect(shopping.gets).toContain(nextWeek);
   });

@@ -359,7 +359,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
           <p className="shopping__empty">
             {list.hasMenu
               ? 'Добави ястия от менюто'
-              : 'Менюто ще добави продуктите си, когато е готово'}
+              : 'Когато има меню, добави ястия от него'}
           </p>
           <Link
             to="/menu"

@@ -311,9 +311,7 @@ describe('ShoppingWeek офлайн', () => {
     net.online();
 
     expect(
-      await screen.findByText(
-        'Менюто ще добави продуктите си, когато е готово',
-      ),
+      await screen.findByText('Когато има меню, добави ястия от него'),
     ).toBeInTheDocument();
     expect(shopping.requests.map((r) => r.path)).toEqual([
       `${thisWeek}/items/${tomatoes.key}/checked`,

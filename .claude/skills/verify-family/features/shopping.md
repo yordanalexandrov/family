@@ -11,7 +11,7 @@ The week's shopping list is computed from the meals in the list: a dinner of the
 - `shopping-pantry` staples go into „🏠 Скрити от килера: N“; „Свърши <item>“ puts one back on the list with badge „свърши“; checking it clears the run-out mark.
 - `shopping-add` „+ Добави“ sheet adds a manual item (Заглавие, Количество, Единица, Щанд), marked img „добавен на ръка“; its row sheet has „Изтрий“, which asks in alertdialog „Изтриване на <item>“. After „Добави“ the list scrolls the new row into view (smooth unless `prefers-reduced-motion`) and tints it for ~2 s; meanwhile its checkbox has the description „току-що добавен“.
 - `shopping-offline` a check made offline waits in a queue. The sync icon, always at the right of „N от M за купуване“, shows it: button „Всички отметки са изпратени“ (muted, no number); unsent checks → badge with the count, name „N отметка/и чака/т връзка“ (online only after ~800 ms); offline → struck-through cloud, name „Няма връзка · …“. Tapping it shows a status „… ще се изпрати/ят сам/и.“ and, online, sends right away.
-- `shopping-empty` a week without a plan shows „Менюто ще добави продуктите си, когато е готово“ and link „Към менюто“; a plan with no meal in the list shows „Добави ястия от менюто“ and the same link; meals in the list with every row hidden shows „Списъкът е празен.“
+- `shopping-empty` a week without a plan shows „Когато има меню, добави ястия от него“ and link „Към менюто“; a plan with no meal in the list shows „Добави ястия от менюто“ and the same link; meals in the list with every row hidden shows „Списъкът е празен.“
 
 ## How to get to it (user POV)
 
@@ -32,7 +32,7 @@ Preconditions:
 - **Hide.** `tap(getByRole('button', { name: 'Още за лук' }))`, `tap` „Скрий от списъка“ → button `/Скрити \(1\)/` appears and the counter excludes it; `psql` shows `hidden = t` for that `item_key`. `tap` it, then „Покажи лук“ → back on the list.
 - **Pantry.** With „лук“ unchecked: row sheet „Още за лук“ → `tap` „Имаме го винаги“ → button `/Скрити от килера: 1/`; `tap` it, `tap` „Свърши лук“ → checkbox „лук“ is back with text „свърши“; `psql` on `pantry_item` → `staple`, `ran_out_at` set; check „лук“ → `ran_out_at` null.
 - **Offline.** `context.setOffline(true)` and dispatch `offline` on `window`; tap a checkbox → button `/Няма връзка · 1 отметка чака връзка/`; `context.setOffline(false)` + `online` event → button „Всички отметки са изпратени“ within the 15 s refresh.
-- **Empty.** Tab „Тази седмица“ without a plan → paragraph „Менюто ще добави продуктите си, когато е готово“ and `getByRole('main').getByRole('link', { name: 'Към менюто' })`. With a plan but no meal in the list → paragraph „Добави ястия от менюто“ and the same link.
+- **Empty.** Tab „Тази седмица“ without a plan → paragraph „Когато има меню, добави ястия от него“ and `getByRole('main').getByRole('link', { name: 'Към менюто' })`. With a plan but no meal in the list → paragraph „Добави ястия от менюто“ and the same link.
 
 ## Gotchas
 
