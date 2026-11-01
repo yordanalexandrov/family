@@ -5,6 +5,7 @@ import {
   type CookingLine,
   type Recipe,
   recipeCookingLines,
+  withoutCookingChange,
 } from '@family/shared';
 import { type AppliedChange, useAppliedChanges } from './cooking-memory';
 
@@ -22,7 +23,7 @@ function differing(
 /**
  * Промените за готвенето на рецептата (GLOSSARY: Промяна за готвенето), приложени на това устройство: продуктите с
  * тях (`lines`), стъпките с новия им текст (`steps`, толкова, колкото са в рецептата), прилагането („Промени“) и
- * връщането („Върни“). Последната приложена промяна по ред печели. Редът,
+ * връщането („Върни“, с по-късните промени, които зависят от нея). Последната приложена промяна по ред печели. Редът,
  * който прилагането или връщането сменя, губи отметката си (`onLinesChanged`). Рецептата, менюто и списъкът за
  * пазаруване не се пипат.
  */
@@ -58,8 +59,9 @@ export function useCookingChanges(
         { id, servings, change: question.change },
       ]);
     },
+    /** Връща промяната `id` и по-късните, които сочат ред, добавен само от нея (`withoutCookingChange`). */
     revert(id: string) {
-      change((current) => current.filter((other) => other.id !== id));
+      change((current) => withoutCookingChange(base, current, id));
     },
   };
 }

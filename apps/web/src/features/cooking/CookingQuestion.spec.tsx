@@ -754,6 +754,62 @@ describe('„Промени“ (промяна за готвенето)', () => 
     ]);
   });
 
+  it('„Върни“ на промяна връща и по-късната, която сменя реда, добавен само от нея', async () => {
+    const user = userEvent.setup();
+    serveQuestions([
+      {
+        status: 'done',
+        answer: ANSWER,
+        change: {
+          steps: [],
+          ingredients: [
+            {
+              kind: 'add',
+              ingredient: { name: 'захар', quantity: 1, unit: 'tsp' },
+            },
+          ],
+        },
+      },
+      {
+        status: 'done',
+        answer: 'Мед.',
+        change: {
+          steps: [],
+          ingredients: [
+            {
+              kind: 'replace',
+              index: 3,
+              ingredient: { name: 'мед', quantity: 1, unit: 'tbsp' },
+            },
+          ],
+        },
+      },
+    ]);
+    await openCooking('browser');
+    const sheet = await askInSheet(user);
+    await applyIn(user, sheet);
+    await askMore(user, sheet, 'а с мед?');
+    await findAnswer(sheet, 'Мед.');
+    await user.click(within(sheet).getByRole('button', { name: 'Промени' }));
+    expect(products()).toContain('медпроменено1 с.л.');
+
+    // Първото „Върни“ е на захарта.
+    const [revertSugar] = within(sheet).getAllByRole('button', {
+      name: 'Върни',
+    });
+    await user.click(revertSugar as HTMLElement);
+
+    expect(products()).toEqual([
+      'пилешко филе625 г',
+      'лук2,5 бр.',
+      'солпо вкус',
+    ]);
+    expect(within(sheet).queryByText('Приложено')).not.toBeInTheDocument();
+    expect(
+      within(sheet).getAllByRole('button', { name: 'Промени' }),
+    ).toHaveLength(2);
+  });
+
   describe('стъпки', () => {
     /** Консервата се отцежда и задушава по-кратко: нов текст на стъпка 2, заедно с продукта. */
     const DRAIN: CookingChange = {

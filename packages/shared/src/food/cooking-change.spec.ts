@@ -8,6 +8,7 @@ import {
   cookingChangeSchema,
   recipeCookingLines,
   scaleCookingLine,
+  withoutCookingChange,
 } from './cooking-change.js';
 
 /** The fixture recipe of `cooking.ask`, for 4. */
@@ -322,6 +323,50 @@ describe('applyCookingChanges', () => {
     ]);
 
     expect(lines).toEqual(LINES);
+  });
+});
+
+describe('withoutCookingChange', () => {
+  const sugar = {
+    id: 'sugar',
+    ...at(4, {
+      ingredients: [
+        {
+          kind: 'add',
+          ingredient: { name: 'захар', quantity: 1, unit: 'tsp' },
+        },
+      ],
+    }),
+  };
+  /** Asked with the sugar applied: its line (index 3) becomes honey. */
+  const honey = {
+    id: 'honey',
+    ...at(4, {
+      ingredients: [
+        {
+          kind: 'replace',
+          index: 3,
+          ingredient: { name: 'мед', quantity: 1, unit: 'tbsp' },
+        },
+      ],
+    }),
+  };
+  const pulp = { id: 'pulp', ...at(4, PULP) };
+
+  it('takes the change out and keeps the others in their order', () => {
+    expect(
+      withoutCookingChange(LINES, [pulp, sugar, honey], 'pulp').map(
+        ({ id }) => id,
+      ),
+    ).toEqual(['sugar', 'honey']);
+  });
+
+  it('takes out with it a later change for a line only it had added', () => {
+    expect(
+      withoutCookingChange(LINES, [sugar, pulp, honey], 'sugar').map(
+        ({ id }) => id,
+      ),
+    ).toEqual(['pulp']);
   });
 });
 

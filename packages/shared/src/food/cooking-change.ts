@@ -181,6 +181,36 @@ export function applyCookingChanges(
   return applied.reduce<CookingLine[]>(applyOne, [...lines]);
 }
 
+/** Whether every replaced or removed line of the change is in `lines`. */
+function fits(lines: readonly CookingLine[], { change }: AppliedCookingChange) {
+  return change.ingredients.every(
+    (entry) => entry.kind === 'add' || entry.index < lines.length,
+  );
+}
+
+/**
+ * The applied changes after „Върни“ on the change `id`: without it and without the later ones that no longer fit, e.g.
+ * one that replaced a line only it had added (asked with it applied). Those go with it, so that a change is never shown
+ * as applied with entries passed over.
+ */
+export function withoutCookingChange<
+  Applied extends AppliedCookingChange & { id: string },
+>(
+  lines: readonly CookingLine[],
+  applied: readonly Applied[],
+  id: string,
+): Applied[] {
+  const kept: Applied[] = [];
+  let current: CookingLine[] = [...lines];
+  for (const each of applied) {
+    if (each.id !== id && fits(current, each)) {
+      kept.push(each);
+      current = applyOne(current, each);
+    }
+  }
+  return kept;
+}
+
 /** A step in Готвене: the recipe's (its text and photo), `changed` when an applied change gave it new text. */
 export type CookingStep<Step extends { text: string }> = Step & {
   changed?: true;
