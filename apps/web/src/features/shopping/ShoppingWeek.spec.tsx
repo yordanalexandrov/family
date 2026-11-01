@@ -216,6 +216,33 @@ describe('ShoppingWeek', () => {
     ).toBeInTheDocument();
   });
 
+  it('щандът с лентата си остава секция със заглавие с пълното си име, и в „Купени“ (#308)', async () => {
+    const user = userEvent.setup();
+    serveShopping({ [thisWeek]: shoppingList() });
+
+    renderApp('/shopping');
+
+    const spices = await screen.findByRole('region', {
+      name: 'Подправки, сосове и бакалия',
+    });
+    expect(
+      within(spices).getByRole('heading', {
+        level: 2,
+        name: 'Подправки, сосове и бакалия',
+      }),
+    ).toBeInTheDocument();
+    const bought = await openBought(user);
+    const produce = within(bought).getByRole('region', {
+      name: 'Плод и зеленчук',
+    });
+    expect(
+      within(produce).getByRole('heading', {
+        level: 3,
+        name: 'Плод и зеленчук',
+      }),
+    ).toBeInTheDocument();
+  });
+
   it('отметка праща PUT …/checked с действащия потребител', async () => {
     const user = userEvent.setup();
     const shopping = serveShopping({ [thisWeek]: shoppingList() });

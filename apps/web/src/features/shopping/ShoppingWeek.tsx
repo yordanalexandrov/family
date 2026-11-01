@@ -15,7 +15,14 @@ import {
 } from '@family/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { queryKeys, useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
 import { ScreenHeader } from '../../app/ScreenHeader';
@@ -623,10 +630,14 @@ function AisleList({
           key={aisle}
           className="shopping__aisle"
           aria-label={AISLE_LABELS[aisle]}
+          style={aisleColor(aisle)}
         >
-          <Heading className="shopping__aisle-title">
-            {AISLE_LABELS[aisle]}
-          </Heading>
+          {/* Лентата вляво (#308): цветът на щанда и етикетът отдолу нагоре, залепен в щанда. */}
+          <div className="shopping__aisle-band">
+            <Heading className="shopping__aisle-title">
+              {AISLE_LABELS[aisle]}
+            </Heading>
+          </div>
           <ul className="shopping__items">
             {items.map((item) => (
               <ItemRow
@@ -645,6 +656,11 @@ function AisleList({
       ))}
     </div>
   );
+}
+
+/** Цветът на щанда (`--color-aisle-<щанд>` в tokens.css) за лентата му. */
+function aisleColor(aisle: Aisle): CSSProperties {
+  return { '--aisle-color': `var(--color-aisle-${aisle})` } as CSSProperties;
 }
 
 function position(keys: string[], key: string): number {

@@ -125,18 +125,56 @@
     linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
 }
 
+/* Щандът е редица (#308): тънка цветна лента вляво, редовете вдясно. Височината ѝ я дават само редовете. */
+.shopping__aisle {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+}
+
 .shopping__aisle + .shopping__aisle {
   border-block-start: 1px solid var(--color-line);
 }
 
+/* Тон и ляв ръб в цвета на щанда (`--aisle-color` от реда); фонът е плътен, за да държи контраста (tokens.spec.ts).
+   `contain: size`: дългото име не разтяга къс щанд, а лентата е висока колкото редовете. */
+.shopping__aisle-band {
+  contain: size;
+  border-inline-start: 3px solid var(--aisle-color);
+  background: color-mix(
+    in srgb,
+    var(--aisle-color) var(--aisle-band-mix),
+    var(--color-surface)
+  );
+}
+
+/* Лентата следва закръглените ъгли на общата кутия. */
+.shopping__aisle:first-child .shopping__aisle-band {
+  border-start-start-radius: calc(var(--radius-lg) - 1px);
+}
+
+.shopping__aisle:last-child .shopping__aisle-band {
+  border-end-start-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* Етикетът: малък и тънък, отдолу нагоре, залепен горе, докато щандът се превърта; при къс щанд — с многоточие. */
 .shopping__aisle-title {
-  margin: 0;
-  padding: var(--space-2) var(--space-3) 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
+  /* Физически размери и отстъпи: при `vertical-rl` логическите се завъртат с текста. */
+  position: sticky;
+  top: calc(var(--top-nav-space, 0px) + var(--space-2));
+  box-sizing: border-box;
+  max-height: 100%;
+  margin: 0 auto;
+  padding: var(--space-2) 0;
+  overflow: hidden;
+  color: var(--aisle-color);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  line-height: 1.5rem;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
 }
 
 .shopping__items {
@@ -213,7 +251,7 @@
   align-items: center;
   gap: var(--space-2);
   min-inline-size: 0;
-  padding: 0 0 0 var(--space-3);
+  padding: 0 0 0 var(--space-2);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
