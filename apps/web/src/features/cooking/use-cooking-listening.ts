@@ -1,19 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTimers } from '../timers/use-timers';
 import { type Listening, useListening } from '../voice/use-listening';
-import type { VoiceCommand } from '../voice/voice-command';
+import { commandLabel, type VoiceCommand } from '../voice/voice-command';
 import type { CookingReading } from './use-cooking-reading';
 
 /** Толкова ms разпознатата команда стои до 🎤. */
 export const HEARD_MS = 2000;
-
-/** Как се показва изпълнената команда до 🎤. */
-const HEARD_LABELS: Record<VoiceCommand, string> = {
-  next: 'Напред',
-  previous: 'Назад',
-  read: 'Прочети',
-  stop: 'Спри',
-};
 
 /** Слушането в Готвене (`useCookingListening`). */
 export interface CookingListening extends Listening {
@@ -31,7 +23,7 @@ interface CookingListeningOptions {
 /**
  * Слушане и гласови команди (GLOSSARY) в Готвене: „напред“ и „назад“ сменят стъпката (на последната „напред“ не прави
  * нищо, „Готово“ е само с докосване), „прочети“ чете стъпката, а „спри“ спира четенето и заглушава звънящите таймери.
- * Докато устройството чете, се приема само „спри“. Слушането е на пауза, докато текстово поле е на фокус (въпросът в
+ * Докато устройството чете, се приема само „спри“. До 🎤 за кратко стои само команда, която е направила нещо. Слушането е на пауза, докато текстово поле е на фокус (въпросът в
  * Готвене се пише или диктува с клавиатурата).
  */
 export function useCookingListening({
@@ -44,28 +36,36 @@ export function useCookingListening({
   const [heard, setHeard] = useState<{ label: string } | null>(null);
   const typing = useTextFieldFocus();
 
+  const goTo = (next: number) => {
+    if (next < 0 || next >= stepCount) {
+      return false;
+    }
+    onStepChange(next);
+    return true;
+  };
+  // Какво прави всяка команда; `false` — нямаше какво (последна стъпка, нищо не чете и не звъни) и надпис няма.
+  const actions: Record<VoiceCommand, () => boolean> = {
+    next: () => goTo(step + 1),
+    previous: () => goTo(step - 1),
+    read: () => {
+      reading.readStep();
+      return true;
+    },
+    stop: () => {
+      const reads = reading.speaking;
+      reading.stop();
+      return silence() || reads;
+    },
+  };
+
   const listening = useListening((command) => {
-    if (reading.voice.speaking && command !== 'stop') {
+    if (reading.speaking && command !== 'stop') {
       return;
     }
-    if (command === 'next') {
-      if (step >= stepCount - 1) {
-        return;
-      }
-      onStepChange(step + 1);
-    } else if (command === 'previous') {
-      if (step <= 0) {
-        return;
-      }
-      onStepChange(step - 1);
-    } else if (command === 'read') {
-      reading.readStep();
-    } else {
-      reading.voice.stop();
-      silence();
+    if (actions[command]()) {
+      // Нов обект всеки път: същата команда два пъти подред пак държи надписа `HEARD_MS` от последната.
+      setHeard({ label: commandLabel(command) });
     }
-    // Нов обект всеки път: същата команда два пъти подред пак държи надписа `HEARD_MS` от последната.
-    setHeard({ label: HEARD_LABELS[command] });
   }, typing);
 
   useEffect(() => {
@@ -88,14 +88,15 @@ function isTextField(element: Element | null): boolean {
     return true;
   }
   if (element instanceof HTMLInputElement) {
-    return ['text', 'search', ''].includes(element.type);
+    return element.type === 'text' || element.type === 'search';
   }
   return element instanceof HTMLElement && element.isContentEditable;
 }
 
 /**
- * Текстово поле е на фокус. Полето, махнато заедно с листа, не пуска `focusout`, затова фокусираното поле се следи и
- * за махане от страницата.
+ * Текстово поле е на фокус. Смяната на таба или приложението пуска `focusout` без `relatedTarget`, но полето остава
+ * `document.activeElement` и пак е на фокус. Полето, махнато заедно с листа, не пуска `focusout`: следят се само
+ * преките деца на предците му (не цялата страница), защото махането е промяна в едно от тях.
  */
 function useTextFieldFocus(): boolean {
   const [field, setField] = useState<Element | null>(() =>
@@ -109,6 +110,9 @@ function useTextFieldFocus(): boolean {
     // `focusout` идва преди фокусът да се смести: новият е `relatedTarget`.
     const onFocusOut = (event: FocusEvent) => {
       const next = event.relatedTarget as Element | null;
+      if (next === null && document.activeElement === event.target) {
+        return;
+      }
       setField(isTextField(next) ? next : null);
     };
     document.addEventListener('focusin', onFocusIn);
@@ -127,7 +131,9 @@ function useTextFieldFocus(): boolean {
         setField(null);
       }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    for (let node = field.parentNode; node; node = node.parentNode) {
+      observer.observe(node, { childList: true });
+    }
     return () => observer.disconnect();
   }, [field]);
   return field !== null;

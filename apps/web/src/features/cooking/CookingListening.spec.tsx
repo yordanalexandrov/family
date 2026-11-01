@@ -1,5 +1,5 @@
 import type { Recipe } from '@family/shared';
-import { act, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
@@ -227,6 +227,44 @@ describe('Слушане в Готвене', () => {
     expect(listeningNote()).toHaveTextContent('');
   });
 
+  it('друга грешка спира слушането с „Слушането спря“', async () => {
+    const user = userEvent.setup();
+    const recognition = fakeRecognition();
+    await openCooking();
+    await user.click(micButton());
+
+    recognition.fail('language-not-supported');
+
+    expect(recognition.listening()).toBe(false);
+    expect(micButton()).toHaveAttribute('aria-pressed', 'false');
+    expect(listeningNote()).toHaveTextContent('Слушането спря');
+  });
+
+  it('ако браузърът не пусне слушането отново след `end`, пише „Слушането спря“', async () => {
+    const user = userEvent.setup();
+    const recognition = fakeRecognition();
+    await openCooking();
+    await user.click(micButton());
+
+    recognition.refuseStart();
+    recognition.end();
+
+    expect(micButton()).toHaveAttribute('aria-pressed', 'false');
+    expect(listeningNote()).toHaveTextContent('Слушането спря');
+  });
+
+  it('„спри“ без четене и без звънящ таймер не показва нищо', async () => {
+    const user = userEvent.setup();
+    fakeSpeech();
+    const recognition = fakeRecognition();
+    await openCooking();
+    await user.click(micButton());
+
+    recognition.say('спри');
+
+    expect(listeningNote()).toHaveTextContent('');
+  });
+
   it('спира при „Затвори“ и не се помни при следващото влизане', async () => {
     const user = userEvent.setup();
     const recognition = fakeRecognition();
@@ -272,5 +310,22 @@ describe('Слушане в Готвене', () => {
     ).not.toBeInTheDocument();
     expect(recognition.listening()).toBe(true);
     expect(micButton()).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('полето за въпрос остава на фокус при смяна на прозореца: слушането не продължава', async () => {
+    const user = userEvent.setup();
+    const recognition = fakeRecognition();
+    await openCooking();
+    await user.click(micButton());
+    await user.click(screen.getByRole('button', { name: 'Питай' }));
+    const field = await screen.findByRole('textbox', {
+      name: 'Твоят въпрос за стъпка 1',
+    });
+
+    // Друг таб или приложение: `focusout` без `relatedTarget`, а полето остава `document.activeElement`.
+    fireEvent.focusOut(field, { relatedTarget: null });
+
+    expect(field).toHaveFocus();
+    expect(recognition.listening()).toBe(false);
   });
 });

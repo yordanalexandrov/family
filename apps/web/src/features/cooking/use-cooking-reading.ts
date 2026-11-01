@@ -1,14 +1,20 @@
 import type { CookingStep, RecipeStep } from '@family/shared';
 import { useEffect, useRef } from 'react';
-import { type ReadAloud, useReadAloud } from '../voice/use-read-aloud';
+import { useReadAloud } from '../voice/use-read-aloud';
 import { useReadSteps } from './cooking-memory';
 
 /** Четенето на глас в Готвене (`useCookingReading`). */
 export interface CookingReading {
-  /** Четенето на целия екран: `read` за друг текст (отговора на въпрос), `stop` и `speaking` за гласовите команди. */
-  voice: ReadAloud;
+  /** Има български глас: без него 🔊 и „Чети стъпките“ не се показват. */
+  available: boolean;
+  /** Устройството чете (стъпка или отговор): гласовите команди приемат само „спри“. */
+  speaking: boolean;
   /** Чете текущата стъпка: „Стъпка 3. <показания текст>“. */
   readStep: () => void;
+  /** Чете отговора на въпрос в Готвене (🔊 до него или сам при „Чети стъпките“). */
+  readAnswer: (answer: string) => void;
+  /** Спира четенето; без четене не прави нищо. */
+  stop: () => void;
   /** „Чети стъпките“: новата стъпка (и новият отговор) се чете сама. */
   readSteps: boolean;
   setReadSteps: (on: boolean) => void;
@@ -23,10 +29,9 @@ export function useCookingReading(
   steps: readonly CookingStep<RecipeStep>[],
   step: number,
 ): CookingReading {
-  const voice = useReadAloud();
+  const { available, speaking, read, stop } = useReadAloud();
   const [readSteps, setReadSteps] = useReadSteps();
   const text = steps[step]?.text;
-  const { read, stop } = voice;
   const readStep = () => {
     if (text !== undefined) {
       read(stepSpeech(step, text));
@@ -47,7 +52,15 @@ export function useCookingReading(
     }
   }, [step, text, readSteps, read, stop]);
 
-  return { voice, readStep, readSteps, setReadSteps };
+  return {
+    available,
+    speaking,
+    readStep,
+    readAnswer: read,
+    stop,
+    readSteps,
+    setReadSteps,
+  };
 }
 
 function stepSpeech(step: number, text: string): string {

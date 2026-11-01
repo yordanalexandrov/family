@@ -170,12 +170,12 @@ function QuestionItem({
   retrying,
   changes,
   servings,
-  voice,
+  reading,
 }: {
   recipe: Pick<Recipe, 'id' | 'title'>;
   changes: CookingChanges;
   servings: number;
-  voice: CookingReading['voice'];
+  reading: CookingReading;
   /** Текстът на въпроса, както е запомнен на устройството. */
   asked: string;
   question: CookingQuestion | undefined;
@@ -219,12 +219,12 @@ function QuestionItem({
                 }}
               />
             </p>
-            {voice.available && (
+            {reading.available && (
               <button
                 type="button"
                 className="button button--quiet cooking-question__read"
                 aria-label="Прочети отговора"
-                onClick={() => voice.read(question.answer ?? '')}
+                onClick={() => reading.readAnswer(question.answer ?? '')}
               >
                 🔊
               </button>
@@ -251,7 +251,7 @@ function QuestionItem({
  */
 function useReadNewAnswers(
   questions: readonly (CookingQuestion | undefined)[],
-  { readSteps, voice }: CookingReading,
+  { readSteps, readAnswer }: CookingReading,
 ) {
   const seen = useRef(new Map<string, CookingQuestion['status']>());
   const states = questions
@@ -261,7 +261,6 @@ function useReadNewAnswers(
     .join(' ');
   const latest = useRef(questions);
   latest.current = questions;
-  const { read } = voice;
   // biome-ignore lint/correctness/useExhaustiveDependencies: `states` е отпечатъкът на `latest.current`
   useEffect(() => {
     let answer: string | undefined;
@@ -280,9 +279,9 @@ function useReadNewAnswers(
       }
     }
     if (readSteps && answer !== undefined) {
-      read(answer);
+      readAnswer(answer);
     }
-  }, [states, readSteps, read]);
+  }, [states, readSteps, readAnswer]);
 }
 
 /**
@@ -361,7 +360,7 @@ export function CookingQuestionSheet({
         retrying={id === replacing}
         changes={changes}
         servings={servings}
-        voice={reading.voice}
+        reading={reading}
         onRetry={() => onAsk(question, id)}
       />
     </li>

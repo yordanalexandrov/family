@@ -2,7 +2,7 @@ import type { CookingReading } from './use-cooking-reading';
 
 /** 🔊 до A−/A+ в Готвене: чете текущата стъпка. Без български глас го няма. */
 export function ReadStepButton({ reading }: { reading: CookingReading }) {
-  if (!reading.voice.available) {
+  if (!reading.available) {
     return null;
   }
   return (
@@ -22,7 +22,7 @@ export function ReadStepButton({ reading }: { reading: CookingReading }) {
  * Без български глас го няма.
  */
 export function ReadStepsToggle({ reading }: { reading: CookingReading }) {
-  if (!reading.voice.available) {
+  if (!reading.available) {
     return null;
   }
   return (

@@ -10,13 +10,19 @@ export interface Listening {
   on: boolean;
   /** Слуша сега: включено и не на пауза. */
   listening: boolean;
-  /** Защо слушането спря само: „Няма достъп до микрофона“, „Слушането иска мрежа“; изчезва при следващото докосване. */
+  /**
+   * Защо слушането спря само: „Няма достъп до микрофона“, „Слушането иска мрежа“, иначе „Слушането спря“; изчезва при
+   * следващото докосване.
+   */
   error: string | null;
   /** Докосването на 🎤: пуска или спира слушането. */
   toggle: () => void;
 }
 
-/** Грешките на `SpeechRecognition`, които спират слушането, с текста за човека. */
+/** Слушането спря по друга причина (непозната грешка, браузърът не го пусна отново): 🎤 не е изключено без обяснение. */
+const STOPPED = 'Слушането спря';
+
+/** Грешките на `SpeechRecognition` с текст за човека; другите спират със `STOPPED`. */
 const ERRORS = new Map([
   ['not-allowed', 'Няма достъп до микрофона'],
   ['service-not-allowed', 'Няма достъп до микрофона'],
@@ -83,7 +89,7 @@ export function useListening(
     recognition.continuous = true;
     recognition.interimResults = false;
     let stopped = false;
-    const stop = (message: string | null) => {
+    const stop = (message: string) => {
       stopped = true;
       setError(message);
       setOn(false);
@@ -93,7 +99,7 @@ export function useListening(
         recognition.start();
       } catch (cause) {
         logger.warn('Слушането не тръгна', cause);
-        stop(null);
+        stop(STOPPED);
       }
     };
     recognition.onresult = (event) => {
@@ -119,7 +125,7 @@ export function useListening(
       if (!message) {
         logger.warn('Слушането спря', event.error);
       }
-      stop(message ?? null);
+      stop(message ?? STOPPED);
     };
     recognition.onend = () => {
       if (!stopped) {

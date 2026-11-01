@@ -61,8 +61,8 @@ export interface TimerStore {
   restart(id: string): void;
   /** „Отмени“: маха таймера. */
   cancel(id: string): void;
-  /** Заглушава изтеклите досега таймери (`silenced`); не прави нищо, ако няма незаглушен изтекъл. */
-  silence(): void;
+  /** Заглушава изтеклите досега таймери (`silenced`); `false`, ако нямаше незаглушен изтекъл. */
+  silence(): boolean;
   subscribe(listener: () => void): () => void;
 }
 
@@ -220,13 +220,15 @@ export function createTimerStore(): TimerStore {
     silence() {
       const at = Date.now();
       const loud = (timer: Timer) => isExpired(timer, at) && !timer.silenced;
-      if (timers.some(loud)) {
-        set(
-          timers.map((timer) =>
-            loud(timer) ? { ...timer, silenced: true } : timer,
-          ),
-        );
+      if (!timers.some(loud)) {
+        return false;
       }
+      set(
+        timers.map((timer) =>
+          loud(timer) ? { ...timer, silenced: true } : timer,
+        ),
+      );
+      return true;
     },
     subscribe(listener) {
       if (listeners.size === 0) {

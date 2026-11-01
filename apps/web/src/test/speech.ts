@@ -134,6 +134,7 @@ type FakeResult = { transcript: string; confidence: number }[] & {
 export function fakeRecognition({ prefixed = false } = {}) {
   const instances: FakeRecognition[] = [];
   let starts = 0;
+  let refusing = false;
 
   class FakeRecognition extends EventTarget {
     lang = '';
@@ -160,6 +161,9 @@ export function fakeRecognition({ prefixed = false } = {}) {
     }
 
     start() {
+      if (refusing) {
+        throw new DOMException('recognition refused', 'InvalidStateError');
+      }
       if (this.running) {
         throw new DOMException(
           'recognition has already started',
@@ -232,6 +236,10 @@ export function fakeRecognition({ prefixed = false } = {}) {
           results: instance.results,
         });
       });
+    },
+    /** From now on `start()` throws, as when the browser refuses to restart. */
+    refuseStart() {
+      refusing = true;
     },
     /** The session ends by itself (silence, Chrome's limit). */
     end() {
