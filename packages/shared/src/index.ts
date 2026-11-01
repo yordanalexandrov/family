@@ -1,4 +1,5 @@
 export * from './contracts/contract.js';
+export * from './contracts/cooking-ask.js';
 export * from './contracts/failure.js';
 export * from './contracts/hint.js';
 export * from './contracts/meal-replace.js';
@@ -27,6 +28,7 @@ export * from './menu/week.js';
 export * from './schemas/appliance.js';
 export * from './schemas/budget.js';
 export * from './schemas/calendar.js';
+export * from './schemas/cooking-question.js';
 export * from './schemas/dashboard.js';
 export * from './schemas/dates.js';
 export * from './schemas/error.js';

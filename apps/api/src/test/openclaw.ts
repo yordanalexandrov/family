@@ -21,7 +21,9 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   mealAgent: 'family-meal',
   importAgent: 'family-import',
   refineAgent: 'family-refine',
+  cookAgent: 'family-cook',
   timeoutMs: 2_000,
+  cookTimeoutMs: 2_000,
 };
 
 export const CHAT_COMPLETIONS_URL = `${TEST_OPENCLAW.url}/v1/chat/completions`;

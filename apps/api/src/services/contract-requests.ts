@@ -118,7 +118,10 @@ export interface ContractRequestHandle<
 }
 
 export interface ContractRequests {
-  /** `agent` answers `contract` (`OPENCLAW_RECIPE_AGENT`, `OPENCLAW_MENU_AGENT`: configuration, ADR-0004). */
+  /**
+   * `agent` answers `contract` (`OPENCLAW_RECIPE_AGENT`, `OPENCLAW_MENU_AGENT`: configuration, ADR-0004); `timeoutMs`
+   * is the contract's own time limit, the client's (`OPENCLAW_TIMEOUT_MS`) without it.
+   */
   register<
     P,
     R extends StoredContractRequest,
@@ -131,6 +134,7 @@ export interface ContractRequests {
     contract: AiContract<I, O>,
     store: ContractRequestStore<P, R, I, O, A, D, C>,
     agent: string,
+    options?: { timeoutMs?: number },
   ): ContractRequestHandle<P, R, A>;
   /**
    * At start: `pending` requests of every registered contract older than 10 minutes were cut off by a restart and
@@ -172,6 +176,7 @@ export function createContractRequests({
       contract: AiContract<I, O>,
       store: ContractRequestStore<P, R, I, O, A, D, C>,
       agent: string,
+      { timeoutMs }: { timeoutMs?: number } = {},
     ): ContractRequestHandle<P, R, A> {
       registered.push({ id: contract.id, table: store.table });
 
@@ -204,6 +209,7 @@ export function createContractRequests({
           const output = await gateway.complete(contract, input, {
             agent,
             signal: shutdown.signal,
+            ...(timeoutMs === undefined ? {} : { timeoutMs }),
             ...(images.length > 0 ? { images } : {}),
           });
           const noResults = store.noResults?.(output) ?? null;

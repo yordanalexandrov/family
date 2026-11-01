@@ -1,5 +1,5 @@
 import type { User } from '@family/shared';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import { z } from 'zod';
 import { HttpError } from './error-handler.js';
@@ -12,8 +12,11 @@ declare module 'fastify' {
   }
 
   interface FastifyContextConfig {
-    /** `false`: the route works before a user is picked on the device (e.g. `GET /api/users`). */
-    actingUser?: boolean;
+    /**
+     * `false`: the route works before a user is picked on the device (e.g. `GET /api/users`). `'optional'`: it works
+     * without one too (the kiosk), but a header that is sent is checked and becomes `request.actor` ({@link actorOf}).
+     */
+    actingUser?: boolean | 'optional';
   }
 }
 
@@ -33,6 +36,9 @@ const actingUser: FastifyPluginAsync = async (app) => {
 
     const header = request.headers['x-acting-user'];
     if (header === undefined || header === '') {
+      if (request.routeOptions.config.actingUser === 'optional') {
+        return;
+      }
       throw new HttpError(
         400,
         'missing_acting_user',
@@ -50,5 +56,11 @@ const actingUser: FastifyPluginAsync = async (app) => {
     request.actor = actor;
   });
 };
+
+/** The acting user of a route with `actingUser: 'optional'`; `undefined` when the device has none (the kiosk). */
+export function actorOf(request: FastifyRequest): User | undefined {
+  // Not set by the hook when no header was sent.
+  return (request.actor as User | undefined) ?? undefined;
+}
 
 export default fp(actingUser, { name: 'acting-user' });

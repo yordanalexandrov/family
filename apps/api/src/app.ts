@@ -1,4 +1,5 @@
 import {
+  cookingAsk,
   mealReplace,
   menuPropose,
   recipeNormalize,
@@ -27,6 +28,7 @@ import errorHandler from './plugins/error-handler.js';
 import scheduler, { type SchedulerOptions } from './plugins/scheduler.js';
 import { appliancesRoutes } from './routes/appliances.js';
 import { calendarEventsRoutes } from './routes/calendar-events.js';
+import { cookingQuestionsRoutes } from './routes/cooking-questions.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { eventsRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
@@ -47,6 +49,10 @@ import { usersRoutes } from './routes/users.js';
 import { createBudgetSync } from './services/budget-sync.js';
 import { createCalendarSync } from './services/calendar-sync.js';
 import { createContractRequests } from './services/contract-requests.js';
+import {
+  type CookingQuestions,
+  createCookingQuestionStore,
+} from './services/cooking-questions.js';
 import { createEventBus, type EventBus } from './services/events.js';
 import {
   createMealReplaceStore,
@@ -102,6 +108,8 @@ declare module 'fastify' {
     recipeImports: RecipeImportsService;
     /** „Подобри рецептата“ for a recipe (`recipe.refine`). */
     recipeRefinements: RecipeRefinements;
+    /** „Питай“ in Готвене (`cooking.ask`). */
+    cookingQuestions: CookingQuestions;
     /** The weekly menu and its proposals (`menu.propose`). */
     menu: MenuService;
     /** The cron's proposal of next week's menu; `null` without OpenClaw. */
@@ -248,6 +256,8 @@ export function buildApp({
     mealAgent: '',
     importAgent: '',
     refineAgent: '',
+    cookAgent: '',
+    cookTimeoutMs: 0,
   };
   app.decorate(
     'recipeSuggestions',
@@ -303,6 +313,15 @@ export function buildApp({
       agents.refineAgent,
     ),
   );
+  app.decorate(
+    'cookingQuestions',
+    contractRequests.register(
+      cookingAsk,
+      createCookingQuestionStore(),
+      agents.cookAgent,
+      { timeoutMs: agents.cookTimeoutMs },
+    ),
+  );
   app.addHook('onClose', async () => {
     await contractRequests.close();
     await closeDb(db);
@@ -328,6 +347,7 @@ export function buildApp({
   app.register(recipeSuggestionsRoutes);
   app.register(recipeImportsRoutes);
   app.register(recipeRefinementsRoutes);
+  app.register(cookingQuestionsRoutes);
   app.register(stepPhotosRoutes);
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);

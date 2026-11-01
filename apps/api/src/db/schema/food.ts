@@ -250,3 +250,31 @@ export const recipeRefineRequest = pgTable(
     ),
   ],
 );
+
+/**
+ * GLOSSARY: Въпрос в Готвене. One run of `cooking.ask` for a recipe: the question, the step (index from 0) and the
+ * servings it was asked at, and `answer` once it is `done`. The kiosk has no acting user, so `requested_by` may be
+ * `null`. The recipe itself is never changed by it.
+ */
+export const cookingQuestionRequest = pgTable(
+  'cooking_question_request',
+  {
+    ...contractRequestColumns(),
+    // The kiosk asks without an acting user.
+    requestedBy: uuid('requested_by').references(() => user.id),
+    recipeId: uuid('recipe_id')
+      .notNull()
+      .references(() => recipe.id, { onDelete: 'cascade' }),
+    question: text('question').notNull(),
+    step: integer('step').notNull(),
+    servings: integer('servings').notNull(),
+    answer: text('answer'),
+  },
+  (t) => [
+    index('cooking_question_request_recipe_idx').on(t.recipeId),
+    check(
+      'cooking_question_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+  ],
+);
