@@ -75,6 +75,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   // Въпросът е за стъпката и порциите в момента на питането, и „Опитай пак“ също.
   const questionSheet = askOpen && (
     <CookingQuestionSheet
+      recipe={recipe}
       questions={questions}
       onAsk={(question, replaces) =>
         questions.ask({ question, step, servings: shownServings }, replaces)

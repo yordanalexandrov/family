@@ -43,7 +43,6 @@ function pendingQuestion(body: Posted['body']): CookingQuestion {
   };
 }
 
-
 /**
  * The recipe and its questions: each `POST` stores a pending question, and its `GET` answers with `finished[n]` (for the
  * n-th question asked) once it has been read `pendingPolls` times. Returns the posted bodies.
@@ -128,7 +127,22 @@ async function askMore(
 function listed(sheet: HTMLElement): string[] {
   return within(within(sheet).getByRole('list', { name: 'Въпроси' }))
     .getAllByRole('listitem')
-    .map((item) => item.textContent ?? '');
+    .map((item) => (item.textContent ?? '').replaceAll('⏱', ''));
+}
+
+/** The answer's paragraph in the sheet, once it has come: its text can be split by timer buttons („⏱ 10 мин“). */
+function findAnswer(sheet: HTMLElement, answer: string) {
+  return within(sheet).findByText(
+    (_, element) =>
+      element?.tagName === 'P' &&
+      element.textContent?.replaceAll('⏱', '') === answer,
+  );
+}
+
+function timerRows() {
+  return within(screen.getByRole('region', { name: 'Таймери' })).getAllByRole(
+    'listitem',
+  );
 }
 
 afterEach(() => {
@@ -150,7 +164,7 @@ describe('Въпрос в Готвене', () => {
 
       const sheet = await askInSheet(user);
 
-      expect(await within(sheet).findByText(ANSWER)).toBeInTheDocument();
+      expect(await findAnswer(sheet, ANSWER)).toBeInTheDocument();
       expect(within(sheet).getByText(QUESTION)).toBeInTheDocument();
       expect(posted).toEqual([
         {
@@ -186,7 +200,7 @@ describe('Въпрос в Готвене', () => {
     await user.click(screen.getByRole('button', { name: 'Питай' }));
     const reopened = await screen.findByRole('dialog', { name: 'Въпрос' });
     expect(within(reopened).getByText(QUESTION)).toBeInTheDocument();
-    expect(await within(reopened).findByText(ANSWER)).toBeInTheDocument();
+    expect(await findAnswer(reopened, ANSWER)).toBeInTheDocument();
   });
 
   it('при неуспех показва съобщението за кода, а „Опитай пак“ праща същия въпрос отново', async () => {
@@ -206,7 +220,7 @@ describe('Въпрос в Готвене', () => {
     ).toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Опитай пак' }));
 
-    expect(await within(sheet).findByText(ANSWER)).toBeInTheDocument();
+    expect(await findAnswer(sheet, ANSWER)).toBeInTheDocument();
     expect(posted.map(({ body }) => body.question)).toEqual([
       QUESTION,
       QUESTION,
@@ -243,11 +257,11 @@ describe('Въпрос в Готвене', () => {
     await openCooking();
 
     const sheet = await askInSheet(user);
-    await within(sheet).findByText(ANSWER);
+    await findAnswer(sheet, ANSWER);
     await askMore(user, sheet, FOLLOW_UP);
-    await within(sheet).findByText('10–12 минути на слаб огън.');
+    await findAnswer(sheet, '10–12 минути на слаб огън.');
     await askMore(user, sheet, LATER);
-    await within(sheet).findByText('Добави 2–3 с.л. вода.');
+    await findAnswer(sheet, 'Добави 2–3 с.л. вода.');
 
     expect(listed(sheet)).toEqual([
       `${QUESTION}${ANSWER}`,
@@ -274,7 +288,7 @@ describe('Въпрос в Готвене', () => {
     expect(within(sheet).getByLabelText('Твоят въпрос')).toBeDisabled();
 
     await vi.advanceTimersByTimeAsync(3_000);
-    await within(sheet).findByText(ANSWER);
+    await findAnswer(sheet, ANSWER);
     expect(within(sheet).getByLabelText('Твоят въпрос')).toBeEnabled();
   });
 
@@ -288,17 +302,65 @@ describe('Въпрос в Готвене', () => {
     await openCooking();
 
     const sheet = await askInSheet(user);
-    await within(sheet).findByText(ANSWER);
+    await findAnswer(sheet, ANSWER);
     await askMore(user, sheet, 'а колко дълго?');
     await user.click(
       await within(sheet).findByRole('button', { name: 'Опитай пак' }),
     );
-    await within(sheet).findByText('10 минути.');
+    await findAnswer(sheet, '10 минути.');
 
     expect(posted.map(({ body }) => body.follows)).toEqual([
       undefined,
       posted[0]?.id,
       posted[0]?.id,
     ]);
+  });
+
+  describe('времената в отговора', () => {
+    async function answered(answer: string) {
+      const user = userEvent.setup();
+      serveQuestions([{ status: 'done', answer }]);
+      await openCooking();
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+      const sheet = await askInSheet(user);
+      return { user, sheet, answer: await findAnswer(sheet, answer) };
+    }
+
+    it('време в отговора е бутон, който пуска таймер „Въпрос · …“', async () => {
+      const { user, sheet, answer } = await answered(
+        'Да, задуши 10 мин под капак.',
+      );
+
+      expect(answer).toHaveTextContent('Да, задуши ⏱10 мин под капак.');
+      await user.click(
+        within(answer).getByRole('button', { name: 'Таймер 10 мин' }),
+      );
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+      expect(timerRows()).toHaveLength(1);
+      expect(timerRows()[0]).toHaveTextContent(/^Въпрос · 10 мин/);
+      expect(timerRows()[0]).toHaveTextContent('10:00');
+    });
+
+    it('интервал („10–15 мин“) пуска таймер до долната граница, както в стъпка', async () => {
+      const { user, sheet, answer } = await answered(
+        'Задуши 10–15 мин, докато омекне.',
+      );
+
+      await user.click(
+        within(answer).getByRole('button', { name: 'Таймер 10–15 мин' }),
+      );
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+      expect(timerRows()[0]).toHaveTextContent(/^Въпрос · 10–15 мин/);
+      expect(timerRows()[0]).toHaveTextContent('10:00');
+    });
+
+    it('отговор без време е само текст', async () => {
+      const { answer } = await answered('Да, консервата става.');
+
+      expect(answer).toHaveTextContent('Да, консервата става.');
+      expect(within(answer).queryByRole('button')).toBeNull();
+    });
   });
 });

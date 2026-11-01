@@ -15,6 +15,7 @@ export const storedTimersSchema = z.array(
     durationMs: z.number(),
     maxDurationMs: z.number().optional(),
     manual: z.literal(true).optional(),
+    question: z.literal(true).optional(),
     endsAt: z.number(),
     pausedAt: z.number().optional(),
   }),

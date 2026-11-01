@@ -22,15 +22,18 @@ export function useCookingQuestions(recipeId: string) {
       setReplacing(replaces);
       const at = replaces === undefined ? -1 : ids.indexOf(replaces);
       const follows = at === -1 ? ids.at(-1) : ids[at - 1];
-      start.mutate({ ...asked, ...(follows ? { follows } : {}) }, {
-        onSuccess(question) {
-          setIds((current) =>
-            replaces && current.includes(replaces)
-              ? current.map((id) => (id === replaces ? question.id : id))
-              : [...current, question.id],
-          );
+      start.mutate(
+        { ...asked, ...(follows ? { follows } : {}) },
+        {
+          onSuccess(question) {
+            setIds((current) =>
+              replaces && current.includes(replaces)
+                ? current.map((id) => (id === replaces ? question.id : id))
+                : [...current, question.id],
+            );
+          },
         },
-      });
+      );
     },
   };
 }
