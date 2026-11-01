@@ -4,10 +4,12 @@ import {
   newProductSchema,
   normalizedIngredientFields,
 } from '../contracts/recipe-normalize.js';
+import { refineRecipeSchema } from '../contracts/recipe-refine.js';
 import { revisionInstructionSchema } from '../contracts/recipe-revise.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { preparationSchema } from '../food/preparation.js';
 import { instantSchema } from './dates.js';
+import { refusalBody } from './error.js';
 import { ingredientSchema } from './ingredient.js';
 import { recipeStepSchema } from './recipe.js';
 
@@ -48,12 +50,14 @@ export const revisionDecisionSchema = z.enum(['accepted', 'rejected']);
 export type RevisionDecision = z.infer<typeof revisionDecisionSchema>;
 
 /**
- * One run of `recipe.revise` for a recipe of the registry: the instruction, then `revision` once it is `done`; failed
- * `no_results` with the agent's reason in `noResults`. `requestedBy` and the decider may be none (the kiosk).
+ * One run of `recipe.revise` for a recipe of the registry (`recipeId`) or a suggestion waiting for approval
+ * (`suggestionId`), exactly one of the two: the instruction, then `revision` once it is `done`; failed `no_results` with
+ * the agent's reason in `noResults`. `requestedBy` and the decider may be none (the kiosk).
  */
 export const recipeRevisionRequestSchema = z.object({
   id: z.uuid(),
-  recipeId: z.uuid(),
+  recipeId: z.uuid().optional(),
+  suggestionId: z.uuid().optional(),
   instruction: z.string(),
   status: contractRequestStatusSchema,
   error: contractFailureSchema.optional(),
@@ -75,6 +79,25 @@ export const requestRevisionSchema = z.object({
 export type RequestRevision = z.infer<typeof requestRevisionSchema>;
 
 /**
+ * The recipe of a suggestion's review form as „✏️ Поправи с AI“ sends it, for the form is not saved: the products by
+ * name (a line may be not yet linked), the steps with the photos they have.
+ */
+export const revisableRecipeSchema = refineRecipeSchema
+  .omit({ steps: true })
+  .extend({ steps: z.array(recipeStepSchema).min(1) });
+
+export type RevisableRecipe = z.infer<typeof revisableRecipeSchema>;
+
+/** `POST /api/recipe-suggestions/:id/revisions`. */
+export const requestSuggestionRevisionSchema = requestRevisionSchema.extend({
+  recipe: revisableRecipeSchema,
+});
+
+export type RequestSuggestionRevision = z.infer<
+  typeof requestSuggestionRevisionSchema
+>;
+
+/**
  * `POST /api/recipes/:id/revisions` (202), `GET /api/recipes/revisions/:id` and `POST /api/recipes/revisions/:id/reject`.
  */
 export const recipeRevisionResponseSchema = z.object({
@@ -84,3 +107,8 @@ export const recipeRevisionResponseSchema = z.object({
 export type RecipeRevisionResponse = z.infer<
   typeof recipeRevisionResponseSchema
 >;
+
+/** 409 `revision_open`: the recipe or suggestion already has an open revision, the one in `revisionId`. */
+export const revisionOpenSchema = refusalBody('conflict', 'revision_open', {
+  revisionId: z.uuid(),
+});

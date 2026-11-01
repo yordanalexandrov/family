@@ -1,9 +1,10 @@
 import type {
   RecipeRevision,
   RecipeRevisionRequest,
+  RevisableRecipe,
   RevisionDecision,
 } from '@family/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe, recipeRevisionRequest } from '../schema/food.js';
 
@@ -13,7 +14,8 @@ type RevisionRow = typeof recipeRevisionRequest.$inferSelect;
 function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
   return {
     id: row.id,
-    recipeId: row.recipeId,
+    recipeId: row.recipeId ?? undefined,
+    suggestionId: row.suggestionId ?? undefined,
     instruction: row.instruction,
     status: row.status,
     error: row.error ?? undefined,
@@ -41,12 +43,10 @@ export async function lockRecipeUpdatedAt(
 
 export async function insertRevisionRequest(
   db: DbExecutor,
-  values: {
-    recipeId: string;
-    instruction: string;
-    requestedBy: string | null;
-    baseUpdatedAt: Date;
-  },
+  values: { instruction: string; requestedBy: string | null } & (
+    | { recipeId: string; baseUpdatedAt: Date }
+    | { suggestionId: string; baseRecipe: RevisableRecipe }
+  ),
 ): Promise<RecipeRevisionRequest> {
   const [row] = await db
     .insert(recipeRevisionRequest)
@@ -68,6 +68,44 @@ export async function findRevisionRequest(
     .where(eq(recipeRevisionRequest.id, id))
     .limit(1);
   return row && toRevisionRequest(row);
+}
+
+/** The review form's recipe a revision of a suggestion was asked for; `undefined` for a revision of a recipe. */
+export async function findRevisionBaseRecipe(
+  db: DbExecutor,
+  id: string,
+): Promise<RevisableRecipe | undefined> {
+  const [row] = await db
+    .select({ baseRecipe: recipeRevisionRequest.baseRecipe })
+    .from(recipeRevisionRequest)
+    .where(eq(recipeRevisionRequest.id, id))
+    .limit(1);
+  return row?.baseRecipe ?? undefined;
+}
+
+/** The id of the suggestion's open revision (still `pending`, or `done` with a revision and no decision), if any. */
+export async function findOpenSuggestionRevision(
+  db: DbExecutor,
+  suggestionId: string,
+): Promise<string | undefined> {
+  const [row] = await db
+    .select({ id: recipeRevisionRequest.id })
+    .from(recipeRevisionRequest)
+    .where(
+      and(
+        eq(recipeRevisionRequest.suggestionId, suggestionId),
+        isNull(recipeRevisionRequest.decision),
+        or(
+          eq(recipeRevisionRequest.status, 'pending'),
+          and(
+            eq(recipeRevisionRequest.status, 'done'),
+            isNotNull(recipeRevisionRequest.revision),
+          ),
+        ),
+      ),
+    )
+    .limit(1);
+  return row?.id;
 }
 
 /** The revision, its row held until the transaction ends, so that a decision on it is the only one. */
