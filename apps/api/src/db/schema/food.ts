@@ -6,6 +6,7 @@ import {
   contractRequestStatusSchema,
   type ImportPayload,
   type Nutrition,
+  type Preparation,
   type PrepTimeRange,
   prepTimeRangeSchema,
   type RecipeImportSource,
@@ -71,6 +72,11 @@ export const recipe = pgTable(
     nutritionPer100g: jsonb('nutrition_per_100g').$type<Nutrition>(),
     /** GLOSSARY: Уред. The appliance's name as text, not a reference: removing the appliance keeps it here. */
     appliance: text('appliance'),
+    /** GLOSSARY: Подготовка. A JSON array of `PreparationItem`; recipes from before it have `[]`. */
+    preparation: jsonb('preparation')
+      .$type<Preparation>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
     /** GLOSSARY: Оценка. 1–5 stars, one for the family; `null` = unrated. Not part of `RecipeInput`. */
     rating: smallint('rating'),

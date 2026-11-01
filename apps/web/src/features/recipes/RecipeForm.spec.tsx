@@ -153,6 +153,7 @@ describe('RecipeForm', () => {
           prepMinutes: 50,
           tags: ['lunch'],
           steps: [{ text: 'Свари пилето.' }, { text: 'Добави фиде.' }],
+          preparation: [],
           ingredients: [
             { ingredientId: chicken.id, quantity: 0.5, unit: 'kg' },
           ],
@@ -347,6 +348,7 @@ describe('RecipeForm', () => {
         steps: [{ text: 'Задуши с лука.' }, { text: 'Нарежи пилето.' }],
         sourceUrl: 'https://recepti.example/pile-s-oriz',
         nutritionPer100g: { kcal: 150, proteinG: 12, fatG: 5, carbsG: 14 },
+        preparation: [],
         ingredients: [
           { ingredientId: chicken.id, quantity: 700, unit: 'g' },
           {

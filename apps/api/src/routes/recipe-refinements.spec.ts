@@ -104,6 +104,7 @@ async function createdRecipe(overrides: Partial<RecipeInput> = {}) {
         unit: 'pinch',
       },
     ],
+    preparation: [],
     ...overrides,
   };
   const response = await app.inject({

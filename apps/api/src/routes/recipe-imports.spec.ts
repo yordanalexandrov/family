@@ -1189,6 +1189,7 @@ describe('deciding an imported suggestion', () => {
       steps,
       tags,
       sourceUrl: 'https://blog.example/pile-s-oriz',
+      preparation: [],
       ingredients: ingredients.flatMap((line) =>
         line.ingredientId
           ? [

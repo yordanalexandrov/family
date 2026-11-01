@@ -216,6 +216,7 @@ describe('ImportScreen', () => {
         ],
         appliance: null,
         sourceUrl: importUrl,
+        preparation: [],
         ingredients: [
           {
             ingredientId: chicken.id,

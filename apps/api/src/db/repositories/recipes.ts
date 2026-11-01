@@ -51,6 +51,7 @@ function toRecipe(row: RecipeRow, ingredients: RecipeLine[]): Recipe {
     tags: row.tags,
     nutritionPer100g: row.nutritionPer100g ?? undefined,
     appliance: row.appliance ?? undefined,
+    preparation: row.preparation,
     ingredients,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     rating: row.rating,
@@ -70,6 +71,7 @@ function recipeValues(input: RecipeInput) {
     tags: input.tags,
     nutritionPer100g: input.nutritionPer100g ?? null,
     appliance: input.appliance ?? null,
+    preparation: input.preparation,
   };
 }
 

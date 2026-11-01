@@ -47,6 +47,7 @@ function recipeInput(overrides: Partial<RecipeInput> = {}): RecipeInput {
       { text: 'Печи 40 минути на 200 °C.' },
     ],
     tags: ['dinner'],
+    preparation: [],
     ingredients: [],
     ...overrides,
   };
@@ -104,6 +105,7 @@ describe('POST /api/recipes', () => {
         prepMinutes: 50,
         tags: ['dinner'],
         nutritionPer100g: { kcal: 120, proteinG: 2, fatG: 5, carbsG: 17 },
+        preparation: [],
         ingredients: [
           {
             ingredientId: potato.id,
@@ -178,6 +180,50 @@ describe('POST /api/recipes', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: 'invalid_reference' });
+    expect(await listTitles('')).toEqual([]);
+  });
+
+  it('keeps the preparation in its order and reads it back', async () => {
+    const preparation: RecipeInput['preparation'] = [
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+      { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
+      { kind: 'pan', text: 'намажи тавата' },
+    ];
+
+    const created = await createdRecipe(recipeInput({ preparation }));
+
+    expect(created.preparation).toEqual(preparation);
+    const read = recipeResponseSchema.parse(
+      (await getRecipe(created.id)).json(),
+    ).recipe;
+    expect(read.preparation).toEqual(preparation);
+  });
+
+  it('a recipe sent without preparation (an older client) has an empty one', async () => {
+    const { preparation: _none, ...withoutPreparation } = recipeInput();
+
+    const response = await createRecipe(withoutPreparation);
+
+    expect(response.statusCode).toBe(201);
+    const { id } = recipeResponseSchema.parse(response.json()).recipe;
+    expect(
+      recipeResponseSchema.parse((await getRecipe(id)).json()).recipe
+        .preparation,
+    ).toEqual([]);
+  });
+
+  it('answers 400 validation_error for two ovens and creates nothing', async () => {
+    const response = await createRecipe(
+      recipeInput({
+        preparation: [
+          { kind: 'oven', degrees: 200, fan: 'fan' },
+          { kind: 'oven', degrees: 180, fan: 'conventional' },
+        ],
+      }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'validation_error' });
     expect(await listTitles('')).toEqual([]);
   });
 
@@ -471,6 +517,35 @@ describe('PUT /api/recipes/:id', () => {
       { ingredientId: potato.id, quantity: 500, unit: 'g', ingredient: potato },
     ]);
     expect((await getRecipe(created.id)).json()).toEqual({ recipe });
+  });
+
+  it('changes and clears the preparation', async () => {
+    const created = await createdRecipe(
+      recipeInput({
+        preparation: [{ kind: 'oven', degrees: 200, fan: 'fan' }],
+      }),
+    );
+    const put = async (preparation: RecipeInput['preparation']) => {
+      const response = await app.inject({
+        method: 'PUT',
+        url: `/api/recipes/${created.id}`,
+        headers,
+        payload: recipeInput({ preparation }),
+      });
+      expect(response.statusCode).toBe(200);
+      return recipeResponseSchema.parse(response.json()).recipe.preparation;
+    };
+
+    const changed: RecipeInput['preparation'] = [
+      { kind: 'fridge', text: 'извади маслото', minutesBefore: 60 },
+      { kind: 'oven', degrees: 180, fan: 'conventional', rack: 'low' },
+    ];
+    expect(await put(changed)).toEqual(changed);
+    expect(await put([])).toEqual([]);
+    expect(
+      recipeResponseSchema.parse((await getRecipe(created.id)).json()).recipe
+        .preparation,
+    ).toEqual([]);
   });
 
   it('sets, changes and clears the appliance the recipe is for', async () => {

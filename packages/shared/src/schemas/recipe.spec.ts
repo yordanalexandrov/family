@@ -25,6 +25,10 @@ const potatoes = {
   prepMinutes: 50,
   tags: ['dinner', 'kid_friendly'],
   nutritionPer100g: { kcal: 120, proteinG: 2, fatG: 5, carbsG: 17 },
+  preparation: [
+    { kind: 'oven', degrees: 200, fan: 'fan' },
+    { kind: 'soak', text: 'накисни картофите', minutesBefore: 30 },
+  ],
   ingredients: [
     { ingredientId: POTATO, quantity: 1, unit: 'kg' },
     { ingredientId: SALT, quantity: null, unit: 'pinch', note: 'морска' },
@@ -121,7 +125,10 @@ describe('recipeInputSchema', () => {
       ingredients: [],
     };
 
-    expect(recipeInputSchema.parse(minimal)).toEqual(minimal);
+    expect(recipeInputSchema.parse(minimal)).toEqual({
+      ...minimal,
+      preparation: [],
+    });
   });
 
   it('accepts a full recipe', () => {
@@ -137,6 +144,15 @@ describe('recipeInputSchema', () => {
     ['steps.0.photoId', { steps: [{ text: 'Нарежи.', photoId: 's1' }] }],
     ['sourceUrl', { sourceUrl: 'не е линк' }],
     ['tags.0', { tags: ['vegan'] }],
+    [
+      'preparation.1.kind',
+      {
+        preparation: [
+          { kind: 'oven', degrees: 200, fan: 'fan' },
+          { kind: 'oven', degrees: 180, fan: 'conventional' },
+        ],
+      },
+    ],
   ])('rejects an invalid %s', (path, change) => {
     const result = recipeInputSchema.safeParse({ ...potatoes, ...change });
 

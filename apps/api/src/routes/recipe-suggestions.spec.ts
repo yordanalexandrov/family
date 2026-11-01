@@ -381,6 +381,7 @@ async function editedInput(suggestion: RecipeSuggestion): Promise<RecipeInput> {
     prepMinutes,
     tags,
     ...(appliance === undefined ? {} : { appliance }),
+    preparation: [],
     ingredients: lines,
   };
 }

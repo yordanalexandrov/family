@@ -247,6 +247,7 @@ describe('SuggestionReview', () => {
         steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
         sourceUrl: chickenSkewers.sourceUrl,
         appliance: null,
+        preparation: [],
         ingredients: [
           { ingredientId: chicken.id, quantity: 0.6, unit: 'kg' },
           { ingredientId: sumac.id, quantity: 1, unit: 'tsp' },
