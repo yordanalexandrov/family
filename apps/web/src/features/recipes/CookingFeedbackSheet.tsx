@@ -1,5 +1,4 @@
 import { RECIPE_REVISION_INSTRUCTION_MAX, type Recipe } from '@family/shared';
-import { Link } from '@tanstack/react-router';
 import { type FormEvent, useRef, useState } from 'react';
 import { refusalOf } from '../../api/client';
 import { useWritingUserId } from '../../app/acting-user';
@@ -9,6 +8,7 @@ import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Sheet } from '../../components/Sheet';
 import { lastCookingApplied } from '../../lib/cooking-record';
 import { useOnline } from '../../lib/use-online';
+import { OpenRevisionBadge } from './OpenRevisionBadge';
 import { useRateRecipe } from './queries';
 import { useRequestRevision } from './revisions';
 import { RatingStars } from './Stars';
@@ -77,19 +77,9 @@ export function CookingFeedbackSheet({
           onRate={(rating) => rate.mutate({ id: recipe.id, rating })}
         />
         {rate.isError && <ErrorBox error={rate.error} />}
-        {revisionOpen &&
-          (canEdit ? (
-            <Link
-              to="/recipes/$id/edit"
-              params={{ id: recipe.id }}
-              search={{ revise: true }}
-              className="badge badge--revision"
-            >
-              Поправка чака преглед
-            </Link>
-          ) : (
-            <p className="badge badge--revision">Поправка чака преглед</p>
-          ))}
+        {revisionOpen && (
+          <OpenRevisionBadge recipeId={recipe.id} canEdit={canEdit} />
+        )}
         <Field label="Какво да се промени?">
           {(props) => (
             <textarea

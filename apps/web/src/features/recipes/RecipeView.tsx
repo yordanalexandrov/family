@@ -11,6 +11,7 @@ import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
 import { ApplianceBadge } from './ApplianceBadge';
 import { CookingFeedbackSheet } from './CookingFeedbackSheet';
 import { formatMinutes } from './format';
+import { OpenRevisionBadge } from './OpenRevisionBadge';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
 import { RatingStars, StarsBadge } from './Stars';
 import './recipes.css';
@@ -81,21 +82,9 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
           ))}
           {recipe.appliance && <ApplianceBadge name={recipe.appliance} />}
           {archived && <span className="badge">Архивирана</span>}
-          {recipe.openRevision &&
-            (canWrite ? (
-              <Link
-                to="/recipes/$id/edit"
-                params={{ id: recipe.id }}
-                search={{ revise: true }}
-                className="badge badge--revision"
-              >
-                Поправка чака преглед
-              </Link>
-            ) : (
-              <span className="badge badge--revision">
-                Поправка чака преглед
-              </span>
-            ))}
+          {recipe.openRevision && (
+            <OpenRevisionBadge recipeId={recipe.id} canEdit={canWrite} />
+          )}
         </p>
         {canCook && (
           <div className="recipes__actions recipes__actions--fill">
