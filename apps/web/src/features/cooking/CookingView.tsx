@@ -15,6 +15,7 @@ import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
 import { ListenButton } from './ListeningControls';
 import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
+import { findStepIngredients } from './step-ingredients';
 import { useCookingChanges } from './use-cooking-changes';
 import { useCookingListening } from './use-cooking-listening';
 import { useCookingQuestions } from './use-cooking-questions';
@@ -76,6 +77,12 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     lines: changes.lines,
     servings: shownServings,
     onServingsChange: setShownServings,
+    step,
+    // Върху показаното: текстът на стъпката и имената на редовете с приложените промени.
+    stepLines: findStepIngredients(
+      changes.steps[step]?.text ?? '',
+      changes.lines.map((line) => line.name),
+    ),
     used,
     onToggleUsed: toggleUsed,
   };
