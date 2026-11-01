@@ -12,6 +12,7 @@ import {
 } from '../db/repositories/ingredients.js';
 import {
   decideRevisionRequest,
+  findOpenRevisions,
   findRevisionRequest,
   insertRevisionRequest,
   lockRecipeUpdatedAt,
@@ -26,12 +27,13 @@ import type {
   ContractRequestHandle,
   ContractRequestStore,
 } from './contract-requests.js';
-import { ConflictError, NotFoundError } from './errors.js';
+import { ConflictError, NotFoundError, refuse } from './errors.js';
 
 const NO_SUCH_RECIPE = 'Няма такава рецепта';
 const NO_SUCH_REVISION = 'Няма такава поправка на рецепта';
 const ALREADY_DECIDED = 'Поправката вече е приета или отхвърлена';
 const NOT_READY = 'Поправката още не е готова';
+const REVISION_OPEN = 'Поправка чака преглед';
 
 /** What „✏️ Поправи с AI“ asks: the recipe and the instruction. */
 export interface RevisionParams {
@@ -57,7 +59,7 @@ interface Loaded {
 }
 
 /**
- * How `recipe.revise` requests are stored: refused for an unknown recipe; the request remembers when the recipe was
+ * How `recipe.revise` requests are stored: refused for an unknown recipe and while the recipe has an open revision; the request remembers when the recipe was
  * saved. The run reads the recipe as it is saved and the whole registry; a valid answer is stored with the recipe's
  * own photos back on their steps by id, each line with its registry product as it is now (or the proposed new one), and
  * how many photos of the recipe no step keeps. The recipe itself is not changed.
@@ -78,6 +80,11 @@ export function createRecipeRevisionStore(): ContractRequestStore<
       const baseUpdatedAt = await lockRecipeUpdatedAt(tx, recipeId);
       if (!baseUpdatedAt) {
         throw new NotFoundError(NO_SUCH_RECIPE);
+      }
+      // The recipe's row is held, so a second request waits here and sees this one.
+      const open = (await findOpenRevisions(tx, [recipeId])).get(recipeId);
+      if (open) {
+        throw refuse('revision_open', REVISION_OPEN, { revisionId: open.id });
       }
       return insertRevisionRequest(tx, {
         recipeId,

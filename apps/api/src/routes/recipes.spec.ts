@@ -125,6 +125,7 @@ describe('POST /api/recipes', () => {
         rating: null,
         createdAt: expect.any(String),
         updatedAt: expect.any(String),
+        openRevision: null,
       },
     });
     expect(created).toEqual(response.json().recipe);
@@ -288,6 +289,7 @@ describe('GET /api/recipes', () => {
         tags: ['lunch'],
         archivedAt: null,
         rating: null,
+        openRevision: null,
       },
     ]);
   });

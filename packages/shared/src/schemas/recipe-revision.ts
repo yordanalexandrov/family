@@ -8,6 +8,7 @@ import { revisionInstructionSchema } from '../contracts/recipe-revise.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { preparationSchema } from '../food/preparation.js';
 import { instantSchema } from './dates.js';
+import { refusalBody } from './error.js';
 import { ingredientSchema } from './ingredient.js';
 import { recipeStepSchema } from './recipe.js';
 
@@ -49,7 +50,8 @@ export type RevisionDecision = z.infer<typeof revisionDecisionSchema>;
 
 /**
  * One run of `recipe.revise` for a recipe of the registry: the instruction, then `revision` once it is `done`; failed
- * `no_results` with the agent's reason in `noResults`. `requestedBy` and the decider may be none (the kiosk).
+ * `no_results` with the agent's reason in `noResults`. `requestedBy` and the decider may be none (the kiosk). `stale`: the
+ * recipe was saved after the revision was asked for, so accepting it would undo that save.
  */
 export const recipeRevisionRequestSchema = z.object({
   id: z.uuid(),
@@ -63,6 +65,7 @@ export const recipeRevisionRequestSchema = z.object({
   requestedBy: z.uuid().nullable(),
   createdAt: instantSchema,
   finishedAt: instantSchema.optional(),
+  stale: z.boolean(),
 });
 
 export type RecipeRevisionRequest = z.infer<typeof recipeRevisionRequestSchema>;
@@ -84,3 +87,11 @@ export const recipeRevisionResponseSchema = z.object({
 export type RecipeRevisionResponse = z.infer<
   typeof recipeRevisionResponseSchema
 >;
+
+/**
+ * 409 of `POST /api/recipes/:id/revisions` while the recipe has an open revision (GLOSSARY: Поправка на рецепта):
+ * `revisionId` is that one, so the sheet leads to it.
+ */
+export const revisionOpenSchema = refusalBody('conflict', 'revision_open', {
+  revisionId: z.uuid(),
+});

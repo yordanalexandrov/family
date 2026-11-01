@@ -1,13 +1,39 @@
 import type {
+  OpenRevision,
   RecipeRevision,
   RecipeRevisionRequest,
   RevisionDecision,
 } from '@family/shared';
-import { eq } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipe, recipeRevisionRequest } from '../schema/food.js';
 
-type RevisionRow = typeof recipeRevisionRequest.$inferSelect;
+/**
+ * The recipe was saved after the revision was asked for (`base_updated_at`). The base went through a JS `Date`, so the
+ * recipe's time is compared to the millisecond.
+ */
+const stale = sql<boolean>`exists (select 1 from ${recipe} where ${recipe.id} = ${recipeRevisionRequest.recipeId} and date_trunc('milliseconds', ${recipe.updatedAt}) > ${recipeRevisionRequest.baseUpdatedAt})`;
+
+/** The columns of a revision and whether it is stale, for `select` and `returning`. */
+const revisionColumns = {
+  ...getTableColumns(recipeRevisionRequest),
+  stale,
+};
+
+type RevisionRow = typeof recipeRevisionRequest.$inferSelect & {
+  stale: boolean;
+};
 
 /** API shape of a revision: DB nulls of optional fields become absent, dates ISO strings. */
 function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
@@ -23,7 +49,49 @@ function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
     requestedBy: row.requestedBy,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? undefined,
+    stale: row.stale,
   };
+}
+
+/**
+ * GLOSSARY: Поправка на рецепта. The open revision is `pending`, or `done` with a revised recipe, and not decided;
+ * `no_results` and `failed` are not open.
+ */
+const isOpen: SQL = and(
+  isNull(recipeRevisionRequest.decision),
+  or(
+    eq(recipeRevisionRequest.status, 'pending'),
+    and(
+      eq(recipeRevisionRequest.status, 'done'),
+      isNotNull(recipeRevisionRequest.revision),
+    ),
+  ),
+) as SQL;
+
+/** The open revision of each of the recipes that has one, by recipe id. */
+export async function findOpenRevisions(
+  db: DbExecutor,
+  recipeIds: readonly string[],
+): Promise<Map<string, OpenRevision>> {
+  if (recipeIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({
+      id: recipeRevisionRequest.id,
+      recipeId: recipeRevisionRequest.recipeId,
+      status: recipeRevisionRequest.status,
+    })
+    .from(recipeRevisionRequest)
+    .where(and(inArray(recipeRevisionRequest.recipeId, [...recipeIds]), isOpen))
+    .orderBy(asc(recipeRevisionRequest.createdAt));
+  return new Map(
+    rows.flatMap(({ id, recipeId, status }) =>
+      status === 'pending' || status === 'done'
+        ? [[recipeId, { id, status }] as const]
+        : [],
+    ),
+  );
 }
 
 /** Holds the recipe's row until the transaction ends; answers when it was last saved, or `undefined` for none. */
@@ -51,7 +119,7 @@ export async function insertRevisionRequest(
   const [row] = await db
     .insert(recipeRevisionRequest)
     .values(values)
-    .returning();
+    .returning(revisionColumns);
   if (!row) {
     throw new Error('insert into recipe_revision_request returned no row');
   }
@@ -63,7 +131,7 @@ export async function findRevisionRequest(
   id: string,
 ): Promise<RecipeRevisionRequest | undefined> {
   const [row] = await db
-    .select()
+    .select(revisionColumns)
     .from(recipeRevisionRequest)
     .where(eq(recipeRevisionRequest.id, id))
     .limit(1);
@@ -76,7 +144,7 @@ export async function lockRevisionRequest(
   id: string,
 ): Promise<RecipeRevisionRequest | undefined> {
   const [row] = await db
-    .select()
+    .select(revisionColumns)
     .from(recipeRevisionRequest)
     .where(eq(recipeRevisionRequest.id, id))
     .for('update');
@@ -115,7 +183,7 @@ export async function decideRevisionRequest(
     .update(recipeRevisionRequest)
     .set({ decision, decidedBy, decidedAt: new Date() })
     .where(eq(recipeRevisionRequest.id, id))
-    .returning();
+    .returning(revisionColumns);
   if (!row) {
     throw new Error(`recipe_revision_request ${id} vanished`);
   }

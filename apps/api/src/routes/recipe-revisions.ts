@@ -12,7 +12,8 @@ const NO_SUCH_REVISION = 'Няма такава поправка на рецеп
 
 /**
  * „✏️ Поправи с AI“ (`recipe.revise`, GLOSSARY: Поправка на рецепта): `POST` answers 202 at once (404 for an unknown
- * recipe), the client polls `GET /api/recipes/revisions/:id` until the status is not `pending`. „Отхвърли“ is
+ * recipe, 409 `revision_open` with the id of the open revision while there is one), the client polls
+ * `GET /api/recipes/revisions/:id` until the status is not `pending`; `stale` there says the recipe was saved since. „Отхвърли“ is
  * `POST …/reject`; „Приеми“ writes nothing: the recipe changes with `PUT /api/recipes/:id` and `revisionId`, which
  * marks the revision `accepted`. All three work without an acting user, as on the kiosk.
  */

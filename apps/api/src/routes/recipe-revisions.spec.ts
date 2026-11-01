@@ -5,6 +5,7 @@ import {
   type RecipeRevisionRequest,
   recipeResponseSchema,
   recipeRevisionRequestSchema,
+  recipesResponseSchema,
 } from '@family/shared';
 import fixtureInput from '@family/shared/fixtures/recipe-revise.input.json' with {
   type: 'json',
@@ -204,7 +205,10 @@ describe('POST /api/recipes/:id/revisions', () => {
       { kind: 'oven', degrees: 200, fan: 'fan' },
     ]);
     expect(revision?.droppedPhotos).toBe(0);
-    expect(await getRecipe(recipe.id)).toEqual(recipe);
+    expect(await getRecipe(recipe.id)).toEqual({
+      ...recipe,
+      openRevision: { id: created.id, status: 'done' },
+    });
   });
 
   it('sends the agent the recipe by product names with its photos as references, the instruction, no cooking changes and the registry', async () => {
@@ -456,5 +460,168 @@ describe('PUT /api/recipes/:id with revisionId', () => {
     expect((await put(first.recipe.id, 'Друга')).statusCode).toBe(409);
     expect((await getRecipe(first.recipe.id)).title).toBe('Мусака');
     expect((await getRecipe(second.recipe.id)).title).toBe('Мусака');
+  });
+});
+
+/** Holds every chat completion until `release()`, then answers it with `reviseAnswer`. */
+function holding() {
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  openclaw.use(
+    http.post(CHAT_COMPLETIONS_URL, async ({ request }) => {
+      const body = (await request.json()) as ChatBody;
+      await released;
+      return HttpResponse.json(
+        completion(
+          JSON.stringify(
+            reviseAnswer(
+              JSON.parse(body.messages[0]?.content ?? '') as RecipeReviseInput,
+            ),
+          ),
+        ),
+      );
+    }),
+  );
+  return { release };
+}
+
+async function listedOpenRevision(recipeId: string) {
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/recipes',
+    headers,
+  });
+  return recipesResponseSchema
+    .parse(response.json())
+    .recipes.find((summary) => summary.id === recipeId)?.openRevision;
+}
+
+describe('openRevision of a recipe', () => {
+  it('is the pending revision, then the done one, in the recipe and in the registry', async () => {
+    const { recipe } = await createdRecipe();
+    expect((await getRecipe(recipe.id)).openRevision).toBeNull();
+    expect(await listedOpenRevision(recipe.id)).toBeNull();
+    const { release } = holding();
+
+    const pending = await requested(recipe.id);
+
+    const open = { id: pending.id, status: 'pending' };
+    expect((await getRecipe(recipe.id)).openRevision).toEqual(open);
+    expect(await listedOpenRevision(recipe.id)).toEqual(open);
+    release();
+    await finished(pending);
+    const done = { id: pending.id, status: 'done' };
+    expect((await getRecipe(recipe.id)).openRevision).toEqual(done);
+    expect(await listedOpenRevision(recipe.id)).toEqual(done);
+  });
+
+  it('is none once the revision is rejected or accepted', async () => {
+    const { recipe, input } = await createdRecipe();
+    answering(reviseAnswer);
+    const rejected = await finished(await requested(recipe.id));
+    await app.inject({
+      method: 'POST',
+      url: `/api/recipes/revisions/${rejected.id}/reject`,
+    });
+    expect((await getRecipe(recipe.id)).openRevision).toBeNull();
+    expect(await listedOpenRevision(recipe.id)).toBeNull();
+
+    const accepted = await finished(await requested(recipe.id));
+    const saved = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+      payload: { ...input, revisionId: accepted.id },
+    });
+
+    expect(saved.json().recipe.openRevision).toBeNull();
+    expect((await getRecipe(recipe.id)).openRevision).toBeNull();
+    expect(await listedOpenRevision(recipe.id)).toBeNull();
+  });
+
+  it('is none after no_results', async () => {
+    const { recipe } = await createdRecipe();
+    answering(() => ({ recipe: null, noResults: 'Не е за тази рецепта.' }));
+
+    await finished(await requested(recipe.id));
+
+    expect((await getRecipe(recipe.id)).openRevision).toBeNull();
+  });
+});
+
+describe('a second revision of a recipe', () => {
+  it('answers 409 revision_open with the open one while it is pending or done', async () => {
+    const { recipe } = await createdRecipe();
+    const { release } = holding();
+    const open = await requested(recipe.id);
+
+    const whilePending = await postRevision(recipe.id, 'добави сол');
+
+    expect(whilePending.statusCode).toBe(409);
+    expect(whilePending.json()).toMatchObject({
+      error: 'conflict',
+      code: 'revision_open',
+      revisionId: open.id,
+    });
+    release();
+    await finished(open);
+    const whileDone = await postRevision(recipe.id, 'добави сол');
+    expect(whileDone.statusCode).toBe(409);
+    expect(whileDone.json()).toMatchObject({ revisionId: open.id });
+  });
+
+  it('is allowed after no_results, a failure, a rejection and an acceptance', async () => {
+    const { recipe, input } = await createdRecipe();
+    answering(() => ({ recipe: null, noResults: 'Не е за тази рецепта.' }));
+    await finished(await requested(recipe.id));
+    openclaw.use(
+      http.post(
+        CHAT_COMPLETIONS_URL,
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    );
+    expect((await finished(await requested(recipe.id))).status).toBe('failed');
+    answering(reviseAnswer);
+    const rejected = await finished(await requested(recipe.id));
+    await app.inject({
+      method: 'POST',
+      url: `/api/recipes/revisions/${rejected.id}/reject`,
+    });
+    const accepted = await finished(await requested(recipe.id));
+    await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+      payload: { ...input, revisionId: accepted.id },
+    });
+
+    const next = await postRevision(recipe.id);
+    expect(next.statusCode).toBe(202);
+    await finished(next.json().request);
+  });
+});
+
+describe('stale of a revision', () => {
+  it('is true once the recipe is saved after the revision was asked for', async () => {
+    const { recipe, input } = await createdRecipe();
+    answering(reviseAnswer);
+    const done = await finished(await requested(recipe.id));
+    expect(done.stale).toBe(false);
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+      payload: { ...input, title: 'Мусака с тиквички' },
+    });
+    expect(saved.statusCode).toBe(200);
+
+    expect((await finished(done)).stale).toBe(true);
+    expect((await getRecipe(recipe.id)).openRevision).toEqual({
+      id: done.id,
+      status: 'done',
+    });
   });
 });

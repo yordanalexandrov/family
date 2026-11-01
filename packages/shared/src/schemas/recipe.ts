@@ -113,6 +113,17 @@ export const putRatingSchema = z.object({ rating: ratingSchema });
 export type PutRating = z.infer<typeof putRatingSchema>;
 
 /**
+ * The open revision of a recipe (GLOSSARY: Поправка на рецепта, „Поправка чака преглед“): `pending`, or `done` with a
+ * revised recipe and no decision yet. A recipe has at most one.
+ */
+export const openRevisionSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(['pending', 'done']),
+});
+
+export type OpenRevision = z.infer<typeof openRevisionSchema>;
+
+/**
  * A recipe in the registry; archived ones keep `archivedAt` and are hidden by default. `rating` is `null` while the
  * recipe is unrated; it is not part of `RecipeInput`, so replacing a recipe keeps it.
  */
@@ -123,6 +134,7 @@ export const recipeSchema = recipeInputSchema.extend({
   rating: ratingSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  openRevision: openRevisionSchema.nullable(),
 });
 
 export type Recipe = z.infer<typeof recipeSchema>;
@@ -140,6 +152,7 @@ export const recipeSummarySchema = recipeSchema.pick({
   tags: true,
   archivedAt: true,
   rating: true,
+  openRevision: true,
 });
 
 export type RecipeSummary = z.infer<typeof recipeSummarySchema>;
