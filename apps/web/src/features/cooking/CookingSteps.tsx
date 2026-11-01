@@ -45,6 +45,12 @@ interface CookingStepsProps {
   preparation?: ReactNode;
   /** „Питай“ (`AskButton`): в инструментите горе, преди A−/A+. */
   ask?: ReactNode;
+  /** 🔊 (`ReadStepButton`): в инструментите горе, между „Питай“ и A−/A+. */
+  readStep?: ReactNode;
+  /** 🎤 (`ListenButton`): в инструментите горе, след 🔊. */
+  listen?: ReactNode;
+  /** „Чети стъпките“ (`ReadStepsToggle`): под стъпката, вдясно от „⏱ Таймер“. */
+  readSteps?: ReactNode;
 }
 
 /**
@@ -62,6 +68,9 @@ export function CookingSteps({
   onDone,
   preparation,
   ask,
+  readStep,
+  listen,
+  readSteps,
 }: CookingStepsProps) {
   const last = step === steps.length - 1;
   const current = steps[step];
@@ -143,6 +152,8 @@ export function CookingSteps({
         </div>
         <div className="cooking-steps__tools">
           {ask}
+          {readStep}
+          {listen}
           <button
             type="button"
             className="button button--quiet cooking-steps__size"
@@ -206,7 +217,10 @@ export function CookingSteps({
           </p>
         </div>
       </div>
-      <ManualTimer source={timerSource} />
+      <div className="cooking-steps__foot">
+        <ManualTimer source={timerSource} />
+        {readSteps}
+      </div>
       {/* biome-ignore lint/a11y/useSemanticElements: група бутони, не полета на форма; fieldset носи рамка и min-content ширина. */}
       <div className="cooking-steps__dots" role="group" aria-label="Към стъпка">
         {steps.map((_, index) => (

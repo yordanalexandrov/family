@@ -70,8 +70,18 @@ function useTimersContext(): Timers {
 export function useTimers() {
   const { store, start, addMinute, restart } = useTimersContext();
   const timers = useSyncExternalStore(store.subscribe, store.list);
-  const { pause, resume, cancel } = store;
-  return { timers, start, addMinute, pause, resume, restart, cancel };
+  const { pause, resume, cancel, silence } = store;
+  return {
+    timers,
+    start,
+    addMinute,
+    pause,
+    resume,
+    restart,
+    cancel,
+    /** Заглушава звъненето на изтеклите таймери (гласовата команда „спри“); банерите остават. */
+    silence,
+  };
 }
 
 /** Звукът на изтеклите таймери (`TimerAlarms`). */

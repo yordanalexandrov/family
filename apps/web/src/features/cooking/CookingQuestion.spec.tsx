@@ -7,6 +7,7 @@ import { dani, server } from '../../test/msw';
 import { goOffline } from '../../test/network';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
+import { englishVoice, fakeSpeech } from '../../test/speech';
 import { COOKING_PROGRESS_KEY } from './cooking-memory';
 
 const stew: Recipe = {
@@ -1073,6 +1074,25 @@ describe('„Промени“ (промяна за готвенето)', () => 
       expect(timerRows()[0]).toHaveTextContent(/^Стъпка 2 · 5 мин/);
     });
 
+    it('🔊 чете новия текст на стъпката, без знака „променено“', async () => {
+      const user = userEvent.setup();
+      const speech = fakeSpeech();
+      serveQuestions([WITH_DRAIN]);
+      await openCooking('browser');
+
+      await appliedOnStep2(user);
+      await user.click(
+        screen.getByRole('button', { name: 'Прочети стъпката' }),
+      );
+
+      expect(speech.spoken).toEqual([
+        {
+          text: 'Стъпка 2. Отцеди консервата pulp, добави я и задуши 5 минути.',
+          voice: 'bg-BG',
+        },
+      ]);
+    });
+
     it('„Върни“ връща стария текст без знака, а другите стъпки не се пипат', async () => {
       const user = userEvent.setup();
       serveQuestions([WITH_DRAIN]);
@@ -1115,6 +1135,108 @@ describe('„Промени“ (промяна за готвенето)', () => 
 
     expect(
       within(sheet).queryByRole('button', { name: 'Промени' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('отговорът на глас', () => {
+  const SHORT = 'Да, задуши ги 10 мин.';
+  const SHORT_SPOKEN = 'Да, задуши ги 10 минути.';
+
+  it('🔊 до отговора чете отговора с български глас', async () => {
+    const user = userEvent.setup();
+    const speech = fakeSpeech();
+    serveQuestions([{ status: 'done', answer: SHORT }]);
+    await openCooking();
+    const sheet = await askInSheet(user);
+    await findAnswer(sheet, SHORT);
+
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Прочети отговора' }),
+    );
+
+    expect(speech.spoken).toEqual([{ text: SHORT_SPOKEN, voice: 'bg-BG' }]);
+  });
+
+  it('при включено „Чети стъпките“ новият отговор се чете сам, когато дойде', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const speech = fakeSpeech();
+    serveQuestions([{ status: 'done', answer: SHORT }], 1);
+    await openCooking();
+    await user.click(screen.getByRole('button', { name: 'Чети стъпките' }));
+
+    const sheet = await askInSheet(user);
+    expect(await within(sheet).findByText('Мисли…')).toBeInTheDocument();
+    expect(speech.spoken).toEqual([]);
+    await vi.advanceTimersByTimeAsync(3_000);
+    await findAnswer(sheet, SHORT);
+
+    expect(speech.spoken).toEqual([{ text: SHORT_SPOKEN, voice: 'bg-BG' }]);
+  });
+
+  it('при включено „Чети стъпките“ новият отговор се чете сам и при затворен лист', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const speech = fakeSpeech();
+    serveQuestions([{ status: 'done', answer: SHORT }], 1);
+    await openCooking();
+    await user.click(screen.getByRole('button', { name: 'Чети стъпките' }));
+    const sheet = await askInSheet(user);
+    await within(sheet).findByText('Мисли…');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(
+      screen.queryByRole('dialog', { name: 'Въпрос' }),
+    ).not.toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    await vi.waitFor(() =>
+      expect(speech.spoken).toEqual([{ text: SHORT_SPOKEN, voice: 'bg-BG' }]),
+    );
+  });
+
+  it('при изключено „Чети стъпките“ новият отговор не се чете', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const speech = fakeSpeech();
+    serveQuestions([{ status: 'done', answer: SHORT }], 1);
+    await openCooking();
+
+    const sheet = await askInSheet(user);
+    await within(sheet).findByText('Мисли…');
+    await vi.advanceTimersByTimeAsync(3_000);
+    await findAnswer(sheet, SHORT);
+
+    expect(speech.spoken).toEqual([]);
+  });
+
+  it('отговорите, дошли преди включването на „Чети стъпките“, не се четат', async () => {
+    const user = userEvent.setup();
+    const speech = fakeSpeech();
+    serveQuestions([{ status: 'done', answer: SHORT }]);
+    await openCooking();
+    const sheet = await askInSheet(user);
+    await findAnswer(sheet, SHORT);
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    await user.click(screen.getByRole('button', { name: 'Чети стъпките' }));
+    const reopened = await openSheet(user);
+    await findAnswer(reopened, SHORT);
+
+    expect(speech.spoken).toEqual([]);
+  });
+
+  it('без български глас 🔊 до отговора го няма', async () => {
+    const user = userEvent.setup();
+    fakeSpeech({ voices: [englishVoice] });
+    serveQuestions([{ status: 'done', answer: SHORT }]);
+    await openCooking();
+    const sheet = await askInSheet(user);
+    await findAnswer(sheet, SHORT);
+
+    expect(
+      within(sheet).queryByRole('button', { name: 'Прочети отговора' }),
     ).not.toBeInTheDocument();
   });
 });

@@ -43,6 +43,8 @@ export interface Timer extends NewTimer {
   endsAt: number;
   /** На пауза от този момент (ms от epoch): оставащото е `endsAt - pausedAt` и не намалява. Без него таймерът брои. */
   pausedAt?: number;
+  /** Изтекъл и заглушен с гласовата команда „спри“: банерът остава, без звук. Новото изтичане („+1 мин“, „Повтори“) звъни. */
+  silenced?: true;
 }
 
 export interface TimerStore {
@@ -59,6 +61,8 @@ export interface TimerStore {
   restart(id: string): void;
   /** „Отмени“: маха таймера. */
   cancel(id: string): void;
+  /** Заглушава изтеклите досега таймери (`silenced`); `false`, ако нямаше незаглушен изтекъл. */
+  silence(): boolean;
   subscribe(listener: () => void): () => void;
 }
 
@@ -144,7 +148,8 @@ export function createTimerStore(): TimerStore {
     }
   }
 
-  function running({ pausedAt, ...timer }: Timer): Timer {
+  /** Брои отново: без паузата и без заглушаването на предишното изтичане. */
+  function running({ pausedAt, silenced, ...timer }: Timer): Timer {
     return timer;
   }
 
@@ -180,7 +185,8 @@ export function createTimerStore(): TimerStore {
       return timer;
     },
     addMinute(id) {
-      change(id, (timer, at) => ({
+      // Новото изтичане звъни пак: заглушаването на предишното отпада.
+      change(id, ({ silenced, ...timer }, at) => ({
         ...timer,
         endsAt: isExpired(timer, at)
           ? at + MINUTE_MS
@@ -210,6 +216,19 @@ export function createTimerStore(): TimerStore {
       if (timers.some((timer) => timer.id === id)) {
         set(timers.filter((timer) => timer.id !== id));
       }
+    },
+    silence() {
+      const at = Date.now();
+      const loud = (timer: Timer) => isExpired(timer, at) && !timer.silenced;
+      if (!timers.some(loud)) {
+        return false;
+      }
+      set(
+        timers.map((timer) =>
+          loud(timer) ? { ...timer, silenced: true } : timer,
+        ),
+      );
+      return true;
     },
     subscribe(listener) {
       if (listeners.size === 0) {

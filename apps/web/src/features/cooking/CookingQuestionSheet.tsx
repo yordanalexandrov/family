@@ -6,7 +6,6 @@ import {
   type Recipe,
   scaleQuantity,
 } from '@family/shared';
-import { useQueries } from '@tanstack/react-query';
 import { type FormEvent, useRef, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
@@ -17,9 +16,10 @@ import { failureMessage } from '../../lib/ai-requests';
 import { formatQuantity } from '../../lib/format';
 import { useOnline } from '../../lib/use-online';
 import { StepText } from '../timers/StepText';
-import { cookingQuestionQuery, isLostQuestion } from './questions';
+import { isLostQuestion } from './questions';
 import type { CookingChanges } from './use-cooking-changes';
 import type { CookingQuestions } from './use-cooking-questions';
+import type { CookingReading } from './use-cooking-reading';
 
 /** От толкова знака нагоре под полето личи колко остават. */
 const COUNT_FROM = COOKING_QUESTION_MAX - 50;
@@ -34,6 +34,11 @@ interface CookingQuestionSheetProps {
   changes: CookingChanges;
   /** Порциите на екрана: количествата на промяната се показват за тях. */
   servings: number;
+  /**
+   * Четенето на глас на Готвене (`useCookingReading`): 🔊 до отговора чете през него, за да прекъсват отговорът и
+   * стъпката едно друго.
+   */
+  reading: CookingReading;
   /**
    * Пуска въпрос за стъпката и порциите на екрана; с `replaces` — на мястото на неуспешен („Опитай пак“), за неговата
    * стъпка.
@@ -164,10 +169,12 @@ function QuestionItem({
   retrying,
   changes,
   servings,
+  reading,
 }: {
   recipe: Pick<Recipe, 'id' | 'title'>;
   changes: CookingChanges;
   servings: number;
+  reading: CookingReading;
   /** Текстът на въпроса, както е запомнен на устройството. */
   asked: string;
   question: CookingQuestion | undefined;
@@ -199,17 +206,29 @@ function QuestionItem({
         <Failed message={failureMessage('ask', question)} onRetry={onRetry} />
       ) : (
         <>
-          <p className="cooking-question__answer">
-            <StepText
-              text={question.answer ?? ''}
-              source={{
-                recipeId: recipe.id,
-                recipeTitle: recipe.title,
-                step: question.step,
-                question: true,
-              }}
-            />
-          </p>
+          <div className="cooking-question__answer-row">
+            <p className="cooking-question__answer">
+              <StepText
+                text={question.answer ?? ''}
+                source={{
+                  recipeId: recipe.id,
+                  recipeTitle: recipe.title,
+                  step: question.step,
+                  question: true,
+                }}
+              />
+            </p>
+            {reading.available && (
+              <button
+                type="button"
+                className="button button--quiet cooking-question__read"
+                aria-label="Прочети отговора"
+                onClick={() => reading.readAnswer(question.answer ?? '')}
+              >
+                🔊
+              </button>
+            )}
+          </div>
           {question.change && (
             <ChangeBlock
               question={question}
@@ -228,8 +247,8 @@ function QuestionItem({
  * Листът „Въпрос“ в Готвене (GLOSSARY: Въпрос в Готвене): въпросите, зададени на стъпката на екрана, с отговорите им и
  * поле за нов, с фокус при отваряне. Въпросите от другите стъпки (и запомнените отпреди стъпките) са свити под
  * „По-рано (n)“ и се отварят с едно докосване. Докато отговорът чака, пише „Мисли…“, а листът може да се затвори:
- * отговорите се питат само докато е отворен (`useQueries` тук), а въпросите остават в `CookingView`, затова отговорът
- * се вижда при следващото отваряне. Новият въпрос продължава последния от същата стъпка (`follows`), затова полето е
+ * въпросите и заявките им остават в `CookingView` (`useCookingQuestions`), затова отговорът се вижда при следващото
+ * отваряне. Новият въпрос продължава последния от същата стъпка (`follows`), затова полето е
  * изключено, докато въпрос на стъпката чака отговор. Отговор с промяна за готвенето има „Промени“, а приложената —
  * „Приложено“ и „Върни“, и под „По-рано“.
  */
@@ -239,14 +258,14 @@ export function CookingQuestionSheet({
   step,
   changes,
   servings,
+  reading,
   onAsk,
   onClose,
 }: CookingQuestionSheetProps) {
-  const { ids, asked: remembered, start, replacing } = questions;
+  const { asked: remembered, results, start, replacing } = questions;
   const [text, setText] = useState('');
   const [earlierOpen, setEarlierOpen] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
-  const results = useQueries({ queries: ids.map(cookingQuestionQuery) });
   const connection = useNeedsConnection(useOnline(), 'cooking-question__hint');
   const items = remembered.map((asked, index) => ({
     ...asked,
@@ -295,6 +314,7 @@ export function CookingQuestionSheet({
         retrying={id === replacing}
         changes={changes}
         servings={servings}
+        reading={reading}
         onRetry={() => onAsk(question, id)}
       />
     </li>

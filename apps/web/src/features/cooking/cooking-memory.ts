@@ -16,6 +16,7 @@ import { logger } from '../../logger';
 export const COOKING_PROGRESS_KEY = 'family.cooking.progress';
 export const COOKING_INGREDIENTS_OPEN_KEY = 'family.cooking.ingredientsOpen';
 export const COOKING_TEXT_SIZE_KEY = 'family.cooking.textSize';
+export const COOKING_READ_STEPS_KEY = 'family.cooking.readSteps';
 
 /**
  * Докъдето е стигнало Готвене за една рецепта: индексът на стъпката, на отметнатите редове продукти и кои елементи от
@@ -315,6 +316,29 @@ export function useCookingTextSize(): [number, (size: number) => void] {
     (next: number) => {
       setSize(next);
       textSize.write(next);
+    },
+  ];
+}
+
+const readSteps = storedSetting<boolean>({
+  key: COOKING_READ_STEPS_KEY,
+  parse: (raw) => raw === 'on',
+  unset: false,
+  format: () => 'on',
+});
+
+/**
+ * „Чети стъпките“ (GLOSSARY: Четене на глас): всяка нова стъпка се чете сама. Помни се на устройството, по
+ * подразбиране е изключено, а без localStorage работи изключено при всяко влизане. Както при размера на текста,
+ * състоянието е на екрана, а записът го пази за следващото влизане.
+ */
+export function useReadSteps(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(readSteps.read);
+  return [
+    on,
+    (next: boolean) => {
+      setOn(next);
+      readSteps.write(next);
     },
   ];
 }

@@ -213,6 +213,8 @@
 
 .cooking-steps__tools {
   display: flex;
+  /* С 🔊 и „Чети стъпките“ не се събират на телефон изправен: пренасят се вдясно, вместо да излязат от картата. */
+  flex-wrap: wrap;
   justify-content: flex-end;
   /* Пренесени на втори ред (тесен екран) остават вдясно. */
   margin-inline-start: auto;
@@ -236,6 +238,88 @@
   padding: 0;
   font-size: var(--font-size-lg);
   font-weight: 600;
+}
+
+/*
+ * 🎤 и под него за кратко изпълнената гласова команда: над текста, за да не пренарежда инструментите при всяка команда.
+ * Грешката, която е спряла слушането, стои до следващото докосване, затова е на свой ред най-отдясно (като „Иска връзка“).
+ */
+.cooking-listen {
+  position: relative;
+  display: inline-flex;
+}
+
+.cooking-listen__note:not(:empty) {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-end: 0;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
+.cooking-listen:has(.cooking-listen__note--error) {
+  display: contents;
+}
+
+.cooking-listen__note--error:not(:empty) {
+  position: static;
+  order: 1;
+  flex-basis: 100%;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--color-danger);
+  text-align: end;
+}
+
+/* Слуша: в цвета на акцента и пулсира, за да личи, че микрофонът е включен. */
+.button.cooking-listen__mic--on {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cooking-listen__mic--on {
+    animation: cooking-listen-pulse 1.6s ease-out infinite;
+  }
+}
+
+@keyframes cooking-listen-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.75rem
+      color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
+/* „Чети стъпките“: превключвател, включеният е в цвета на акцента. */
+.button.cooking-steps__read-steps {
+  /* По-тесни полета от `.button` (global.css идва след този файл), за да се събере до „⏱ Таймер“ на телефон изправен. */
+  padding-inline: var(--space-4);
+  white-space: nowrap;
+}
+
+/* Под стъпката: „⏱ Таймер“ вляво, „Чети стъпките“ вдясно. */
+.cooking-steps__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.cooking-steps__read-steps[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 .cooking-steps__count {
@@ -525,6 +609,25 @@
   font-size: var(--font-size-lg);
   line-height: 1.45;
   white-space: pre-line;
+}
+
+/* Отговорът и 🔊 вдясно от него, горе. */
+.cooking-question__answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.cooking-question__answer-row .cooking-question__answer {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.button.cooking-question__read {
+  flex: none;
+  inline-size: var(--touch-target);
+  padding: 0;
+  font-size: var(--font-size-lg);
 }
 
 /* Промяната за готвенето под отговора: какво сменя, после „Промени“ или „Приложено“ и „Върни“. */
