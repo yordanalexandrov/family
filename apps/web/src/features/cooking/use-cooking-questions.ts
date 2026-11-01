@@ -4,7 +4,8 @@ import { useAskCookingQuestion } from './questions';
 
 /**
  * Въпросите в Готвене на една рецепта (GLOSSARY: Въпрос в Готвене), зададени от това устройство: id-тата им по реда на
- * задаване и пускането на нов. Държи се в `CookingView`, над листа „Въпрос“, за да продължи чакането, докато листът е
+ * задаване и пускането на нов. Те са една верига: всеки нов продължава (`follows`) последния, а повторният („Опитай
+ * пак“) — същия, който продължаваше неуспешният. Държи се в `CookingView`, над листа „Въпрос“, за да продължи чакането, докато листът е
  * затворен. Засега живее само докато Готвене е отворено; паметта до края на деня или до „Готово“ е #275.
  */
 export function useCookingQuestions(recipeId: string) {
@@ -17,9 +18,11 @@ export function useCookingQuestions(recipeId: string) {
     start,
     replacing: start.isPending ? replacing : undefined,
     /** Нов въпрос; с `replaces` („Опитай пак“) новият заема мястото на неуспешния. */
-    ask(asked: AskCookingQuestion, replaces?: string) {
+    ask(asked: Omit<AskCookingQuestion, 'follows'>, replaces?: string) {
       setReplacing(replaces);
-      start.mutate(asked, {
+      const at = replaces === undefined ? -1 : ids.indexOf(replaces);
+      const follows = at === -1 ? ids.at(-1) : ids[at - 1];
+      start.mutate({ ...asked, ...(follows ? { follows } : {}) }, {
         onSuccess(question) {
           setIds((current) =>
             replaces && current.includes(replaces)

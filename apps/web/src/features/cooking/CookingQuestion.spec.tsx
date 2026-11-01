@@ -23,12 +23,15 @@ const ANSWER =
 
 let nextId = 1;
 
+interface Posted {
+  body: { question: string; step: number; servings: number; follows?: string };
+  actingUser: string | null;
+  /** The id the api gave the question. */
+  id: string;
+}
+
 /** A question as the api stores it, `pending` until the run ends. */
-function pendingQuestion(body: {
-  question: string;
-  step: number;
-  servings: number;
-}): CookingQuestion {
+function pendingQuestion(body: Posted['body']): CookingQuestion {
   const id = `dddddddd-0000-4000-8000-${String(nextId++).padStart(12, '0')}`;
   return {
     id,
@@ -40,10 +43,6 @@ function pendingQuestion(body: {
   };
 }
 
-interface Posted {
-  body: { question: string; step: number; servings: number };
-  actingUser: string | null;
-}
 
 /**
  * The recipe and its questions: each `POST` stores a pending question, and its `GET` answers with `finished[n]` (for the
@@ -64,8 +63,12 @@ function serveQuestions(
     ),
     http.post(`/api/recipes/${stew.id}/questions`, async ({ request }) => {
       const body = (await request.json()) as Posted['body'];
-      posted.push({ body, actingUser: request.headers.get('x-acting-user') });
       const question = pendingQuestion(body);
+      posted.push({
+        body,
+        actingUser: request.headers.get('x-acting-user'),
+        id: question.id,
+      });
       questions.set(question.id, {
         question,
         polls: 0,
@@ -100,12 +103,32 @@ async function openCooking(mode: 'kiosk' | 'phone' | 'browser' = 'phone') {
   await screen.findByText('Стъпка 1 от 3');
 }
 
-async function askInSheet(user: ReturnType<typeof userEvent.setup>) {
+async function askInSheet(
+  user: ReturnType<typeof userEvent.setup>,
+  question = QUESTION,
+) {
   await user.click(screen.getByRole('button', { name: 'Питай' }));
   const sheet = await screen.findByRole('dialog', { name: 'Въпрос' });
-  await user.type(within(sheet).getByLabelText('Твоят въпрос'), QUESTION);
+  await user.type(within(sheet).getByLabelText('Твоят въпрос'), question);
   await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
   return sheet;
+}
+
+/** Types and sends one more question in the open sheet. */
+async function askMore(
+  user: ReturnType<typeof userEvent.setup>,
+  sheet: HTMLElement,
+  question: string,
+) {
+  await user.type(within(sheet).getByLabelText('Твоят въпрос'), question);
+  await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
+}
+
+/** The questions and answers in the sheet's list, item by item. */
+function listed(sheet: HTMLElement): string[] {
+  return within(within(sheet).getByRole('list', { name: 'Въпроси' }))
+    .getAllByRole('listitem')
+    .map((item) => item.textContent ?? '');
 }
 
 afterEach(() => {
@@ -130,7 +153,11 @@ describe('Въпрос в Готвене', () => {
       expect(await within(sheet).findByText(ANSWER)).toBeInTheDocument();
       expect(within(sheet).getByText(QUESTION)).toBeInTheDocument();
       expect(posted).toEqual([
-        { body: { question: QUESTION, step: 1, servings: 5 }, actingUser },
+        {
+          body: { question: QUESTION, step: 1, servings: 5 },
+          actingUser,
+          id: expect.any(String),
+        },
       ]);
       expect(within(sheet).getByLabelText('Твоят въпрос')).toHaveValue('');
     },
@@ -202,5 +229,76 @@ describe('Въпрос в Готвене', () => {
     } finally {
       online();
     }
+  });
+
+  it('новият въпрос продължава последния: листът показва всички един под друг, а заявката помни кой продължава', async () => {
+    const user = userEvent.setup();
+    const FOLLOW_UP = 'а колко дълго да я варя тогава?';
+    const LATER = 'ами ако стане много гъсто?';
+    const posted = serveQuestions([
+      { status: 'done', answer: ANSWER },
+      { status: 'done', answer: '10–12 минути на слаб огън.' },
+      { status: 'done', answer: 'Добави 2–3 с.л. вода.' },
+    ]);
+    await openCooking();
+
+    const sheet = await askInSheet(user);
+    await within(sheet).findByText(ANSWER);
+    await askMore(user, sheet, FOLLOW_UP);
+    await within(sheet).findByText('10–12 минути на слаб огън.');
+    await askMore(user, sheet, LATER);
+    await within(sheet).findByText('Добави 2–3 с.л. вода.');
+
+    expect(listed(sheet)).toEqual([
+      `${QUESTION}${ANSWER}`,
+      `${FOLLOW_UP}10–12 минути на слаб огън.`,
+      `${LATER}Добави 2–3 с.л. вода.`,
+    ]);
+    const [first, second, third] = posted;
+    expect(first?.body.follows).toBeUndefined();
+    expect(second?.body).toMatchObject({
+      question: FOLLOW_UP,
+      follows: first?.id,
+    });
+    expect(third?.body).toMatchObject({ question: LATER, follows: second?.id });
+  });
+
+  it('докато въпрос чака, полето е изключено, а след отговора се включва', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    serveQuestions([{ status: 'done', answer: ANSWER }], 1);
+    await openCooking();
+
+    const sheet = await askInSheet(user);
+    await within(sheet).findByText('Мисли…');
+    expect(within(sheet).getByLabelText('Твоят въпрос')).toBeDisabled();
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    await within(sheet).findByText(ANSWER);
+    expect(within(sheet).getByLabelText('Твоят въпрос')).toBeEnabled();
+  });
+
+  it('„Опитай пак“ на неуспешен допълнителен въпрос продължава същия предишен', async () => {
+    const user = userEvent.setup();
+    const posted = serveQuestions([
+      { status: 'done', answer: ANSWER },
+      { status: 'failed', error: 'timeout' },
+      { status: 'done', answer: '10 минути.' },
+    ]);
+    await openCooking();
+
+    const sheet = await askInSheet(user);
+    await within(sheet).findByText(ANSWER);
+    await askMore(user, sheet, 'а колко дълго?');
+    await user.click(
+      await within(sheet).findByRole('button', { name: 'Опитай пак' }),
+    );
+    await within(sheet).findByText('10 минути.');
+
+    expect(posted.map(({ body }) => body.follows)).toEqual([
+      undefined,
+      posted[0]?.id,
+      posted[0]?.id,
+    ]);
   });
 });

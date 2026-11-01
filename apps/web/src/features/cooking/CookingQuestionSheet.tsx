@@ -74,7 +74,8 @@ function QuestionItem({
 /**
  * Листът „Въпрос“ в Готвене (GLOSSARY: Въпрос в Готвене): зададените въпроси с отговорите им и поле за нов. Докато
  * отговорът чака, пише „Мисли…“, а листът може да се затвори: чакането продължава в `CookingView` и отговорът се вижда
- * при следващото отваряне. Нов въпрос се праща, когато предишният е отговорен.
+ * при следващото отваряне. Новият въпрос продължава последния (`follows`), затова полето е изключено, докато предишният
+ * чака отговор.
  */
 export function CookingQuestionSheet({
   questions,
@@ -149,7 +150,12 @@ export function CookingQuestionSheet({
                 className="field__input cooking-question__input"
                 rows={2}
                 maxLength={COOKING_QUESTION_MAX}
-                placeholder="напр. мога ли да заменя доматите с консерва?"
+                disabled={waiting}
+                placeholder={
+                  ids.length > 0
+                    ? 'продължи, напр. а колко дълго тогава?'
+                    : 'напр. мога ли да заменя доматите с консерва?'
+                }
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 onKeyDown={(event) => {
