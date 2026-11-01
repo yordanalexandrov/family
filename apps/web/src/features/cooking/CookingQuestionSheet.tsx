@@ -1,4 +1,8 @@
-import { COOKING_QUESTION_MAX, type CookingQuestion } from '@family/shared';
+import {
+  COOKING_QUESTION_MAX,
+  type CookingQuestion,
+  type Recipe,
+} from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -8,6 +12,7 @@ import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage } from '../../lib/ai-requests';
 import { useOnline } from '../../lib/use-online';
+import { StepText } from '../timers/StepText';
 import { cookingQuestionQuery } from './questions';
 import type { CookingQuestions } from './use-cooking-questions';
 
@@ -15,6 +20,8 @@ import type { CookingQuestions } from './use-cooking-questions';
 const COUNT_FROM = COOKING_QUESTION_MAX - 50;
 
 interface CookingQuestionSheetProps {
+  /** Рецептата, която се готви: надписът на таймер, пуснат от време в отговора. */
+  recipe: Pick<Recipe, 'id' | 'title'>;
   questions: CookingQuestions;
   /** Пуска въпрос за стъпката и порциите на екрана; с `replaces` — на мястото на неуспешен („Опитай пак“). */
   onAsk: (question: string, replaces?: string) => void;
@@ -32,11 +39,13 @@ function Waiting() {
 
 /** Един зададен въпрос: текстът му и отговорът, „Мисли…“ или неуспехът с „Опитай пак“. */
 function QuestionItem({
+  recipe,
   question,
   error,
   onRetry,
   retrying,
 }: {
+  recipe: Pick<Recipe, 'id' | 'title'>;
   question: CookingQuestion | undefined;
   error: unknown;
   onRetry: (question: CookingQuestion) => void;
@@ -65,7 +74,17 @@ function QuestionItem({
           </button>
         </>
       ) : (
-        <p className="cooking-question__answer">{question.answer}</p>
+        <p className="cooking-question__answer">
+          <StepText
+            text={question.answer ?? ''}
+            source={{
+              recipeId: recipe.id,
+              recipeTitle: recipe.title,
+              step: question.step,
+              question: true,
+            }}
+          />
+        </p>
       )}
     </>
   );
@@ -77,6 +96,7 @@ function QuestionItem({
  * при следващото отваряне. Нов въпрос се праща, когато предишният е отговорен.
  */
 export function CookingQuestionSheet({
+  recipe,
   questions,
   onAsk,
   onClose,
@@ -116,6 +136,7 @@ export function CookingQuestionSheet({
             {ids.map((id, index) => (
               <li key={id} className="cooking-question__item">
                 <QuestionItem
+                  recipe={recipe}
                   question={results[index]?.data}
                   error={results[index]?.error}
                   retrying={id === replacing}

@@ -5,6 +5,7 @@ import {
   type NewTimer,
   remainingMs,
   TIMERS_KEY,
+  timerLabel,
 } from './timer-store';
 
 const MINUTE = 60_000;
@@ -46,6 +47,14 @@ describe('таймерите се помнят на устройството', (
 
     store.start(fry);
     expect(createTimerStore().list()[0]).toEqual(paused);
+  });
+
+  it('таймер от отговор на въпрос остава „Въпрос · …“ и в следващото Готвене', () => {
+    atTime('2026-10-31T12:00:00+02:00');
+    createTimerStore().start({ ...fry, label: '10 мин', question: true });
+
+    const [timer] = createTimerStore().list();
+    expect(timer && timerLabel(timer, fry.recipeId)).toBe('Въпрос · 10 мин');
   });
 
   it('след полунощ изтеклите от предишния ден изчезват, а работещите и на пауза остават', () => {
