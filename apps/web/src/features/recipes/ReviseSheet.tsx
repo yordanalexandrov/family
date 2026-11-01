@@ -274,9 +274,7 @@ export function ReviseSheet({
           />
         </div>
         {current.stale && (
-          <p className="refine__note" role="status">
-            Рецептата е записана след поправката.
-          </p>
+          <p role="status">Рецептата е записана след поправката.</p>
         )}
         {reject.isError && <ErrorBox error={reject.error} />}
         <div className="refine__actions">
