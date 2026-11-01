@@ -205,6 +205,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
   const ranOutOffline = useNeedsConnection(online);
   const [sourcesOf, setSourcesOf] = useState<ShoppingItem | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showBought, setShowBought] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [showPantry, setShowPantry] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -221,9 +222,9 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
     });
   }
 
-  const held = useHeldOrder(list.aisles);
+  const held = useHeldRows(list.aisles);
   function setCheck(item: ShoppingItem) {
-    held.hold();
+    held.hold(item.key);
     void toggle(item);
   }
   /** Чужда отметка се маха чак след „Махни“ (#129 D-04); „Върни“ в toast-а я слага пак, вече от действащия. */
@@ -246,6 +247,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
     onSources: setSourcesOf,
     onUncheckForeign: uncheckForeign,
   };
+  const aisleListProps = { users, confirming, actingUserId, rowActions };
   const closeSheet = () => setSourcesOf(null);
 
   /** „Скрий от списъка“ тръгва веднага; „Върни“ в toast-а го показва пак (#129 D-05). */
@@ -296,29 +298,26 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
         list.hasMenu && <p className="shopping__empty">Списъкът е празен.</p>
       ) : (
         <div ref={held.listRef} className="shopping__list">
-          {held.aisles.map(({ aisle, items }) => (
-            <section
-              key={aisle}
-              className="shopping__aisle"
-              aria-label={AISLE_LABELS[aisle]}
-            >
-              <h2 className="shopping__aisle-title">{AISLE_LABELS[aisle]}</h2>
-              <ul className="shopping__items">
-                {items.map((item) => (
-                  <ItemRow
-                    key={item.key}
-                    item={item}
-                    checkedBy={users.find((u) => u.id === item.checkedBy)}
-                    confirming={
-                      confirming === item.key &&
-                      isForeignCheck(item, actingUserId)
-                    }
-                    {...rowActions}
-                  />
-                ))}
-              </ul>
+          <AisleList aisles={held.listed} {...aisleListProps} />
+          {held.bought.length > 0 && (
+            <section className="shopping__bought" aria-label="Купени">
+              <button
+                type="button"
+                className="shopping__hidden-toggle"
+                aria-expanded={showBought}
+                onClick={() => setShowBought((open) => !open)}
+              >
+                Купени ({countItems(held.bought)})
+              </button>
+              {showBought && (
+                <AisleList
+                  aisles={held.bought}
+                  headingLevel={3}
+                  {...aisleListProps}
+                />
+              )}
             </section>
-          ))}
+          )}
         </div>
       )}
       {!list.hasMenu && (
@@ -464,21 +463,25 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
 }
 
 /**
- * Редът на редовете, задържан след отметка: отметнатият ред не слиза веднага в края на щанда, а всички редове стоят,
- * където са били при първата отметка, докато не мине `SETTLE_MS` без докосване в списъка. Нов ред (напр. от
- * опресняването) отива в края на щанда си.
+ * Редовете в списъка и в „Купени“ (#306). Отметнатите са в „Купени“, но след отметка редовете се задържат: всички
+ * стоят, където са били при първата отметка, и отметнатият ред остава задраскан в щанда си, докато не мине
+ * `SETTLE_MS` без докосване в списъка. Нов ред (напр. от опресняването) отива в края на щанда си. Отделянето е само
+ * тук: api-то и `withCheck` (офлайн) дават отметнатите в щанда им.
  */
-function useHeldOrder(aisles: ShoppingList['aisles']) {
-  const [keys, setKeys] = useState<string[] | null>(null);
+function useHeldRows(aisles: ShoppingList['aisles']) {
+  const [held, setHeld] = useState<{
+    keys: string[];
+    listed: Set<string>;
+  } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const listRef = useRef<HTMLDivElement>(null);
 
   const settleLater = useCallback(() => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setKeys(null), SETTLE_MS);
+    timer.current = window.setTimeout(() => setHeld(null), SETTLE_MS);
   }, []);
 
-  const holding = keys !== null;
+  const holding = held !== null;
   useEffect(() => {
     const list = listRef.current;
     if (!holding || !list) {
@@ -489,24 +492,99 @@ function useHeldOrder(aisles: ShoppingList['aisles']) {
   }, [holding, settleLater]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
+  const ordered = held
+    ? aisles.map((group) => ({
+        ...group,
+        items: group.items.toSorted(
+          (a, b) => position(held.keys, a.key) - position(held.keys, b.key),
+        ),
+      }))
+    : aisles;
+  const inList = (item: ShoppingItem) =>
+    item.checkedBy === null || (held?.listed.has(item.key) ?? false);
+
   return {
     listRef,
-    aisles: keys
-      ? aisles.map((group) => ({
-          ...group,
-          items: group.items.toSorted(
-            (a, b) => position(keys, a.key) - position(keys, b.key),
+    listed: filterItems(ordered, inList),
+    bought: filterItems(ordered, (item) => !inList(item)),
+    /** Задържа редовете; докоснатият ред (`key`) също остава в списъка, дори да е дошъл от „Купени“. */
+    hold(key: string) {
+      setHeld((current) => {
+        const items = aisles.flatMap((group) => group.items);
+        const base = current ?? {
+          keys: items.map((item) => item.key),
+          listed: new Set(
+            items
+              .filter((item) => item.checkedBy === null)
+              .map((item) => item.key),
           ),
-        }))
-      : aisles,
-    hold() {
-      setKeys(
-        (current) =>
-          current ?? aisles.flatMap((group) => group.items.map((i) => i.key)),
-      );
+        };
+        return base.listed.has(key)
+          ? base
+          : { ...base, listed: new Set([...base.listed, key]) };
+      });
       settleLater();
     },
   };
+}
+
+/** Щандовете само с редовете, които минават `keep`; празен щанд отпада. */
+function filterItems(
+  aisles: ShoppingList['aisles'],
+  keep: (item: ShoppingItem) => boolean,
+): ShoppingList['aisles'] {
+  return aisles
+    .map((group) => ({ ...group, items: group.items.filter(keep) }))
+    .filter((group) => group.items.length > 0);
+}
+
+function countItems(aisles: ShoppingList['aisles']): number {
+  return aisles.reduce((sum, group) => sum + group.items.length, 0);
+}
+
+interface AisleListProps {
+  aisles: ShoppingList['aisles'];
+  users: User[];
+  /** Ключът на реда с чужда отметка, който чака „Махни“. */
+  confirming: string | null;
+  actingUserId: string | null;
+  rowActions: RowActions;
+  /** Заглавията на щандовете: `h2` в списъка, `h3` в „Купени“. */
+  headingLevel?: 2 | 3;
+}
+
+/** Щандовете с редовете им, по реда на api-то; едни и същи в списъка и в „Купени“. */
+function AisleList({
+  aisles,
+  users,
+  confirming,
+  actingUserId,
+  rowActions,
+  headingLevel = 2,
+}: AisleListProps) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
+  return aisles.map(({ aisle, items }) => (
+    <section
+      key={aisle}
+      className="shopping__aisle"
+      aria-label={AISLE_LABELS[aisle]}
+    >
+      <Heading className="shopping__aisle-title">{AISLE_LABELS[aisle]}</Heading>
+      <ul className="shopping__items">
+        {items.map((item) => (
+          <ItemRow
+            key={item.key}
+            item={item}
+            checkedBy={users.find((u) => u.id === item.checkedBy)}
+            confirming={
+              confirming === item.key && isForeignCheck(item, actingUserId)
+            }
+            {...rowActions}
+          />
+        ))}
+      </ul>
+    </section>
+  ));
 }
 
 function position(keys: string[], key: string): number {
