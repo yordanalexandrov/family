@@ -657,6 +657,12 @@ fieldset.chips {
   align-self: center;
 }
 
+/* „Как мина?“: звездите и „Поправка чака преглед“ не се разтягат по ширината на листа. */
+.feedback > .stars,
+.feedback > .badge {
+  align-self: flex-start;
+}
+
 .refine__lines {
   display: flex;
   flex-direction: column;

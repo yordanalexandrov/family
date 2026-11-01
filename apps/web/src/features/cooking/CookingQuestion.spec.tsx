@@ -616,6 +616,7 @@ describe('Въпрос в Готвене', () => {
       );
       await user.click(screen.getByRole('button', { name: 'Стъпка 3' }));
       await user.click(screen.getByRole('button', { name: 'Готово' }));
+      await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
       await reopenCooking(nextDay);
       expect(await asked(user)).toEqual([]);
     });

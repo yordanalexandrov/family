@@ -2,7 +2,9 @@ import type { Recipe } from '@family/shared';
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { SHEET_WINDOW_QUERY } from '../../components/sheet-drag';
+import { afterSheetClosed } from '../../components/sheet-history';
 import { useMediaQuery } from '../../lib/use-media-query';
+import { CookingFeedbackSheet } from '../recipes/CookingFeedbackSheet';
 import { AskButton } from './AskButton';
 import { type CookingProducts, productsLabel } from './CookingChecklist';
 import {
@@ -67,6 +69,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const questions = useCookingQuestions(recipe.id);
   useReadNewAnswers(
     questions.results.map((result) => result.data),
@@ -91,7 +94,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       step={step}
       onStepChange={setStep}
       onClose={() => onExit()}
-      onDone={() => onExit(finish)}
+      onDone={() => setFeedbackOpen(true)}
       ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
       readStep={<ReadStepButton reading={reading} />}
       listen={<ListenButton listening={listening} />}
@@ -131,6 +134,18 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     />
   );
 
+  // „Готово“ отваря „Как мина?“; „Пропусни“ и пуснатата поправка излизат, а затвореният лист оставя в Готвене.
+  const feedbackSheet = feedbackOpen && (
+    <CookingFeedbackSheet
+      recipe={recipe}
+      onDone={() => {
+        setFeedbackOpen(false);
+        afterSheetClosed(() => onExit(finish));
+      }}
+      onClose={() => setFeedbackOpen(false)}
+    />
+  );
+
   if (!wide) {
     return (
       <main className="cooking cooking--narrow" aria-label={recipe.title}>
@@ -152,6 +167,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
           </Sheet>
         )}
         {questionSheet}
+        {feedbackSheet}
       </main>
     );
   }
@@ -168,6 +184,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       />
       {steps}
       {questionSheet}
+      {feedbackSheet}
     </main>
   );
 }
