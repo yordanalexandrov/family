@@ -95,6 +95,14 @@ export const preparationItemSchema = z.discriminatedUnion('kind', [
 
 export type PreparationItem = z.infer<typeof preparationItemSchema>;
 
+/** Marks the issue of a second oven among the issues of the item's `kind`. */
+const SECOND_OVEN = 'secondOven';
+
+/** The issue {@link preparationSchema} gives a second oven (on its `kind`), not any other problem of the kind. */
+export function isSecondOvenIssue(issue: z.core.$ZodIssue): boolean {
+  return issue.code === 'custom' && issue.params?.[SECOND_OVEN] === true;
+}
+
 /**
  * GLOSSARY: Подготовка. The ordered things to do before the first step (or alongside it): 0–8 items, at most one oven.
  * The steps stay as they are; the preparation does not replace them.
@@ -110,6 +118,7 @@ export const preparationSchema = z
           code: 'custom',
           message: 'at most one oven',
           path: [index, 'kind'],
+          params: { [SECOND_OVEN]: true },
         });
       }
     });

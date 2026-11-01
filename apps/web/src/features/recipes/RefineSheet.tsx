@@ -158,8 +158,7 @@ export function RefineSheet({
     // Подобрение отпреди подготовката е без нея и не я сменя: няма какво да се сравнява.
     const proposed = refinement.preparation;
     const comparesPreparation =
-      proposed !== undefined &&
-      (preparation.length > 0 || proposed.length > 0);
+      proposed !== undefined && (preparation.length > 0 || proposed.length > 0);
     body = (
       <>
         <p>{refinement.changes}</p>

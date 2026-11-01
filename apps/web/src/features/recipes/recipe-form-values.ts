@@ -2,9 +2,14 @@ import {
   type BaseUnit,
   displaySourceUrl,
   type Ingredient,
+  isSecondOvenIssue,
+  MINUTES_BEFORE_MAX,
   type NewProduct,
   type Nutrition,
   normalizeSourceUrl,
+  OVEN_DEGREES_MAX,
+  OVEN_DEGREES_MIN,
+  PREPARATION_MAX,
   type Recipe,
   type RecipeInput,
   type RecipeStep,
@@ -185,6 +190,8 @@ function valuesToNutrition(values: NutritionValues): Nutrition | undefined {
   ) as Nutrition;
 }
 
+const MINUTES_PER_DAY = 24 * 60;
+
 const FIELD_MESSAGES: [RegExp, string][] = [
   [/^title$/, 'Въведи заглавие'],
   [/^servings$/, 'Порциите са цяло число, поне 1'],
@@ -197,11 +204,16 @@ const FIELD_MESSAGES: [RegExp, string][] = [
     'Избери продукт от списъка или създай нов',
   ],
   [/^ingredients\.\d+\.quantity$/, 'Количеството е положително число'],
-  [/^preparation$/, 'Най-много 8 неща в подготовката'],
-  [/^preparation\.\d+\.kind$/, 'Фурната е само една'],
-  [/^preparation\.\d+\.degrees$/, 'Градусите са цяло число от 30 до 300'],
+  [/^preparation$/, `Най-много ${PREPARATION_MAX} неща в подготовката`],
+  [
+    /^preparation\.\d+\.degrees$/,
+    `Градусите са цяло число от ${OVEN_DEGREES_MIN} до ${OVEN_DEGREES_MAX}`,
+  ],
   [/^preparation\.\d+\.text$/, 'Напиши какво да се направи'],
-  [/^preparation\.\d+\.minutesBefore$/, 'Времето е от 1 мин до 2 дни'],
+  [
+    /^preparation\.\d+\.minutesBefore$/,
+    `Времето е от 1 мин до ${MINUTES_BEFORE_MAX / MINUTES_PER_DAY} дни`,
+  ],
   [/^nutritionPer100g\.\w+$/, 'Неотрицателно число'],
 ];
 
@@ -259,7 +271,10 @@ export function toRecipeInput(
   for (const issue of result.error.issues) {
     // Грешката в текста на стъпка (`steps.1.text`) е на реда на стъпката (`steps.1`).
     const path = issue.path.join('.').replace(/^(steps\.\d+)\.text$/, '$1');
-    errors[path] ??= messageFor(path);
+    // Втора фурна е грешка по `kind`, но не единствената възможна там.
+    errors[path] ??= isSecondOvenIssue(issue)
+      ? 'Фурната е само една'
+      : messageFor(path);
   }
   return { ok: false, errors };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatMinutesBefore,
+  isSecondOvenIssue,
   preparationLabel,
   preparationSchema,
 } from './preparation.js';
@@ -35,6 +36,18 @@ describe('preparationSchema', () => {
       { kind: 'oven', degrees: 220, fan: 'conventional' },
     ]);
     expect(result.success).toBe(false);
+    const [issue] = result.error?.issues ?? [];
+    expect(issue?.path).toEqual([1, 'kind']);
+    expect(issue && isSecondOvenIssue(issue)).toBe(true);
+  });
+
+  it('tells a second oven apart from another problem of the kind', () => {
+    const result = preparationSchema.safeParse([
+      { kind: 'grill', text: 'запали скарата' },
+    ]);
+    const issues = result.error?.issues ?? [];
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.some(isSecondOvenIssue)).toBe(false);
   });
 
   it.each([29, 301, 180.5])('refuses an oven at %s degrees', (degrees) => {
