@@ -18,7 +18,7 @@ import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
 import { useCookingChanges } from './use-cooking-changes';
 import { useCookingListening } from './use-cooking-listening';
 import { useCookingQuestions } from './use-cooking-questions';
-import { useCookingReading } from './use-cooking-reading';
+import { useCookingReading, useReadNewAnswers } from './use-cooking-reading';
 import './cooking.css';
 
 interface CookingViewProps {
@@ -38,7 +38,8 @@ interface CookingViewProps {
  * от нея нагоре той е прозорец, не лист отдолу. Нищо не стига до сървъра: порциите и дали листът е отворен живеят
  * само на екрана, стъпката, отметките, въпросите и приложените промени за готвенето се помнят на устройството до края
  * на деня или до „Готово“, а дали колоната е отворена — на устройството. „Питай“ отваря листа „Въпрос“ (GLOSSARY:
- * Въпрос в Готвене); зададените въпроси живеят тук, над листа, а отговорът на чакащия се вижда при следващото отваряне.
+ * Въпрос в Готвене); зададените въпроси и заявките им живеят тук, над листа: отговорът на чакащия се вижда при следващото
+ * отваряне, а при „Чети стъпките“ се чете сам и при затворен лист.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
@@ -66,6 +67,10 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const questions = useCookingQuestions(recipe.id);
+  useReadNewAnswers(
+    questions.results.map((result) => result.data),
+    reading,
+  );
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
   const products: CookingProducts = {
     lines: changes.lines,

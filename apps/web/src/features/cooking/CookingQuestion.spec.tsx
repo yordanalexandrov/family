@@ -1175,6 +1175,27 @@ describe('отговорът на глас', () => {
     expect(speech.spoken).toEqual([{ text: SHORT_SPOKEN, voice: 'bg-BG' }]);
   });
 
+  it('при включено „Чети стъпките“ новият отговор се чете сам и при затворен лист', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const speech = fakeSpeech();
+    serveQuestions([{ status: 'done', answer: SHORT }], 1);
+    await openCooking();
+    await user.click(screen.getByRole('button', { name: 'Чети стъпките' }));
+    const sheet = await askInSheet(user);
+    await within(sheet).findByText('Мисли…');
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(
+      screen.queryByRole('dialog', { name: 'Въпрос' }),
+    ).not.toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    await vi.waitFor(() =>
+      expect(speech.spoken).toEqual([{ text: SHORT_SPOKEN, voice: 'bg-BG' }]),
+    );
+  });
+
   it('при изключено „Чети стъпките“ новият отговор не се чете', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

@@ -1,7 +1,12 @@
 import type { AskCookingQuestionBody } from '@family/shared';
+import { useQueries } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useRememberedQuestions } from './cooking-memory';
-import { useAskCookingQuestion, useIsLostQuestion } from './questions';
+import {
+  cookingQuestionQuery,
+  useAskCookingQuestion,
+  useIsLostQuestion,
+} from './questions';
 
 /**
  * Въпросите в Готвене на една рецепта (GLOSSARY: Въпрос в Готвене), зададени от това устройство: id-тата им по реда на
@@ -10,8 +15,8 @@ import { useAskCookingQuestion, useIsLostQuestion } from './questions';
  * стъпката на неуспешния и продължава същия, който продължаваше той. Изгубен въпрос (404) не се продължава: api не го
  * знае, а ако заявката му вече я няма в кеша, api го отказва и въпросът се праща пак без него
  * (`useAskCookingQuestion`). Държи се в `CookingView`, над листа „Въпрос“, за да не се губи при затваряне; отговорите
- * се питат само докато листът е отворен и чакащият се вижда при следващото отваряне. Помнят се на устройството заедно с
- * напредъка в Готвене, до края на деня или до „Готово“.
+ * се питат през цялото Готвене (чакащият на 3 s), за да може новият отговор да се прочете сам и при затворен лист.
+ * Помнят се на устройството заедно с напредъка в Готвене, до края на деня или до „Готово“.
  */
 export function useCookingQuestions(recipeId: string) {
   const remembered = useRememberedQuestions(recipeId);
@@ -20,8 +25,11 @@ export function useCookingQuestions(recipeId: string) {
   const [replacing, setReplacing] = useState<string>();
   const start = useAskCookingQuestion(recipeId);
   const isLost = useIsLostQuestion();
+  const results = useQueries({ queries: ids.map(cookingQuestionQuery) });
   return {
     ids,
+    /** Заявките за въпросите, по реда на `ids`. */
+    results,
     /** Зададените въпроси с текста и стъпката им, по реда на `ids`; запомненият отпреди стъпките е без стъпка. */
     asked: remembered.questions,
     start,

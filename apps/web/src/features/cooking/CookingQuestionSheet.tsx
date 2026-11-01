@@ -6,8 +6,7 @@ import {
   type Recipe,
   scaleQuantity,
 } from '@family/shared';
-import { useQueries } from '@tanstack/react-query';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { useNeedsConnection } from '../../components/NeedsConnection';
@@ -17,7 +16,7 @@ import { failureMessage } from '../../lib/ai-requests';
 import { formatQuantity } from '../../lib/format';
 import { useOnline } from '../../lib/use-online';
 import { StepText } from '../timers/StepText';
-import { cookingQuestionQuery, isLostQuestion } from './questions';
+import { isLostQuestion } from './questions';
 import type { CookingChanges } from './use-cooking-changes';
 import type { CookingQuestions } from './use-cooking-questions';
 import type { CookingReading } from './use-cooking-reading';
@@ -37,7 +36,7 @@ interface CookingQuestionSheetProps {
   servings: number;
   /**
    * Четенето на глас на Готвене (`useCookingReading`): 🔊 до отговора чете през него, за да прекъсват отговорът и
-   * стъпката едно друго; при „Чети стъпките“ новият отговор се чете сам.
+   * стъпката едно друго.
    */
   reading: CookingReading;
   /**
@@ -245,51 +244,11 @@ function QuestionItem({
 }
 
 /**
- * При „Чети стъпките“ чете сам новия отговор: на въпрос, който листът е видял да чака (`pending`), а после е дошъл
- * (`done`). Отговорът, дошъл, докато листът е затворен, се чете при отварянето, щом заявката му мине от запомненото
- * `pending` в `done`. Ако дойдат няколко наведнъж, чете последния.
- */
-function useReadNewAnswers(
-  questions: readonly (CookingQuestion | undefined)[],
-  { readSteps, readAnswer }: CookingReading,
-) {
-  const seen = useRef(new Map<string, CookingQuestion['status']>());
-  const states = questions
-    .flatMap((question) =>
-      question ? [`${question.id}:${question.status}`] : [],
-    )
-    .join(' ');
-  const latest = useRef(questions);
-  latest.current = questions;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `states` е отпечатъкът на `latest.current`
-  useEffect(() => {
-    let answer: string | undefined;
-    for (const question of latest.current) {
-      if (!question) {
-        continue;
-      }
-      const before = seen.current.get(question.id);
-      seen.current.set(question.id, question.status);
-      if (
-        before === 'pending' &&
-        question.status === 'done' &&
-        question.answer
-      ) {
-        answer = question.answer;
-      }
-    }
-    if (readSteps && answer !== undefined) {
-      readAnswer(answer);
-    }
-  }, [states, readSteps, readAnswer]);
-}
-
-/**
  * Листът „Въпрос“ в Готвене (GLOSSARY: Въпрос в Готвене): въпросите, зададени на стъпката на екрана, с отговорите им и
  * поле за нов, с фокус при отваряне. Въпросите от другите стъпки (и запомнените отпреди стъпките) са свити под
  * „По-рано (n)“ и се отварят с едно докосване. Докато отговорът чака, пише „Мисли…“, а листът може да се затвори:
- * отговорите се питат само докато е отворен (`useQueries` тук), а въпросите остават в `CookingView`, затова отговорът
- * се вижда при следващото отваряне. Новият въпрос продължава последния от същата стъпка (`follows`), затова полето е
+ * въпросите и заявките им остават в `CookingView` (`useCookingQuestions`), затова отговорът се вижда при следващото
+ * отваряне. Новият въпрос продължава последния от същата стъпка (`follows`), затова полето е
  * изключено, докато въпрос на стъпката чака отговор. Отговор с промяна за готвенето има „Промени“, а приложената —
  * „Приложено“ и „Върни“, и под „По-рано“.
  */
@@ -303,11 +262,10 @@ export function CookingQuestionSheet({
   onAsk,
   onClose,
 }: CookingQuestionSheetProps) {
-  const { ids, asked: remembered, start, replacing } = questions;
+  const { asked: remembered, results, start, replacing } = questions;
   const [text, setText] = useState('');
   const [earlierOpen, setEarlierOpen] = useState(false);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
-  const results = useQueries({ queries: ids.map(cookingQuestionQuery) });
   const connection = useNeedsConnection(useOnline(), 'cooking-question__hint');
   const items = remembered.map((asked, index) => ({
     ...asked,
@@ -322,10 +280,6 @@ export function CookingQuestionSheet({
         ? result.data.status === 'pending'
         : result?.isPending === true && !result.isError,
     );
-  useReadNewAnswers(
-    results.map((result) => result.data),
-    reading,
-  );
   const trimmed = text.trim();
   // Новият въпрос, докато `POST` още не е отговорил (повторният стои на мястото на неуспешния).
   const asking =

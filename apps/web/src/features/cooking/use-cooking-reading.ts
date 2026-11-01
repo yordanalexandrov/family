@@ -1,4 +1,4 @@
-import type { CookingStep, RecipeStep } from '@family/shared';
+import type { CookingQuestion, CookingStep, RecipeStep } from '@family/shared';
 import { useEffect, useRef } from 'react';
 import { useReadAloud } from '../voice/use-read-aloud';
 import { useReadSteps } from './cooking-memory';
@@ -61,6 +61,46 @@ export function useCookingReading(
     readSteps,
     setReadSteps,
   };
+}
+
+/**
+ * При „Чети стъпките“ чете сам новия отговор на въпрос в Готвене: на въпрос, видян да чака (`pending`), а после дошъл
+ * (`done`), и при затворен лист „Въпрос“ (заявките са в `useCookingQuestions`). Ако дойдат няколко наведнъж, чете
+ * последния. Отговорите, дошли преди включването, и тези, видени направо `done` (напр. след презареждане), не се четат.
+ */
+export function useReadNewAnswers(
+  questions: readonly (CookingQuestion | undefined)[],
+  { readSteps, readAnswer }: CookingReading,
+) {
+  const seen = useRef(new Map<string, CookingQuestion['status']>());
+  const states = questions
+    .flatMap((question) =>
+      question ? [`${question.id}:${question.status}`] : [],
+    )
+    .join(' ');
+  const latest = useRef(questions);
+  latest.current = questions;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `states` е отпечатъкът на `latest.current`
+  useEffect(() => {
+    let answer: string | undefined;
+    for (const question of latest.current) {
+      if (!question) {
+        continue;
+      }
+      const before = seen.current.get(question.id);
+      seen.current.set(question.id, question.status);
+      if (
+        before === 'pending' &&
+        question.status === 'done' &&
+        question.answer
+      ) {
+        answer = question.answer;
+      }
+    }
+    if (readSteps && answer !== undefined) {
+      readAnswer(answer);
+    }
+  }, [states, readSteps, readAnswer]);
 }
 
 function stepSpeech(step: number, text: string): string {
