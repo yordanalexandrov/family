@@ -39,6 +39,10 @@ const refinement: RecipeRefinement = {
     { text: 'Посоли на вкус и сервирай.' },
   ],
   prepMinutes: 40,
+  preparation: [
+    { kind: 'fridge', text: 'извади пилето от хладилника', minutesBefore: 30 },
+    { kind: 'boil', text: 'сложи вода за ориза' },
+  ],
   changes: 'Стъпките са по-подробни, а времето е от източника.',
   source: 'read',
   droppedPhotos: 0,
@@ -56,12 +60,19 @@ const pending: RecipeRefineRequest = {
  * The recipe, its refinement (`pending` for the first `pendingPolls` reads, then `finished`) and its save; returns the
  * bodies of `PUT` and the calls of `POST …/refinements`.
  */
-function serveRefine(finished: Partial<RecipeRefineRequest>, pendingPolls = 0) {
+function serveRefine(
+  finished: Partial<RecipeRefineRequest>,
+  pendingPolls = 0,
+  preparation: Recipe['preparation'] = [],
+) {
+  const stored: Recipe = { ...recipe, preparation };
   const saved: RecipeInput[] = [];
   const posts: string[] = [];
   let polls = 0;
   server.use(
-    http.get(`/api/recipes/${recipe.id}`, () => HttpResponse.json({ recipe })),
+    http.get(`/api/recipes/${recipe.id}`, () =>
+      HttpResponse.json({ recipe: stored }),
+    ),
     http.post(`/api/recipes/${recipe.id}/refinements`, () => {
       posts.push(recipe.id);
       return HttpResponse.json({ request: pending }, { status: 202 });
@@ -82,10 +93,20 @@ function serveRefine(finished: Partial<RecipeRefineRequest>, pendingPolls = 0) {
     http.put(`/api/recipes/${recipe.id}`, async ({ request }) => {
       const body = (await request.json()) as RecipeInput;
       saved.push(body);
-      return HttpResponse.json({ recipe: { ...recipe, ...body } });
+      return HttpResponse.json({ recipe: { ...stored, ...body } });
     }),
   );
   return { saved, posts };
+}
+
+/** The items of the preparation list `name`, as text; none when there is no such list. */
+function preparationTexts(name: string) {
+  const list = screen.queryByRole('list', { name });
+  return list
+    ? within(list)
+        .queryAllByRole('listitem')
+        .map((item) => item.textContent)
+    : [];
 }
 
 function stepTexts(name: string) {
@@ -126,6 +147,12 @@ describe('„Подобри рецептата“ в редакцията', () =
       refinement.steps.map((step) => step.text),
     );
     expect(screen.getByText('Време: 40 мин')).toBeInTheDocument();
+    expect(preparationTexts('Подготовка: сега')).toEqual([]);
+    expect(screen.getByText('Без подготовка')).toBeInTheDocument();
+    expect(preparationTexts('Подготовка: предложение')).toEqual([
+      '🧊извади пилето от хладилника · 30 мин преди',
+      '♨️сложи вода за ориза',
+    ]);
 
     await real.click(screen.getByRole('button', { name: 'Приеми' }));
 
@@ -136,6 +163,10 @@ describe('„Подобри рецептата“ в редакцията', () =
       refinement.steps.map((step) => step.text),
     );
     expect(screen.getByLabelText('Време (мин)')).toHaveValue('40');
+    expect(preparationTexts('Подготовка')).toEqual([
+      '🧊извади пилето от хладилника · 30 мин преди',
+      '♨️сложи вода за ориза',
+    ]);
     expect(saved).toEqual([]);
 
     await real.click(screen.getByRole('button', { name: 'Запази' }));
@@ -143,6 +174,46 @@ describe('„Подобри рецептата“ в редакцията', () =
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]?.steps).toEqual(refinement.steps);
     expect(saved[0]?.prepMinutes).toBe(40);
+    expect(saved[0]?.preparation).toEqual(refinement.preparation);
+  });
+
+  it('предложение без подготовка показва „Без подготовка“, а „Приеми“ маха сегашната', async () => {
+    const user = userEvent.setup();
+    const { saved } = serveRefine(
+      { status: 'done', refinement: { ...refinement, preparation: [] } },
+      0,
+      [{ kind: 'oven', degrees: 180, fan: 'conventional', rack: 'middle' }],
+    );
+    await user.click(await openEdit());
+
+    await screen.findByText(refinement.changes);
+    expect(preparationTexts('Подготовка: сега')).toEqual([
+      '🔥180° · без вентилатор · средна скара',
+    ]);
+    expect(preparationTexts('Подготовка: предложение')).toEqual([]);
+    expect(screen.getByText('Без подготовка')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Приеми' }));
+    expect(preparationTexts('Подготовка')).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]?.preparation).toEqual([]);
+  });
+
+  it('без подготовка и в рецептата, и в предложението не показва раздел за нея', async () => {
+    const user = userEvent.setup();
+    serveRefine({
+      status: 'done',
+      refinement: { ...refinement, preparation: [] },
+    });
+    await user.click(await openEdit());
+
+    await screen.findByText(refinement.changes);
+    expect(screen.queryByText('Без подготовка')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Подготовка: предложение' }),
+    ).not.toBeInTheDocument();
   });
 
   it('„Откажи“ в прегледа не променя формата', async () => {
