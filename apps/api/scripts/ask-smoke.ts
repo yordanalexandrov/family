@@ -9,6 +9,9 @@
 // Cooking changes (#276): a built-in case says whether its answer must bring a `change` (the substitutions with pulp and
 // whole tomatoes) or must not (doneness, servings, outside cooking); a mismatch is a failure. A change the agent brings
 // is applied for the rest of its chain, as „Промени“ does, so the follow-ups see the recipe with it, marked `changed`.
+// New text of steps (#277): a case may also say whether its change must bring new step text (`steps`: a substitution
+// that changes the method too, as bulgur for rice or onion powder for onion); every answer checks that the number of
+// steps the agent sees never changes (steps are never added or removed), and a mismatch is a failure.
 // Without `--recipe` the recipe is the fixture `cooking-ask.input.json` (for 4, shown for 2). `--recipe` is a recipe as
 // `GET /api/recipes/:id` answers it (the body or its `recipe`), built into the input as the api does (`cookingAskInput`)
 // with the enabled appliances of the seed; `--servings` and `--step` (from 1) are then the screen's.
@@ -17,6 +20,7 @@ import { parseArgs } from 'node:util';
 import {
   type AppliedCookingChange,
   applyCookingChanges,
+  applyStepChanges,
   COOKING_ANSWER_MAX,
   COOKING_HISTORY_MAX,
   type CookingAskInput,
@@ -89,12 +93,16 @@ if (values.chain && !values.question) {
   usage('--chain needs --question.');
 }
 
-/** One question to ask, at its step (from 1); `change`: whether the answer must bring a change, unchecked if absent. */
+/**
+ * One question to ask, at its step (from 1); `change`: whether the answer must bring a change, `steps`: whether that
+ * change must bring new text of steps too; unchecked if absent.
+ */
 interface Case {
   name: string;
   question: string;
   step: number;
   change?: boolean;
+  steps?: boolean;
 }
 
 /** Questions asked one after another, each a follow-up of the ones before; a single question is a chain of one. */
@@ -132,6 +140,29 @@ const BUILT_IN: Chain[] = [
       name: 'цели доматки → сокът',
       question: 'а сока от консервата и него ли да сложа',
       step: 3,
+    },
+  ],
+  [
+    {
+      name: 'булгур',
+      question: 'нямам ориз мога ли с булгур и как тогава',
+      step: 4,
+      change: true,
+      steps: true,
+    },
+    {
+      name: 'булгур → вода',
+      question: 'същата вода ли да сложа',
+      step: 4,
+    },
+  ],
+  [
+    {
+      name: 'лук на прах',
+      question: 'свърши ми лукът имам само лук на прах как да го сложа',
+      step: 2,
+      change: true,
+      steps: true,
     },
   ],
   [
@@ -200,6 +231,18 @@ const SEED_APPLIANCES = [
 
 type History = CookingAskInput['history'];
 
+/** The fixture's steps with the changes applied in this chain (as the api does): the new text marked `changed`. */
+function fixtureSteps(applied: AppliedCookingChange[]) {
+  return applyStepChanges(
+    fixtureInput.recipe.steps.map(({ text }) => ({ text })),
+    applied,
+  ).map(({ text, changed }, index) => ({
+    number: index + 1,
+    text,
+    ...(changed ? { changed } : {}),
+  }));
+}
+
 /** The fixture's lines, already for its shown servings, with the changes applied in this chain (as the api does). */
 function fixtureIngredients(applied: AppliedCookingChange[]) {
   const { shownServings, ingredients } = fixtureInput.recipe;
@@ -216,41 +259,56 @@ function fixtureIngredients(applied: AppliedCookingChange[]) {
 
 /**
  * The input for one case after `history` (the answered questions before it in its chain) and with the changes applied
- * in its chain: from the recipe file as the api builds it, or the fixture with the case's question and step.
+ * in its chain: from the recipe file as the api builds it, or the fixture with the case's question and step; and the
+ * number of steps of the recipe, which no change may alter.
  */
-async function inputFor(): Promise<
-  (each: Case, history: History, applied: AppliedCookingChange[]) => unknown
-> {
+async function inputFor(): Promise<{
+  build: (
+    each: Case,
+    history: History,
+    applied: AppliedCookingChange[],
+  ) => unknown;
+  stepCount: number;
+}> {
   if (!values.recipe) {
-    return (each, history, applied) => ({
-      ...fixtureInput,
-      recipe: {
-        ...fixtureInput.recipe,
-        ingredients: fixtureIngredients(applied),
-      },
-      currentStep: each.step,
-      history,
-      question: each.question,
-    });
+    return {
+      build: (each, history, applied) => ({
+        ...fixtureInput,
+        recipe: {
+          ...fixtureInput.recipe,
+          ingredients: fixtureIngredients(applied),
+          steps: fixtureSteps(applied),
+        },
+        currentStep: each.step,
+        history,
+        question: each.question,
+      }),
+      stepCount: fixtureInput.recipe.steps.length,
+    };
   }
   const file: unknown = JSON.parse(await readFile(values.recipe, 'utf8'));
   const body = z.object({ recipe: z.unknown() }).safeParse(file);
   const recipe = recipeSchema.parse(body.success ? body.data.recipe : file);
-  return (each, history, applied) =>
-    cookingAskInput(
-      recipe,
-      {
-        question: each.question,
-        step: each.step - 1,
-        servings: servings ?? recipe.servings,
-      },
-      SEED_APPLIANCES,
-      history,
-      applied,
-    );
+  return {
+    build: (each, history, applied) =>
+      cookingAskInput(
+        recipe,
+        {
+          question: each.question,
+          step: each.step - 1,
+          servings: servings ?? recipe.servings,
+        },
+        SEED_APPLIANCES,
+        history,
+        applied,
+      ),
+    stepCount: recipe.steps.length,
+  };
 }
 
-/** A change as one line: „замени 1 → консерва pulp 200 г; махни 5; добави захар 1 ч.л.“. */
+/**
+ * A change as one line: „замени 1 → консерва pulp 200 г; махни 5; добави захар 1 ч.л.; стъпка 3 → „Отцеди …““.
+ */
 function changeLine(change: CookingChange | undefined): string {
   if (!change) {
     return 'няма';
@@ -267,18 +325,19 @@ function changeLine(change: CookingChange | undefined): string {
     [name, quantity, UNIT_LABELS_BG[unit]]
       .filter((part) => part !== null)
       .join(' ');
-  return change.ingredients
-    .map((entry) =>
+  return [
+    ...change.ingredients.map((entry) =>
       entry.kind === 'replace'
         ? `замени ${entry.index} → ${product(entry.ingredient)}`
         : entry.kind === 'remove'
           ? `махни ${entry.index}`
           : `добави ${product(entry.ingredient)}`,
-    )
-    .join('; ');
+    ),
+    ...change.steps.map((entry) => `стъпка ${entry.number} → „${entry.text}“`),
+  ].join('; ');
 }
 
-const build = await inputFor();
+const { build, stepCount } = await inputFor();
 const config = loadOpenClawConfig();
 // The client logs only agent, attempt, status, duration and usage; the password stays in the Authorization header.
 const log = (level: string) => (details: object, message: string) =>
@@ -340,6 +399,26 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
         if (each.change !== undefined && each.change !== brought) {
           failed = true;
         }
+        const stepsBrought = (output.change?.steps.length ?? 0) > 0;
+        const expectedSteps =
+          each.steps === undefined
+            ? ''
+            : each.steps === stepsBrought
+              ? `, ${stepsBrought ? 'с' : 'без'} нов текст на стъпка ✓`
+              : ` ✗ очакван ${each.steps ? 'нов текст на стъпка' : 'без нов текст на стъпки'}`;
+        if (each.steps !== undefined && each.steps !== stepsBrought) {
+          failed = true;
+        }
+        // Steps are never added or removed: the steps the agent saw after the chain's changes, and the ones its change names.
+        const outside =
+          output.change?.steps.filter(
+            (entry) => entry.number < 1 || entry.number > stepCount,
+          ) ?? [];
+        const sameSteps =
+          input.recipe.steps.length === stepCount && outside.length === 0;
+        if (!sameSteps) {
+          failed = true;
+        }
         process.stdout.write(
           [
             `[${label}] ${input.recipe.title}, ${input.recipe.shownServings} порции, стъпка ${input.currentStep} от ${input.recipe.steps.length}`,
@@ -353,9 +432,16 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
                 (line) =>
                   `   Приложено: ${line.index} ${line.name}${line.removed ? ' (махнат)' : ''}`,
               ),
+            ...input.recipe.steps
+              .filter((current) => current.changed)
+              .map(
+                (current) =>
+                  `   Приложено: стъпка ${current.number} „${current.text}“`,
+              ),
             `   Въпрос: ${input.question}`,
             `   Отговор (${output.answer.length}/${COOKING_ANSWER_MAX} знака, ${seconds} s): ${output.answer}`,
             `   Промяна: ${changeLine(output.change)}${expected}`,
+            `   Стъпки: ${input.recipe.steps.length} от ${stepCount}${sameSteps ? ' ✓' : ` ✗ броят стъпки се смени${outside.length > 0 ? ` (стъпка ${outside.map((entry) => entry.number).join(', ')})` : ''}`}${expectedSteps}`,
             '',
             '',
           ].join('\n'),
