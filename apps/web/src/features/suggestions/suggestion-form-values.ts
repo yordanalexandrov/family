@@ -14,7 +14,8 @@ import {
 
 /**
  * Началните стойности на `RecipeForm` от предложение. `resolved` е продуктът от регистъра по име на реда
- * (точно съвпадение); ред без него остава неразрешен и откроен като нов продукт.
+ * (точно съвпадение); ред без него остава неразрешен и откроен като нов продукт. Подготовката идва във формата, за да
+ * се поправи.
  */
 export function suggestionToFormValues(
   suggestion: SuggestionPayload,
@@ -29,6 +30,7 @@ export function suggestionToFormValues(
     tags: [...suggestion.tags],
     appliance: suggestion.appliance ?? '',
     steps: suggestion.steps.map((step) => ({ ...step })),
+    preparation: preparationToValues(suggestion.preparation),
     ingredients: suggestion.ingredients.map((line) => {
       const ingredient = line.isNew ? undefined : resolved.get(line.name);
       return emptyIngredientRow({
