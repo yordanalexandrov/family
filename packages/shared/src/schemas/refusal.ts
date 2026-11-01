@@ -15,10 +15,7 @@ import {
 } from './menu.js';
 import { cookTakenSchema, pushDisabledSchema } from './notifications.js';
 import { alreadyInPantrySchema, notStapleSchema } from './pantry.js';
-import {
-  revisionOpenSchema,
-  revisionStaleSchema,
-} from './recipe-revision.js';
+import { revisionOpenSchema, revisionStaleSchema } from './recipe-revision.js';
 import { mealWithoutRecipeSchema } from './shopping.js';
 
 /**
