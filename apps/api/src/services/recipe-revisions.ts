@@ -1,12 +1,15 @@
-import type {
-  ContractRecipe,
-  RecipeReviseInput,
-  RecipeReviseOutput,
-  RecipeRevisionRequest,
-  RevisableRecipe,
-  RevisionLine,
+import {
+  type ContractRecipe,
+  describeCookingChanges,
+  type RecipeReviseInput,
+  type RecipeReviseOutput,
+  type RecipeRevisionRequest,
+  type RevisableRecipe,
+  type RevisionLine,
+  recipeCookingLines,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
+import { findAppliedChanges } from '../db/repositories/cooking-questions.js';
 import {
   findIngredientsByIds,
   listRegistryIngredients,
@@ -15,6 +18,7 @@ import {
   decideRevisionRequest,
   findOpenRevisions,
   findOpenSuggestionRevision,
+  findRevisionAppliedIds,
   findRevisionBaseRecipe,
   findRevisionRequest,
   insertRevisionRequest,
@@ -45,13 +49,15 @@ const NO_SUCH_REVISION = 'Няма такава поправка на рецеп
 const ALREADY_DECIDED = 'Поправката вече е приета или отхвърлена';
 const NOT_READY = 'Поправката още не е готова';
 const RECIPE_REVISION_OPEN = 'Рецептата вече има поправка, която чака преглед';
+const NO_SUCH_CHANGE = 'Няма такава промяна за готвенето на рецептата';
 
 /**
- * What „✏️ Поправи с AI“ asks: the instruction, and the recipe of the registry, or the suggestion with its review form's
- * recipe (the form is not saved).
+ * What „✏️ Поправи с AI“ asks: the instruction, and the recipe of the registry with the questions in Готвене whose
+ * cooking changes were applied in its last cooking (`applied`), or the suggestion with its review form's recipe (the
+ * form is not saved).
  */
 export type RevisionParams = { instruction: string } & (
-  | { recipeId: string }
+  | { recipeId: string; applied: string[] }
   | { suggestionId: string; recipe: RevisableRecipe }
 );
 
@@ -65,16 +71,22 @@ export type RecipeRevisions = ContractRequestHandle<
   string | null
 >;
 
-/** What the run read when it started: the recipe as the agent reads it and its photos by reference. */
+/**
+ * What the run read when it started: the recipe as the agent reads it, its photos by reference and the applied cooking
+ * changes as readable lines.
+ */
 interface Loaded {
   recipe: ContractRecipe;
+  cookingChanges: string[];
   /** The photo of each step that has one, by its reference `e1`, `e2`, … in the input. */
   ownPhotos: Map<string, string>;
 }
 
 /**
- * How `recipe.revise` requests are stored: refused for an unknown recipe and while the recipe has an open revision; the request remembers when the recipe was
- * saved. The run reads the recipe as it is saved and the whole registry; a valid answer is stored with the recipe's
+ * How `recipe.revise` requests are stored: refused for an unknown recipe, an `applied` that is not a question of the
+ * recipe with a change (404 `no_applied_change`, with those ids) and while the recipe has an open revision; the request
+ * remembers when the recipe was saved and `applied`. The run reads the recipe as it is saved, the applied changes (to
+ * describe them in `cookingChanges`) and the whole registry; a valid answer is stored with the recipe's
  * own photos back on their steps by id, each line with its registry product as it is now (or the proposed new one), and
  * how many photos of the recipe no step keeps. The recipe itself is not changed.
  */
@@ -112,10 +124,14 @@ export function createRecipeRevisionStore(): ContractRequestStore<
           baseRecipe: recipe,
         });
       }
-      const { recipeId } = params;
+      const { recipeId, applied } = params;
       const baseUpdatedAt = await lockRecipeUpdatedAt(tx, recipeId);
       if (!baseUpdatedAt) {
         throw new NotFoundError(NO_SUCH_RECIPE);
+      }
+      const { missing } = await findAppliedChanges(tx, recipeId, applied);
+      if (missing.length > 0) {
+        throw refuse('no_applied_change', NO_SUCH_CHANGE, { ids: missing });
       }
       // The recipe's row is held, so a second request waits here and sees this one.
       const open = (await findOpenRevisions(tx, [recipeId])).get(recipeId);
@@ -129,6 +145,7 @@ export function createRecipeRevisionStore(): ContractRequestStore<
         instruction,
         requestedBy,
         baseUpdatedAt,
+        appliedIds: applied,
       });
     },
 
@@ -143,22 +160,42 @@ export function createRecipeRevisionStore(): ContractRequestStore<
           );
         }
         const ownPhotos = photosByRef(base);
-        return { recipe: revisableContractRecipe(base, ownPhotos), ownPhotos };
+        return {
+          recipe: revisableContractRecipe(base, ownPhotos),
+          cookingChanges: [],
+          ownPhotos,
+        };
       }
       const recipe = await findRecipe(db, request.recipeId);
       if (!recipe) {
         throw new Error('recipe of a revision request vanished');
       }
       const ownPhotos = photosByRef(recipe);
-      return { recipe: contractRecipe(recipe, ownPhotos), ownPhotos };
+      const { applied } = await findAppliedChanges(
+        db,
+        request.recipeId,
+        await findRevisionAppliedIds(db, request.id),
+      );
+      return {
+        recipe: contractRecipe(recipe, ownPhotos),
+        // Applied to the recipe as it is saved only to describe them; the agent gets the recipe unchanged.
+        cookingChanges: describeCookingChanges(
+          {
+            servings: recipe.servings,
+            lines: recipeCookingLines(recipe),
+            steps: recipe.steps,
+          },
+          applied,
+        ),
+        ownPhotos,
+      };
     },
 
-    async buildInput(db, request, { recipe }) {
+    async buildInput(db, request, { recipe, cookingChanges }) {
       return {
         recipe,
         instruction: request.instruction,
-        // The cooking changes come with the cooking feedback (#303).
-        cookingChanges: [],
+        cookingChanges,
         ingredients: await listRegistryIngredients(db),
       };
     },

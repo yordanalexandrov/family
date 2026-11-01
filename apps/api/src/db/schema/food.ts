@@ -277,6 +277,11 @@ export const recipeRevisionRequest = pgTable(
       onDelete: 'cascade',
     }),
     instruction: text('instruction').notNull(),
+    // The questions in Готвене whose cooking changes were applied in the last cooking, in their order.
+    appliedIds: uuid('applied_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
     baseUpdatedAt: timestamp('base_updated_at', { withTimezone: true }),
     baseRecipe: jsonb('base_recipe').$type<RevisableRecipe>(),
     revision: jsonb('revision').$type<RecipeRevision>(),

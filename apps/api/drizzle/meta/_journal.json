@@ -253,6 +253,13 @@
       "when": 1793568150226,
       "tag": "0035_recipe_revision_suggestion",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793570038314,
+      "tag": "0036_recipe_revision_applied",
+      "breakpoints": true
     }
   ]
 }

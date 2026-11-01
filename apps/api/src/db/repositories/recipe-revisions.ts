@@ -112,7 +112,7 @@ export async function lockRecipeUpdatedAt(
 export async function insertRevisionRequest(
   db: DbExecutor,
   values: { instruction: string; requestedBy: string | null } & (
-    | { recipeId: string; baseUpdatedAt: Date }
+    | { recipeId: string; baseUpdatedAt: Date; appliedIds: string[] }
     | { suggestionId: string; baseRecipe: RevisableRecipe }
   ),
 ): Promise<RecipeRevisionRequest> {
@@ -136,6 +136,19 @@ export async function findRevisionRequest(
     .where(eq(recipeRevisionRequest.id, id))
     .limit(1);
   return row && toRevisionRequest(row);
+}
+
+/** The questions in Готвене whose cooking changes the revision was asked with, in their order. */
+export async function findRevisionAppliedIds(
+  db: DbExecutor,
+  id: string,
+): Promise<string[]> {
+  const [row] = await db
+    .select({ appliedIds: recipeRevisionRequest.appliedIds })
+    .from(recipeRevisionRequest)
+    .where(eq(recipeRevisionRequest.id, id))
+    .limit(1);
+  return row?.appliedIds ?? [];
 }
 
 /** The review form's recipe a revision of a suggestion was asked for; `undefined` for a revision of a recipe. */

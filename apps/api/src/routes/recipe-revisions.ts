@@ -34,7 +34,7 @@ export const recipeRevisionsRoutes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request, reply) => {
       const created = await revisions.request(
-        { recipeId: request.params.id, instruction: request.body.instruction },
+        { recipeId: request.params.id, ...request.body },
         actorOf(request)?.id ?? null,
       );
       return reply.code(202).send({ request: created });

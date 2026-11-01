@@ -859,3 +859,115 @@ describe('POST /api/recipe-suggestions/:id/approve with revisionId', () => {
     ).toBe(201);
   });
 });
+
+describe('applied: the cooking changes of the last cooking', () => {
+  /** Asks a question in Готвене for 2 servings, answered with `change`; returns its id once it is done. */
+  async function askedWithChange(
+    recipeId: string,
+    change: unknown,
+    applied: string[] = [],
+  ): Promise<string> {
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () =>
+        HttpResponse.json(
+          completion(JSON.stringify({ answer: 'Да.', change })),
+        ),
+      ),
+    );
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/recipes/${recipeId}/questions`,
+      headers,
+      payload: { question: 'Може ли?', step: 2, servings: 2, applied },
+    });
+    expect(response.statusCode).toBe(202);
+    const { id } = response.json().request as { id: string };
+    const deadline = Date.now() + 5_000;
+    for (;;) {
+      const polled = await app.inject({
+        method: 'GET',
+        url: `/api/recipes/questions/${id}`,
+      });
+      const { status } = polled.json().request as { status: string };
+      if (status === 'done') {
+        openclaw.resetHandlers();
+        return id;
+      }
+      if (status !== 'pending' || Date.now() > deadline) {
+        throw new Error(`question ${id} ended ${status}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
+  const PULP = {
+    ingredients: [
+      {
+        kind: 'replace',
+        index: 3,
+        ingredient: { name: 'консерва pulp', quantity: 200, unit: 'g' },
+      },
+    ],
+  };
+  const PARSLEY = {
+    ingredients: [
+      { kind: 'remove', index: 6 },
+      {
+        kind: 'add',
+        ingredient: { name: 'магданоз', quantity: 10, unit: 'g' },
+      },
+    ],
+    steps: [
+      {
+        number: 3,
+        text: 'Смеси картофите с каймата и консервата, подреди в тава.',
+      },
+    ],
+  };
+
+  it('sends the agent the applied changes in their order as readable lines, scaled to the recipe’s servings, with the recipe as it is saved', async () => {
+    const { recipe } = await createdRecipe();
+    const pulp = await askedWithChange(recipe.id, PULP);
+    const parsley = await askedWithChange(recipe.id, PARSLEY, [pulp]);
+    const inputs = answering(reviseAnswer);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/recipes/${recipe.id}/revisions`,
+      payload: { instruction: 'запази замяната', applied: [pulp, parsley] },
+    });
+    expect(response.statusCode).toBe(202);
+    await finished(recipeRevisionRequestSchema.parse(response.json().request));
+
+    const [input] = inputs;
+    expect(input?.recipe).toEqual(fixtureInput.recipe);
+    expect(input?.cookingChanges).toEqual([
+      'вместо домат: консерва pulp 400 g',
+      'без черен пипер',
+      'добавен: магданоз 20 g',
+      'стъпка 3: Смеси картофите с каймата и консервата, подреди в тава.',
+    ]);
+  });
+
+  it('answers 404 no_applied_change for an applied that is not a question of this recipe with a change, and asks nothing', async () => {
+    const { recipe } = await createdRecipe();
+    const { recipe: other } = await createdRecipe();
+    const ofOther = await askedWithChange(other.id, PULP);
+    const inputs = answering(reviseAnswer);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/recipes/${recipe.id}/revisions`,
+      payload: { instruction: 'запази замяната', applied: [ofOther] },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({
+      error: 'not_found',
+      code: 'no_applied_change',
+      ids: [ofOther],
+    });
+    expect(inputs).toEqual([]);
+    expect((await getRecipe(recipe.id)).openRevision).toBeNull();
+  });
+});

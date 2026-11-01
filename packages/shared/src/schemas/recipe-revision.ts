@@ -73,12 +73,24 @@ export const recipeRevisionRequestSchema = z.object({
 
 export type RecipeRevisionRequest = z.infer<typeof recipeRevisionRequestSchema>;
 
-/** `POST /api/recipes/:id/revisions`. */
-export const requestRevisionSchema = z.object({
+const revisionInstructionBody = z.object({
   instruction: revisionInstructionSchema,
 });
 
+/**
+ * `POST /api/recipes/:id/revisions`: the instruction and `applied`, the questions in Готвене whose cooking changes were
+ * applied in the last cooking of the recipe on this device today (GLOSSARY: Промяна за готвенето), in the order they
+ * were applied. 404 `no_applied_change` (`noAppliedChangeSchema`) when some are not questions of the recipe with a
+ * change.
+ */
+export const requestRevisionSchema = revisionInstructionBody.extend({
+  applied: z.array(z.uuid()).default([]),
+});
+
 export type RequestRevision = z.infer<typeof requestRevisionSchema>;
+
+/** What the client sends: `applied` may be left out when nothing was applied. */
+export type RequestRevisionBody = z.input<typeof requestRevisionSchema>;
 
 /**
  * The recipe of a suggestion's review form as „✏️ Поправи с AI“ sends it, for the form is not saved: the products by
@@ -91,7 +103,7 @@ export const revisableRecipeSchema = refineRecipeSchema
 export type RevisableRecipe = z.infer<typeof revisableRecipeSchema>;
 
 /** `POST /api/recipe-suggestions/:id/revisions`. */
-export const requestSuggestionRevisionSchema = requestRevisionSchema.extend({
+export const requestSuggestionRevisionSchema = revisionInstructionBody.extend({
   recipe: revisableRecipeSchema,
 });
 
