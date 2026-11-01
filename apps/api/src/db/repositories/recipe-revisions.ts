@@ -82,18 +82,15 @@ export async function findOpenRevisions(
   const rows = await db
     .select({
       id: recipeRevisionRequest.id,
-      recipeId: recipeRevisionRequest.recipeId,
-      status: recipeRevisionRequest.status,
+      // Not null by `inArray`, and `pending` or `done` by `isOpen`.
+      recipeId: sql<string>`${recipeRevisionRequest.recipeId}`,
+      status: sql<OpenRevision['status']>`${recipeRevisionRequest.status}`,
     })
     .from(recipeRevisionRequest)
     .where(and(inArray(recipeRevisionRequest.recipeId, [...recipeIds]), isOpen))
     .orderBy(asc(recipeRevisionRequest.createdAt));
   return new Map(
-    rows.flatMap(({ id, recipeId, status }) =>
-      recipeId !== null && (status === 'pending' || status === 'done')
-        ? [[recipeId, { id, status }] as const]
-        : [],
-    ),
+    rows.map(({ id, recipeId, status }) => [recipeId, { id, status }]),
   );
 }
 
