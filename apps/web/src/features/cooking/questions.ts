@@ -4,7 +4,7 @@ import {
   cookingQuestionResponseSchema,
 } from '@family/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch, JSON_HEADERS } from '../../api/client';
+import { ApiError, apiFetch, JSON_HEADERS } from '../../api/client';
 import { POLL_INTERVAL_MS, requestErrorFor } from '../../lib/ai-requests';
 
 const questionKey = (id: string) => ['recipes', 'question', id] as const;
@@ -35,6 +35,18 @@ export function useAskCookingQuestion(recipeId: string) {
       });
     },
   });
+}
+
+/** api вече не знае въпроса (404), напр. запомнен на устройството от друга база: питането пак е нов въпрос. */
+export function isLostQuestion(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+/** Дали заявката за въпроса с `id` е свършила с `isLostQuestion`. */
+export function useIsLostQuestion() {
+  const queryClient = useQueryClient();
+  return (id: string) =>
+    isLostQuestion(queryClient.getQueryState(questionKey(id))?.error);
 }
 
 /** Заявката за въпроса с `id`; пита отново на 3 s, докато е `pending`. За `useQueries` на листа. */

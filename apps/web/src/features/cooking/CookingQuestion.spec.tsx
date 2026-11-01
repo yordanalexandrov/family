@@ -7,6 +7,7 @@ import { dani, server } from '../../test/msw';
 import { goOffline } from '../../test/network';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
+import { COOKING_PROGRESS_KEY } from './cooking-memory';
 
 const stew: Recipe = {
   ...chickenWithRice,
@@ -98,8 +99,21 @@ function serveQuestions(
 
 async function openCooking(mode: 'kiosk' | 'phone' | 'browser' = 'phone') {
   setUpDevice(mode, mode === 'kiosk' ? undefined : dani.id);
-  renderApp(`/recipes/${stew.id}/cook?servings=5`);
-  await screen.findByText('Стъпка 1 от 3');
+  const rendered = renderApp(`/recipes/${stew.id}/cook?servings=5`);
+  await screen.findByText(/^Стъпка \d от 3$/);
+  return rendered;
+}
+
+/** Closes the app (a reload, the kiosk going back to the dashboard) and opens Готвене again. */
+async function reopenCooking(rendered: { unmount: () => void }) {
+  rendered.unmount();
+  return openCooking();
+}
+
+/** Opens the sheet „Въпрос“ without asking. */
+async function openSheet(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Питай' }));
+  return screen.findByRole('dialog', { name: 'Въпрос' });
 }
 
 async function askInSheet(
@@ -363,4 +377,173 @@ describe('Въпрос в Готвене', () => {
       expect(within(answer).queryByRole('button')).toBeNull();
     });
   });
+
+  describe('паметта на устройството', () => {
+    it('въпросите оцеляват презареждане заедно със стъпката, а новият продължава запомнения', async () => {
+      const user = userEvent.setup();
+      const posted = serveQuestions([
+        { status: 'done', answer: ANSWER },
+        { status: 'done', answer: '10 минути.' },
+      ]);
+      const first = await openCooking();
+      const sheet = await askInSheet(user);
+      await findAnswer(sheet, ANSWER);
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+      await reopenCooking(first);
+      expect(screen.getByText('Стъпка 2 от 3')).toBeInTheDocument();
+      const reopened = await openSheet(user);
+      expect(await findAnswer(reopened, ANSWER)).toBeInTheDocument();
+      expect(within(reopened).getByText(QUESTION)).toBeInTheDocument();
+      await askMore(user, reopened, 'а колко дълго?');
+      await findAnswer(reopened, '10 минути.');
+
+      expect(posted[1]?.body).toMatchObject({
+        question: 'а колко дълго?',
+        step: 1,
+        follows: posted[0]?.id,
+      });
+    });
+
+    it('изчезват при нов ден и при „Готово“ на последната стъпка', async () => {
+      const user = userEvent.setup();
+      serveQuestions([{ status: 'done', answer: ANSWER }]);
+      atTime('2026-11-01T19:00:00+02:00');
+      const first = await openCooking();
+      await user.click(
+        within(await askInSheet(user)).getByRole('button', { name: 'Готово' }),
+      );
+
+      atTime('2026-11-02T00:10:00+02:00');
+      const nextDay = await reopenCooking(first);
+      expect(await asked(user)).toEqual([]);
+
+      await user.click(
+        within(await askInSheet(user)).getByRole('button', { name: 'Готово' }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Стъпка 3' }));
+      await user.click(screen.getByRole('button', { name: 'Готово' }));
+      await reopenCooking(nextDay);
+      expect(await asked(user)).toEqual([]);
+    });
+
+    it('чакащият въпрос продължава да пита след презареждане', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      serveQuestions([{ status: 'done', answer: ANSWER }], 2);
+      const first = await openCooking();
+      await within(await askInSheet(user)).findByText('Мисли…');
+
+      await reopenCooking(first);
+      const sheet = await openSheet(user);
+      expect(within(sheet).getByText(QUESTION)).toBeInTheDocument();
+      expect(await within(sheet).findByText('Мисли…')).toBeInTheDocument();
+      expect(within(sheet).getByLabelText('Твоят въпрос')).toBeDisabled();
+
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(await findAnswer(sheet, ANSWER)).toBeInTheDocument();
+    });
+
+    it('изтеклият въпрос (`stale`) показва неуспеха с „Опитай пак“', async () => {
+      const user = userEvent.setup();
+      const posted = serveQuestions([
+        { status: 'failed', error: 'stale' },
+        { status: 'done', answer: ANSWER },
+      ]);
+      const first = await openCooking();
+      await user.click(
+        within(await askInSheet(user)).getByRole('button', { name: 'Готово' }),
+      );
+
+      await reopenCooking(first);
+      const sheet = await openSheet(user);
+      expect(
+        await within(sheet).findByText(
+          'AI не успя да отговори: сървърът се рестартира междувременно. Опитай пак.',
+        ),
+      ).toBeInTheDocument();
+      await user.click(
+        within(sheet).getByRole('button', { name: 'Опитай пак' }),
+      );
+
+      expect(await findAnswer(sheet, ANSWER)).toBeInTheDocument();
+      expect(posted.map(({ body }) => body.question)).toEqual([
+        QUESTION,
+        QUESTION,
+      ]);
+    });
+
+    it('изгубеният въпрос (404) показва неуспеха с „Опитай пак“, а повторният започва нова верига', async () => {
+      const user = userEvent.setup();
+      serveQuestions([{ status: 'done', answer: ANSWER }]);
+      const first = await openCooking();
+      await findAnswer(await askInSheet(user), ANSWER);
+
+      // api вече не знае въпросите (напр. друга база).
+      const posted = serveQuestions([{ status: 'done', answer: '10 минути.' }]);
+      await reopenCooking(first);
+      const sheet = await openSheet(user);
+      expect(within(sheet).getByText(QUESTION)).toBeInTheDocument();
+      expect(
+        await within(sheet).findByText('AI не успя да отговори. Опитай пак.'),
+      ).toBeInTheDocument();
+      expect(within(sheet).getByLabelText('Твоят въпрос')).toBeEnabled();
+      await user.click(
+        within(sheet).getByRole('button', { name: 'Опитай пак' }),
+      );
+
+      expect(await findAnswer(sheet, '10 минути.')).toBeInTheDocument();
+      expect(listed(sheet)).toEqual([`${QUESTION}10 минути.`]);
+      expect(posted.map(({ body }) => body)).toEqual([
+        { question: QUESTION, step: 0, servings: 5 },
+      ]);
+    });
+
+    it.each([
+      ['нечетим', () => '{"day":'],
+      [
+        'с повредени въпроси',
+        (raw: string) => {
+          const stored = JSON.parse(raw) as {
+            recipes: Record<string, { questions: unknown }>;
+          };
+          for (const recipe of Object.values(stored.recipes)) {
+            recipe.questions = [{ id: 5 }, 'въпрос'];
+          }
+          return JSON.stringify(stored);
+        },
+      ],
+    ])('запис %s се чете като без въпроси', async (_, corrupt) => {
+      const user = userEvent.setup();
+      serveQuestions([{ status: 'done', answer: ANSWER }]);
+      const first = await openCooking();
+      await user.click(
+        within(await askInSheet(user)).getByRole('button', { name: 'Готово' }),
+      );
+      localStorage.setItem(
+        COOKING_PROGRESS_KEY,
+        corrupt(localStorage.getItem(COOKING_PROGRESS_KEY) ?? ''),
+      );
+
+      await reopenCooking(first);
+      expect(await asked(user)).toEqual([]);
+      await findAnswer(await askInSheet(user), ANSWER);
+    });
+  });
 });
+
+/** The questions in the sheet „Въпрос“, opened anew; closes it again. */
+async function asked(user: ReturnType<typeof userEvent.setup>) {
+  const sheet = await openSheet(user);
+  const list = within(sheet).queryByRole('list', { name: 'Въпроси' });
+  const questions = list ? listed(sheet) : [];
+  await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+  return questions;
+}
+
+/** The clock shows `iso` (only `Date`; timers stay real). */
+function atTime(iso: string) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(iso));
+}

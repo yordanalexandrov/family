@@ -13,7 +13,7 @@ import { Spinner } from '../../components/Spinner';
 import { failureMessage } from '../../lib/ai-requests';
 import { useOnline } from '../../lib/use-online';
 import { StepText } from '../timers/StepText';
-import { cookingQuestionQuery } from './questions';
+import { cookingQuestionQuery, isLostQuestion } from './questions';
 import type { CookingQuestions } from './use-cooking-questions';
 
 /** От толкова знака нагоре под полето личи колко остават. */
@@ -37,23 +37,63 @@ function Waiting() {
   );
 }
 
-/** Един зададен въпрос: текстът му и отговорът, „Мисли…“ или неуспехът с „Опитай пак“. */
+function Failed({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <>
+      <p className="error-box__message" role="alert">
+        {message}
+      </p>
+      <button type="button" className="button" onClick={onRetry}>
+        Опитай пак
+      </button>
+    </>
+  );
+}
+
+/**
+ * Един зададен въпрос: текстът му и отговорът, „Мисли…“ или неуспехът с „Опитай пак“. Изгубен въпрос (api вече не го
+ * знае) е неуспех като другите; текстът му е от паметта на устройството.
+ */
 function QuestionItem({
   recipe,
+  asked,
   question,
   error,
   onRetry,
   retrying,
 }: {
   recipe: Pick<Recipe, 'id' | 'title'>;
+  /** Текстът на въпроса, както е запомнен на устройството. */
+  asked: string;
   question: CookingQuestion | undefined;
   error: unknown;
-  onRetry: (question: CookingQuestion) => void;
+  onRetry: () => void;
   /** „Опитай пак“ на този въпрос се праща: чака като нов. */
   retrying: boolean;
 }) {
   if (!question) {
-    return error ? <ErrorBox error={error} /> : <Waiting />;
+    return (
+      <>
+        <p className="cooking-question__asked">{asked}</p>
+        {retrying || !error ? (
+          <Waiting />
+        ) : isLostQuestion(error) ? (
+          <Failed
+            // Без код на неуспеха: общото „AI не успя да отговори. Опитай пак.“
+            message={failureMessage('ask', { createdAt: '' })}
+            onRetry={onRetry}
+          />
+        ) : (
+          <ErrorBox error={error} />
+        )}
+      </>
+    );
   }
   return (
     <>
@@ -61,18 +101,7 @@ function QuestionItem({
       {question.status === 'pending' || retrying ? (
         <Waiting />
       ) : question.status === 'failed' ? (
-        <>
-          <p className="error-box__message" role="alert">
-            {failureMessage('ask', question)}
-          </p>
-          <button
-            type="button"
-            className="button"
-            onClick={() => onRetry(question)}
-          >
-            Опитай пак
-          </button>
-        </>
+        <Failed message={failureMessage('ask', question)} onRetry={onRetry} />
       ) : (
         <p className="cooking-question__answer">
           <StepText
@@ -102,7 +131,7 @@ export function CookingQuestionSheet({
   onAsk,
   onClose,
 }: CookingQuestionSheetProps) {
-  const { ids, start, replacing } = questions;
+  const { ids, asked: remembered, start, replacing } = questions;
   const [text, setText] = useState('');
   const results = useQueries({ queries: ids.map(cookingQuestionQuery) });
   const connection = useNeedsConnection(useOnline(), 'cooking-question__hint');
@@ -134,14 +163,15 @@ export function CookingQuestionSheet({
       <div className="sheet__section cooking-question">
         {(ids.length > 0 || asking !== undefined) && (
           <ol className="cooking-question__list" aria-label="Въпроси">
-            {ids.map((id, index) => (
+            {remembered.map(({ id, question }, index) => (
               <li key={id} className="cooking-question__item">
                 <QuestionItem
                   recipe={recipe}
+                  asked={question}
                   question={results[index]?.data}
                   error={results[index]?.error}
                   retrying={id === replacing}
-                  onRetry={(failed) => onAsk(failed.question, failed.id)}
+                  onRetry={() => onAsk(question, id)}
                 />
               </li>
             ))}

@@ -1,5 +1,5 @@
 import { type DateKey, dateKeyInSofia, type Recipe } from '@family/shared';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { storedSetting } from '../../app/stored-setting';
 import { logger } from '../../logger';
 
@@ -17,9 +17,23 @@ export interface CookingProgress {
   prepared: readonly boolean[];
 }
 
-/** Напредъкът по една рецепта на устройството: отметките на подготовката важат само за подготовката `preparedFor`. */
+/**
+ * Въпрос в Готвене, зададен от това устройство: id-то му в api и текстът, за да личи и да се пита пак, ако api вече
+ * не го знае (404).
+ */
+export interface RememberedQuestion {
+  id: string;
+  question: string;
+}
+
+/**
+ * Записът на една рецепта на устройството: напредъкът (отметките на подготовката важат само за подготовката
+ * `preparedFor`) и въпросите в Готвене по реда на задаване. Полетата се пишат поотделно и всяко може да липсва;
+ * приложените промени за готвенето (#276) са още едно поле до `questions`.
+ */
 interface StoredRecipeProgress extends CookingProgress {
   preparedFor: string;
+  questions: readonly RememberedQuestion[];
 }
 
 /** Записът на устройството: напредъкът по рецепта за един ден; запис от друг ден не важи. */
@@ -93,23 +107,44 @@ function readProgress(recipe: Recipe): CookingProgress {
   };
 }
 
-/** Записва напредъка по рецептата за днес; без `progress` го трие. */
-function writeProgress(recipe: Recipe, progress?: CookingProgress): void {
-  // Записът е само за днес: преминаването в нов ден изхвърля напредъка по всички рецепти.
+/**
+ * Сменя днешния запис на рецептата с `recipeId`: `change` получава сегашния (или празен) и връща новия; без
+ * `change` записът се трие.
+ */
+function updateRecipe(
+  recipeId: string,
+  change?: (
+    current: Partial<StoredRecipeProgress>,
+  ) => Partial<StoredRecipeProgress>,
+): void {
+  // Записът е само за днес: преминаването в нов ден изхвърля записите на всички рецепти.
   const stored = readStored();
-  if (progress) {
-    stored.recipes[recipe.id] = {
-      ...progress,
-      preparedFor: preparationKey(recipe),
-    };
+  if (change) {
+    const current: unknown = stored.recipes[recipeId];
+    stored.recipes[recipeId] = change(
+      typeof current === 'object' && current !== null ? current : {},
+    ) as StoredRecipeProgress;
   } else {
-    delete stored.recipes[recipe.id];
+    delete stored.recipes[recipeId];
   }
   try {
     localStorage.setItem(COOKING_PROGRESS_KEY, JSON.stringify(stored));
   } catch (error) {
     logger.warn('Напредъкът в Готвене не се записа', error);
   }
+}
+
+/** Записва напредъка по рецептата за днес; без `progress` трие целия ѝ запис, с въпросите. */
+function writeProgress(recipe: Recipe, progress?: CookingProgress): void {
+  updateRecipe(
+    recipe.id,
+    progress &&
+      ((current) => ({
+        ...current,
+        ...progress,
+        preparedFor: preparationKey(recipe),
+      })),
+  );
 }
 
 /**
@@ -143,6 +178,51 @@ export function useCookingProgress(recipe: Recipe) {
         ),
       }),
     finish: () => writeProgress(recipe),
+  };
+}
+
+function isRemembered(value: unknown): value is RememberedQuestion {
+  const { id, question } = (value ?? {}) as Partial<RememberedQuestion>;
+  return (
+    typeof id === 'string' &&
+    id !== '' &&
+    typeof question === 'string' &&
+    question !== ''
+  );
+}
+
+/** Днешните въпроси по рецептата; липсващо или повредено поле — няма въпроси. */
+function readQuestions(recipeId: string): readonly RememberedQuestion[] {
+  const saved: unknown = readStored().recipes[recipeId];
+  const { questions } = (
+    typeof saved === 'object' && saved !== null ? saved : {}
+  ) as Partial<StoredRecipeProgress>;
+  if (!Array.isArray(questions) || !questions.every(isRemembered)) {
+    return [];
+  }
+  return questions.map(({ id, question }) => ({ id, question }));
+}
+
+/**
+ * Въпросите в Готвене по рецептата, зададени от това устройство, по реда на задаване: помнят се в записа на
+ * напредъка (`useCookingProgress`), до края на деня или до „Готово“. `update` смята новия списък от последния, дори
+ * между две изобразявания.
+ */
+export function useRememberedQuestions(recipeId: string) {
+  const [questions, setQuestions] = useState(() => readQuestions(recipeId));
+  const latest = useRef(questions);
+  return {
+    questions,
+    update(
+      change: (
+        current: readonly RememberedQuestion[],
+      ) => readonly RememberedQuestion[],
+    ) {
+      latest.current = change(latest.current);
+      setQuestions(latest.current);
+      const next = latest.current;
+      updateRecipe(recipeId, (current) => ({ ...current, questions: next }));
+    },
   };
 }
 
