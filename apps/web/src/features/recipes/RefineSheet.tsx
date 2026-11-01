@@ -36,7 +36,7 @@ function droppedText(count: number): string {
  * Едната колона на сравнението: подготовката (ако я има в някоя от двете колони, иначе нищо) и стъпките. Без
  * подготовка в тази колона пише „Без подготовка“, за да личи, че „Приеми“ я маха или добавя.
  */
-function Column({
+function ComparisonColumn({
   name,
   steps,
   preparation,
@@ -177,12 +177,12 @@ export function RefineSheet({
           <p>Време: {formatMinutes(refinement.prepMinutes)}</p>
         )}
         <div className="refine__compare">
-          <Column
+          <ComparisonColumn
             name="Сега"
             steps={steps}
             preparation={comparesPreparation ? preparation : undefined}
           />
-          <Column
+          <ComparisonColumn
             name="Предложение"
             steps={refinement.steps}
             preparation={comparesPreparation ? proposed : undefined}
