@@ -69,6 +69,7 @@ function serveRevisions() {
             id: 'dddddddd-0000-4000-8000-000000000001',
             recipeId: params.id,
             instruction: body.instruction,
+            applied: [],
             status: 'pending',
             requestedBy: dani.id,
             createdAt: '2026-11-04T19:00:00.000Z',
