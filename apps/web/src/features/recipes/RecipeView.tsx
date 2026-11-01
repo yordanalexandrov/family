@@ -1,5 +1,6 @@
 import { AISLES, type Recipe, TAG_LABELS_BG } from '@family/shared';
 import { Link, useParams } from '@tanstack/react-router';
+import { useState } from 'react';
 import { useWritingUserId } from '../../app/acting-user';
 import { isInteractiveDevice, useDeviceMode } from '../../app/device-mode';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -8,6 +9,7 @@ import { formatNumber, formatQuantity } from '../../lib/format';
 import { PreparationList } from '../preparation/PreparationList';
 import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
 import { ApplianceBadge } from './ApplianceBadge';
+import { CookingFeedbackSheet } from './CookingFeedbackSheet';
 import { formatMinutes } from './format';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
 import { RatingStars, StarsBadge } from './Stars';
@@ -48,9 +50,11 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const nutrition = recipe.nutritionPer100g;
   // Оценката, редакцията и архивът пишат от името на потребител; kiosk и TV нямат такъв.
   const canWrite = useWritingUserId() !== null;
-  // Готвене (GLOSSARY) и снимките на стъпките са на kiosk, телефона и браузъра, но не и на TV.
+  // Готвене (GLOSSARY), „Как мина?“ и снимките на стъпките са на kiosk, телефона и браузъра, но не и на TV.
   const interactive = isInteractiveDevice(useDeviceMode().mode);
   const canCook = interactive;
+  // „Как мина?“ (GLOSSARY: Обратна връзка след готвене) и по-късно, след като е опитал.
+  const [feedback, setFeedback] = useState(false);
 
   return (
     <article className="recipe-view">
@@ -94,13 +98,29 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
             ))}
         </p>
         {canCook && (
-          <Link
-            to="/recipes/$id/cook"
-            params={{ id: recipe.id }}
-            className="button recipe-view__cook"
-          >
-            Готви
-          </Link>
+          <div className="recipes__actions recipes__actions--fill">
+            <Link
+              to="/recipes/$id/cook"
+              params={{ id: recipe.id }}
+              className="button recipe-view__cook"
+            >
+              Готви
+            </Link>
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={() => setFeedback(true)}
+            >
+              Как мина?
+            </button>
+          </div>
+        )}
+        {feedback && (
+          <CookingFeedbackSheet
+            recipe={recipe}
+            onDone={() => setFeedback(false)}
+            onClose={() => setFeedback(false)}
+          />
         )}
         {canWrite && (
           <div className="recipes__actions">
