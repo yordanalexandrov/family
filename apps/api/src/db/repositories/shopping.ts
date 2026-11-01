@@ -221,3 +221,11 @@ export async function deleteShoppingMeal(
       and(eq(shoppingMeal.listId, listId), eq(shoppingMeal.mealId, mealId)),
     );
 }
+
+/** Takes a meal out of every list it is in, as a change of its recipe does (ADR-0011). */
+export async function deleteShoppingMealsOf(
+  db: DbExecutor,
+  mealId: string,
+): Promise<void> {
+  await db.delete(shoppingMeal).where(eq(shoppingMeal.mealId, mealId));
+}
