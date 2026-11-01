@@ -131,8 +131,16 @@ export function formatMinutesBefore(minutes: number): string {
   return `${parts.join(' ')} преди`;
 }
 
+/**
+ * An item as {@link preparationLabel} reads it: a {@link PreparationItem}, or one still being filled in a form, whose
+ * degrees may be text (a placeholder for an empty field).
+ */
+export type PreparationLabelItem =
+  | PreparationItem
+  | (Omit<OvenPreparation, 'degrees'> & { degrees: number | string });
+
 /** The short label of an item, without its icon: „200° · с вентилатор · средна скара“, „накисни боба · от вечерта“. */
-export function preparationLabel(item: PreparationItem): string {
+export function preparationLabel(item: PreparationLabelItem): string {
   if (item.kind === 'oven') {
     return [
       `${item.degrees}°`,

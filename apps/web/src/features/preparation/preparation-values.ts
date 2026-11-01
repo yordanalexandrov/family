@@ -1,11 +1,9 @@
 import {
-  formatMinutesBefore,
-  OVEN_FAN_LABELS_BG,
-  OVEN_RACK_LABELS_BG,
   type OvenFan,
   type OvenRack,
   type Preparation,
   type PreparationKind,
+  preparationLabel,
 } from '@family/shared';
 
 /**
@@ -94,21 +92,24 @@ export function valuesToPreparation(items: readonly PreparationItemValues[]) {
   });
 }
 
-/** Надписът на реда във формата, и с непопълнени полета: „200° · с вентилатор“, „накисни боба · от вечерта“. */
+/** Надписът на реда във формата, и с непопълнени полета: „?° · с вентилатор“, „Празно · от вечерта“. */
 export function preparationValuesLabel(item: PreparationItemValues): string {
   if (item.kind === 'oven') {
-    return [
-      `${item.degrees.trim() || '?'}°`,
-      OVEN_FAN_LABELS_BG[item.fan],
-      ...(item.rack === '' ? [] : [OVEN_RACK_LABELS_BG[item.rack]]),
-    ].join(' · ');
+    return preparationLabel({
+      kind: 'oven',
+      degrees: item.degrees.trim() || '?',
+      fan: item.fan,
+      ...(item.rack === '' ? {} : { rack: item.rack }),
+    });
   }
-  return [
-    item.text.trim() || 'Празно',
+  return preparationLabel({
+    // Видът не влиза в надписа; елемент без избран вид се надписва като другите без фурна.
+    kind: item.kind ?? 'other',
+    text: item.text.trim() || 'Празно',
     ...(item.minutesBefore === null
-      ? []
-      : [formatMinutesBefore(item.minutesBefore)]),
-  ].join(' · ');
+      ? {}
+      : { minutesBefore: item.minutesBefore }),
+  });
 }
 
 /** Изборът „Колко преди“: минути с надписа си; 720 е „от вечерта“. */
