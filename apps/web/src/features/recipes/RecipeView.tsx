@@ -5,6 +5,7 @@ import { isInteractiveDevice, useDeviceMode } from '../../app/device-mode';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
+import { PreparationList } from '../preparation/PreparationList';
 import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
 import { ApplianceBadge } from './ApplianceBadge';
 import { formatMinutes } from './format';
@@ -109,6 +110,19 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         )}
         {archive.isError && <ErrorBox error={archive.error} />}
       </header>
+
+      {recipe.preparation.length > 0 && (
+        <section
+          className="recipe-view__section recipe-view__wide"
+          aria-labelledby="preparation"
+        >
+          <h2 id="preparation">Подготовка</h2>
+          <PreparationList
+            preparation={recipe.preparation}
+            labelledBy="preparation"
+          />
+        </section>
+      )}
 
       <section className="recipe-view__section" aria-labelledby="ingredients">
         <h2 id="ingredients">Продукти</h2>

@@ -12,6 +12,7 @@ import { type Action, ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { applianceShortName, useAppliances } from '../appliances/queries';
+import { PreparationField } from '../preparation/PreparationField';
 import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
@@ -113,7 +114,7 @@ function move<T>(items: readonly T[], from: number, to: number): T[] {
  */
 function reindexErrors(
   errors: RecipeFormErrors,
-  list: 'steps' | 'ingredients',
+  list: 'steps' | 'ingredients' | 'preparation',
   newIndex: (index: number) => number | undefined,
 ): RecipeFormErrors {
   const pattern = new RegExp(`^${list}\\.(\\d+)(\\..+)?$`);
@@ -146,6 +147,19 @@ function stillFailing(
   }
   return Object.fromEntries(
     Object.entries(flagged).filter(([path]) => path in result.errors),
+  );
+}
+
+/** Грешките на подготовката без `preparation.` отпред; грешката на целия списък е под `''`. */
+function preparationErrors(errors: RecipeFormErrors): RecipeFormErrors {
+  return Object.fromEntries(
+    Object.entries(errors).flatMap(([path, message]) =>
+      path === 'preparation'
+        ? [['', message]]
+        : path.startsWith('preparation.')
+          ? [[path.slice('preparation.'.length), message]]
+          : [],
+    ),
   );
 }
 
@@ -481,6 +495,19 @@ export function RecipeForm({
             onToggle={toggleTag}
           />
         </fieldset>
+
+        <PreparationField
+          items={values.preparation}
+          errors={preparationErrors(errors)}
+          onChange={(preparation, reindex) => {
+            set('preparation', preparation);
+            if (reindex) {
+              setFlagged((current) =>
+                reindexErrors(current, 'preparation', reindex),
+              );
+            }
+          }}
+        />
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Продукти</legend>

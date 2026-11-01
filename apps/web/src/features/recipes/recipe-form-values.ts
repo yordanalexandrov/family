@@ -14,6 +14,11 @@ import {
   type Unit,
 } from '@family/shared';
 import { formatQuantity } from '../../lib/format';
+import {
+  type PreparationItemValues,
+  preparationToValues,
+  valuesToPreparation,
+} from '../preparation/preparation-values';
 
 /**
  * Един ред продукт във формата. `ingredient: null` е неразрешен ред: има само текст в `query`
@@ -72,6 +77,8 @@ export interface RecipeFormValues {
   appliance: string;
   /** Стъпките с текста им и снимката им, ако има: при местене и махане снимката върви със стъпката. */
   steps: RecipeStep[];
+  /** GLOSSARY: Подготовка. Елементите в реда им, като в полетата. */
+  preparation: PreparationItemValues[];
   ingredients: IngredientRowValues[];
   nutrition: NutritionValues;
 }
@@ -130,6 +137,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     tags: [],
     appliance: '',
     steps: [],
+    preparation: [],
     ingredients: [],
     nutrition: nutritionToValues(undefined),
   };
@@ -148,6 +156,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     tags: [...recipe.tags],
     appliance: recipe.appliance ?? '',
     steps: recipe.steps.map((step) => ({ ...step })),
+    preparation: preparationToValues(recipe.preparation),
     ingredients: recipe.ingredients.map((line) =>
       emptyIngredientRow({
         ingredient: line.ingredient,
@@ -188,6 +197,11 @@ const FIELD_MESSAGES: [RegExp, string][] = [
     'Избери продукт от списъка или създай нов',
   ],
   [/^ingredients\.\d+\.quantity$/, 'Количеството е положително число'],
+  [/^preparation$/, 'Най-много 8 неща в подготовката'],
+  [/^preparation\.\d+\.kind$/, 'Фурната е само една'],
+  [/^preparation\.\d+\.degrees$/, 'Градусите са цяло число от 30 до 300'],
+  [/^preparation\.\d+\.text$/, 'Напиши какво да се направи'],
+  [/^preparation\.\d+\.minutesBefore$/, 'Времето е от 1 мин до 2 дни'],
   [/^nutritionPer100g\.\w+$/, 'Неотрицателно число'],
 ];
 
@@ -227,6 +241,7 @@ export function toRecipeInput(
     tags: values.tags,
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),
     ...(nutritionPer100g ? { nutritionPer100g } : {}),
+    preparation: valuesToPreparation(values.preparation),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',
       quantity:
