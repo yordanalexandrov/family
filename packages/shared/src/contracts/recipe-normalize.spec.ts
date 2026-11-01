@@ -131,6 +131,82 @@ describe('recipeNormalize.outputSchema', () => {
     });
   });
 
+  it('keeps the preparation in its order, reading rack: null and minutesBefore: null from strict mode as absent', () => {
+    const output = validOutput();
+    output.recipe.preparation = [
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+      { kind: 'oven', degrees: 180, fan: 'fan', rack: null },
+      { kind: 'fridge', text: 'извади маслото', minutesBefore: null },
+      { kind: 'pan', text: 'намажи тавата', minutesBefore: 15 },
+    ];
+
+    expect(outputSchema.parse(output).recipe?.preparation).toEqual([
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+      { kind: 'oven', degrees: 180, fan: 'fan' },
+      { kind: 'fridge', text: 'извади маслото' },
+      { kind: 'pan', text: 'намажи тавата', minutesBefore: 15 },
+    ]);
+
+    output.recipe.preparation = [
+      { kind: 'oven', degrees: 220, fan: 'conventional', rack: 'low' },
+    ];
+    expect(outputSchema.parse(output).recipe?.preparation).toEqual([
+      { kind: 'oven', degrees: 220, fan: 'conventional', rack: 'low' },
+    ]);
+  });
+
+  it('accepts a recipe without preparation as an empty list', () => {
+    const output = validOutput();
+    output.recipe.preparation = [];
+
+    expect(outputSchema.parse(output).recipe?.preparation).toEqual([]);
+  });
+
+  it('refuses a recipe without the preparation field', () => {
+    const output = validOutput();
+    delete output.recipe.preparation;
+
+    expect(issuePaths(output)).toEqual(['recipe.preparation']);
+  });
+
+  it('refuses a second oven, degrees outside 30–300 and an oven without its mode', () => {
+    const output = validOutput();
+    output.recipe.preparation = [
+      { kind: 'oven', degrees: 180, fan: 'fan', rack: null },
+      { kind: 'oven', degrees: 200, fan: 'fan', rack: null },
+    ];
+    expect(issuePaths(output)).toEqual(['recipe.preparation.1.kind']);
+
+    output.recipe.preparation = [
+      { kind: 'oven', degrees: 350, fan: 'fan', rack: null },
+    ];
+    expect(issuePaths(output)).toEqual(['recipe.preparation.0.degrees']);
+
+    output.recipe.preparation = [{ kind: 'oven', degrees: 200, rack: null }];
+    expect(issuePaths(output)).toEqual(['recipe.preparation.0.fan']);
+  });
+
+  it('refuses text over 60 characters, minutes over two days, an unknown kind and more than 8 items', () => {
+    const output = validOutput();
+    output.recipe.preparation = [
+      { kind: 'marinate', text: 'м'.repeat(61), minutesBefore: null },
+      { kind: 'soak', text: 'накисни боба', minutesBefore: 3000 },
+      { kind: 'microwave', text: 'загрей', minutesBefore: null },
+    ];
+    expect(issuePaths(output)).toEqual([
+      'recipe.preparation.0.text',
+      'recipe.preparation.1.minutesBefore',
+      'recipe.preparation.2.kind',
+    ]);
+
+    output.recipe.preparation = Array.from({ length: 9 }, () => ({
+      kind: 'other',
+      text: 'нещо',
+      minutesBefore: null,
+    }));
+    expect(issuePaths(output)).toEqual(['recipe.preparation']);
+  });
+
   it('accepts no recipe with the reason in noResults', () => {
     const output = {
       recipe: null,

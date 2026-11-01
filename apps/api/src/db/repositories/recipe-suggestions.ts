@@ -57,16 +57,21 @@ function toSuggestion(row: SuggestionRow): RecipeSuggestion {
   };
 }
 
-/** The suggestion of an import; the row must have `import_request_id` (read by it). */
+/**
+ * The suggestion of an import; the row must have `import_request_id` (read by it). A payload stored before the
+ * preparation (GLOSSARY: Подготовка, #283) has none.
+ */
 export function toImportedSuggestion(row: SuggestionRow): ImportedSuggestion {
   if (row.importRequestId === null) {
     throw new Error(`recipe_suggestion ${row.id} is not of an import`);
   }
+  const payload = row.payload as Omit<ImportPayload, 'preparation'> &
+    Partial<Pick<ImportPayload, 'preparation'>>;
   return {
     ...decisionOf(row),
     origin: 'import',
     importRequestId: row.importRequestId,
-    payload: row.payload as ImportPayload,
+    payload: { ...payload, preparation: payload.preparation ?? [] },
   };
 }
 
