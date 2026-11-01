@@ -4,7 +4,7 @@
 // Without options it runs the built-in cases of #316, each `--repeat` times (default 2): the moussaka of the fixture
 // `recipe-revise.input.json` with „картофите искат още 20 мин“, „заливката е малко, двойна доза“ and „никъде не пише
 // сол“; a risotto for 1 whose pesto is for 5 with „пестото е за 5 порции, направи го за 1“; an instruction that needs
-// a search (a béchamel topping instead of the yoghurt one); and one outside the recipe, which must end `noResults`.
+// a search (a béchamel topping instead of the yoghurt one, salt in grams); the moussaka for 6; and one outside the recipe, which must end `noResults`.
 // Every case says which products and steps the instruction may change; every other product and step must come back
 // word for word (✗ otherwise), and so must the servings, the time and the preparation unless the case expects them to
 // change; a revision that changes nothing is a ✗ too (it should be `noResults`). A failure exits 1.
@@ -160,6 +160,22 @@ const CASES: Case[] = [
     ingredients: ['яйце', 'кисело мляко', 'брашно'],
     adds: true,
     steps: [5],
+  },
+  {
+    name: 'мусака-сол-грамове',
+    recipe: moussaka,
+    instruction:
+      'колко точно сол за тази кайма и картофи? напиши я в грамове, не на вкус',
+    adds: true,
+    steps: 2,
+  },
+  {
+    name: 'мусака-6-порции',
+    recipe: moussaka,
+    instruction: 'направи я за 6 порции',
+    ingredients: moussaka.ingredients.map((i) => i.name),
+    servings: true,
+    steps: 5,
   },
   {
     name: 'извън-рецептата',
