@@ -6,6 +6,7 @@ The week's dinners: start an empty plan (or ask the AI to propose one), then pic
 
 - `menu-empty` „Започни празно“ creates a plan of 7 dinners „Избери ястие Без готвач N порции“ (one serving per user, so 2 with the seed users).
 - `menu-meal` the meal sheet sets recipe, cook and servings for one day. Above them: group „Гласове“, list „Разговор“, „Избери сам“ (the registry picker) and „✨ Предложи друго“.
+- `menu-shopping` „🛒 Добави в списъка“ in the sheet of a meal with a recipe adds it to the week's shopping list („🛒 В списъка ✓“, `aria-pressed`; again takes it out). Only meals added this way are in the list (ADR-0011); their row in list „Вечери“ shows a small 🛒 (`img` „в списъка за пазаруване“). A new recipe (by hand, „✨ Предложи друго“ or „Махни ястието от деня“) takes the meal out, and „Върни“ does not bring it back; servings and the day keep it.
 - `menu-thread` textbox „Коментар“ + „Изпрати“ adds a line to the dinner's „Разговор“; the row shows the last line and „N в разговора“.
 - `menu-note` textbox „Бележка“ instead of a recipe (e.g. „ядем навън“) with „Запази“.
 - `menu-filter` tablist „Филтър“ (Всички, Да поговорим N, За смяна N, Чака глас N) while the week is not agreed.
@@ -33,6 +34,7 @@ Preconditions:
 - **Note.** Open an empty row, fill textbox „Бележка“, `tap` „Запази“, `tap` „Готово“ → the row's name contains the note.
 - **Filter.** With a plan that is not agreed, `see(getByRole('tablist', { name: 'Филтър' }))`; tab „Всички“ is selected.
 - **Delete plan.** `go('/menu?week=<a future monday>')`; „Започни празно“; `tap` „Изтрий плана“; in alertdialog „Изтриване“ `tap` „Изтрий“ → „Започни празно“ is back.
+- **Add to the shopping list** (`menu-shopping`). Proven by `scenarios/menu-to-shopping.mjs`: in the meal's dialog (a meal with a recipe; a note-only meal has no button) `tap` „🛒 Добави в списъка“ → it becomes „🛒 В списъка ✓“ `[pressed]`; tapping it again takes the meal out. Offline it is disabled with „Иска връзка“. A row lands in `shopping_meal`. After „Готово“ the row in „Вечери“ contains `img` „в списъка за пазаруване“ (🛒 after the title); its accessible name reads `… <recipe> в списъка за пазаруване …`.
 - **Second view.** `psql("select m.date, r.title, m.note, m.cook_user_id, m.servings from meal m left join recipe r on r.id = m.recipe_id join meal_plan p on p.id = m.plan_id where p.week_start = '<monday>'")`, or the shopping list for that week (shopping.md).
 - **AI unavailable.** On a week without a plan `tap` „Предложи меню“ → alert „AI не е на разположение в момента“ and the plan is not created. In the meal sheet `tap` „✨ Предложи друго“ → the same alert (`503` on `/api/menu/meals/<id>/replacements`). Not verifiable further in a run.
 

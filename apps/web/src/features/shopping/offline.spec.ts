@@ -44,6 +44,12 @@ function connection() {
   };
 }
 
+/** Разгъва „Купени (N)“ (#306): там са отметнатите след задържането. */
+async function openBought(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /^Купени \(/ }));
+  return screen.getByRole('region', { name: 'Купени' });
+}
+
 function rowTitles(aisle: string): string[] {
   const section = screen.getByRole('region', { name: aisle });
   return within(section)
@@ -84,8 +90,8 @@ describe('ShoppingWeek офлайн', () => {
     ).toBeInTheDocument();
     expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
-    // Отметнатият ред стои на мястото си, докато не мине забавянето.
-    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук', 'Чушки']);
+    // Отметнатият ред стои на мястото си, докато не мине забавянето; Чушки са в „Купени“ отпреди.
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук']);
     expect(screen.getByText('4 от 6')).toBeInTheDocument();
     expect(shopping.requests).toEqual([]);
 
@@ -110,6 +116,30 @@ describe('ShoppingWeek офлайн', () => {
     });
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
     expect(screen.getByText('4 от 6')).toBeInTheDocument();
+  });
+
+  it('без връзка отметнатият ред също излиза в „Купени“ след задържането (#306)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    serveShopping({ [thisWeek]: shoppingList() });
+    const net = connection();
+
+    renderApp('/shopping');
+    await screen.findByText('5 от 6');
+    net.offline();
+    await user.click(screen.getByRole('checkbox', { name: 'Домати' }));
+    await screen.findByRole('button', { name: /1 отметка чака връзка$/ });
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Домати', 'Лук']);
+
+    await act(() => vi.advanceTimersByTimeAsync(1600));
+
+    expect(rowTitles('Плод и зеленчук')).toEqual(['Лук']);
+    expect(screen.getByText('4 от 6')).toBeInTheDocument();
+    const bought = await openBought(user);
+    expect(
+      within(bought).getByRole('checkbox', { name: 'Домати' }),
+    ).toBeChecked();
   });
 
   it('иконата за синхронизация стои в реда с брояча: без връзка зачертан облак с броя, докосването обяснява', async () => {
@@ -197,8 +227,11 @@ describe('ShoppingWeek офлайн', () => {
     // Ново отваряне без връзка: последният списък от кеша, с отметките от опашката.
     const second = renderApp('/shopping');
     expect(await screen.findByText(/остарели данни/)).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Лук' })).toBeChecked();
-    expect(screen.getByRole('checkbox', { name: 'Мляко' })).toBeChecked();
+    const bought = await openBought(user);
+    expect(within(bought).getByRole('checkbox', { name: 'Лук' })).toBeChecked();
+    expect(
+      within(bought).getByRole('checkbox', { name: 'Мляко' }),
+    ).toBeChecked();
     expect(
       await screen.findByRole('button', { name: /2 отметки чакат връзка$/ }),
     ).toBeInTheDocument();
@@ -278,9 +311,7 @@ describe('ShoppingWeek офлайн', () => {
     net.online();
 
     expect(
-      await screen.findByText(
-        'Менюто ще добави продуктите си, когато е готово',
-      ),
+      await screen.findByText('Когато има меню, добави ястия от него'),
     ).toBeInTheDocument();
     expect(shopping.requests.map((r) => r.path)).toEqual([
       `${thisWeek}/items/${tomatoes.key}/checked`,
@@ -473,6 +504,7 @@ describe('ShoppingWeek офлайн', () => {
     // Презареждане без връзка: списъкът е от кеша, но кой е отметнал не се знае.
     renderApp('/shopping');
     await screen.findByText(/остарели данни/);
+    await openBought(user);
     expect(screen.getByRole('checkbox', { name: 'Домати' })).toBeChecked();
     expect(screen.queryByTitle(/Отметнато от/)).not.toBeInTheDocument();
     const before = usersRequests;
@@ -499,6 +531,7 @@ describe('ShoppingWeek офлайн', () => {
 
     const first = renderApp('/shopping');
     await screen.findByText('5 от 6');
+    await openBought(user);
     await screen.findByTitle('Отметнато от Дани');
     first.unmount();
 
@@ -507,6 +540,7 @@ describe('ShoppingWeek офлайн', () => {
     renderApp('/shopping');
     await user.click(await screen.findByRole('checkbox', { name: 'Домати' }));
     await screen.findByRole('button', { name: /1 отметка чака връзка$/ });
+    await openBought(user);
     expect(await screen.findAllByTitle('Отметнато от Дани')).toHaveLength(2);
   });
 });

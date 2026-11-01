@@ -15,7 +15,14 @@ import {
 } from '@family/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { queryKeys, useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
 import { ScreenHeader } from '../../app/ScreenHeader';
@@ -24,7 +31,11 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
 import { Toast, type ToastMessage } from '../../components/Toast';
-import { formatAmounts, formatDate, formatNumber } from '../../lib/format';
+import {
+  formatAmounts,
+  formatNumber,
+  formatShortRange,
+} from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { useOnline } from '../../lib/use-online';
 import { usePlan } from '../menu/queries';
@@ -52,6 +63,9 @@ const AISLE_LABELS = Object.fromEntries(
 
 /** Колко стои отметнатият ред на мястото си след последното докосване в списъка. */
 const SETTLE_MS = 1500;
+
+/** Колко е оцветен ред, току-що добавен с „+ Добави“ (#307). */
+const ADDED_MS = 2000;
 
 /**
  * `/shopping`: списъкът за пазаруване на тази или следващата седмица, по щанд. Работи и без връзка: показва
@@ -88,9 +102,6 @@ export function ShoppingWeek() {
           ))}
         </div>
       </nav>
-      <p className="menu__range">
-        {formatDate(weekStart)} – {formatDate(addDays(weekStart, 6))}
-      </p>
       <Week key={weekStart} weekStart={weekStart} now={now} />
     </main>
   );
@@ -116,25 +127,41 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
   const week = useShoppingWeek(weekStart);
   const users = useUsers();
 
+  const range = formatShortRange(weekStart, addDays(weekStart, 6));
   if (week.isPending) {
-    return <Spinner />;
+    return (
+      <>
+        <p className="shopping__count">{range}</p>
+        <Spinner />
+      </>
+    );
   }
   if (week.isError) {
-    return <ErrorBox error={week.error} onRetry={() => void week.refetch()} />;
+    return (
+      <>
+        <p className="shopping__count">{range}</p>
+        <ErrorBox error={week.error} onRetry={() => void week.refetch()} />
+      </>
+    );
   }
   const { list, staleSince } = week.data;
   return (
     <>
+      {/* Датите и броячът са един ред, за да остане място за списъка (#307). */}
+      <p className="shopping__count">
+        {range}
+        {list.total > 0 && (
+          <>
+            <span aria-hidden="true"> · </span>
+            <span className="shopping__count-value">
+              {list.remaining} от {list.total}
+            </span>{' '}
+            за купуване
+            <SyncIcon weekStart={weekStart} />
+          </>
+        )}
+      </p>
       <NotAgreed weekStart={weekStart} now={now} />
-      {list.total > 0 && (
-        <p className="shopping__count">
-          <span className="shopping__count-value">
-            {list.remaining} от {list.total}
-          </span>{' '}
-          за купуване
-          <SyncIcon weekStart={weekStart} />
-        </p>
-      )}
       {staleSince && (
         <p className="shopping__stale" role="status">
           Няма връзка · остарели данни от {formatAge(staleSince, now)}
@@ -205,6 +232,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
   const ranOutOffline = useNeedsConnection(online);
   const [sourcesOf, setSourcesOf] = useState<ShoppingItem | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showBought, setShowBought] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [showPantry, setShowPantry] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -221,9 +249,10 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
     });
   }
 
-  const held = useHeldOrder(list.aisles);
+  const held = useHeldRows(list.aisles);
+  const added = useAddedRow();
   function setCheck(item: ShoppingItem) {
-    held.hold();
+    held.hold(item.key);
     void toggle(item);
   }
   /** Чужда отметка се маха чак след „Махни“ (#129 D-04); „Върни“ в toast-а я слага пак, вече от действащия. */
@@ -246,6 +275,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
     onSources: setSourcesOf,
     onUncheckForeign: uncheckForeign,
   };
+  const aisleListProps = { users, confirming, actingUserId, rowActions };
   const closeSheet = () => setSourcesOf(null);
 
   /** „Скрий от списъка“ тръгва веднага; „Върни“ в toast-а го показва пак (#129 D-05). */
@@ -290,41 +320,46 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
     );
   }
 
+  // Ястие от менюто влиза в списъка само от листа си (ADR-0011): без такова продуктите от менюто ги няма.
+  const listsMeals = list.hasMenu && list.listedMealIds.length > 0;
   return (
     <>
       {list.aisles.length === 0 ? (
-        list.hasMenu && <p className="shopping__empty">Списъкът е празен.</p>
+        listsMeals && <p className="shopping__empty">Списъкът е празен.</p>
       ) : (
         <div ref={held.listRef} className="shopping__list">
-          {held.aisles.map(({ aisle, items }) => (
-            <section
-              key={aisle}
-              className="shopping__aisle"
-              aria-label={AISLE_LABELS[aisle]}
-            >
-              <h2 className="shopping__aisle-title">{AISLE_LABELS[aisle]}</h2>
-              <ul className="shopping__items">
-                {items.map((item) => (
-                  <ItemRow
-                    key={item.key}
-                    item={item}
-                    checkedBy={users.find((u) => u.id === item.checkedBy)}
-                    confirming={
-                      confirming === item.key &&
-                      isForeignCheck(item, actingUserId)
-                    }
-                    {...rowActions}
-                  />
-                ))}
-              </ul>
+          <AisleList
+            aisles={held.listed}
+            addedKey={added.key}
+            {...aisleListProps}
+          />
+          {held.bought.length > 0 && (
+            <section className="shopping__bought" aria-label="Купени">
+              <button
+                type="button"
+                className="shopping__hidden-toggle"
+                aria-expanded={showBought}
+                onClick={() => setShowBought((open) => !open)}
+              >
+                Купени ({countItems(held.bought)})
+              </button>
+              {showBought && (
+                <AisleList
+                  aisles={held.bought}
+                  headingLevel={3}
+                  {...aisleListProps}
+                />
+              )}
             </section>
-          ))}
+          )}
         </div>
       )}
-      {!list.hasMenu && (
+      {!listsMeals && (
         <div className="shopping__no-menu">
           <p className="shopping__empty">
-            Менюто ще добави продуктите си, когато е готово
+            {list.hasMenu
+              ? 'Добави ястия от менюто'
+              : 'Когато има меню, добави ястия от него'}
           </p>
           <Link
             to="/menu"
@@ -452,7 +487,11 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
         />
       )}
       {adding && (
-        <AddItemSheet weekStart={weekStart} onClose={() => setAdding(false)} />
+        <AddItemSheet
+          weekStart={weekStart}
+          onAdded={added.mark}
+          onClose={() => setAdding(false)}
+        />
       )}
       <Toast
         message={toast?.message ?? null}
@@ -464,21 +503,25 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
 }
 
 /**
- * Редът на редовете, задържан след отметка: отметнатият ред не слиза веднага в края на щанда, а всички редове стоят,
- * където са били при първата отметка, докато не мине `SETTLE_MS` без докосване в списъка. Нов ред (напр. от
- * опресняването) отива в края на щанда си.
+ * Редовете в списъка и в „Купени“ (#306). Отметнатите са в „Купени“, но след отметка редовете се задържат: всички
+ * стоят, където са били при първата отметка, и отметнатият ред остава задраскан в щанда си, докато не мине
+ * `SETTLE_MS` без докосване в списъка. Нов ред (напр. от опресняването) отива в края на щанда си. Отделянето е само
+ * тук: api-то и `withCheck` (офлайн) дават отметнатите в щанда им.
  */
-function useHeldOrder(aisles: ShoppingList['aisles']) {
-  const [keys, setKeys] = useState<string[] | null>(null);
+function useHeldRows(aisles: ShoppingList['aisles']) {
+  const [held, setHeld] = useState<{
+    keys: string[];
+    listed: Set<string>;
+  } | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const listRef = useRef<HTMLDivElement>(null);
 
   const settleLater = useCallback(() => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setKeys(null), SETTLE_MS);
+    timer.current = window.setTimeout(() => setHeld(null), SETTLE_MS);
   }, []);
 
-  const holding = keys !== null;
+  const holding = held !== null;
   useEffect(() => {
     const list = listRef.current;
     if (!holding || !list) {
@@ -489,24 +532,135 @@ function useHeldOrder(aisles: ShoppingList['aisles']) {
   }, [holding, settleLater]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
+  const ordered = held
+    ? aisles.map((group) => ({
+        ...group,
+        items: group.items.toSorted(
+          (a, b) => position(held.keys, a.key) - position(held.keys, b.key),
+        ),
+      }))
+    : aisles;
+  const inList = (item: ShoppingItem) =>
+    item.checkedBy === null || (held?.listed.has(item.key) ?? false);
+
   return {
     listRef,
-    aisles: keys
-      ? aisles.map((group) => ({
-          ...group,
-          items: group.items.toSorted(
-            (a, b) => position(keys, a.key) - position(keys, b.key),
+    listed: filterItems(ordered, inList),
+    bought: filterItems(ordered, (item) => !inList(item)),
+    /** Задържа редовете; докоснатият ред (`key`) също остава в списъка, дори да е дошъл от „Купени“. */
+    hold(key: string) {
+      setHeld((current) => {
+        const items = aisles.flatMap((group) => group.items);
+        const base = current ?? {
+          keys: items.map((item) => item.key),
+          listed: new Set(
+            items
+              .filter((item) => item.checkedBy === null)
+              .map((item) => item.key),
           ),
-        }))
-      : aisles,
-    hold() {
-      setKeys(
-        (current) =>
-          current ?? aisles.flatMap((group) => group.items.map((i) => i.key)),
-      );
+        };
+        return base.listed.has(key)
+          ? base
+          : { ...base, listed: new Set([...base.listed, key]) };
+      });
       settleLater();
     },
   };
+}
+
+/**
+ * Ръчният ред, току-що добавен с „+ Добави“: `ADDED_MS` след `mark(key)` редът е превъртян до видимото и оцветен.
+ * Нов ред е неотметнат, затова е в списъка, а не в „Купени“.
+ */
+function useAddedRow() {
+  const [key, setKey] = useState<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const mark = useCallback((added: string) => {
+    window.clearTimeout(timer.current);
+    setKey(added);
+    timer.current = window.setTimeout(() => setKey(null), ADDED_MS);
+  }, []);
+  return { key, mark };
+}
+
+/** Щандовете само с редовете, които минават `keep`; празен щанд отпада. */
+function filterItems(
+  aisles: ShoppingList['aisles'],
+  keep: (item: ShoppingItem) => boolean,
+): ShoppingList['aisles'] {
+  return aisles
+    .map((group) => ({ ...group, items: group.items.filter(keep) }))
+    .filter((group) => group.items.length > 0);
+}
+
+function countItems(aisles: ShoppingList['aisles']): number {
+  return aisles.reduce((sum, group) => sum + group.items.length, 0);
+}
+
+interface AisleListProps {
+  aisles: ShoppingList['aisles'];
+  users: User[];
+  /** Ключът на реда с чужда отметка, който чака „Махни“. */
+  confirming: string | null;
+  actingUserId: string | null;
+  rowActions: RowActions;
+  /** Заглавията на щандовете: `h2` в списъка, `h3` в „Купени“. */
+  headingLevel?: 2 | 3;
+  /** Ключът на току-що добавения ред (`useAddedRow`). */
+  addedKey?: string | null;
+}
+
+/** Щандовете с редовете им, по реда на api-то; едни и същи в списъка и в „Купени“. */
+function AisleList({
+  aisles,
+  users,
+  confirming,
+  actingUserId,
+  rowActions,
+  headingLevel = 2,
+  addedKey = null,
+}: AisleListProps) {
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
+  // Един непрекъснат списък (#307): щандовете са редици в обща кутия, с линия помежду си.
+  return (
+    <div className="shopping__aisles">
+      {aisles.map(({ aisle, items }) => (
+        <section
+          key={aisle}
+          className="shopping__aisle"
+          aria-label={AISLE_LABELS[aisle]}
+          style={aisleColor(aisle)}
+        >
+          {/* Лентата вляво (#308): цветът на щанда и етикетът отдолу нагоре, залепен в щанда. */}
+          <div className="shopping__aisle-band">
+            <Heading className="shopping__aisle-title">
+              {AISLE_LABELS[aisle]}
+            </Heading>
+          </div>
+          <ul className="shopping__items">
+            {items.map((item) => (
+              <ItemRow
+                key={item.key}
+                item={item}
+                checkedBy={users.find((u) => u.id === item.checkedBy)}
+                confirming={
+                  confirming === item.key && isForeignCheck(item, actingUserId)
+                }
+                added={item.key === addedKey}
+                {...rowActions}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** Цветът на щанда (`--color-aisle-<щанд>` в tokens.css) за лентата му. */
+function aisleColor(aisle: Aisle): CSSProperties {
+  return { '--aisle-color': `var(--color-aisle-${aisle})` } as CSSProperties;
 }
 
 function position(keys: string[], key: string): number {
@@ -579,6 +733,7 @@ function ItemRow({
   item,
   checkedBy,
   confirming,
+  added,
   onToggle,
   onSources,
   onUncheckForeign,
@@ -586,12 +741,29 @@ function ItemRow({
   item: ShoppingItem;
   checkedBy: User | undefined;
   confirming: boolean;
+  /** Току-що добавен: превърта се до видимото и е оцветен (#307). */
+  added: boolean;
 }) {
   const checkId = useId();
+  const addedId = useId();
+  const rowRef = useRef<HTMLLIElement>(null);
   const checked = item.checkedBy !== null;
   const manual = item.kind === 'manual';
+  useEffect(() => {
+    if (added) {
+      rowRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+  }, [added]);
   return (
-    <li className="shopping-item" data-checked={checked}>
+    <li
+      ref={rowRef}
+      className="shopping-item"
+      data-checked={checked}
+      data-added={added || undefined}
+    >
       <label htmlFor={checkId} className="shopping-item__label">
         <span className="shopping-item__main">
           <span className="shopping-item__title">{item.title}</span>
@@ -634,10 +806,16 @@ function ItemRow({
           type="checkbox"
           className="shopping-item__check"
           aria-label={item.title}
+          aria-describedby={added ? addedId : undefined}
           checked={checked}
           onChange={() => onToggle(item)}
         />
       </label>
+      {added && (
+        <span id={addedId} className="visually-hidden">
+          току-що добавен
+        </span>
+      )}
       {confirming && (
         <p className="shopping-item__confirm" role="status">
           <span>
@@ -654,5 +832,12 @@ function ItemRow({
         </p>
       )}
     </li>
+  );
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof matchMedia === 'function' &&
+    matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 }

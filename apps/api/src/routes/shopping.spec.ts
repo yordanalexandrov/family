@@ -1,6 +1,12 @@
+import { addDays, weekStartOf } from '@family/shared';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { shoppingItem, shoppingList } from '../db/schema/shopping.js';
+import { mealPlan } from '../db/schema/menu.js';
+import {
+  shoppingItem,
+  shoppingList,
+  shoppingMeal,
+} from '../db/schema/shopping.js';
 import { buildTestApp } from '../test/app.js';
 import { rerunMigration, testDb } from '../test/db.js';
 import { DANI, POLI } from '../test/users.js';
@@ -83,11 +89,37 @@ const recipes = { salad: '', omelette: '', stew: '' };
 /** The plan's meals by day, Monday first. */
 let meals: string[] = [];
 
+function mealUrl(mealId: string, weekStart = WEEK) {
+  return `/api/shopping-lists/${weekStart}/meals/${mealId}`;
+}
+
+/** Adds a meal to the week's list (GLOSSARY: Ястие в списъка). */
+function addMeal(mealId: string, weekStart = WEEK) {
+  return inject('PUT', mealUrl(mealId, weekStart));
+}
+
+function removeMeal(mealId: string, weekStart = WEEK) {
+  return inject('DELETE', mealUrl(mealId, weekStart));
+}
+
+/** The meals of `seedPlan` with a recipe, Monday first: every day but Friday, which is only a note. */
+function mealsWithRecipe(): string[] {
+  return meals.filter((_, day) => day !== 4);
+}
+
+/** `seedPlan` with every meal with a recipe added to the list, as the whole menu was summed before ADR-0011. */
+async function seedMenu() {
+  await seedPlan();
+  for (const id of mealsWithRecipe()) {
+    expect((await addMeal(id)).statusCode).toBe(200);
+  }
+}
+
 /**
  * Two users, three recipes of 4 servings sharing ingredients, and the menu of WEEK: seven dinners, one only a note
- * and one with 0 servings. Everything goes through the api, as the family would make it.
+ * and one with 0 servings. Everything goes through the api, as the family would make it. No meal is in the list.
  */
-async function seedMenu() {
+async function seedPlan() {
   ids.tomato = await createIngredient('зелен домат', 'g', 'produce');
   ids.oil = await createIngredient('гроздово олио', 'ml', 'spices');
   ids.eggs = await createIngredient('пъдпъдъчи яйца', 'pcs', 'dairy');
@@ -204,7 +236,7 @@ describe('GET /api/shopping-lists/:weekStart', () => {
   });
 
   it('answers the list without an acting user, as the tablet and the TV read it, and stores nothing (#219)', async () => {
-    await seedMenu();
+    await seedPlan();
     const response = await app.inject({
       method: 'GET',
       url: `/api/shopping-lists/${WEEK}`,
@@ -213,7 +245,8 @@ describe('GET /api/shopping-lists/:weekStart', () => {
     expect(response.json().list).toMatchObject({
       weekStart: WEEK,
       hasMenu: true,
-      total: 4,
+      listedMealIds: [],
+      total: 0,
     });
     expect(await testDb().select().from(shoppingList)).toEqual([]);
   });
@@ -230,6 +263,7 @@ describe('GET /api/shopping-lists/:weekStart', () => {
     expect(response.json().list).toEqual({
       weekStart: WEEK,
       hasMenu: false,
+      listedMealIds: [],
       aisles: [],
       hidden: [],
       pantryHidden: [],
@@ -301,10 +335,11 @@ describe('PUT …/items/:key/checked', () => {
       checkedBy: DANI.id,
       checkedAt: NOW.toISOString(),
     });
-    // Monday's salad becomes a stew: 250 g of tomato become 150 g, the check stays.
+    // Monday's salad becomes a stew, which takes Monday out of the list (ADR-0011): 250 g of tomato fewer, the check
+    // stays.
     await patchMeal(meals[0] ?? '', { recipeId: recipes.stew });
     expect(await itemOf(key.tomato())).toMatchObject({
-      quantity: 1180,
+      quantity: 1030,
       checkedBy: DANI.id,
       checkedAt: NOW.toISOString(),
     });
@@ -418,10 +453,8 @@ describe('one row per ingredient (migration of the old keys)', () => {
     rerunMigration(testDb(), '_shopping_item_per_ingredient');
 
   it('moves the checks and hides stored per unit onto the ingredient’s row, the latest check winning', async () => {
-    const [list] = await testDb()
-      .insert(shoppingList)
-      .values({ weekStart: WEEK })
-      .returning();
+    // The list `seedMenu` created by adding its meals.
+    const [list] = await testDb().select().from(shoppingList);
     const listId = list?.id ?? '';
     const earlier = new Date('2026-10-27T08:00:00Z');
     await testDb()
@@ -479,6 +512,250 @@ describe('one row per ingredient (migration of the old keys)', () => {
     expect(keys.sort()).toEqual(
       [ids.salt, ids.eggs, ids.oil, manual.item.key].sort(),
     );
+  });
+});
+
+describe('meals in the list (ADR-0011)', () => {
+  beforeEach(seedPlan);
+
+  it('adds nothing of a new menu to the list until a meal is added', async () => {
+    const { list } = (await getList()).json();
+
+    expect(list).toMatchObject({
+      hasMenu: true,
+      listedMealIds: [],
+      total: 0,
+    });
+  });
+
+  it('adds a meal and its ingredients, creating the list, and adding it again changes nothing', async () => {
+    const monday = meals[0] ?? '';
+
+    const added = await addMeal(monday);
+    const again = await addMeal(monday);
+
+    expect(added.statusCode).toBe(200);
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toEqual(added.json());
+    const { list } = added.json();
+    expect(list.listedMealIds).toEqual([monday]);
+    // The salad for 2 of 4 servings, oil rounded up to 10 ml.
+    expect(rows(list)).toEqual([
+      'produce зелен домат 250 g ×1',
+      'spices гроздово олио 30 ml ×1',
+      'spices хималайска сол null pinch ×1',
+    ]);
+    expect(await testDb().select().from(shoppingList)).toHaveLength(1);
+    expect(await testDb().select().from(shoppingMeal)).toHaveLength(1);
+  });
+
+  it('takes a meal out with only its quantities, and taking it out again changes nothing', async () => {
+    const [monday = '', tuesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    const removed = await removeMeal(monday);
+    const again = await removeMeal(monday);
+
+    expect(removed.statusCode).toBe(200);
+    expect(again.statusCode).toBe(200);
+    const { list } = again.json();
+    expect(list.listedMealIds).toEqual([tuesday]);
+    // The omelette for 2 of 4 servings, oil rounded up to 10 ml.
+    expect(rows(list)).toEqual([
+      'produce зелен домат 100 g ×1',
+      'dairy пъдпъдъчи яйца 3 pcs ×1',
+      'spices гроздово олио 20 ml ×1',
+    ]);
+  });
+
+  it('answers 404 not_found for a meal of another week, and for no meal at all', async () => {
+    const other = (
+      await created(
+        await inject('POST', '/api/menu/plans', { weekStart: '2026-11-09' }),
+      )
+    ).plan;
+    await patchMeal(other.meals[0].id, { recipeId: recipes.stew });
+
+    const otherWeek = await addMeal(other.meals[0].id);
+    const unknown = await addMeal('00000000-0000-4000-8000-000000000099');
+
+    for (const response of [otherWeek, unknown]) {
+      expect(response.statusCode).toBe(404);
+      expect(response.json().error).toBe('not_found');
+    }
+    expect(await testDb().select().from(shoppingMeal)).toEqual([]);
+  });
+
+  it('answers 404 not_found for a meal in a week without a menu', async () => {
+    const response = await addMeal(meals[0] ?? '', '2026-11-09');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error).toBe('not_found');
+  });
+
+  it('refuses a meal that is only a note with meal_without_recipe', async () => {
+    const response = await addMeal(meals[4] ?? '');
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'conflict',
+      code: 'meal_without_recipe',
+    });
+    expect(await testDb().select().from(shoppingMeal)).toEqual([]);
+  });
+
+  it('answers 400 for a meal added without an acting user', async () => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: mealUrl(meals[0] ?? ''),
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('signals shopping.changed for the week when a meal is added or taken out', async () => {
+    const signals: unknown[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await addMeal(meals[0] ?? '');
+    await removeMeal(meals[0] ?? '');
+    await addMeal(meals[4] ?? '');
+    unsubscribe();
+
+    expect(signals).toEqual([
+      { type: 'shopping.changed', weekStart: WEEK },
+      { type: 'shopping.changed', weekStart: WEEK },
+    ]);
+  });
+
+  it('takes the meals of a deleted menu out of the list', async () => {
+    await addMeal(meals[0] ?? '');
+    const [plan] = await testDb().select().from(mealPlan);
+
+    const deleted = await inject('DELETE', `/api/menu/plans/${plan?.id}`);
+
+    expect(deleted.statusCode).toBe(204);
+    expect(await testDb().select().from(shoppingMeal)).toEqual([]);
+    expect((await getList()).json().list.listedMealIds).toEqual([]);
+  });
+});
+
+describe('a meal in the list whose recipe changes (ADR-0011)', () => {
+  beforeEach(seedPlan);
+
+  async function listed() {
+    return (await getList()).json().list.listedMealIds;
+  }
+
+  it('takes a meal out of the list when its recipe changes, by hand or with a picked „Предложи друго“', async () => {
+    const [monday = '', tuesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    await patchMeal(monday, { recipeId: recipes.stew });
+    await patchMeal(tuesday, {
+      recipeId: recipes.salad,
+      why: 'Има домати за изяждане.',
+    });
+
+    expect(await listed()).toEqual([]);
+    expect(rows((await getList()).json().list)).toEqual([]);
+  });
+
+  it('keeps a meal in the list when its servings change, when it is swapped, and when its recipe is sent unchanged', async () => {
+    const [monday = '', tuesday = '', wednesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    await patchMeal(monday, {
+      recipeId: recipes.salad,
+      servings: { [DANI.id]: 2, [POLI.id]: 2 },
+    });
+    const swapped = await inject('POST', `/api/menu/meals/${tuesday}/swap`, {
+      withMealId: wednesday,
+    });
+
+    expect(swapped.statusCode).toBe(200);
+    expect(await listed()).toEqual([monday, tuesday]);
+  });
+
+  it('takes a meal removed from its day out of the list, and „Върни“ does not bring it back', async () => {
+    const [monday = '', tuesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    await patchMeal(monday, { recipeId: null });
+    const restored = await inject('POST', `/api/menu/meals/${monday}/restore`);
+
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json().meal.recipeId).toBe(recipes.salad);
+    expect(await listed()).toEqual([tuesday]);
+  });
+
+  it('signals shopping.changed for the week when the recipe change takes a meal out', async () => {
+    const monday = meals[0] ?? '';
+    await addMeal(monday);
+    const signals: unknown[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await patchMeal(monday, { recipeId: recipes.omelette });
+    unsubscribe();
+
+    expect(signals).toContainEqual({
+      type: 'shopping.changed',
+      weekStart: WEEK,
+    });
+  });
+});
+
+describe('meals in the list (migration of the lists before ADR-0011)', () => {
+  /** The Monday of the real week in Sofia: the migration reads the database's clock, not the app's. */
+  const thisWeek = weekStartOf(new Date());
+  /**
+   * A menu of `weekStart` with a stew on Monday and a note on Tuesday, and with `list` a list with a manual item;
+   * without, nothing was ever written to the week's list.
+   */
+  async function seedWeek(weekStart: string, list = true) {
+    const plan = (
+      await created(await inject('POST', '/api/menu/plans', { weekStart }))
+    ).plan;
+    await patchMeal(plan.meals[0].id, { recipeId: recipes.stew });
+    await patchMeal(plan.meals[1].id, { note: 'навън' });
+    if (list) {
+      await created(
+        await inject('POST', `/api/shopping-lists/${weekStart}/items`, {
+          title: 'кафе',
+        }),
+      );
+    }
+    return plan.meals[0].id as string;
+  }
+
+  it('adds every meal with a recipe to the lists up to this week, also to a list never written to, and none to the later ones', async () => {
+    // Before every week below, so their meals can still be changed.
+    clock = new Date(`${addDays(thisWeek, -14)}T08:00:00Z`);
+    ids.tomato = await createIngredient('зелен домат', 'g', 'produce');
+    ids.salt = await createIngredient('хималайска сол', 'g', 'spices');
+    recipes.stew = await createRecipe('Яхния', [
+      { ingredientId: ids.tomato, quantity: 300, unit: 'g' },
+      { ingredientId: ids.salt, quantity: 5, unit: 'g' },
+    ]);
+    const lastWeek = addDays(thisWeek, -7);
+    const nextWeek = addDays(thisWeek, 7);
+    const past = await seedWeek(lastWeek);
+    const current = await seedWeek(thisWeek, false);
+    await seedWeek(nextWeek);
+
+    await rerunMigration(testDb(), '_shopping_meal_listed');
+    // Rows already added are kept as they are.
+    await rerunMigration(testDb(), '_shopping_meal_listed');
+
+    const listed = async (weekStart: string) =>
+      (await getList(weekStart)).json().list.listedMealIds;
+    expect(await listed(lastWeek)).toEqual([past]);
+    expect(await listed(thisWeek)).toEqual([current]);
+    expect(await listed(nextWeek)).toEqual([]);
   });
 });
 
@@ -637,6 +914,7 @@ describe('the pantry in the list', () => {
       )
     ).plan;
     await patchMeal(plan.meals[0].id, { recipeId: recipes.stew });
+    expect((await addMeal(plan.meals[0].id, NEXT_WEEK)).statusCode).toBe(200);
   }
 
   async function addToPantry(

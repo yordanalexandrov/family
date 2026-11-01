@@ -1,5 +1,6 @@
 // Features menu (`menu-empty`, `menu-meal`) and shopping (`shopping-computed`, `shopping-check`, `shopping-add`):
-// next week's empty plan, Monday = the newest „Леща verify …“ recipe cooked by Дани, then its list.
+// next week's empty plan, Monday = the newest „Леща verify …“ recipe cooked by Дани and added to the list from its
+// sheet („🛒 Добави в списъка“, ADR-0011: a meal joins the list only by hand), then its list.
 // Needs setup-phone.mjs and recipe-create.mjs first in the same run. Uses next week so it never meets a plan
 // another scenario made for this week; a run is disposable, so rerunning in the same run fails at „Започни празно“.
 export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
@@ -46,6 +47,16 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
       .getByRole('button', { name: 'Дани' }),
     'cook Дани',
   );
+  // Without this the list has no rows from the menu: only „Добави ястия от менюто“.
+  await tap(
+    sheet.getByRole('button', { name: '🛒 Добави в списъка' }),
+    '🛒 Добави в списъка',
+  );
+  await see(
+    sheet.getByRole('button', { name: '🛒 В списъка ✓', pressed: true }),
+    'meal in the list',
+  );
+  await shot('meal-sheet-listed');
   await tap(sheet.getByRole('button', { name: 'Готово' }), 'Готово');
   await see(
     dinners.getByRole('button', {
@@ -53,6 +64,12 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
       name: new RegExp(`${title} .*Готви Дани 2 порции`),
     }),
     'Monday row updated',
+  );
+  await see(
+    dinners
+      .getByRole('button', { name: new RegExp(title) })
+      .getByRole('img', { name: 'в списъка за пазаруване' }),
+    'Monday row 🛒',
   );
   await aria('menu-filled');
   await shot('menu-filled');
@@ -98,9 +115,13 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
   // Second view: a fresh load shows the same state, and the rows are in the database.
   await page.reload({ waitUntil: 'networkidle' });
   await tap(page.getByRole('tab', { name: 'Следваща седмица' }));
+  // A checked row lives in the collapsed „Купени (N)“ (#306).
+  await tap(page.getByRole('button', { name: /Купени \(1\)/ }), 'Купени (1)');
   await see(
-    page.getByRole('checkbox', { name: 'лук', checked: true }),
-    'лук still checked after reload',
+    page
+      .getByRole('region', { name: 'Купени' })
+      .getByRole('checkbox', { name: 'лук', checked: true }),
+    'лук still checked after reload, under Купени',
   );
   const rows = psql(
     'select si.kind, coalesce(si.title, i.name) as item, si.aisle, si.checked_by is not null as checked ' +

@@ -130,10 +130,12 @@ function build(
   recipes: Recipe[],
   items: ShoppingItemRecord[] = [],
   pantry: PantryItem[] = [],
+  listedMealIds: string[] = meals.map(({ id }) => id),
 ) {
   return buildShoppingList({
     weekStart: WEEK,
     plan: plan(meals),
+    listedMealIds,
     recipes,
     items,
     pantry,
@@ -572,6 +574,7 @@ describe('buildShoppingList overlay', () => {
     const list = buildShoppingList({
       weekStart: WEEK,
       plan: null,
+      listedMealIds: [],
       recipes: [],
       items: [manual(MANUAL_ID, { title: 'кафе' })],
       pantry: [inPantry(RICE, 'staple', { ranOutAt: CHECKED_AT })],
@@ -770,6 +773,112 @@ describe('buildShoppingList pantry', () => {
 
     expect(lines(list)).toEqual(['лук 100 g', 'ориз 200 g']);
     expect(list.pantryHidden).toEqual([]);
+  });
+});
+
+describe('buildShoppingList listed meals', () => {
+  const pilaf = recipe('Пилаф', 2, [
+    [RICE, 200, 'g'],
+    [ONION, 100, 'g'],
+  ]);
+  const soup = recipe('Супа', 2, [[ONION, 50, 'g']]);
+  const monday = meal('2026-10-26', pilaf);
+  const tuesday = meal('2026-10-27', soup);
+  const week = [monday, tuesday];
+  const listed = (
+    ids: string[],
+    items: ShoppingItemRecord[] = [],
+    pantry: PantryItem[] = [],
+  ) => build(week, [pilaf, soup], items, pantry, ids);
+
+  it('sums only the meals in the list and returns their ids', () => {
+    const list = listed([tuesday.id]);
+
+    expect(lines(list)).toEqual(['лук 50 g']);
+    expect(list.listedMealIds).toEqual([tuesday.id]);
+  });
+
+  it('takes away only the quantities of a meal taken out of the list', () => {
+    expect(lines(listed([monday.id, tuesday.id]))).toEqual([
+      'лук 150 g',
+      'ориз 200 g',
+    ]);
+    expect(lines(listed([monday.id]))).toEqual(['лук 100 g', 'ориз 200 g']);
+  });
+
+  it('shows only the meals in the list as the sources of a row', () => {
+    const [onion] = listed([tuesday.id]).aisles[0]?.items ?? [];
+
+    expect(onion?.sources.map(({ mealId }) => mealId)).toEqual([tuesday.id]);
+  });
+
+  it('gives back the check and the hidden row of an ingredient when its meal is added again', () => {
+    const records = [
+      record(ONION.id, { checkedBy: DANI, checkedAt: CHECKED_AT }),
+      record(RICE.id, { hidden: true }),
+    ];
+    const without = listed([], records);
+    const again = listed([monday.id], records);
+
+    expect(without.total).toBe(0);
+    expect(without.hidden).toEqual([]);
+    expect(again.aisles[0]?.items[0]).toMatchObject({
+      title: 'лук',
+      checkedBy: DANI,
+    });
+    expect(again.hidden.map(({ title }) => title)).toEqual(['ориз']);
+  });
+
+  it('adds a staple that ran out without any meal in the list', () => {
+    const list = listed(
+      [],
+      [],
+      [inPantry(RICE, 'staple', { ranOutAt: CHECKED_AT })],
+    );
+
+    expect(lines(list)).toEqual(['ориз null null']);
+  });
+
+  it('notes a use-up item only on a row from a meal in the list', () => {
+    const pantry = [inPantry(ONION, 'use_up', { note: 'фризер' })];
+
+    expect(listed([], [], pantry).total).toBe(0);
+    expect(listed([tuesday.id], [], pantry).aisles[0]?.items[0]).toMatchObject({
+      title: 'лук',
+      pantry: { kind: 'use_up', note: 'фризер' },
+    });
+  });
+
+  it('leaves out of listedMealIds an id the menu does not have', () => {
+    expect(listed([tuesday.id, MANUAL_ID]).listedMealIds).toEqual([tuesday.id]);
+  });
+
+  it('tells a menu without meals in the list from a list with every row hidden and from a week without a menu', () => {
+    const empty = listed([]);
+    const allHidden = listed(
+      [monday.id],
+      [record(ONION.id, { hidden: true }), record(RICE.id, { hidden: true })],
+    );
+    const noMenu = buildShoppingList({
+      weekStart: WEEK,
+      plan: null,
+      listedMealIds: [],
+      recipes: [],
+      items: [],
+    });
+
+    expect(empty).toMatchObject({ hasMenu: true, listedMealIds: [], total: 0 });
+    expect(allHidden).toMatchObject({
+      hasMenu: true,
+      listedMealIds: [monday.id],
+      total: 0,
+    });
+    expect(allHidden.hidden).toHaveLength(2);
+    expect(noMenu).toMatchObject({
+      hasMenu: false,
+      listedMealIds: [],
+      total: 0,
+    });
   });
 });
 

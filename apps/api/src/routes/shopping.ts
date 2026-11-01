@@ -6,6 +6,7 @@ import {
   shoppingItemResponseSchema,
   shoppingListParamsSchema,
   shoppingListResponseSchema,
+  shoppingMealParamsSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
@@ -14,6 +15,7 @@ import {
   getShoppingList,
   setItemChecked,
   setItemHidden,
+  setMealListed,
 } from '../services/shopping.js';
 
 /**
@@ -90,6 +92,33 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
       );
       return reply.code(201).send({ item });
     },
+  );
+
+  // A meal of the week's menu joins the list by hand (GLOSSARY: Ястие в списъка, ADR-0011).
+  app.put(
+    '/api/shopping-lists/:weekStart/meals/:mealId',
+    {
+      schema: {
+        params: shoppingMealParamsSchema,
+        response: { 200: shoppingListResponseSchema },
+      },
+    },
+    async (request) => ({
+      list: await setMealListed(deps, { ...request.params, listed: true }),
+    }),
+  );
+
+  app.delete(
+    '/api/shopping-lists/:weekStart/meals/:mealId',
+    {
+      schema: {
+        params: shoppingMealParamsSchema,
+        response: { 200: shoppingListResponseSchema },
+      },
+    },
+    async (request) => ({
+      list: await setMealListed(deps, { ...request.params, listed: false }),
+    }),
   );
 
   app.delete(

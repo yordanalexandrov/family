@@ -14,14 +14,17 @@ import { listPantryItems, setPantryRanOut } from '../db/repositories/pantry.js';
 import { findRecipe } from '../db/repositories/recipes.js';
 import {
   deleteManualItem,
+  deleteShoppingMeal,
   ensureShoppingList,
   findShoppingListId,
   insertManualItem,
+  insertShoppingMeal,
   listShoppingItems,
+  listShoppingMealIds,
   setComputedItemOverlay,
   setManualItemCheck,
 } from '../db/repositories/shopping.js';
-import { InvalidActionError, NotFoundError } from './errors.js';
+import { InvalidActionError, NotFoundError, refuse } from './errors.js';
 import type { EventBus } from './events.js';
 
 /** What a change to the list needs: the database, and the bus that signals `shopping.changed` after the commit. */
@@ -106,7 +109,7 @@ async function readItem(
 }
 
 /**
- * The list computed from the current menu with the stored checks, hidden items and manual items laid over it, and the
+ * The list computed from the meals of the current menu in the list (ADR-0011) with the stored checks, hidden items and manual items laid over it, and the
  * pantry: staples hidden by it, staples that ran out shown, use-up items marked.
  */
 async function computeList(
@@ -124,6 +127,7 @@ async function computeList(
   return buildShoppingList({
     weekStart,
     plan,
+    listedMealIds: listId === null ? [] : await listShoppingMealIds(db, listId),
     recipes: recipes.filter((recipe) => recipe !== undefined),
     items: listId === null ? [] : await listShoppingItems(db, listId),
     pantry: await listPantryItems(db),
@@ -249,4 +253,41 @@ export async function deleteItem(
     throw new NotFoundError(NO_SUCH_ITEM);
   }
   signal(events, weekStart);
+}
+
+/**
+ * Adds a meal of the week's menu to its list (GLOSSARY: Ястие в списъка, ADR-0011) or takes it out, creating the list
+ * on first use; both are idempotent. A meal that is not in the week's menu is a 404, and adding one without a recipe
+ * (only a note, or an empty day) is refused with `meal_without_recipe`: it has nothing to buy. Returns the whole list.
+ */
+export async function setMealListed(
+  { db, events }: ShoppingDeps,
+  {
+    weekStart,
+    mealId,
+    listed,
+  }: { weekStart: string; mealId: string; listed: boolean },
+): Promise<ShoppingList> {
+  const list = await db.transaction(async (tx) => {
+    const plan = (await findPlanByWeek(tx, weekStart)) ?? null;
+    const meal = plan?.meals.find((m) => m.id === mealId);
+    if (!meal) {
+      throw new NotFoundError('Няма такова ястие в менюто на седмицата');
+    }
+    if (listed && meal.recipeId === null) {
+      throw refuse(
+        'meal_without_recipe',
+        'Ястие без рецепта няма продукти за списъка',
+      );
+    }
+    const week = await openList(tx, weekStart);
+    if (listed) {
+      await insertShoppingMeal(tx, week.listId, mealId);
+    } else {
+      await deleteShoppingMeal(tx, week.listId, mealId);
+    }
+    return computeList(tx, week);
+  });
+  signal(events, weekStart);
+  return list;
 }
