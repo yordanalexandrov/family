@@ -25,9 +25,12 @@ const UNITS = unitSchema.options.filter((unit) => unit !== 'pinch');
  */
 export function AddItemSheet({
   weekStart,
+  onAdded,
   onClose,
 }: {
   weekStart: DateKey;
+  /** Ключът на добавения ред, след като списъкът е презареден с него. */
+  onAdded: (key: string) => void;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState('');
@@ -63,7 +66,12 @@ export function AddItemSheet({
       return;
     }
     setErrors({});
-    add.mutate(parsed.data, { onSuccess: onClose });
+    add.mutate(parsed.data, {
+      onSuccess: ({ item }) => {
+        onAdded(item.key);
+        onClose();
+      },
+    });
   }
 
   return (

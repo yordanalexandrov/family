@@ -62,6 +62,31 @@ export function formatDate(day: DateKey): string {
   return dateFormat.format(toInstant(day));
 }
 
+const SHORT_MONTHS = [
+  'ян',
+  'февр',
+  'март',
+  'апр',
+  'май',
+  'юни',
+  'юли',
+  'авг',
+  'септ',
+  'окт',
+  'ноем',
+  'дек',
+] as const;
+
+/** „2–8 ноем“, „26 окт – 1 ноем“: дните от `from` до `to` с кратък месец, за един ред. */
+export function formatShortRange(from: DateKey, to: DateKey): string {
+  const [, fromMonth, fromDay] = from.split('-').map(Number);
+  const [, toMonth, toDay] = to.split('-').map(Number);
+  const month = (m: number | undefined) => SHORT_MONTHS[(m ?? 1) - 1];
+  return fromMonth === toMonth
+    ? `${fromDay}–${toDay} ${month(toMonth)}`
+    : `${fromDay} ${month(fromMonth)} – ${toDay} ${month(toMonth)}`;
+}
+
 /** „2.11“: ден и месец с числа, за тясна колона. */
 export function formatShortDate(day: DateKey): string {
   return shortDateFormat.format(toInstant(day));

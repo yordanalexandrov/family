@@ -24,7 +24,11 @@ import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
 import { Toast, type ToastMessage } from '../../components/Toast';
-import { formatAmounts, formatDate, formatNumber } from '../../lib/format';
+import {
+  formatAmounts,
+  formatNumber,
+  formatShortRange,
+} from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { useOnline } from '../../lib/use-online';
 import { usePlan } from '../menu/queries';
@@ -52,6 +56,9 @@ const AISLE_LABELS = Object.fromEntries(
 
 /** Колко стои отметнатият ред на мястото си след последното докосване в списъка. */
 const SETTLE_MS = 1500;
+
+/** Колко е оцветен ред, току-що добавен с „+ Добави“ (#307). */
+const ADDED_MS = 2000;
 
 /**
  * `/shopping`: списъкът за пазаруване на тази или следващата седмица, по щанд. Работи и без връзка: показва
@@ -88,9 +95,6 @@ export function ShoppingWeek() {
           ))}
         </div>
       </nav>
-      <p className="menu__range">
-        {formatDate(weekStart)} – {formatDate(addDays(weekStart, 6))}
-      </p>
       <Week key={weekStart} weekStart={weekStart} now={now} />
     </main>
   );
@@ -116,25 +120,41 @@ function Week({ weekStart, now }: { weekStart: DateKey; now: Date }) {
   const week = useShoppingWeek(weekStart);
   const users = useUsers();
 
+  const range = formatShortRange(weekStart, addDays(weekStart, 6));
   if (week.isPending) {
-    return <Spinner />;
+    return (
+      <>
+        <p className="shopping__count">{range}</p>
+        <Spinner />
+      </>
+    );
   }
   if (week.isError) {
-    return <ErrorBox error={week.error} onRetry={() => void week.refetch()} />;
+    return (
+      <>
+        <p className="shopping__count">{range}</p>
+        <ErrorBox error={week.error} onRetry={() => void week.refetch()} />
+      </>
+    );
   }
   const { list, staleSince } = week.data;
   return (
     <>
+      {/* Датите и броячът са един ред, за да остане място за списъка (#307). */}
+      <p className="shopping__count">
+        {range}
+        {list.total > 0 && (
+          <>
+            <span aria-hidden="true"> · </span>
+            <span className="shopping__count-value">
+              {list.remaining} от {list.total}
+            </span>{' '}
+            за купуване
+            <SyncIcon weekStart={weekStart} />
+          </>
+        )}
+      </p>
       <NotAgreed weekStart={weekStart} now={now} />
-      {list.total > 0 && (
-        <p className="shopping__count">
-          <span className="shopping__count-value">
-            {list.remaining} от {list.total}
-          </span>{' '}
-          за купуване
-          <SyncIcon weekStart={weekStart} />
-        </p>
-      )}
       {staleSince && (
         <p className="shopping__stale" role="status">
           Няма връзка · остарели данни от {formatAge(staleSince, now)}
@@ -223,6 +243,7 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
   }
 
   const held = useHeldRows(list.aisles);
+  const added = useAddedRow();
   function setCheck(item: ShoppingItem) {
     held.hold(item.key);
     void toggle(item);
@@ -298,7 +319,11 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
         list.hasMenu && <p className="shopping__empty">Списъкът е празен.</p>
       ) : (
         <div ref={held.listRef} className="shopping__list">
-          <AisleList aisles={held.listed} {...aisleListProps} />
+          <AisleList
+            aisles={held.listed}
+            addedKey={added.key}
+            {...aisleListProps}
+          />
           {held.bought.length > 0 && (
             <section className="shopping__bought" aria-label="Купени">
               <button
@@ -451,7 +476,11 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
         />
       )}
       {adding && (
-        <AddItemSheet weekStart={weekStart} onClose={() => setAdding(false)} />
+        <AddItemSheet
+          weekStart={weekStart}
+          onAdded={added.mark}
+          onClose={() => setAdding(false)}
+        />
       )}
       <Toast
         message={toast?.message ?? null}
@@ -528,6 +557,22 @@ function useHeldRows(aisles: ShoppingList['aisles']) {
   };
 }
 
+/**
+ * Ръчният ред, току-що добавен с „+ Добави“: `ADDED_MS` след `mark(key)` редът е превъртян до видимото и оцветен.
+ * Нов ред е неотметнат, затова е в списъка, а не в „Купени“.
+ */
+function useAddedRow() {
+  const [key, setKey] = useState<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const mark = useCallback((added: string) => {
+    window.clearTimeout(timer.current);
+    setKey(added);
+    timer.current = window.setTimeout(() => setKey(null), ADDED_MS);
+  }, []);
+  return { key, mark };
+}
+
 /** Щандовете само с редовете, които минават `keep`; празен щанд отпада. */
 function filterItems(
   aisles: ShoppingList['aisles'],
@@ -551,6 +596,8 @@ interface AisleListProps {
   rowActions: RowActions;
   /** Заглавията на щандовете: `h2` в списъка, `h3` в „Купени“. */
   headingLevel?: 2 | 3;
+  /** Ключът на току-що добавения ред (`useAddedRow`). */
+  addedKey?: string | null;
 }
 
 /** Щандовете с редовете им, по реда на api-то; едни и същи в списъка и в „Купени“. */
@@ -561,30 +608,39 @@ function AisleList({
   actingUserId,
   rowActions,
   headingLevel = 2,
+  addedKey = null,
 }: AisleListProps) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
-  return aisles.map(({ aisle, items }) => (
-    <section
-      key={aisle}
-      className="shopping__aisle"
-      aria-label={AISLE_LABELS[aisle]}
-    >
-      <Heading className="shopping__aisle-title">{AISLE_LABELS[aisle]}</Heading>
-      <ul className="shopping__items">
-        {items.map((item) => (
-          <ItemRow
-            key={item.key}
-            item={item}
-            checkedBy={users.find((u) => u.id === item.checkedBy)}
-            confirming={
-              confirming === item.key && isForeignCheck(item, actingUserId)
-            }
-            {...rowActions}
-          />
-        ))}
-      </ul>
-    </section>
-  ));
+  // Един непрекъснат списък (#307): щандовете са редици в обща кутия, с линия помежду си.
+  return (
+    <div className="shopping__aisles">
+      {aisles.map(({ aisle, items }) => (
+        <section
+          key={aisle}
+          className="shopping__aisle"
+          aria-label={AISLE_LABELS[aisle]}
+        >
+          <Heading className="shopping__aisle-title">
+            {AISLE_LABELS[aisle]}
+          </Heading>
+          <ul className="shopping__items">
+            {items.map((item) => (
+              <ItemRow
+                key={item.key}
+                item={item}
+                checkedBy={users.find((u) => u.id === item.checkedBy)}
+                confirming={
+                  confirming === item.key && isForeignCheck(item, actingUserId)
+                }
+                added={item.key === addedKey}
+                {...rowActions}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 function position(keys: string[], key: string): number {
@@ -657,6 +713,7 @@ function ItemRow({
   item,
   checkedBy,
   confirming,
+  added,
   onToggle,
   onSources,
   onUncheckForeign,
@@ -664,12 +721,29 @@ function ItemRow({
   item: ShoppingItem;
   checkedBy: User | undefined;
   confirming: boolean;
+  /** Току-що добавен: превърта се до видимото и е оцветен (#307). */
+  added: boolean;
 }) {
   const checkId = useId();
+  const addedId = useId();
+  const rowRef = useRef<HTMLLIElement>(null);
   const checked = item.checkedBy !== null;
   const manual = item.kind === 'manual';
+  useEffect(() => {
+    if (added) {
+      rowRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'center',
+      });
+    }
+  }, [added]);
   return (
-    <li className="shopping-item" data-checked={checked}>
+    <li
+      ref={rowRef}
+      className="shopping-item"
+      data-checked={checked}
+      data-added={added || undefined}
+    >
       <label htmlFor={checkId} className="shopping-item__label">
         <span className="shopping-item__main">
           <span className="shopping-item__title">{item.title}</span>
@@ -712,10 +786,16 @@ function ItemRow({
           type="checkbox"
           className="shopping-item__check"
           aria-label={item.title}
+          aria-describedby={added ? addedId : undefined}
           checked={checked}
           onChange={() => onToggle(item)}
         />
       </label>
+      {added && (
+        <span id={addedId} className="visually-hidden">
+          току-що добавен
+        </span>
+      )}
       {confirming && (
         <p className="shopping-item__confirm" role="status">
           <span>
@@ -732,5 +812,12 @@ function ItemRow({
         </p>
       )}
     </li>
+  );
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof matchMedia === 'function' &&
+    matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 }

@@ -2,7 +2,15 @@ import { type ShoppingList, withCheck } from '@family/shared';
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http } from 'msw';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from 'vitest';
 import { nextWeek, thisWeek } from '../../test/menu';
 import { dani, fixtureNow, poli, server } from '../../test/msw';
 import { pantryItem, servePantry } from '../../test/pantry';
@@ -536,6 +544,89 @@ describe('ShoppingWeek', () => {
     await vi.waitFor(() =>
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
     );
+  });
+
+  describe('новодобавен ред (#307)', () => {
+    async function addBread(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(await screen.findByRole('button', { name: '+ Добави' }));
+      const sheet = screen.getByRole('dialog', { name: 'Добави' });
+      await user.type(within(sheet).getByLabelText('Заглавие'), 'хляб');
+      await user.click(within(sheet).getByRole('button', { name: 'Добави' }));
+      return screen.findByRole('checkbox', { name: 'хляб' });
+    }
+
+    it('след „+ Добави“ списъкът превърта плавно до новия ред и го отбелязва като нов за около 2 s', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(fixtureNow);
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const scrollIntoView = vi
+        .spyOn(Element.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
+      serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      const bread = await addBread(user);
+
+      const row = bread.closest('li');
+      await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+      expect(scrollIntoView.mock.contexts[0]).toBe(row);
+      expect(scrollIntoView).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'smooth' }),
+      );
+      expect(bread).toHaveAccessibleDescription('току-що добавен');
+      expect(
+        screen.getByRole('checkbox', { name: 'Домати' }),
+      ).not.toHaveAccessibleDescription();
+
+      await act(() => vi.advanceTimersByTimeAsync(2100));
+      expect(
+        screen.getByRole('checkbox', { name: 'хляб' }),
+      ).not.toHaveAccessibleDescription();
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    });
+
+    it('при prefers-reduced-motion превъртането не е плавно', async () => {
+      const user = userEvent.setup();
+      const scrollIntoView = vi
+        .spyOn(Element.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }));
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      serveShopping({ [thisWeek]: shoppingList() });
+
+      renderApp('/shopping');
+      await addBread(user);
+
+      await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+      expect(scrollIntoView).toHaveBeenCalledWith(
+        expect.objectContaining({ behavior: 'auto' }),
+      );
+    });
+  });
+
+  it('датите на седмицата и броячът са един ред: „2–8 ноем · 5 от 6 за купуване“', async () => {
+    serveShopping({ [thisWeek]: shoppingList() });
+
+    renderApp('/shopping');
+
+    const count = (await screen.findByText('5 от 6')).closest('p');
+    expect(count).toHaveTextContent(/^2–8 ноем · 5 от 6 за купуване/);
+  });
+
+  it('седмица без редове: датите стоят сами, без брояч', async () => {
+    serveShopping();
+
+    renderApp('/shopping');
+
+    expect(await screen.findByText('2–8 ноем')).toBeInTheDocument();
+    expect(screen.queryByText(/за купуване/)).not.toBeInTheDocument();
   });
 
   it('„Скрий от списъка“ в листа на изчислен ред праща PUT …/hidden и затваря листа', async () => {
