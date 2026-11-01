@@ -686,6 +686,25 @@ describe('PUT and DELETE /api/recipes/:id/rating', () => {
     expect((await getRecipe(created.id)).json().recipe.rating).toBeNull();
   });
 
+  it('rates and unrates without an acting user, as the kiosk at „Готово“ in Готвене', async () => {
+    const created = await createdRecipe(recipeInput());
+
+    const rated = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}/rating`,
+      payload: { rating: 5 },
+    });
+    expect(rated.statusCode).toBe(200);
+    expect(rated.json().recipe.rating).toBe(5);
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/api/recipes/${created.id}/rating`,
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().recipe.rating).toBeNull();
+  });
+
   it('keeps the rating when the recipe is replaced', async () => {
     const created = await createdRecipe(recipeInput());
     await rate(created.id, 5);

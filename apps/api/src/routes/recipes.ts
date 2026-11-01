@@ -100,10 +100,12 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
     );
   }
 
-  // GLOSSARY: Оценка. Not a change to the menu, so no `menu.changed`.
+  // GLOSSARY: Оценка. Not a change to the menu, so no `menu.changed`. Anyone may change it, also the kiosk without an
+  // acting user („Как мина?“ at „Готово“ in Готвене).
   app.put(
     '/api/recipes/:id/rating',
     {
+      config: { actingUser: 'optional' },
       schema: {
         params: idParamsSchema,
         body: putRatingSchema,
@@ -118,6 +120,7 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     '/api/recipes/:id/rating',
     {
+      config: { actingUser: 'optional' },
       schema: {
         params: idParamsSchema,
         response: { 200: recipeResponseSchema },
