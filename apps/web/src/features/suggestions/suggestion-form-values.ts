@@ -4,6 +4,7 @@ import {
   type Ingredient,
   type SuggestionPayload,
 } from '@family/shared';
+import { preparationToValues } from '../preparation/preparation-values';
 import {
   emptyIngredientRow,
   emptyRecipeFormValues,
@@ -45,7 +46,7 @@ export function suggestionToFormValues(
 /**
  * Началните стойности на `RecipeForm` от внасяне. Редът с `ingredientId` идва свързан с продукта от `linked`
  * (регистъра); редът с `newProduct` остава неразрешен, с предложеното име и форма „Нов продукт“, попълнена от него.
- * Бележката на реда (оригиналната единица) остава в рецептата.
+ * Бележката на реда (оригиналната единица) остава в рецептата, а подготовката идва във формата, за да се поправи.
  */
 export function importToFormValues(
   recipe: ImportPayload,
@@ -61,6 +62,7 @@ export function importToFormValues(
     sourceUrl: displaySourceUrl(sourceUrl ?? ''),
     tags: [...recipe.tags],
     steps: recipe.steps.map((step) => ({ ...step })),
+    preparation: preparationToValues(recipe.preparation),
     ingredients: recipe.ingredients.map((line) => {
       const ingredient =
         line.ingredientId === null ? undefined : byId.get(line.ingredientId);
