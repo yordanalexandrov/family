@@ -19,6 +19,7 @@ import {
   serveShopping,
   shoppingList,
   tomatoes,
+  withMenu,
 } from '../../test/shopping';
 import { UNSENT_AFTER_MS } from './sync';
 
@@ -94,6 +95,40 @@ describe('ShoppingWeek', () => {
       'aria-selected',
       'true',
     );
+  });
+
+  it('меню без ястия в списъка (ADR-0011): „Добави ястия от менюто“ и линк към менюто', async () => {
+    serveShopping({ [thisWeek]: withMenu(thisWeek) });
+
+    renderApp('/shopping');
+
+    expect(
+      await screen.findByText('Добави ястия от менюто'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Към менюто' })).toHaveAttribute(
+      'href',
+      '/menu',
+    );
+    expect(screen.queryByText('Списъкът е празен.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Менюто ще добави продуктите си, когато е готово'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('ястия в списъка, но всички редове скрити: „Списъкът е празен.“ без подсказка за менюто', async () => {
+    serveShopping({
+      [thisWeek]: {
+        ...withMenu(thisWeek, [onions.sources[0]?.mealId ?? '']),
+        hidden: [oil],
+      },
+    });
+
+    renderApp('/shopping');
+
+    expect(await screen.findByText('Списъкът е празен.')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Добави ястия от менюто'),
+    ).not.toBeInTheDocument();
   });
 
   it('седмица без меню: ръчен ред се добавя и се вижда в списъка, подсказката остава', async () => {
