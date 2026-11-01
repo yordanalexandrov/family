@@ -78,11 +78,12 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     servings: shownServings,
     onServingsChange: setShownServings,
     step,
-    // Върху показаното: текстът на стъпката и имената на редовете с приложените промени.
+    // Върху показаното: текстът на стъпката и имената на редовете с приложените промени. Махнат ред не е продукт на
+    // стъпката, дори текстът да го назовава.
     stepLines: findStepIngredients(
       changes.steps[step]?.text ?? '',
       changes.lines.map((line) => line.name),
-    ),
+    ).filter((index) => changes.lines[index]?.removed !== true),
     used,
     onToggleUsed: toggleUsed,
   };

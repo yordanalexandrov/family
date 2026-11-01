@@ -1127,6 +1127,111 @@ describe('„Промени“ (промяна за готвенето)', () => 
     });
   });
 
+  describe('продуктите на стъпката', () => {
+    /** The highlighted lines in the column: their checkbox is described as „в тази стъпка“. */
+    function stepLines(): string[] {
+      return within(screen.getByRole('list', { name: 'Продукти' }))
+        .queryAllByRole('checkbox', { description: 'в тази стъпка' })
+        .map((box) => box.getAttribute('aria-label') ?? '');
+    }
+
+    /** Asks, applies `change` in the sheet, closes it and goes to step 2 („Настържи 2 домата и ги добави.“). */
+    async function appliedOnStep2(
+      user: ReturnType<typeof userEvent.setup>,
+      change: CookingChange,
+    ) {
+      serveQuestions([{ status: 'done', answer: ANSWER, change }]);
+      await openCooking('browser');
+      const sheet = await askInSheet(user);
+      await applyIn(user, sheet);
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+    }
+
+    it('махнат ред („не се ползва“) не се подчертава, дори новият текст да го назовава', async () => {
+      const user = userEvent.setup();
+
+      await appliedOnStep2(user, {
+        ingredients: [{ kind: 'remove', index: 1 }],
+        steps: [{ number: 2, text: 'Без лука: настържи доматите.' }],
+      });
+
+      expect(
+        screen.getByRole('checkbox', { name: 'лук 2,5 бр.' }),
+      ).toBeDisabled();
+      expect(stepLines()).toEqual([]);
+    });
+
+    it('стъпка с нов текст: продуктите се разпознават от новия текст', async () => {
+      const user = userEvent.setup();
+
+      await appliedOnStep2(user, {
+        ingredients: [],
+        steps: [{ number: 2, text: 'Задуши лука 5 мин.' }],
+      });
+
+      expect(stepLines()).toEqual(['лук 2,5 бр.']);
+    });
+
+    /** Лук → домати: стъпка 2 на рецептата („Настържи 2 домата…“) назовава новото име. */
+    const TOMATOES: CookingChange = {
+      ingredients: [
+        {
+          kind: 'replace',
+          index: 1,
+          ingredient: { name: 'домати', quantity: 400, unit: 'g' },
+        },
+      ],
+      steps: [],
+    };
+
+    it('заменен ред се разпознава по новото си име', async () => {
+      const user = userEvent.setup();
+
+      await appliedOnStep2(user, TOMATOES);
+
+      expect(stepLines()).toEqual(['домати 400 г']);
+    });
+
+    it('нов ред се разпознава по своето име', async () => {
+      const user = userEvent.setup();
+
+      await appliedOnStep2(user, {
+        ingredients: [
+          {
+            kind: 'add',
+            ingredient: { name: 'домат', quantity: 2, unit: 'pcs' },
+          },
+        ],
+        steps: [],
+      });
+
+      expect(stepLines()).toEqual(['домат 2 бр.']);
+    });
+
+    it('„Върни“ връща подчертаването към рецептата без промяната', async () => {
+      const user = userEvent.setup();
+      await appliedOnStep2(user, {
+        ...TOMATOES,
+        steps: [
+          { number: 2, text: 'Настържи доматите и ги добави към филето.' },
+        ],
+      });
+      expect(stepLines()).toEqual(['пилешко филе 625 г', 'домати 400 г']);
+
+      // Въпросът е от стъпка 1: на стъпка 2 е под „По-рано“.
+      const sheet = await openSheet(user);
+      await user.click(
+        within(sheet).getByRole('button', { name: 'По-рано (1)' }),
+      );
+      const earlier = within(sheet).getByRole('list', { name: 'По-рано' });
+      await user.click(within(earlier).getByRole('button', { name: 'Върни' }));
+
+      // Рецептата: „Настържи 2 домата и ги добави.“ с лук — нищо от списъка.
+      expect(stepLines()).toEqual([]);
+    });
+  });
+
   it('отговор без промяна няма „Промени“', async () => {
     const user = userEvent.setup();
     serveQuestions([{ status: 'done', answer: ANSWER }]);
