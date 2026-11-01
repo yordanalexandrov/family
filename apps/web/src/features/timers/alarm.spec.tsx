@@ -7,6 +7,7 @@ import { logger } from '../../logger';
 import { dani, server } from '../../test/msw';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
+import { fakeRecognition } from '../../test/speech';
 
 const MINUTE = 60_000;
 
@@ -216,6 +217,24 @@ describe('Сигнал при изтичане на таймер', () => {
     expect(within(strip).getAllByRole('listitem')).toHaveLength(1);
     expect(strip).toHaveTextContent('15:00');
     expect(soundsOn()).toBe(false);
+  });
+
+  it('гласовата команда „спри“ заглушава звъненето, банерът остава, а новото изтичане звъни', async () => {
+    const recognition = fakeRecognition();
+    const { user, banner } = await ringing();
+    await user.click(screen.getByRole('button', { name: 'Слушай' }));
+    expect(soundsOn()).toBe(true);
+
+    recognition.say('Спри!');
+
+    expect(soundsOn()).toBe(false);
+    expect(banners()).toHaveLength(1);
+    expect(banner).toHaveTextContent('Стъпка 2 · 15 мин');
+
+    await user.click(within(banner).getByRole('button', { name: '+1 мин' }));
+    act(() => vi.advanceTimersByTime(MINUTE));
+    expect(banners()).toHaveLength(1);
+    expect(soundsOn()).toBe(true);
   });
 
   it('интервалът звъни на долната граница с „Провери — още до N мин“', async () => {

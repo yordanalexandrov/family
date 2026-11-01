@@ -240,6 +240,45 @@
   font-weight: 600;
 }
 
+/* 🎤 и до него за кратко изпълнената гласова команда (или грешката, която е спряла слушането). */
+.cooking-listen {
+  display: inline-flex;
+  align-items: center;
+}
+
+.cooking-listen__note:not(:empty) {
+  margin-inline-start: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cooking-listen__note--error {
+  color: var(--color-danger);
+}
+
+/* Слуша: в цвета на акцента и пулсира, за да личи, че микрофонът е включен. */
+.button.cooking-listen__mic--on {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cooking-listen__mic--on {
+    animation: cooking-listen-pulse 1.6s ease-out infinite;
+  }
+}
+
+@keyframes cooking-listen-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.75rem
+      color-mix(in srgb, var(--color-accent) 0%, transparent);
+  }
+}
+
 /* „Чети стъпките“: превключвател, включеният е в цвета на акцента. */
 .button.cooking-steps__read-steps {
   /* По-тесни полета от `.button` (global.css идва след този файл), за да се събере до „⏱ Таймер“ на телефон изправен. */

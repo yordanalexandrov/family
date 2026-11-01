@@ -19,6 +19,33 @@ interface Timers {
   start(timer: NewTimer): ReturnType<TimerStore['start']>;
   addMinute(id: string): void;
   restart(id: string): void;
+  /** Заглушените изтичания (`silence`): изтеклите досега звънят безшумно; следващото изтичане звъни пак. */
+  silenced: Silenced;
+}
+
+interface Silenced {
+  /** Изтичанията до този момент (ms от epoch) не звучат; `0` — нищо не е заглушено. */
+  until(): number;
+  silence(): void;
+  subscribe(listener: () => void): () => void;
+}
+
+function createSilenced(): Silenced {
+  let until = 0;
+  const listeners = new Set<() => void>();
+  return {
+    until: () => until,
+    silence() {
+      until = Date.now();
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
 }
 
 const TimersContext = createContext<Timers | null>(null);
@@ -29,6 +56,7 @@ function createTimers(): Timers {
   return {
     store,
     sound,
+    silenced: createSilenced(),
     start(timer) {
       sound.unlock();
       return store.start(timer);
@@ -68,10 +96,26 @@ function useTimersContext(): Timers {
  * изтичане).
  */
 export function useTimers() {
-  const { store, start, addMinute, restart } = useTimersContext();
+  const { store, start, addMinute, restart, silenced } = useTimersContext();
   const timers = useSyncExternalStore(store.subscribe, store.list);
   const { pause, resume, cancel } = store;
-  return { timers, start, addMinute, pause, resume, restart, cancel };
+  return {
+    timers,
+    start,
+    addMinute,
+    pause,
+    resume,
+    restart,
+    cancel,
+    /** Заглушава звъненето на изтеклите таймери (гласовата команда „спри“); банерите остават. */
+    silence: silenced.silence,
+  };
+}
+
+/** Докога изтичанията са заглушени (`silence`): изтекъл таймер с `endsAt` до този момент не звучи. */
+export function useSilencedUntil(): number {
+  const { silenced } = useTimersContext();
+  return useSyncExternalStore(silenced.subscribe, silenced.until);
 }
 
 /** Звукът на изтеклите таймери (`TimerAlarms`). */

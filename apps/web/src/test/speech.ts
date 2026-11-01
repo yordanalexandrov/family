@@ -1,3 +1,4 @@
+import { act } from '@testing-library/react';
 import { onTestFinished, vi } from 'vitest';
 
 /** A voice as `speechSynthesis.getVoices()` gives it. */
@@ -115,6 +116,135 @@ export function fakeSpeech({ voices = [bulgarianVoice] } = {}) {
       const done = current;
       current = null;
       done?.fire('end');
+    },
+  };
+}
+
+/** One recognized phrase as `SpeechRecognitionResult` gives it: the alternatives and `isFinal`. */
+type FakeResult = { transcript: string; confidence: number }[] & {
+  isFinal: boolean;
+};
+
+/**
+ * A fake `SpeechRecognition` (or `webkitSpeechRecognition`, as Chrome names it) for the test, removed when it ends.
+ * `start()` throws while already started, as in the browser; `stop()` and `abort()` end the session (`abort` with the
+ * `aborted` error first). `say`, `end` and `fail` are the browser's side: a final phrase, the session ending by itself,
+ * an error (followed by `end`, as in Chrome).
+ */
+export function fakeRecognition({ prefixed = false } = {}) {
+  const instances: FakeRecognition[] = [];
+  let starts = 0;
+
+  class FakeRecognition extends EventTarget {
+    lang = '';
+    continuous = false;
+    interimResults = false;
+    maxAlternatives = 1;
+    onstart: ((event: Event) => void) | null = null;
+    onresult: ((event: Event) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+    onend: ((event: Event) => void) | null = null;
+    running = false;
+    /** The results of this session: `continuous` keeps them, a new `start` begins anew. */
+    results: FakeResult[] = [];
+
+    constructor() {
+      super();
+      instances.push(this);
+    }
+
+    fire(type: 'start' | 'result' | 'error' | 'end', extra: object = {}) {
+      const event = Object.assign(new Event(type), extra);
+      this.dispatchEvent(event);
+      this[`on${type}`]?.(event);
+    }
+
+    start() {
+      if (this.running) {
+        throw new DOMException(
+          'recognition has already started',
+          'InvalidStateError',
+        );
+      }
+      starts += 1;
+      this.running = true;
+      this.results = [];
+      this.fire('start');
+    }
+
+    stop() {
+      this.finish();
+    }
+
+    abort() {
+      if (this.running) {
+        this.fire('error', { error: 'aborted', message: '' });
+      }
+      this.finish();
+    }
+
+    finish() {
+      if (!this.running) {
+        return;
+      }
+      this.running = false;
+      this.fire('end');
+    }
+  }
+
+  vi.stubGlobal(
+    prefixed ? 'webkitSpeechRecognition' : 'SpeechRecognition',
+    FakeRecognition,
+  );
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const running = () => instances.find((instance) => instance.running) ?? null;
+  const require = () => {
+    const instance = running();
+    if (!instance) {
+      throw new Error('Nothing is listening');
+    }
+    return instance;
+  };
+
+  return {
+    /** Something is listening now. */
+    listening: () => running() !== null,
+    /** How many times `start()` was called, over all instances. */
+    starts: () => starts,
+    /** The settings of the session listening now. */
+    settings() {
+      const { lang, continuous } = require();
+      return { lang, continuous };
+    },
+    /** The browser recognizes `transcript` as a final phrase. */
+    say(transcript: string) {
+      const instance = require();
+      const result = Object.assign([{ transcript, confidence: 0.9 }], {
+        isFinal: true,
+      });
+      instance.results.push(result);
+      act(() => {
+        instance.fire('result', {
+          resultIndex: instance.results.length - 1,
+          results: instance.results,
+        });
+      });
+    },
+    /** The session ends by itself (silence, Chrome's limit). */
+    end() {
+      const instance = require();
+      act(() => instance.finish());
+    },
+    /** The browser reports `error` (`not-allowed`, `network`, `no-speech`…), then ends the session. */
+    fail(error: string) {
+      const instance = require();
+      act(() => {
+        instance.fire('error', { error, message: '' });
+        instance.finish();
+      });
     },
   };
 }

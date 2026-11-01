@@ -47,6 +47,8 @@ interface CookingStepsProps {
   ask?: ReactNode;
   /** 🔊 (`ReadStepButton`): в инструментите горе, между „Питай“ и A−/A+. */
   readStep?: ReactNode;
+  /** 🎤 (`ListenButton`): в инструментите горе, след 🔊. */
+  listen?: ReactNode;
   /** „Чети стъпките“ (`ReadStepsToggle`): под стъпката, вдясно от „⏱ Таймер“. */
   readSteps?: ReactNode;
 }
@@ -67,6 +69,7 @@ export function CookingSteps({
   preparation,
   ask,
   readStep,
+  listen,
   readSteps,
 }: CookingStepsProps) {
   const last = step === steps.length - 1;
@@ -150,6 +153,7 @@ export function CookingSteps({
         <div className="cooking-steps__tools">
           {ask}
           {readStep}
+          {listen}
           <button
             type="button"
             className="button button--quiet cooking-steps__size"

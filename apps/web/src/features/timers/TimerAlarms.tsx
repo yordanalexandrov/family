@@ -9,7 +9,7 @@ import {
   type Timer,
   timerLabel,
 } from './timer-store';
-import { useAlarmSound, useTimers } from './use-timers';
+import { useAlarmSound, useSilencedUntil, useTimers } from './use-timers';
 import './timers.css';
 
 /** Толкова звучи изтекъл таймер; банерът остава до „Спри“. */
@@ -60,17 +60,21 @@ interface TimerAlarmsProps {
 /**
  * Сигналът на изтеклите таймери, докато Готвене е отворено: банер за всеки („Стъпка 2 · 20 мин — времето изтече“),
  * подредени един под друг в област, която превърта, ако са повече, отколкото събира, и повтарящ се тон до 2 минути. „Спри“ маха таймера; „+1 мин“ и „Повтори“ го пускат
- * отново (и спират звука до новото изтичане).
+ * отново (и спират звука до новото изтичане). Гласовата команда „спри“ само заглушава тона (`silence`): банерите остават.
  */
 export function TimerAlarms({ recipeId }: TimerAlarmsProps) {
   const { timers, addMinute, restart, cancel } = useTimers();
   const sound = useAlarmSound();
+  const silencedUntil = useSilencedUntil();
   const [openedAt] = useState(Date.now);
   const [, setTick] = useState(0);
   const now = Date.now();
   const expired = timers.filter((timer) => isExpired(timer, now));
+  // Заглушеното с „спри“ (гласова команда) не звучи; „+1 мин“ и „Повтори“ дават ново изтичане, което звъни.
   const ringing = expired.some(
-    (timer) => now < ringingSince(timer, openedAt) + ALARM_SOUND_MS,
+    (timer) =>
+      timer.endsAt > silencedUntil &&
+      now < ringingSince(timer, openedAt) + ALARM_SOUND_MS,
   );
 
   // Пречертава се в следващия момент, в който нещо се сменя: изтичане на работещ таймер, край на звука или нова

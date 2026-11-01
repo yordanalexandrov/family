@@ -13,8 +13,10 @@ import { CookingPreparation } from './CookingPreparation';
 import { CookingQuestionSheet } from './CookingQuestionSheet';
 import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
+import { ListenButton } from './ListeningControls';
 import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
 import { useCookingChanges } from './use-cooking-changes';
+import { useCookingListening } from './use-cooking-listening';
 import { useCookingQuestions } from './use-cooking-questions';
 import { useCookingReading } from './use-cooking-reading';
 import './cooking.css';
@@ -54,6 +56,12 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   } = useCookingProgress(recipe);
   const changes = useCookingChanges(recipe, forgetUsed);
   const reading = useCookingReading(changes.steps, step);
+  const listening = useCookingListening({
+    stepCount: changes.steps.length,
+    step,
+    onStepChange: setStep,
+    reading,
+  });
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
@@ -77,6 +85,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       onDone={() => onExit(finish)}
       ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
       readStep={<ReadStepButton reading={reading} />}
+      listen={<ListenButton listening={listening} />}
       readSteps={<ReadStepsToggle reading={reading} />}
       preparation={
         <CookingPreparation
