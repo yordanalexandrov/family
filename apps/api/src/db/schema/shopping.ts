@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { oneOf } from './checks.js';
 import { createdAt } from './columns.js';
-import { mealPlan } from './menu.js';
+import { meal, mealPlan } from './menu.js';
 import { user } from './user.js';
 
 /**
@@ -70,4 +70,24 @@ export const shoppingItem = pgTable(
     check('shopping_item_unit_check', oneOf(t.unit, unitSchema.options)),
     check('shopping_item_aisle_check', oneOf(t.aisle, aisleSchema.options)),
   ],
+);
+
+/**
+ * GLOSSARY: Ястие в списъка. A meal of the week's menu someone added to the list; only these meals are summed
+ * (ADR-0011). The choice is the list's, not the meal's: the menu knows nothing of shopping. A deleted meal (or menu)
+ * leaves the list with its row.
+ */
+export const shoppingMeal = pgTable(
+  'shopping_meal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    listId: uuid('list_id')
+      .notNull()
+      .references(() => shoppingList.id, { onDelete: 'cascade' }),
+    mealId: uuid('meal_id')
+      .notNull()
+      .references(() => meal.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('shopping_meal_list_meal').on(t.listId, t.mealId)],
 );

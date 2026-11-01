@@ -6,7 +6,11 @@ import {
 } from '@family/shared';
 import { and, eq } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
-import { shoppingItem, shoppingList } from '../schema/shopping.js';
+import {
+  shoppingItem,
+  shoppingList,
+  shoppingMeal,
+} from '../schema/shopping.js';
 
 type ItemRow = typeof shoppingItem.$inferSelect;
 
@@ -178,4 +182,42 @@ export async function deleteManualItem(
     )
     .returning({ id: shoppingItem.id });
   return rows.length > 0;
+}
+
+/** The meals in the list (GLOSSARY: Ястие в списъка), in the order they were added. */
+export async function listShoppingMealIds(
+  db: DbExecutor,
+  listId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ mealId: shoppingMeal.mealId })
+    .from(shoppingMeal)
+    .where(eq(shoppingMeal.listId, listId))
+    .orderBy(shoppingMeal.createdAt, shoppingMeal.id);
+  return rows.map((row) => row.mealId);
+}
+
+/** Adds a meal to the list; a meal already in it stays as it is. */
+export async function insertShoppingMeal(
+  db: DbExecutor,
+  listId: string,
+  mealId: string,
+): Promise<void> {
+  await db
+    .insert(shoppingMeal)
+    .values({ listId, mealId })
+    .onConflictDoNothing();
+}
+
+/** Takes a meal out of the list; a meal not in it changes nothing. */
+export async function deleteShoppingMeal(
+  db: DbExecutor,
+  listId: string,
+  mealId: string,
+): Promise<void> {
+  await db
+    .delete(shoppingMeal)
+    .where(
+      and(eq(shoppingMeal.listId, listId), eq(shoppingMeal.mealId, mealId)),
+    );
 }
