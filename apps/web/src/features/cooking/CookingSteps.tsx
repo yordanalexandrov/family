@@ -1,5 +1,5 @@
 import { type Recipe, STEP_PHOTO_MAX_SIDE, stepPhotoUrl } from '@family/shared';
-import { type CSSProperties, useRef } from 'react';
+import { type CSSProperties, type ReactNode, useRef } from 'react';
 import { ManualTimer } from '../timers/ManualTimer';
 import { StepText } from '../timers/StepText';
 import { TimerAlarms } from '../timers/TimerAlarms';
@@ -30,6 +30,8 @@ interface CookingStepsProps {
   onClose: () => void;
   /** „Готово“ на последната стъпка: Готвене е свършило. */
   onDone: () => void;
+  /** Редът с подготовката (`CookingPreparation`): най-отгоре, над стъпката, на всяка стъпка. */
+  preparation?: ReactNode;
 }
 
 /**
@@ -43,6 +45,7 @@ export function CookingSteps({
   onStepChange,
   onClose,
   onDone,
+  preparation,
 }: CookingStepsProps) {
   const { steps } = recipe;
   const last = step === steps.length - 1;
@@ -155,6 +158,7 @@ export function CookingSteps({
           </button>
         </div>
       </header>
+      {preparation}
       {/* Банерите, лентата и текстът: средата на картата, която превърта сама, ако не се събират, вместо да расте. */}
       <div className="cooking-steps__main">
         <TimerAlarms recipeId={recipe.id} />

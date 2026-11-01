@@ -265,6 +265,48 @@
   transform: scale(1.4);
 }
 
+/*
+ * Подготовката (CookingPreparation): ред чипове над стъпката. Червен е ненаправеното, зелен с отметка — направеното;
+ * цветът е в рамката и бледия фон, текстът остава с цвета на текста. Чипът е поне `--touch-target` висок.
+ */
+.cooking-preparation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cooking-preparation__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  min-block-size: var(--touch-target);
+  padding: var(--space-1) var(--space-4);
+  border: 2px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-lg);
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast),
+    border-color var(--motion-fast);
+}
+
+.cooking-preparation__chip--done {
+  border-color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+}
+
+.cooking-preparation__check {
+  flex: none;
+  color: var(--color-success);
+  font-weight: 700;
+}
+
 /* Тесен екран (CookingView по границата на листа): стъпката е на цялата ширина, продуктите са в лист зад бутона. */
 .cooking--narrow {
   grid-template-columns: 1fr;
@@ -374,6 +416,10 @@
 
   .cooking-steps__dots {
     display: none;
+  }
+
+  .cooking-preparation__chip {
+    font-size: var(--font-size-md);
   }
 
   .cooking-ingredients {
