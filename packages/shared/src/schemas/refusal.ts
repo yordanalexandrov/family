@@ -15,6 +15,7 @@ import {
 } from './menu.js';
 import { cookTakenSchema, pushDisabledSchema } from './notifications.js';
 import { alreadyInPantrySchema, notStapleSchema } from './pantry.js';
+import { mealWithoutRecipeSchema } from './shopping.js';
 
 /**
  * Every refusal with a sub-code: the body of an `apiErrorSchema` error that also carries `code` and, per code, its
@@ -36,6 +37,7 @@ export const refusalSchemas = {
   empty_meal: emptyMealSchema,
   no_earlier_question: noEarlierQuestionSchema,
   no_applied_change: noAppliedChangeSchema,
+  meal_without_recipe: mealWithoutRecipeSchema,
 } as const;
 
 export const refusalSchema = z.discriminatedUnion(

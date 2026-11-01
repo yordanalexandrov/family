@@ -200,3 +200,38 @@ export function useDeleteManualItem(weekStart: DateKey) {
     ),
   );
 }
+
+/**
+ * Добавя ястие от менюто в списъка на седмицата (GLOSSARY: Ястие в списъка, ADR-0011) или го маха; иска връзка.
+ * Отговорът е целият списък: показва се веднага, после списъкът се презарежда.
+ */
+export function useSetMealListed(weekStart: DateKey) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      mealId,
+      listed,
+    }: {
+      mealId: string;
+      listed: boolean;
+    }) => {
+      requireOnline();
+      return (
+        await apiFetch(
+          `${listPath(weekStart)}/meals/${mealId}`,
+          shoppingListResponseSchema,
+          { method: listed ? 'PUT' : 'DELETE' },
+        )
+      ).list;
+    },
+    networkMode: 'always',
+    onSuccess: async (list) => {
+      const queryKey = shoppingKeys.list(weekStart);
+      queryClient.setQueryData<ShoppingWeekData>(queryKey, {
+        list,
+        staleSince: null,
+      });
+      await queryClient.invalidateQueries({ queryKey });
+    },
+  });
+}

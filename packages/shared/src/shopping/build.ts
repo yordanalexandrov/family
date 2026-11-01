@@ -20,6 +20,8 @@ export interface BuildShoppingListInput {
   weekStart: DateKey;
   /** The week's menu; `null` for a week without one (#129 D-11), whose list has no rows computed from a menu. */
   plan: MealPlan | null;
+  /** The meals of the plan in the list (GLOSSARY: Ястие в списъка); only they are summed (ADR-0011). */
+  listedMealIds: readonly string[];
   /** The recipes of the plan's meals, with their ingredients. A meal whose recipe is missing adds nothing. */
   recipes: Recipe[];
   /** The stored `shopping_item` records of the week's list. */
@@ -29,8 +31,8 @@ export interface BuildShoppingListInput {
 }
 
 /**
- * The shopping list of a week (GLOSSARY: Списък за пазаруване): every meal of its menu with a recipe and servings adds the
- * recipe's ingredients scaled to its servings, summed per ingredient over the week: one row per ingredient, one
+ * The shopping list of a week (GLOSSARY: Списък за пазаруване): every meal in the list (`listedMealIds`, ADR-0011) with a
+ * recipe and servings adds the recipe's ingredients scaled to its servings, summed per ingredient over the week: one row per ingredient, one
  * amount per unit that does not convert into another (kg → g, l → ml), each rounded up;
  * a pinch has no quantity. The stored records add checks, hidden items and manual items.
  *
@@ -42,6 +44,7 @@ export interface BuildShoppingListInput {
 export function buildShoppingList({
   weekStart,
   plan,
+  listedMealIds,
   recipes,
   items: records,
   pantry = [],
@@ -49,9 +52,10 @@ export function buildShoppingList({
   const recipesById = new Map(recipes.map((r) => [r.id, r]));
   const computed = new Map<string, ComputedRow>();
   const notInMenu = new Set<string>();
-  const meals = [...(plan?.meals ?? [])].sort((a, b) =>
-    a.date.localeCompare(b.date),
-  );
+  const listed = new Set(listedMealIds);
+  const meals = (plan?.meals ?? [])
+    .filter((meal) => listed.has(meal.id))
+    .sort((a, b) => a.date.localeCompare(b.date));
   for (const meal of meals) {
     const recipe = meal.recipeId ? recipesById.get(meal.recipeId) : undefined;
     const servings = totalServings(meal.servings);
@@ -158,6 +162,7 @@ export function buildShoppingList({
   return {
     weekStart,
     hasMenu: plan !== null,
+    listedMealIds: meals.map(({ id }) => id),
     aisles: byAisle(visible),
     hidden: flat(items.filter((item) => item.hidden)),
     pantryHidden: flat(items.filter(byPantry)),

@@ -118,10 +118,14 @@ export const coffee: ShoppingItem = {
   sources: [],
 };
 
+/** Ястията от менюто на тази седмица в списъка (ADR-0011): тези, от които идват редовете. */
+const listedMealIds = [mealId(0), mealId(1), mealId(3), mealId(4)];
+
 /** Списъкът на тази седмица: 6 видими реда (1 отметнат) в 4 щанда и 1 скрит. */
 export function shoppingList(weekStart = thisWeek): ShoppingList {
   return shoppingListSchema.parse({
     weekStart,
+    listedMealIds,
     aisles: [
       { aisle: 'produce', items: [tomatoes, onions, peppers] },
       { aisle: 'dairy', items: [milk] },
@@ -139,6 +143,22 @@ export function withoutMenu(weekStart: string): ShoppingList {
   return shoppingListSchema.parse({
     weekStart,
     hasMenu: false,
+    aisles: [],
+    hidden: [],
+    total: 0,
+    remaining: 0,
+  });
+}
+
+/** Списъкът на седмица с меню, в който още няма ястия (ADR-0011): празен. */
+export function withMenu(
+  weekStart: string,
+  listedMealIds: string[] = [],
+): ShoppingList {
+  return shoppingListSchema.parse({
+    weekStart,
+    hasMenu: true,
+    listedMealIds,
     aisles: [],
     hidden: [],
     total: 0,
@@ -179,7 +199,9 @@ export function serveShopping(lists: Record<string, ShoppingList> = {}) {
   const gets: string[] = [];
   const base = '/api/shopping-lists/:weekStart';
   async function record(request: Request, path: string) {
-    const body = request.method === 'DELETE' ? undefined : await request.json();
+    // DELETE и PUT на ястие в списъка са без тяло.
+    const text = await request.text();
+    const body = text ? JSON.parse(text) : undefined;
     requests.push({
       method: request.method,
       path,
@@ -245,6 +267,32 @@ export function serveShopping(lists: Record<string, ShoppingList> = {}) {
       lists[week] = withItem(lists[week] ?? withoutMenu(week), item);
       return HttpResponse.json({ item }, { status: 201 });
     }),
+    // Ястие в списъка (ADR-0011): като api-то, идемпотентно, с целия списък в отговора.
+    http.put(`${base}/meals/:mealId`, async ({ params, request }) => {
+      const week = String(params.weekStart);
+      const mealId = String(params.mealId);
+      await record(request, `${week}/meals/${mealId}`);
+      const list = lists[week] ?? withMenu(week);
+      lists[week] = {
+        ...list,
+        listedMealIds: [
+          ...list.listedMealIds.filter((id) => id !== mealId),
+          mealId,
+        ],
+      };
+      return HttpResponse.json({ list: lists[week] });
+    }),
+    http.delete(`${base}/meals/:mealId`, async ({ params, request }) => {
+      const week = String(params.weekStart);
+      const mealId = String(params.mealId);
+      await record(request, `${week}/meals/${mealId}`);
+      const list = lists[week] ?? withMenu(week);
+      lists[week] = {
+        ...list,
+        listedMealIds: list.listedMealIds.filter((id) => id !== mealId),
+      };
+      return HttpResponse.json({ list: lists[week] });
+    }),
     http.delete(`${base}/items/:key`, async ({ params, request }) => {
       const week = String(params.weekStart);
       await record(request, `${week}/items/${String(params.key)}`);
@@ -296,6 +344,7 @@ export const pantryRice = computed(9, 'g', {
 export function pantryShoppingList(weekStart = thisWeek): ShoppingList {
   return shoppingListSchema.parse({
     weekStart,
+    listedMealIds,
     aisles: [
       { aisle: 'produce', items: [tomatoes] },
       { aisle: 'meat', items: [mince] },

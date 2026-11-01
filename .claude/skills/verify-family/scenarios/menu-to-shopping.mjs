@@ -1,5 +1,6 @@
 // Features menu (`menu-empty`, `menu-meal`) and shopping (`shopping-computed`, `shopping-check`, `shopping-add`):
-// next week's empty plan, Monday = the newest „Леща verify …“ recipe cooked by Дани, then its list.
+// next week's empty plan, Monday = the newest „Леща verify …“ recipe cooked by Дани and added to the list from its
+// sheet („🛒 Добави в списъка“, ADR-0011: a meal joins the list only by hand), then its list.
 // Needs setup-phone.mjs and recipe-create.mjs first in the same run. Uses next week so it never meets a plan
 // another scenario made for this week; a run is disposable, so rerunning in the same run fails at „Започни празно“.
 export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
@@ -46,6 +47,16 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
       .getByRole('button', { name: 'Дани' }),
     'cook Дани',
   );
+  // Without this the list has no rows from the menu: only „Добави ястия от менюто“.
+  await tap(
+    sheet.getByRole('button', { name: '🛒 Добави в списъка' }),
+    '🛒 Добави в списъка',
+  );
+  await see(
+    sheet.getByRole('button', { name: '🛒 В списъка ✓', pressed: true }),
+    'meal in the list',
+  );
+  await shot('meal-sheet-listed');
   await tap(sheet.getByRole('button', { name: 'Готово' }), 'Готово');
   await see(
     dinners.getByRole('button', {

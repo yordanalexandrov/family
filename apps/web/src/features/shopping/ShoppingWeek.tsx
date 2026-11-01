@@ -313,10 +313,12 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
     );
   }
 
+  // Ястие от менюто влиза в списъка само от листа си (ADR-0011): без такова продуктите от менюто ги няма.
+  const listsMeals = list.hasMenu && list.listedMealIds.length > 0;
   return (
     <>
       {list.aisles.length === 0 ? (
-        list.hasMenu && <p className="shopping__empty">Списъкът е празен.</p>
+        listsMeals && <p className="shopping__empty">Списъкът е празен.</p>
       ) : (
         <div ref={held.listRef} className="shopping__list">
           <AisleList
@@ -345,10 +347,12 @@ function ListView({ list, weekStart, now, users }: ListViewProps) {
           )}
         </div>
       )}
-      {!list.hasMenu && (
+      {!listsMeals && (
         <div className="shopping__no-menu">
           <p className="shopping__empty">
-            Менюто ще добави продуктите си, когато е готово
+            {list.hasMenu
+              ? 'Добави ястия от менюто'
+              : 'Менюто ще добави продуктите си, когато е готово'}
           </p>
           <Link
             to="/menu"

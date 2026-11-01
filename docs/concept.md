@@ -137,7 +137,7 @@ MVP-то е с минимален AI: OpenClaw предлага меню и ре
 | `appliance` | id, name, enabled | специалните уреди вкъщи (air fryer, sous vide…); включените са меко предпочитание за `recipe.suggest`, рецептата пази името като текст |
 | `meal_plan` | id, week_start, status | status: draft / final |
 | `meal` | plan_id, date, slot (закуска/обяд/вечеря), recipe_id, cook_user_id, servings_per_user | servings_per_user е JSON {user_id: порции} |
-| `shopping_list` + `shopping_item` | week_start, plan_id; item_key, kind, title, quantity, unit, aisle, hidden, checked_by, checked_at | един на седмица (`week_start` unique); `plan_id` е по избор и при изтрито меню става null, списъкът и ръчните редове остават; редовете се изчисляват от менюто, пазят се само отметки, скрити и ръчни редове |
+| `shopping_list` + `shopping_item` + `shopping_meal` | week_start, plan_id; item_key, kind, title, quantity, unit, aisle, hidden, checked_by, checked_at; list_id, meal_id | един на седмица (`week_start` unique); `plan_id` е по избор и при изтрито меню става null, списъкът и ръчните редове остават; редовете се изчисляват от ястията в списъка (`shopping_meal`, уникално (`list_id`, `meal_id`), каскадно по двете връзки, [ADR-0011](adr/0011-meals-join-shopping-list-by-hand.md)), пазят се само ястията в списъка, отметки, скрити и ръчни редове |
 
 Запазени за по-късно: `weight_entry`, `workout` + `workout_entry`, `meal_vote` (user_id, meal_id, vote, comment), `promo` + `promo_item`, `pantry_item`.
 

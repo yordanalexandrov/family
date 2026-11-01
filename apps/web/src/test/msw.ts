@@ -103,6 +103,21 @@ export const handlers = [
       'no_replacement',
     ),
   ),
+  // Списъкът на седмица без `serveShopping`: без ястия в него и без редове (листът на ястието чете `listedMealIds`).
+  http.get('/api/shopping-lists/:weekStart', ({ params }) =>
+    HttpResponse.json({
+      list: {
+        weekStart: params.weekStart,
+        hasMenu: true,
+        listedMealIds: [],
+        aisles: [],
+        hidden: [],
+        pantryHidden: [],
+        total: 0,
+        remaining: 0,
+      },
+    }),
+  ),
   // Седмица без `serveWeekProposal` няма предложение (нито ръчно, нито от крона).
   http.get('/api/menu/proposals', () =>
     apiError(

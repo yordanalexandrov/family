@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { type Aisle, aisleSchema } from '../food/aisles.js';
 import { quantitySchema, type Unit, unitSchema } from '../food/units.js';
 import { dateKeySchema, instantSchema } from './dates.js';
+import { refusalBody } from './error.js';
 import { weekStartSchema } from './menu.js';
 import { pantryKindSchema } from './pantry.js';
 
@@ -79,12 +80,15 @@ export type ShoppingItem = z.infer<typeof shoppingItemSchema>;
  * (empty aisles left out), the hidden items apart. `hasMenu: false` is a week without a menu (#129 D-11): no rows computed
  * from a menu, only the manual items and the staples that ran out. `pantryHidden` are the rows hidden by the pantry: unchecked rows of
  * a staple that has not run out („🏠 Скрити от килера“), apart from the manually hidden ones. `total` and `remaining`
- * (not checked) count the visible items only.
+ * (not checked) count the visible items only. `listedMealIds` are the meals of the menu in the list (GLOSSARY: Ястие в
+ * списъка, ADR-0011): only they are summed; a menu without them gives a list without rows from the menu.
  */
 export const shoppingListSchema = z.object({
   weekStart: weekStartSchema,
   // A list cached offline before lists without a menu always had one.
   hasMenu: z.boolean().default(true),
+  // A list cached offline before meals joined the list by hand has none.
+  listedMealIds: z.array(z.uuid()).default([]),
   aisles: z.array(
     z.object({ aisle: aisleSchema, items: z.array(shoppingItemSchema) }),
   ),
@@ -154,3 +158,19 @@ export const shoppingListParamsSchema = z.object({
 export const shoppingItemParamsSchema = shoppingListParamsSchema.extend({
   key: z.string().min(1),
 });
+
+/** `PUT|DELETE /api/shopping-lists/:weekStart/meals/:mealId`: a meal of the week's menu (GLOSSARY: Ястие в списъка). */
+export const shoppingMealParamsSchema = shoppingListParamsSchema.extend({
+  mealId: z.uuid(),
+});
+
+/**
+ * 409 of `PUT /api/shopping-lists/:weekStart/meals/:mealId` for a meal without a recipe (only a note, or an empty day):
+ * it has no ingredients to buy, so it does not join the list.
+ */
+export const mealWithoutRecipeSchema = refusalBody(
+  'conflict',
+  'meal_without_recipe',
+);
+
+export type MealWithoutRecipe = z.infer<typeof mealWithoutRecipeSchema>;
