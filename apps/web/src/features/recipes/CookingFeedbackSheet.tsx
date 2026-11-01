@@ -8,6 +8,7 @@ import { Field } from '../../components/Field';
 import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Sheet } from '../../components/Sheet';
 import { useOnline } from '../../lib/use-online';
+import { lastCookingApplied } from '../cooking/cooking-memory';
 import { useRateRecipe } from './queries';
 import { useRequestRevision } from './revisions';
 import { RatingStars } from './Stars';
@@ -23,7 +24,8 @@ interface CookingFeedbackSheetProps {
 
 /**
  * „Как мина?“ (GLOSSARY: Обратна връзка след готвене): звездите с текущата оценка (смяната се пише веднага), указание
- * „Какво да се промени?“ по избор, „Пропусни“ и „Изпрати“. Указанието пуска поправка на рецептата и листът не чака AI;
+ * „Какво да се промени?“ по избор, „Пропусни“ и „Изпрати“. Указанието пуска поправка на рецептата с приложените промени
+ * за готвенето от последното готвене на това устройство днес (`applied`) и листът не чака AI;
  * празно поле само приключва. Рецепта с поправка, която чака преглед, не пуска втора: полето е изключено, а
  * „Поправка чака преглед“ води към нея (на kiosk, без потребител и редакция, е само текст). Без връзка „Изпрати“ е
  * изключено с „Иска връзка“. Работи и без действащ потребител.
@@ -46,7 +48,8 @@ export function CookingFeedbackSheet({
   // Редакцията пише от името на потребител; kiosk няма такъв и там поправката е само текст.
   const canEdit = useWritingUserId() !== null;
 
-  // Указанието пуска поправка (без `applied`); празно поле само излиза, оценката вече е записана.
+  // Указанието пуска поправка с приложените промени от последното готвене тук днес; празно поле само излиза, оценката
+  // вече е записана.
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (start.isPending || connection.disabled) {
@@ -57,7 +60,11 @@ export function CookingFeedbackSheet({
       return;
     }
     start.mutate(
-      { target: { recipeId: recipe.id }, instruction: trimmed },
+      {
+        target: { recipeId: recipe.id },
+        instruction: trimmed,
+        applied: lastCookingApplied(recipe.id),
+      },
       { onSuccess: () => onDone() },
     );
   };

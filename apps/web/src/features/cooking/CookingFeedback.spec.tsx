@@ -2,11 +2,12 @@ import type { Recipe } from '@family/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { dani, server } from '../../test/msw';
 import { goOffline } from '../../test/network';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
+import { COOKING_PROGRESS_KEY } from './cooking-memory';
 
 /** Една стъпка: „Готово“ е веднага. */
 const stew: Recipe = {
@@ -31,6 +32,7 @@ function serveRevisions() {
             id: REVISION_ID,
             recipeId: stew.id,
             instruction: body.instruction,
+            applied: [],
             status: 'pending',
             requestedBy: dani.id,
             createdAt: '2026-11-01T18:00:00.000Z',
@@ -251,5 +253,154 @@ describe('Обратна връзка след готвене', () => {
     ).toBeInTheDocument();
     expect(within(sheet).queryByRole('link')).not.toBeInTheDocument();
     expect(within(sheet).getByLabelText('Какво да се промени?')).toBeDisabled();
+  });
+});
+
+describe('„Как мина?“ с промените от готвенето (`applied`)', () => {
+  const PULP_ID = 'eeeeeeee-0000-4000-8000-000000000001';
+  const SALT_ID = 'eeeeeeee-0000-4000-8000-000000000002';
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** 18:00 в София на 1 ноември, с две приложени промени в Готвене на това устройство. */
+  function cookedWithChanges() {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-11-01T16:00:00.000Z'));
+    localStorage.setItem(
+      COOKING_PROGRESS_KEY,
+      JSON.stringify({
+        day: '2026-11-01',
+        recipes: {
+          [stew.id]: {
+            applied: [
+              {
+                id: PULP_ID,
+                servings: 4,
+                change: {
+                  ingredients: [
+                    {
+                      kind: 'replace',
+                      index: 1,
+                      ingredient: {
+                        name: 'консерва pulp',
+                        quantity: 400,
+                        unit: 'g',
+                      },
+                    },
+                  ],
+                  steps: [],
+                },
+              },
+              {
+                id: SALT_ID,
+                servings: 4,
+                change: { ingredients: [{ kind: 'remove', index: 2 }] },
+              },
+            ],
+          },
+        },
+      }),
+    );
+  }
+
+  async function send(
+    user: ReturnType<typeof userEvent.setup>,
+    sheet: HTMLElement,
+  ) {
+    await user.type(
+      within(sheet).getByLabelText('Какво да се промени?'),
+      'запази замяната',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
+    await screen.findByRole('heading', { name: stew.title });
+  }
+
+  it('„Изпрати“ след „Готово“ праща приложените промени по реда на прилагане', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+    const posts = serveRevisions();
+    cookedWithChanges();
+
+    const { sheet } = await finishCooking(user);
+    await send(user, sheet);
+
+    expect(posts).toEqual([
+      { instruction: 'запази замяната', applied: [PULP_ID, SALT_ID] },
+    ]);
+  });
+
+  it('по-късно в същия ден ги праща още', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+    const posts = serveRevisions();
+    cookedWithChanges();
+
+    const { sheet } = await finishCooking(user);
+    // 23:30 в София.
+    vi.setSystemTime(new Date('2026-11-01T21:30:00.000Z'));
+    await send(user, sheet);
+    expect(posts).toEqual([
+      { instruction: 'запази замяната', applied: [PULP_ID, SALT_ID] },
+    ]);
+  });
+
+  it('промяна, която api не знае (404 `no_applied_change`), се пуска пак без нея', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+    // Последният `server.use` отговаря пръв: 404 веднъж, после 202.
+    const posts = serveRevisions();
+    const tried: unknown[] = [];
+    server.use(
+      http.post(
+        `/api/recipes/${stew.id}/revisions`,
+        async ({ request }) => {
+          const body = (await request.clone().json()) as {
+            applied?: string[];
+          };
+          if (body.applied?.includes(SALT_ID)) {
+            tried.push(body);
+            return HttpResponse.json(
+              {
+                error: 'not_found',
+                code: 'no_applied_change',
+                message: 'Няма такава промяна за готвенето на рецептата',
+                ids: [SALT_ID],
+              },
+              { status: 404 },
+            );
+          }
+        },
+        { once: true },
+      ),
+    );
+    cookedWithChanges();
+
+    const { sheet } = await finishCooking(user);
+    await send(user, sheet);
+
+    expect(tried).toHaveLength(1);
+    expect(posts).toEqual([
+      { instruction: 'запази замяната', applied: [PULP_ID] },
+    ]);
+  });
+
+  it('на следващия ден поправката е само с указанието', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+    const posts = serveRevisions();
+    cookedWithChanges();
+
+    const { sheet } = await finishCooking(user);
+    // 00:30 в София на 2 ноември.
+    vi.setSystemTime(new Date('2026-11-01T22:30:00.000Z'));
+    await send(user, sheet);
+
+    expect(posts).toEqual([{ instruction: 'запази замяната' }]);
   });
 });

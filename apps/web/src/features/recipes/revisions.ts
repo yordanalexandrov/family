@@ -12,7 +12,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { apiFetch, JSON_HEADERS } from '../../api/client';
+import { apiFetch, JSON_HEADERS, refusalOf } from '../../api/client';
 import { POLL_INTERVAL_MS, requestErrorFor } from '../../lib/ai-requests';
 import { recipeKeys } from './queries';
 import {
@@ -73,36 +73,59 @@ function refreshOpenRevision(queryClient: QueryClient) {
   });
 }
 
-/** „Изпрати“ в „✏️ Поправи с AI“ → `202` с `pending`; агентът работи във фона на api. */
+/** Какво пуска поправка: указанието и, за рецепта, приложените промени за готвенето (`applied`). */
+interface RevisionAsk {
+  target: RevisionTarget;
+  instruction: string;
+  applied?: readonly string[];
+}
+
+function postRevision({ target, instruction, applied = [] }: RevisionAsk) {
+  return apiFetch(
+    'suggestionId' in target
+      ? `/recipe-suggestions/${target.suggestionId}/revisions`
+      : `/recipes/${target.recipeId}/revisions`,
+    recipeRevisionResponseSchema,
+    {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        'suggestionId' in target
+          ? { instruction, recipe: target.recipe }
+          : { instruction, ...(applied.length > 0 ? { applied } : {}) },
+      ),
+    },
+  ).then((body) => body.request);
+}
+
+/**
+ * Пуска; ако api не знае някой от `applied` (напр. от друга база), пуска още веднъж без тях: всеки опит праща
+ * по-малко, затова опитите свършват.
+ */
+async function postKnown(ask: RevisionAsk): Promise<RecipeRevisionRequest> {
+  try {
+    return await postRevision(ask);
+  } catch (error) {
+    const unknown = refusalOf(error, 'no_applied_change')?.ids;
+    const known = ask.applied?.filter((id) => !unknown?.includes(id)) ?? [];
+    if (unknown && known.length < (ask.applied?.length ?? 0)) {
+      return postKnown({ ...ask, applied: known });
+    }
+    throw error;
+  }
+}
+
+/**
+ * „Изпрати“ в „✏️ Поправи с AI“ и в „Как мина?“ → `202` с `pending`; агентът работи във фона на api. `applied` са
+ * въпросите с приложени промени от последното готвене, които поправката да вземе предвид.
+ */
 export function useRequestRevision() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      target,
-      instruction,
-    }: {
-      target: RevisionTarget;
-      instruction: string;
-    }) =>
-      apiFetch(
-        'suggestionId' in target
-          ? `/recipe-suggestions/${target.suggestionId}/revisions`
-          : `/recipes/${target.recipeId}/revisions`,
-        recipeRevisionResponseSchema,
-        {
-          method: 'POST',
-          headers: JSON_HEADERS,
-          body: JSON.stringify(
-            'suggestionId' in target
-              ? { instruction, recipe: target.recipe }
-              : { instruction },
-          ),
-        },
-      )
-        .then((body) => body.request)
-        .catch((error: unknown) => {
-          throw requestErrorFor(error);
-        }),
+    mutationFn: (ask: RevisionAsk) =>
+      postKnown(ask).catch((error: unknown) => {
+        throw requestErrorFor(error);
+      }),
     onSuccess(request) {
       // Веднага пита отново: заявката може вече да е свършила.
       void queryClient.invalidateQueries({ queryKey: revisionKey(request.id) });

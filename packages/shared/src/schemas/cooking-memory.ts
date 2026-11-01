@@ -39,3 +39,10 @@ export const appliedChangesSchema = z.array(
 );
 
 export type AppliedChange = z.infer<typeof appliedChangesSchema>[number];
+
+/**
+ * The last cooking of a recipe on the device (GLOSSARY: Обратна връзка след готвене): the ids of the questions whose
+ * cooking changes were applied when „Готово“ was pressed, in the order applied. Kept until the end of the day, after the
+ * progress, the questions and the applied changes are forgotten, so that a revision asked later that day sends them.
+ */
+export const lastCookingAppliedSchema = z.array(z.string().min(1));

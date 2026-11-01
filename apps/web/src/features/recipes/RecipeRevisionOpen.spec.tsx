@@ -41,6 +41,7 @@ const done: RecipeRevisionRequest = {
   id: REVISION_ID,
   recipeId: recipe.id,
   instruction: INSTRUCTION,
+  applied: [],
   status: 'done',
   revision,
   requestedBy: dani.id,
@@ -241,5 +242,25 @@ describe('Поправка чака преглед', () => {
     );
     expect(rejected).toEqual([REVISION_ID]);
     expect(await within(sheet).findByText('Мисли…')).toBeInTheDocument();
+  });
+
+  it('„Пусни пак“ праща пак и приложените промени от готвенето, с които е пусната старата', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const applied = ['eeeeeeee-0000-4000-8000-000000000001'];
+    const { posts } = serve(recipe, { ...done, applied, stale: true });
+    renderApp(`/recipes/${recipe.id}/edit`);
+    await user.click(
+      await screen.findByRole('button', { name: '✏️ Поправи с AI' }),
+    );
+    const sheet = await screen.findByRole('dialog', { name: 'Поправи с AI' });
+
+    await user.click(
+      await within(sheet).findByRole('button', { name: 'Пусни пак' }),
+    );
+
+    await vi.waitFor(() =>
+      expect(posts).toEqual([{ instruction: INSTRUCTION, applied }]),
+    );
   });
 });

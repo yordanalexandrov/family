@@ -18,7 +18,6 @@ import {
   decideRevisionRequest,
   findOpenRevisions,
   findOpenSuggestionRevision,
-  findRevisionAppliedIds,
   findRevisionBaseRecipe,
   findRevisionRequest,
   insertRevisionRequest,
@@ -174,7 +173,7 @@ export function createRecipeRevisionStore(): ContractRequestStore<
       const { applied } = await findAppliedChanges(
         db,
         request.recipeId,
-        await findRevisionAppliedIds(db, request.id),
+        request.applied,
       );
       return {
         recipe: contractRecipe(recipe, ownPhotos),

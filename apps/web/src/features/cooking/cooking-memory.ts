@@ -4,6 +4,7 @@ import {
   applyCookingChanges,
   type DateKey,
   dateKeyInSofia,
+  lastCookingAppliedSchema,
   type Recipe,
   type RememberedQuestion,
   recipeCookingLines,
@@ -32,13 +33,15 @@ export type { AppliedChange, RememberedQuestion } from '@family/shared';
 
 /**
  * Записът на една рецепта на устройството: напредъкът (отметките на подготовката важат само за подготовката
- * `preparedFor`), въпросите в Готвене по реда на задаване и приложените промени за готвенето по реда на прилагане.
- * Полетата се пишат поотделно и всяко може да липсва.
+ * `preparedFor`), въпросите в Готвене по реда на задаване, приложените промени за готвенето по реда на прилагане и
+ * „последното готвене“ (`lastApplied`: id-тата на въпросите с приложени промени при „Готово“). Полетата се пишат
+ * поотделно и всяко може да липсва.
  */
 interface StoredRecipeProgress extends CookingProgress {
   preparedFor: string;
   questions: readonly RememberedQuestion[];
   applied: readonly AppliedChange[];
+  lastApplied: readonly string[];
 }
 
 /** Записът на устройството: напредъкът по рецепта за един ден; запис от друг ден не важи. */
@@ -97,8 +100,9 @@ interface ListSchema<Item> {
 const LISTS = {
   questions: rememberedQuestionsSchema,
   applied: appliedChangesSchema,
+  lastApplied: lastCookingAppliedSchema,
 } satisfies {
-  [Field in 'questions' | 'applied']: ListSchema<
+  [Field in 'questions' | 'applied' | 'lastApplied']: ListSchema<
     StoredRecipeProgress[Field][number]
   >;
 };
@@ -186,8 +190,9 @@ function writeProgress(recipe: Recipe, progress?: CookingProgress): void {
 
 /**
  * Стъпката, отметките на продуктите и на подготовката в Готвене за `recipe`, запомнени на устройството до края на деня (по софийско време).
- * `finish` („Готово“) ги забравя, така че ново влизане същия ден започва отначало. Нищо не стига до сървъра; без
- * localStorage Готвене работи без памет.
+ * `finish` („Готово“) ги забравя заедно с въпросите и приложените промени, така че ново влизане същия ден започва
+ * отначало; остава само последното готвене (`rememberLastCooking`). Нищо не стига до сървъра; без localStorage
+ * Готвене работи без памет.
  */
 export function useCookingProgress(recipe: Recipe) {
   const [progress, setProgress] = useState(() => readProgress(recipe));
@@ -220,8 +225,31 @@ export function useCookingProgress(recipe: Recipe) {
           other === index ? !done : done,
         ),
       }),
-    finish: () => writeProgress(recipe),
+    finish: () =>
+      updateRecipe(recipe.id, (current) => {
+        const lastApplied = listOf(current, 'lastApplied', LISTS.lastApplied);
+        return lastApplied.length > 0 ? { lastApplied } : {};
+      }),
   };
+}
+
+/**
+ * „Готово“: приложените промени за готвенето на рецептата (id-тата на въпросите им, по реда на прилагане) остават на
+ * устройството като последното готвене до края на деня, и след `finish`.
+ */
+export function rememberLastCooking(
+  recipeId: string,
+  applied: readonly string[],
+): void {
+  updateRecipe(recipeId, (current) => ({ ...current, lastApplied: applied }));
+}
+
+/**
+ * `applied` на поправка от „Как мина?“: приложените промени от последното готвене на рецептата на това устройство днес;
+ * от вчера или без такова — няма.
+ */
+export function lastCookingApplied(recipeId: string): readonly string[] {
+  return listOf(readRecipe(recipeId), 'lastApplied', LISTS.lastApplied);
 }
 
 /**

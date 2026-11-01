@@ -128,9 +128,10 @@ export function ReviseSheet({
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const connection = useNeedsConnection(useOnline(), 'refine__hint');
 
-  const send = (instruction: string) =>
+  // „Опитай пак“ и „Пусни пак“ пращат и приложените промени, с които е пусната поправката.
+  const send = (instruction: string, applied?: readonly string[]) =>
     start.mutate(
-      { target, instruction },
+      { target, instruction, applied },
       { onSuccess: (created) => onRequested(created.id) },
     );
   const current = request.data;
@@ -179,12 +180,12 @@ export function ReviseSheet({
       </div>
     </form>
   );
-  const retry = (instruction: string) => (
+  const retry = (instruction: string, applied?: readonly string[]) => (
     <button
       type="button"
       className="button"
       disabled={start.isPending || connection.disabled}
-      onClick={() => send(instruction)}
+      onClick={() => send(instruction, applied)}
     >
       Опитай пак
     </button>
@@ -216,7 +217,8 @@ export function ReviseSheet({
     body = (
       <>
         <ErrorBox error={start.error} />
-        {start.variables && retry(start.variables.instruction)}
+        {start.variables &&
+          retry(start.variables.instruction, start.variables.applied)}
       </>
     );
   } else if (start.isPending) {
@@ -251,7 +253,7 @@ export function ReviseSheet({
           <p className="error-box__message" role="alert">
             {message}
           </p>
-          {retry(current.instruction)}
+          {retry(current.instruction, current.applied)}
         </>
       );
   } else if (current.revision) {
@@ -309,7 +311,7 @@ export function ReviseSheet({
               aria-describedby={connection.describedBy}
               onClick={() =>
                 reject.mutate(current.id, {
-                  onSuccess: () => send(current.instruction),
+                  onSuccess: () => send(current.instruction, current.applied),
                 })
               }
             >

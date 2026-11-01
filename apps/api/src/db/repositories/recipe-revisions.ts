@@ -43,6 +43,7 @@ function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
     recipeId: row.recipeId ?? undefined,
     suggestionId: row.suggestionId ?? undefined,
     instruction: row.instruction,
+    applied: row.appliedIds,
     status: row.status,
     error: row.error ?? undefined,
     revision: row.revision ?? undefined,
@@ -136,19 +137,6 @@ export async function findRevisionRequest(
     .where(eq(recipeRevisionRequest.id, id))
     .limit(1);
   return row && toRevisionRequest(row);
-}
-
-/** The questions in Готвене whose cooking changes the revision was asked with, in their order. */
-export async function findRevisionAppliedIds(
-  db: DbExecutor,
-  id: string,
-): Promise<string[]> {
-  const [row] = await db
-    .select({ appliedIds: recipeRevisionRequest.appliedIds })
-    .from(recipeRevisionRequest)
-    .where(eq(recipeRevisionRequest.id, id))
-    .limit(1);
-  return row?.appliedIds ?? [];
 }
 
 /** The review form's recipe a revision of a suggestion was asked for; `undefined` for a revision of a recipe. */

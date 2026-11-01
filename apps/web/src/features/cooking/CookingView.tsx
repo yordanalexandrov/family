@@ -14,7 +14,11 @@ import {
 import { CookingPreparation } from './CookingPreparation';
 import { CookingQuestionSheet } from './CookingQuestionSheet';
 import { CookingSteps } from './CookingSteps';
-import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
+import {
+  rememberLastCooking,
+  useCookingProgress,
+  useIngredientsOpen,
+} from './cooking-memory';
 import { ListenButton } from './ListeningControls';
 import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
 import { findStepLines } from './step-ingredients';
@@ -94,7 +98,10 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       step={step}
       onStepChange={setStep}
       onClose={() => onExit()}
-      onDone={() => setFeedbackOpen(true)}
+      onDone={() => {
+        rememberLastCooking(recipe.id, changes.appliedIds);
+        setFeedbackOpen(true);
+      }}
       ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
       readStep={<ReadStepButton reading={reading} />}
       listen={<ListenButton listening={listening} />}

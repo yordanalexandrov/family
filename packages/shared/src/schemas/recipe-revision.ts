@@ -53,13 +53,16 @@ export type RevisionDecision = z.infer<typeof revisionDecisionSchema>;
  * One run of `recipe.revise` for a recipe of the registry (`recipeId`) or a suggestion waiting for approval
  * (`suggestionId`), exactly one of the two: the instruction, then `revision` once it is `done`; failed `no_results` with
  * the agent's reason in `noResults`. `requestedBy` and the decider may be none (the kiosk). `stale`: the recipe was saved
- * after the revision was asked for, so accepting it would undo that save; always `false` for a suggestion.
+ * after the revision was asked for, so accepting it would undo that save; always `false` for a suggestion. `applied`:
+ * the questions in Готвене whose cooking changes it was asked with, so that asking again sends them again; `[]` for a
+ * suggestion.
  */
 export const recipeRevisionRequestSchema = z.object({
   id: z.uuid(),
   recipeId: z.uuid().optional(),
   suggestionId: z.uuid().optional(),
   instruction: z.string(),
+  applied: z.array(z.uuid()),
   status: contractRequestStatusSchema,
   error: contractFailureSchema.optional(),
   revision: recipeRevisionSchema.optional(),

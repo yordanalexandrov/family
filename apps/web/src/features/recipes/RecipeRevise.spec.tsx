@@ -58,6 +58,7 @@ const pending: RecipeRevisionRequest = {
   id: 'dddddddd-0000-4000-8000-000000000001',
   recipeId: recipe.id,
   instruction: INSTRUCTION,
+  applied: [],
   status: 'pending',
   requestedBy: dani.id,
   createdAt: '2026-11-01T10:00:00.000Z',
