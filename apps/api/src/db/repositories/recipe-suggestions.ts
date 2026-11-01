@@ -2,6 +2,7 @@ import type {
   AnyRecipeSuggestion,
   ImportedSuggestion,
   ImportPayload,
+  Preparation,
   RecipeSuggestion,
   RecipeSuggestionStatus,
   RecipeSuggestParams,
@@ -43,40 +44,40 @@ function decisionOf(row: SuggestionRow) {
 }
 
 /**
- * A suggestion of a suggestion request; the row must have `request_id` (read by it). A payload stored before the
- * preparation (GLOSSARY: Подготовка, #284) has none.
+ * The stored payload, with `preparation: []` when it is from before the preparation (GLOSSARY: Подготовка, #283/#284)
+ * and has none. Not left to a `.default([])` of the schema: the response serializer encodes, and encoding applies no
+ * default.
  */
+function payloadOf(row: SuggestionRow): SuggestionPayload | ImportPayload {
+  const { preparation } = row.payload as { preparation?: Preparation };
+  return { ...row.payload, preparation: preparation ?? [] };
+}
+
+/** A suggestion of a suggestion request; the row must have `request_id` (read by it). */
 function toSuggestion(row: SuggestionRow): RecipeSuggestion {
   if (row.requestId === null) {
     throw new Error(
       `recipe_suggestion ${row.id} is not of a suggestion request`,
     );
   }
-  const payload = row.payload as Omit<SuggestionPayload, 'preparation'> &
-    Partial<Pick<SuggestionPayload, 'preparation'>>;
   return {
     ...decisionOf(row),
     origin: 'suggest',
     requestId: row.requestId,
-    payload: { ...payload, preparation: payload.preparation ?? [] },
+    payload: payloadOf(row) as SuggestionPayload,
   };
 }
 
-/**
- * The suggestion of an import; the row must have `import_request_id` (read by it). A payload stored before the
- * preparation (GLOSSARY: Подготовка, #283) has none.
- */
+/** The suggestion of an import; the row must have `import_request_id` (read by it). */
 export function toImportedSuggestion(row: SuggestionRow): ImportedSuggestion {
   if (row.importRequestId === null) {
     throw new Error(`recipe_suggestion ${row.id} is not of an import`);
   }
-  const payload = row.payload as Omit<ImportPayload, 'preparation'> &
-    Partial<Pick<ImportPayload, 'preparation'>>;
   return {
     ...decisionOf(row),
     origin: 'import',
     importRequestId: row.importRequestId,
-    payload: { ...payload, preparation: payload.preparation ?? [] },
+    payload: payloadOf(row) as ImportPayload,
   };
 }
 
