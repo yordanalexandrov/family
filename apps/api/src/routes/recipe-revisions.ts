@@ -6,10 +6,11 @@ import {
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { actorOf } from '../plugins/acting-user.js';
 import { HttpError } from '../plugins/error-handler.js';
-import { rejectRevision } from '../services/recipe-revisions.js';
+import {
+  NO_SUCH_REVISION,
+  rejectRevision,
+} from '../services/recipe-revisions.js';
 import { idParamsSchema } from './params.js';
-
-const NO_SUCH_REVISION = 'Няма такава поправка на рецепта';
 
 /**
  * „✏️ Поправи с AI“ (`recipe.revise`, GLOSSARY: Поправка на рецепта): `POST` answers 202 at once (404 for an unknown
