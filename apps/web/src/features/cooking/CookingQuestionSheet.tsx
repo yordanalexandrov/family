@@ -7,7 +7,7 @@ import {
   scaleQuantity,
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { useNeedsConnection } from '../../components/NeedsConnection';
@@ -28,11 +28,16 @@ interface CookingQuestionSheetProps {
   /** Рецептата, която се готви: надписът на таймер, пуснат от време в отговора. */
   recipe: Pick<Recipe, 'id' | 'title'>;
   questions: CookingQuestions;
+  /** Стъпката на екрана (индексът от 0): листът показва нейните въпроси, а другите са свити под „По-рано“. */
+  step: number;
   /** Приложените промени за готвенето: „Промени“ и „Върни“ под отговор с промяна. */
   changes: CookingChanges;
   /** Порциите на екрана: количествата на промяната се показват за тях. */
   servings: number;
-  /** Пуска въпрос за стъпката и порциите на екрана; с `replaces` — на мястото на неуспешен („Опитай пак“). */
+  /**
+   * Пуска въпрос за стъпката и порциите на екрана; с `replaces` — на мястото на неуспешен („Опитай пак“), за неговата
+   * стъпка.
+   */
   onAsk: (question: string, replaces?: string) => void;
   onClose: () => void;
 }
@@ -220,15 +225,18 @@ function QuestionItem({
 }
 
 /**
- * Листът „Въпрос“ в Готвене (GLOSSARY: Въпрос в Готвене): зададените въпроси с отговорите им и поле за нов. Докато
- * отговорът чака, пише „Мисли…“, а листът може да се затвори: отговорите се питат само докато е отворен (`useQueries`
- * тук), а въпросите остават в `CookingView`, затова отговорът се вижда при следващото отваряне. Новият въпрос
- * продължава последния (`follows`), затова полето е изключено, докато предишният чака отговор. Отговор с промяна за
- * готвенето има „Промени“, а приложената — „Приложено“ и „Върни“.
+ * Листът „Въпрос“ в Готвене (GLOSSARY: Въпрос в Готвене): въпросите, зададени на стъпката на екрана, с отговорите им и
+ * поле за нов, с фокус при отваряне. Въпросите от другите стъпки (и запомнените отпреди стъпките) са свити под
+ * „По-рано (n)“ и се отварят с едно докосване. Докато отговорът чака, пише „Мисли…“, а листът може да се затвори:
+ * отговорите се питат само докато е отворен (`useQueries` тук), а въпросите остават в `CookingView`, затова отговорът
+ * се вижда при следващото отваряне. Новият въпрос продължава последния от същата стъпка (`follows`), затова полето е
+ * изключено, докато въпрос на стъпката чака отговор. Отговор с промяна за готвенето има „Промени“, а приложената —
+ * „Приложено“ и „Върни“, и под „По-рано“.
  */
 export function CookingQuestionSheet({
   recipe,
   questions,
+  step,
   changes,
   servings,
   onAsk,
@@ -236,14 +244,22 @@ export function CookingQuestionSheet({
 }: CookingQuestionSheetProps) {
   const { ids, asked: remembered, start, replacing } = questions;
   const [text, setText] = useState('');
+  const [earlierOpen, setEarlierOpen] = useState(false);
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
   const results = useQueries({ queries: ids.map(cookingQuestionQuery) });
   const connection = useNeedsConnection(useOnline(), 'cooking-question__hint');
+  const items = remembered.map((asked, index) => ({
+    ...asked,
+    result: results[index],
+  }));
+  const current = items.filter((item) => item.step === step);
+  const earlier = items.filter((item) => item.step !== step);
   const waiting =
     start.isPending ||
-    results.some((result) =>
-      result.data
+    current.some(({ result }) =>
+      result?.data
         ? result.data.status === 'pending'
-        : result.isPending && !result.isError,
+        : result?.isPending === true && !result.isError,
     );
   const trimmed = text.trim();
   // Новият въпрос, докато `POST` още не е отговорил (повторният стои на мястото на неуспешния).
@@ -261,25 +277,57 @@ export function CookingQuestionSheet({
     setText('');
   };
 
+  const renderItem = ({
+    id,
+    question,
+    result,
+    step: asked,
+  }: (typeof items)[number]) => (
+    <li key={id} className="cooking-question__item">
+      {asked !== undefined && asked !== step && (
+        <p className="cooking-question__step">стъпка {asked + 1}</p>
+      )}
+      <QuestionItem
+        recipe={recipe}
+        asked={question}
+        question={result?.data}
+        error={result?.error}
+        retrying={id === replacing}
+        changes={changes}
+        servings={servings}
+        onRetry={() => onAsk(question, id)}
+      />
+    </li>
+  );
+
   return (
-    <Sheet title="Въпрос" onClose={onClose}>
+    <Sheet title="Въпрос" onClose={onClose} focusRef={fieldRef}>
       <div className="sheet__section cooking-question">
-        {(ids.length > 0 || asking !== undefined) && (
+        {earlier.length > 0 && (
+          <div className="cooking-question__earlier">
+            <button
+              type="button"
+              className="button button--quiet cooking-question__earlier-toggle"
+              aria-expanded={earlierOpen}
+              aria-controls="cooking-question-earlier"
+              onClick={() => setEarlierOpen(!earlierOpen)}
+            >
+              По-рано ({earlier.length})
+            </button>
+            {earlierOpen && (
+              <ol
+                id="cooking-question-earlier"
+                className="cooking-question__list"
+                aria-label="По-рано"
+              >
+                {earlier.map(renderItem)}
+              </ol>
+            )}
+          </div>
+        )}
+        {(current.length > 0 || asking !== undefined) && (
           <ol className="cooking-question__list" aria-label="Въпроси">
-            {remembered.map(({ id, question }, index) => (
-              <li key={id} className="cooking-question__item">
-                <QuestionItem
-                  recipe={recipe}
-                  asked={question}
-                  question={results[index]?.data}
-                  error={results[index]?.error}
-                  retrying={id === replacing}
-                  changes={changes}
-                  servings={servings}
-                  onRetry={() => onAsk(question, id)}
-                />
-              </li>
-            ))}
+            {current.map(renderItem)}
             {asking !== undefined && (
               <li className="cooking-question__item">
                 <p className="cooking-question__asked">{asking}</p>
@@ -299,16 +347,17 @@ export function CookingQuestionSheet({
           />
         )}
         <form className="cooking-question__form" onSubmit={submit}>
-          <Field label="Твоят въпрос">
+          <Field label={`Твоят въпрос за стъпка ${step + 1}`}>
             {(props) => (
               <textarea
                 {...props}
+                ref={fieldRef}
                 className="field__input cooking-question__input"
                 rows={2}
                 maxLength={COOKING_QUESTION_MAX}
                 disabled={waiting}
                 placeholder={
-                  ids.length > 0
+                  current.length > 0
                     ? 'продължи, напр. а колко дълго тогава?'
                     : 'напр. мога ли да заменя доматите с консерва?'
                 }

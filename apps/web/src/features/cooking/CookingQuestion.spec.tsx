@@ -158,7 +158,7 @@ async function askInSheet(
 ) {
   await user.click(screen.getByRole('button', { name: 'Питай' }));
   const sheet = await screen.findByRole('dialog', { name: 'Въпрос' });
-  await user.type(within(sheet).getByLabelText('Твоят въпрос'), question);
+  await user.type(within(sheet).getByLabelText(/^Твоят въпрос/), question);
   await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
   return sheet;
 }
@@ -168,8 +168,9 @@ async function askMore(
   user: ReturnType<typeof userEvent.setup>,
   sheet: HTMLElement,
   question: string,
+  field: string | RegExp = /^Твоят въпрос/,
 ) {
-  await user.type(within(sheet).getByLabelText('Твоят въпрос'), question);
+  await user.type(within(sheet).getByLabelText(field), question);
   await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
 }
 
@@ -223,7 +224,7 @@ describe('Въпрос в Готвене', () => {
           id: expect.any(String),
         },
       ]);
-      expect(within(sheet).getByLabelText('Твоят въпрос')).toHaveValue('');
+      expect(within(sheet).getByLabelText(/^Твоят въпрос/)).toHaveValue('');
     },
   );
 
@@ -249,6 +250,9 @@ describe('Въпрос в Готвене', () => {
 
     await user.click(screen.getByRole('button', { name: 'Питай' }));
     const reopened = await screen.findByRole('dialog', { name: 'Въпрос' });
+    await user.click(
+      within(reopened).getByRole('button', { name: 'По-рано (1)' }),
+    );
     expect(within(reopened).getByText(QUESTION)).toBeInTheDocument();
     expect(await findAnswer(reopened, ANSWER)).toBeInTheDocument();
   });
@@ -335,11 +339,11 @@ describe('Въпрос в Готвене', () => {
 
     const sheet = await askInSheet(user);
     await within(sheet).findByText('Мисли…');
-    expect(within(sheet).getByLabelText('Твоят въпрос')).toBeDisabled();
+    expect(within(sheet).getByLabelText(/^Твоят въпрос/)).toBeDisabled();
 
     await vi.advanceTimersByTimeAsync(3_000);
     await findAnswer(sheet, ANSWER);
-    expect(within(sheet).getByLabelText('Твоят въпрос')).toBeEnabled();
+    expect(within(sheet).getByLabelText(/^Твоят въпрос/)).toBeEnabled();
   });
 
   it('„Опитай пак“ на неуспешен допълнителен въпрос продължава същия предишен', async () => {
@@ -414,6 +418,157 @@ describe('Въпрос в Готвене', () => {
     });
   });
 
+  describe('по стъпки', () => {
+    const LATER_ANSWER = 'Толкова, колкото пише.';
+
+    it('„Питай“ на друга стъпка показва празно поле с фокус, а въпросът от предишната е под „По-рано (1)“', async () => {
+      const user = userEvent.setup();
+      serveQuestions([{ status: 'done', answer: ANSWER }]);
+      await openCooking();
+      const sheet = await askInSheet(user);
+      await findAnswer(sheet, ANSWER);
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+      const next = await openSheet(user);
+
+      const field = within(next).getByLabelText('Твоят въпрос за стъпка 2');
+      expect(field).toHaveValue('');
+      expect(field).toHaveFocus();
+      expect(
+        within(next).queryByRole('list', { name: 'Въпроси' }),
+      ).not.toBeInTheDocument();
+      expect(within(next).queryByText(QUESTION)).not.toBeInTheDocument();
+      const earlier = within(next).getByRole('button', {
+        name: 'По-рано (1)',
+      });
+      expect(earlier).toHaveAttribute('aria-expanded', 'false');
+
+      await user.click(earlier);
+
+      expect(earlier).toHaveAttribute('aria-expanded', 'true');
+      const shown = within(next).getByRole('list', { name: 'По-рано' });
+      expect(within(shown).getByText(QUESTION)).toBeInTheDocument();
+      expect(await findAnswer(next, ANSWER)).toBeInTheDocument();
+    });
+
+    it('новият въпрос на друга стъпка започва нова верига, а следващият на нея продължава него', async () => {
+      const user = userEvent.setup();
+      const posted = serveQuestions([
+        { status: 'done', answer: ANSWER },
+        { status: 'done', answer: '10 минути.' },
+        { status: 'done', answer: LATER_ANSWER },
+      ]);
+      await openCooking();
+      const sheet = await askInSheet(user);
+      await findAnswer(sheet, ANSWER);
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+      const next = await openSheet(user);
+      await askMore(user, next, 'колко да бъркам?', 'Твоят въпрос за стъпка 2');
+      await findAnswer(next, '10 минути.');
+      await askMore(user, next, 'а после?', 'Твоят въпрос за стъпка 2');
+      await findAnswer(next, LATER_ANSWER);
+
+      expect(listed(next)).toEqual([
+        'колко да бъркам?10 минути.',
+        `а после?${LATER_ANSWER}`,
+      ]);
+      expect(posted.map(({ body }) => [body.step, body.follows])).toEqual([
+        [0, undefined],
+        [1, undefined],
+        [1, posted[1]?.id],
+      ]);
+    });
+
+    it('връщането на предишната стъпка показва нейния разговор и продължава него', async () => {
+      const user = userEvent.setup();
+      const posted = serveQuestions([
+        { status: 'done', answer: ANSWER },
+        { status: 'done', answer: '10 минути.' },
+        { status: 'done', answer: LATER_ANSWER },
+      ]);
+      await openCooking();
+      const sheet = await askInSheet(user);
+      await findAnswer(sheet, ANSWER);
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+      const next = await openSheet(user);
+      await askMore(user, next, 'колко да бъркам?', 'Твоят въпрос за стъпка 2');
+      await findAnswer(next, '10 минути.');
+      await user.click(within(next).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Назад' }));
+
+      const back = await openSheet(user);
+
+      expect(listed(back)).toEqual([`${QUESTION}${ANSWER}`]);
+      expect(
+        within(back).getByRole('button', { name: 'По-рано (1)' }),
+      ).toBeInTheDocument();
+      await askMore(user, back, 'а после?', 'Твоят въпрос за стъпка 1');
+      await findAnswer(back, LATER_ANSWER);
+      expect(posted[2]?.body).toMatchObject({
+        step: 0,
+        follows: posted[0]?.id,
+      });
+    });
+
+    it('„Опитай пак“ на неуспешен въпрос под „По-рано“ го пита пак за неговата стъпка', async () => {
+      const user = userEvent.setup();
+      const posted = serveQuestions([
+        { status: 'failed', error: 'timeout' },
+        { status: 'done', answer: ANSWER },
+      ]);
+      await openCooking();
+      const sheet = await askInSheet(user);
+      await within(sheet).findByRole('button', { name: 'Опитай пак' });
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+      const next = await openSheet(user);
+      await user.click(
+        within(next).getByRole('button', { name: 'По-рано (1)' }),
+      );
+      await user.click(
+        within(next).getByRole('button', { name: 'Опитай пак' }),
+      );
+
+      expect(await findAnswer(next, ANSWER)).toBeInTheDocument();
+      expect(posted.map(({ body }) => body.step)).toEqual([0, 0]);
+      expect(
+        within(next).queryByRole('list', { name: 'Въпроси' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('стар запис на въпрос без стъпка е под „По-рано“', async () => {
+      const user = userEvent.setup();
+      serveQuestions([{ status: 'done', answer: ANSWER }]);
+      const first = await openCooking();
+      await findAnswer(await askInSheet(user), ANSWER);
+      const stored = JSON.parse(
+        localStorage.getItem(COOKING_PROGRESS_KEY) ?? '',
+      ) as {
+        recipes: Record<string, { questions: { step?: number }[] }>;
+      };
+      for (const recipe of Object.values(stored.recipes)) {
+        for (const question of recipe.questions) {
+          delete question.step;
+        }
+      }
+      localStorage.setItem(COOKING_PROGRESS_KEY, JSON.stringify(stored));
+
+      await reopenCooking(first);
+      const sheet = await openSheet(user);
+
+      expect(within(sheet).queryByText(QUESTION)).not.toBeInTheDocument();
+      await user.click(
+        within(sheet).getByRole('button', { name: 'По-рано (1)' }),
+      );
+      expect(await findAnswer(sheet, ANSWER)).toBeInTheDocument();
+    });
+  });
+
   describe('паметта на устройството', () => {
     it('въпросите оцеляват презареждане заедно със стъпката, а новият продължава запомнения', async () => {
       const user = userEvent.setup();
@@ -422,10 +577,10 @@ describe('Въпрос в Готвене', () => {
         { status: 'done', answer: '10 минути.' },
       ]);
       const first = await openCooking();
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
       const sheet = await askInSheet(user);
       await findAnswer(sheet, ANSWER);
       await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
-      await user.click(screen.getByRole('button', { name: 'Напред' }));
 
       await reopenCooking(first);
       expect(screen.getByText('Стъпка 2 от 3')).toBeInTheDocument();
@@ -475,7 +630,7 @@ describe('Въпрос в Готвене', () => {
       const sheet = await openSheet(user);
       expect(within(sheet).getByText(QUESTION)).toBeInTheDocument();
       expect(await within(sheet).findByText('Мисли…')).toBeInTheDocument();
-      expect(within(sheet).getByLabelText('Твоят въпрос')).toBeDisabled();
+      expect(within(sheet).getByLabelText(/^Твоят въпрос/)).toBeDisabled();
 
       await vi.advanceTimersByTimeAsync(3_000);
       expect(await findAnswer(sheet, ANSWER)).toBeInTheDocument();
@@ -524,7 +679,7 @@ describe('Въпрос в Готвене', () => {
       expect(
         await within(sheet).findByText('AI не успя да отговори. Опитай пак.'),
       ).toBeInTheDocument();
-      expect(within(sheet).getByLabelText('Твоят въпрос')).toBeEnabled();
+      expect(within(sheet).getByLabelText(/^Твоят въпрос/)).toBeEnabled();
       await user.click(
         within(sheet).getByRole('button', { name: 'Опитай пак' }),
       );
@@ -752,6 +907,31 @@ describe('„Промени“ (промяна за готвенето)', () => 
       'лук2,5 бр.',
       'солпо вкус',
     ]);
+  });
+
+  it('приложената промяна от въпрос на друга стъпка се връща с „Върни“ под „По-рано“', async () => {
+    const user = userEvent.setup();
+    serveQuestions([WITH_PULP]);
+    await openCooking('browser');
+    const sheet = await askInSheet(user);
+    await applyIn(user, sheet);
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+    const next = await openSheet(user);
+    await user.click(within(next).getByRole('button', { name: 'По-рано (1)' }));
+    const earlier = within(next).getByRole('list', { name: 'По-рано' });
+    expect(within(earlier).getByText('Приложено')).toBeInTheDocument();
+    await user.click(within(earlier).getByRole('button', { name: 'Върни' }));
+
+    expect(products()).toEqual([
+      'пилешко филе625 г',
+      'лук2,5 бр.',
+      'солпо вкус',
+    ]);
+    expect(
+      within(earlier).getByRole('button', { name: 'Промени' }),
+    ).toBeEnabled();
   });
 
   it('„Върни“ на промяна връща и по-късната, която сменя реда, добавен само от нея', async () => {
