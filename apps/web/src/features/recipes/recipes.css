@@ -663,6 +663,14 @@ fieldset.chips {
   align-self: flex-start;
 }
 
+/*
+ * На kiosk звездите се натискат с пръст от разстояние: целта остава `--touch-target` (kiosk няма своя), а знакът я
+ * запълва, за да личи колкото бутоните под него.
+ */
+:root[data-device="kiosk"] .feedback .stars__star {
+  font-size: var(--touch-target);
+}
+
 /* Полето при отворена поправка личи изключено, като изключен бутон. */
 .feedback .field__input:disabled {
   opacity: 0.6;
