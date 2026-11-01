@@ -1,0 +1,105 @@
+{
+  "recipe": {
+    "changes": "Печенето на картофите в стъпка 4 е 60 минути вместо 40, затова и времето на рецептата е 110 минути.",
+    "servings": 4,
+    "prepMinutes": 110,
+    "ingredients": [
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000101",
+        "newProduct": null,
+        "quantity": 1,
+        "unit": "kg",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000102",
+        "newProduct": null,
+        "quantity": 500,
+        "unit": "g",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000103",
+        "newProduct": null,
+        "quantity": 1,
+        "unit": "pcs",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000104",
+        "newProduct": null,
+        "quantity": 2,
+        "unit": "pcs",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000105",
+        "newProduct": null,
+        "quantity": 3,
+        "unit": "tbsp",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000106",
+        "newProduct": null,
+        "quantity": 1,
+        "unit": "tsp",
+        "note": "сладък"
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000107",
+        "newProduct": null,
+        "quantity": null,
+        "unit": "pinch",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000108",
+        "newProduct": null,
+        "quantity": 2,
+        "unit": "pcs",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000109",
+        "newProduct": null,
+        "quantity": 400,
+        "unit": "g",
+        "note": null
+      },
+      {
+        "ingredientId": "e0000000-0000-4000-8000-000000000110",
+        "newProduct": null,
+        "quantity": 2,
+        "unit": "tbsp",
+        "note": null
+      }
+    ],
+    "steps": [
+      {
+        "text": "Обели картофите и ги нарежи на кубчета около 1,5 cm.",
+        "image": null
+      },
+      {
+        "text": "Запържи нарязания лук в олиото на среден огън, добави каймата и червения пипер и пържи 10 минути, докато каймата се разпадне и покафенее.",
+        "image": "e1"
+      },
+      {
+        "text": "Смеси картофите с каймата и настърганите домати, подреди в тава и залей с 250 ml вода.",
+        "image": null
+      },
+      {
+        "text": "Печи 60 минути на 200 °C с вентилатор, докато картофите омекнат и се пробиват лесно с вилица.",
+        "image": null
+      },
+      {
+        "text": "Разбий яйцата с киселото мляко и брашното, залей мусаката и печи още 15 минути, докато заливката хване златиста коричка.",
+        "image": "e2"
+      }
+    ],
+    "preparation": [
+      { "kind": "oven", "degrees": 200, "fan": "fan", "rack": null }
+    ]
+  },
+  "noResults": null
+}

@@ -4,6 +4,7 @@ import {
   recipeResponseSchema,
   recipesQuerySchema,
   recipesResponseSchema,
+  replaceRecipeInputSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
@@ -67,12 +68,17 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         params: idParamsSchema,
-        body: recipeInputSchema,
+        body: replaceRecipeInputSchema,
         response: { 200: recipeResponseSchema },
       },
     },
     async (request) => ({
-      recipe: await replaceRecipe(app.db, request.params.id, request.body),
+      recipe: await replaceRecipe(
+        app.db,
+        request.params.id,
+        request.body,
+        request.actor.id,
+      ),
     }),
   );
 

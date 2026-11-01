@@ -12,10 +12,13 @@ import {
   prepTimeRangeSchema,
   type RecipeImportSource,
   type RecipeRefinement,
+  type RecipeRevision,
   type RecipeStep,
   type RecipeSuggestionStatus,
+  type RevisionDecision,
   recipeImportSourceSchema,
   recipeSuggestionStatusSchema,
+  revisionDecisionSchema,
   type Slot,
   type SuggestionPayload,
   slotSchema,
@@ -249,6 +252,44 @@ export const recipeRefineRequest = pgTable(
     check(
       'recipe_refine_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+  ],
+);
+
+/**
+ * GLOSSARY: Поправка на рецепта. One run of `recipe.revise` for a recipe of the registry: the instruction, when the
+ * recipe was saved as it was sent (`base_updated_at`), the revised recipe once it is `done` or the agent's reason in
+ * `no_results`, and what the person decided. The kiosk has no acting user, so `requested_by` and `decided_by` may be
+ * `null`. The recipe changes only when the person saves it with the revision.
+ */
+export const recipeRevisionRequest = pgTable(
+  'recipe_revision_request',
+  {
+    ...contractRequestColumns(),
+    // The kiosk asks without an acting user.
+    requestedBy: uuid('requested_by').references(() => user.id),
+    recipeId: uuid('recipe_id')
+      .notNull()
+      .references(() => recipe.id, { onDelete: 'cascade' }),
+    instruction: text('instruction').notNull(),
+    baseUpdatedAt: timestamp('base_updated_at', {
+      withTimezone: true,
+    }).notNull(),
+    revision: jsonb('revision').$type<RecipeRevision>(),
+    noResults: text('no_results'),
+    decision: text('decision').$type<RevisionDecision>(),
+    decidedBy: uuid('decided_by').references(() => user.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('recipe_revision_request_recipe_idx').on(t.recipeId),
+    check(
+      'recipe_revision_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+    check(
+      'recipe_revision_request_decision_check',
+      oneOf(t.decision, revisionDecisionSchema.options),
     ),
   ],
 );

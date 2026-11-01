@@ -82,6 +82,16 @@ export const recipeInputSchema = z.object({
 export type RecipeInput = z.infer<typeof recipeInputSchema>;
 
 /**
+ * `PUT /api/recipes/:id`: the recipe and, when the form holds an accepted revision (GLOSSARY: Поправка на рецепта),
+ * its id; the save marks it `accepted`.
+ */
+export const replaceRecipeInputSchema = recipeInputSchema.extend({
+  revisionId: z.uuid().optional(),
+});
+
+export type ReplaceRecipeInput = z.infer<typeof replaceRecipeInputSchema>;
+
+/**
  * A stored ingredient line with its ingredient (name, base unit, aisle) joined in. It is a superset of
  * `RecipeIngredient`, so the lines of a fetched recipe can be sent back as input unchanged.
  */
