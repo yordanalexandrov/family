@@ -550,6 +550,25 @@
   white-space: pre-line;
 }
 
+/* Отговорът и 🔊 вдясно от него, горе. */
+.cooking-question__answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.cooking-question__answer-row .cooking-question__answer {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.button.cooking-question__read {
+  flex: none;
+  inline-size: var(--touch-target);
+  padding: 0;
+  font-size: var(--font-size-lg);
+}
+
 /* Промяната за готвенето под отговора: какво сменя, после „Промени“ или „Приложено“ и „Върни“. */
 .cooking-question__change {
   display: flex;

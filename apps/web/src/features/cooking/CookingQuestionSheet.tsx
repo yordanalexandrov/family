@@ -7,7 +7,7 @@ import {
   scaleQuantity,
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
-import { type FormEvent, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { useNeedsConnection } from '../../components/NeedsConnection';
@@ -20,6 +20,7 @@ import { StepText } from '../timers/StepText';
 import { cookingQuestionQuery, isLostQuestion } from './questions';
 import type { CookingChanges } from './use-cooking-changes';
 import type { CookingQuestions } from './use-cooking-questions';
+import type { CookingReading } from './use-cooking-reading';
 
 /** От толкова знака нагоре под полето личи колко остават. */
 const COUNT_FROM = COOKING_QUESTION_MAX - 50;
@@ -34,6 +35,11 @@ interface CookingQuestionSheetProps {
   changes: CookingChanges;
   /** Порциите на екрана: количествата на промяната се показват за тях. */
   servings: number;
+  /**
+   * Четенето на глас на Готвене (`useCookingReading`): 🔊 до отговора чете през него, за да прекъсват отговорът и
+   * стъпката едно друго; при „Чети стъпките“ новият отговор се чете сам.
+   */
+  reading: CookingReading;
   /**
    * Пуска въпрос за стъпката и порциите на екрана; с `replaces` — на мястото на неуспешен („Опитай пак“), за неговата
    * стъпка.
@@ -164,10 +170,12 @@ function QuestionItem({
   retrying,
   changes,
   servings,
+  voice,
 }: {
   recipe: Pick<Recipe, 'id' | 'title'>;
   changes: CookingChanges;
   servings: number;
+  voice: CookingReading['voice'];
   /** Текстът на въпроса, както е запомнен на устройството. */
   asked: string;
   question: CookingQuestion | undefined;
@@ -199,17 +207,29 @@ function QuestionItem({
         <Failed message={failureMessage('ask', question)} onRetry={onRetry} />
       ) : (
         <>
-          <p className="cooking-question__answer">
-            <StepText
-              text={question.answer ?? ''}
-              source={{
-                recipeId: recipe.id,
-                recipeTitle: recipe.title,
-                step: question.step,
-                question: true,
-              }}
-            />
-          </p>
+          <div className="cooking-question__answer-row">
+            <p className="cooking-question__answer">
+              <StepText
+                text={question.answer ?? ''}
+                source={{
+                  recipeId: recipe.id,
+                  recipeTitle: recipe.title,
+                  step: question.step,
+                  question: true,
+                }}
+              />
+            </p>
+            {voice.available && (
+              <button
+                type="button"
+                className="button button--quiet cooking-question__read"
+                aria-label="Прочети отговора"
+                onClick={() => voice.read(question.answer ?? '')}
+              >
+                🔊
+              </button>
+            )}
+          </div>
           {question.change && (
             <ChangeBlock
               question={question}
@@ -222,6 +242,47 @@ function QuestionItem({
       )}
     </>
   );
+}
+
+/**
+ * При „Чети стъпките“ чете сам новия отговор: на въпрос, който листът е видял да чака (`pending`), а после е дошъл
+ * (`done`). Отговорът, дошъл, докато листът е затворен, се чете при отварянето, щом заявката му мине от запомненото
+ * `pending` в `done`. Ако дойдат няколко наведнъж, чете последния.
+ */
+function useReadNewAnswers(
+  questions: readonly (CookingQuestion | undefined)[],
+  { readSteps, voice }: CookingReading,
+) {
+  const seen = useRef(new Map<string, CookingQuestion['status']>());
+  const states = questions
+    .flatMap((question) =>
+      question ? [`${question.id}:${question.status}`] : [],
+    )
+    .join(' ');
+  const latest = useRef(questions);
+  latest.current = questions;
+  const { read } = voice;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `states` е отпечатъкът на `latest.current`
+  useEffect(() => {
+    let answer: string | undefined;
+    for (const question of latest.current) {
+      if (!question) {
+        continue;
+      }
+      const before = seen.current.get(question.id);
+      seen.current.set(question.id, question.status);
+      if (
+        before === 'pending' &&
+        question.status === 'done' &&
+        question.answer
+      ) {
+        answer = question.answer;
+      }
+    }
+    if (readSteps && answer !== undefined) {
+      read(answer);
+    }
+  }, [states, readSteps, read]);
 }
 
 /**
@@ -239,6 +300,7 @@ export function CookingQuestionSheet({
   step,
   changes,
   servings,
+  reading,
   onAsk,
   onClose,
 }: CookingQuestionSheetProps) {
@@ -261,6 +323,10 @@ export function CookingQuestionSheet({
         ? result.data.status === 'pending'
         : result?.isPending === true && !result.isError,
     );
+  useReadNewAnswers(
+    results.map((result) => result.data),
+    reading,
+  );
   const trimmed = text.trim();
   // Новият въпрос, докато `POST` още не е отговорил (повторният стои на мястото на неуспешния).
   const asking =
@@ -295,6 +361,7 @@ export function CookingQuestionSheet({
         retrying={id === replacing}
         changes={changes}
         servings={servings}
+        voice={reading.voice}
         onRetry={() => onAsk(question, id)}
       />
     </li>
