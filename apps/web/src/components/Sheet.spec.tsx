@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sheet } from './Sheet';
 import { SHEET_WINDOW_QUERY } from './sheet-drag';
+import { restoreScrollBetweenScreens } from './sheet-history';
 
 /** Екранът държи отворения лист в state и го маха в `onClose`, както MenuWeek. */
 function Screen({ onClose = () => {} }: { onClose?: () => void }) {
@@ -111,6 +112,7 @@ function renderRouted() {
   const router = createRouter({
     routeTree: root.addChildren(routes),
     history,
+    scrollRestoration: restoreScrollBetweenScreens(),
   });
   render(<RouterProvider router={router} />);
   return history;
@@ -147,6 +149,7 @@ describe('Sheet и „назад“', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     destroy();
     destroy = () => {};
     cleanup();
@@ -248,6 +251,42 @@ describe('Sheet и „назад“', () => {
       expect(
         await screen.findByRole('heading', { name: 'Дашборд' }),
       ).toBeInTheDocument();
+    });
+
+    it('затварянето на листа не превърта екрана: превъртане отпреди това не се губи (#307)', async () => {
+      const user = userEvent.setup();
+      const scrollTo = vi
+        .spyOn(window, 'scrollTo')
+        .mockImplementation(() => {});
+      destroy = renderRouted().destroy;
+      await user.click(await screen.findByRole('button', { name: 'Отвори' }));
+      scrollTo.mockClear();
+
+      await user.click(screen.getByRole('button', { name: 'Готово' }));
+      await waitFor(() =>
+        expect(window.history.state?.familySheet).toBeUndefined(),
+      );
+      // `history.back()` на листа стига до router-а като навигация; тя не бива да връща старото превъртане.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it('между екраните превъртането се възстановява, както досега', async () => {
+      const user = userEvent.setup();
+      const scrollTo = vi
+        .spyOn(window, 'scrollTo')
+        .mockImplementation(() => {});
+      destroy = renderRouted().destroy;
+      await user.click(await screen.findByRole('button', { name: 'Отвори' }));
+      await user.click(screen.getByRole('link', { name: 'Към рецептата' }));
+      await screen.findByRole('heading', { name: 'Рецепта' });
+      scrollTo.mockClear();
+
+      await back();
+      await screen.findByRole('heading', { name: 'Меню' });
+
+      await waitFor(() => expect(scrollTo).toHaveBeenCalled());
     });
 
     it('линк от листа: „напред“ след „назад“ отива на рецептата и остава там', async () => {

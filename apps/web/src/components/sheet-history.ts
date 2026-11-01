@@ -1,3 +1,4 @@
+import type { ParsedLocation } from '@tanstack/react-router';
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 /**
@@ -115,4 +116,20 @@ export function useSheetHistory(onClose: () => void) {
       });
     };
   }, []);
+}
+
+/**
+ * `scrollRestoration` на router-а: превъртането се възстановява само при смяна на записа в историята (друг екран,
+ * „назад“ към него). Записът на листа е със същия ключ като екрана под него, затова `history.back()` при затваряне
+ * стига до router-а като навигация към същия запис; там възстановяването би върнало превъртането отпреди миг и би
+ * прекъснало плавно превъртане, започнато при затварянето (новият ред в Пазаруване, #307).
+ */
+export function restoreScrollBetweenScreens() {
+  let rendered: string | undefined;
+  return ({ location }: { location: ParsedLocation }) => {
+    const key = location.state.__TSR_key ?? location.href;
+    const changed = key !== rendered;
+    rendered = key;
+    return changed;
+  };
 }
