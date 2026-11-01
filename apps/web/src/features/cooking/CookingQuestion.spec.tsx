@@ -72,6 +72,30 @@ function serveQuestions(
     ),
     http.post(`/api/recipes/${stew.id}/questions`, async ({ request }) => {
       const body = (await request.json()) as Posted['body'];
+      const unknown = (body.applied ?? []).filter(
+        (id) => !questions.get(id)?.question,
+      );
+      if (unknown.length > 0) {
+        return HttpResponse.json(
+          {
+            error: 'not_found',
+            code: 'no_applied_change',
+            message: 'Няма такава промяна за готвенето на рецептата',
+            ids: unknown,
+          },
+          { status: 404 },
+        );
+      }
+      if (body.follows !== undefined && !questions.has(body.follows)) {
+        return HttpResponse.json(
+          {
+            error: 'not_found',
+            code: 'no_earlier_question',
+            message: 'Няма такъв предишен въпрос за рецептата',
+          },
+          { status: 404 },
+        );
+      }
       const question = pendingQuestion(body);
       posted.push({
         body,
@@ -509,6 +533,33 @@ describe('Въпрос в Готвене', () => {
       expect(listed(sheet)).toEqual([`${QUESTION}10 минути.`]);
       expect(posted.map(({ body }) => body)).toEqual([
         { question: QUESTION, step: 0, servings: 5 },
+      ]);
+    });
+
+    it('въпрос, който api е изгубило след като листът го е прочел, не се продължава: новият започва нова верига без него', async () => {
+      const user = userEvent.setup();
+      serveQuestions([
+        {
+          status: 'done',
+          answer: ANSWER,
+          change: {
+            steps: [],
+            ingredients: [{ kind: 'remove', index: 2 }],
+          },
+        },
+      ]);
+      await openCooking('browser');
+      const sheet = await askInSheet(user);
+      await findAnswer(sheet, ANSWER);
+      await user.click(within(sheet).getByRole('button', { name: 'Промени' }));
+
+      // api вече не знае първия въпрос (напр. друга база), а листът го помни прочетен.
+      const posted = serveQuestions([{ status: 'done', answer: '10 минути.' }]);
+      await askMore(user, sheet, 'а колко дълго?');
+
+      expect(await findAnswer(sheet, '10 минути.')).toBeInTheDocument();
+      expect(posted.map(({ body }) => body)).toEqual([
+        { question: 'а колко дълго?', step: 0, servings: 5 },
       ]);
     });
 
