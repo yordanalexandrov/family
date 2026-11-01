@@ -406,6 +406,14 @@
   align-items: start;
 }
 
+/* Стъпка с нов текст от приложена промяна за готвенето: знакът над текста, както при продуктите. */
+.cooking-steps__mark {
+  display: block;
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
 .cooking-steps__body--photo .cooking-steps__text {
   align-self: stretch;
 }

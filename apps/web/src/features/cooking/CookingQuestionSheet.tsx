@@ -88,7 +88,8 @@ function changeText(
 }
 
 /**
- * Промяната за готвенето под отговора: какво сменя (за порциите на екрана) и „Промени“; приложената — „Приложено“ и
+ * Промяната за готвенето под отговора: какво сменя (продуктите за порциите на екрана, после стъпките с новия им текст:
+ * „стъпка 2: …“) и „Промени“; приложената — „Приложено“ и
  * „Върни“.
  */
 function ChangeBlock({
@@ -111,6 +112,11 @@ function ChangeBlock({
           // biome-ignore lint/suspicious/noArrayIndexKey: записите на промяната не се местят
           <li key={index}>
             {changeText(entry, lines, question.servings, servings)}
+          </li>
+        ))}
+        {change.steps.map((entry) => (
+          <li key={`step-${entry.number}`}>
+            стъпка {entry.number}: {entry.text}
           </li>
         ))}
       </ul>

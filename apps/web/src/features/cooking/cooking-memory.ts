@@ -271,7 +271,12 @@ function readApplied(recipeId: string): readonly AppliedChange[] {
   if (!Array.isArray(applied) || !applied.every(isApplied)) {
     return [];
   }
-  return applied.map(({ id, servings, change }) => ({ id, servings, change }));
+  // Промяната, както я чете schema-та: запомнена преди стъпките, тя няма стъпки.
+  return applied.map(({ id, servings, change }) => ({
+    id,
+    servings,
+    change: cookingChangeSchema.parse(change),
+  }));
 }
 
 /**

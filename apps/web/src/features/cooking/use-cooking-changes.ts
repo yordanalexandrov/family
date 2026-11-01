@@ -1,5 +1,6 @@
 import {
   applyCookingChanges,
+  applyStepChanges,
   type CookingChange,
   type CookingLine,
   type Recipe,
@@ -20,7 +21,8 @@ function differing(
 
 /**
  * Промените за готвенето на рецептата (GLOSSARY: Промяна за готвенето), приложени на това устройство: продуктите с
- * тях (`lines`), прилагането („Промени“) и връщането („Върни“). Последната приложена промяна по ред печели. Редът,
+ * тях (`lines`), стъпките с новия им текст (`steps`, толкова, колкото са в рецептата), прилагането („Промени“) и
+ * връщането („Върни“). Последната приложена промяна по ред печели. Редът,
  * който прилагането или връщането сменя, губи отметката си (`onLinesChanged`). Рецептата, менюто и списъкът за
  * пазаруване не се пипат.
  */
@@ -42,6 +44,7 @@ export function useCookingChanges(
   };
   return {
     lines,
+    steps: applyStepChanges(recipe.steps, applied),
     /** id-тата на въпросите с приложени промени, по реда на прилагане. */
     appliedIds: applied.map(({ id }) => id),
     isApplied: (id: string) => applied.some((other) => other.id === id),

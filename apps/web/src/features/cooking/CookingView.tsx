@@ -66,6 +66,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const steps = (
     <CookingSteps
       recipe={recipe}
+      steps={changes.steps}
       step={step}
       onStepChange={setStep}
       onClose={() => onExit()}

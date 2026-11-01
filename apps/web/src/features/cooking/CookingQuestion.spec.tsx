@@ -13,7 +13,10 @@ const stew: Recipe = {
   ...chickenWithRice,
   steps: [
     { text: 'Нарежи пилето.' },
-    { text: 'Настържи 2 домата и ги добави.' },
+    {
+      text: 'Настържи 2 домата и ги добави.',
+      photoId: 'eeeeeeee-0000-4000-8000-000000000001',
+    },
     { text: 'Посоли и сервирай.' },
   ],
 };
@@ -545,6 +548,7 @@ describe('Въпрос в Готвене', () => {
 describe('„Промени“ (промяна за готвенето)', () => {
   /** Asked for 5: лук → консерва pulp, без сол, захар отгоре. */
   const PULP: CookingChange = {
+    steps: [],
     ingredients: [
       {
         kind: 'replace',
@@ -697,6 +701,122 @@ describe('„Промени“ (промяна за готвенето)', () => 
       'лук2,5 бр.',
       'солпо вкус',
     ]);
+  });
+
+  describe('стъпки', () => {
+    /** Консервата се отцежда и задушава по-кратко: нов текст на стъпка 2, заедно с продукта. */
+    const DRAIN: CookingChange = {
+      ingredients: [
+        PULP.ingredients[0] as CookingChange['ingredients'][number],
+      ],
+      steps: [
+        { number: 2, text: 'Отцеди консервата pulp, добави я и задуши 5 мин.' },
+      ],
+    };
+    const WITH_DRAIN = {
+      status: 'done',
+      answer: ANSWER,
+      change: DRAIN,
+    } as const;
+
+    /** The step on the screen, as its text reads. */
+    function stepText(): string {
+      const steps = screen.getByRole('region', { name: 'Стъпки' });
+      return (
+        steps.querySelector('.cooking-steps__text')?.textContent ?? ''
+      ).replaceAll('⏱', '');
+    }
+
+    /** Applies the change in the sheet, closes it and goes to step 2. */
+    async function appliedOnStep2(user: ReturnType<typeof userEvent.setup>) {
+      const sheet = await askInSheet(user);
+      await applyIn(user, sheet);
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+    }
+
+    it('листът казва коя стъпка сменя и с какъв текст', async () => {
+      const user = userEvent.setup();
+      serveQuestions([WITH_DRAIN]);
+      await openCooking('browser');
+      const sheet = await askInSheet(user);
+      await findAnswer(sheet, ANSWER);
+
+      expect(
+        within(within(sheet).getByRole('list', { name: 'Промяна' }))
+          .getAllByRole('listitem')
+          .map((item) => item.textContent),
+      ).toEqual([
+        'вместо лук: консерва pulp 250 г',
+        'стъпка 2: Отцеди консервата pulp, добави я и задуши 5 мин.',
+      ]);
+    });
+
+    it('„Промени“ дава на стъпката новия текст със знак, а номерът, броят и снимката остават', async () => {
+      const user = userEvent.setup();
+      serveQuestions([WITH_DRAIN]);
+      await openCooking('browser');
+
+      await appliedOnStep2(user);
+
+      expect(screen.getByText('Стъпка 2 от 3')).toBeInTheDocument();
+      expect(stepText()).toBe(
+        'променено Отцеди консервата pulp, добави я и задуши 5 мин.',
+      );
+      expect(
+        screen.getByRole('img', { name: 'Снимката на стъпка 2' }),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByRole('group', { name: 'Към стъпка' })).getAllByRole(
+          'button',
+        ),
+      ).toHaveLength(3);
+      expect(products()).toContain('консерва pulpпроменено250 г');
+    });
+
+    it('време в новия текст пуска таймер на стъпката', async () => {
+      const user = userEvent.setup();
+      serveQuestions([WITH_DRAIN]);
+      await openCooking('browser');
+      await appliedOnStep2(user);
+
+      await user.click(screen.getByRole('button', { name: 'Таймер 5 мин' }));
+
+      expect(timerRows()).toHaveLength(1);
+      expect(timerRows()[0]).toHaveTextContent(/^Стъпка 2 · 5 мин/);
+    });
+
+    it('„Върни“ връща стария текст без знака, а другите стъпки не се пипат', async () => {
+      const user = userEvent.setup();
+      serveQuestions([WITH_DRAIN]);
+      await openCooking('browser');
+      await appliedOnStep2(user);
+      await user.click(screen.getByRole('button', { name: 'Назад' }));
+      expect(stepText()).toBe('Нарежи пилето.');
+
+      const sheet = await openSheet(user);
+      await findAnswer(sheet, ANSWER);
+      await user.click(within(sheet).getByRole('button', { name: 'Върни' }));
+      await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'Напред' }));
+
+      expect(stepText()).toBe('Настържи 2 домата и ги добави.');
+      expect(products()).toContain('лук2,5 бр.');
+    });
+
+    it('сменената стъпка оцелява презареждане', async () => {
+      const user = userEvent.setup();
+      serveQuestions([WITH_DRAIN]);
+      const first = await openCooking('browser');
+      await appliedOnStep2(user);
+
+      await reopenCooking(first, 'browser');
+
+      expect(screen.getByText('Стъпка 2 от 3')).toBeInTheDocument();
+      expect(stepText()).toBe(
+        'променено Отцеди консервата pulp, добави я и задуши 5 мин.',
+      );
+    });
   });
 
   it('отговор без промяна няма „Промени“', async () => {
