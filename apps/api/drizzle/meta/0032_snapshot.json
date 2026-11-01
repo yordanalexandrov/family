@@ -1,5 +1,5 @@
 {
-  "id": "18fff4c9-a4a8-40d2-9313-b13ad047161c",
+  "id": "0030283f-f61b-4041-999e-ae8bb62c0bf7",
   "prevId": "160c0ed4-8b5d-48ca-a251-9783640f2fa5",
   "version": "7",
   "dialect": "postgresql",
@@ -1193,177 +1193,6 @@
         "recipe_refine_request_status_check": {
           "name": "recipe_refine_request_status_check",
           "value": "\"recipe_refine_request\".\"status\" in ('pending', 'done', 'failed')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.recipe_revision_request": {
-      "name": "recipe_revision_request",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "hint": {
-          "name": "hint",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by": {
-          "name": "requested_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "recipe_id": {
-          "name": "recipe_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "instruction": {
-          "name": "instruction",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "base_updated_at": {
-          "name": "base_updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "no_results": {
-          "name": "no_results",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decision": {
-          "name": "decision",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_by": {
-          "name": "decided_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_at": {
-          "name": "decided_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "recipe_revision_request_recipe_idx": {
-          "name": "recipe_revision_request_recipe_idx",
-          "columns": [
-            {
-              "expression": "recipe_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "recipe_revision_request_requested_by_user_id_fk": {
-          "name": "recipe_revision_request_requested_by_user_id_fk",
-          "tableFrom": "recipe_revision_request",
-          "tableTo": "user",
-          "columnsFrom": [
-            "requested_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "recipe_revision_request_recipe_id_recipe_id_fk": {
-          "name": "recipe_revision_request_recipe_id_recipe_id_fk",
-          "tableFrom": "recipe_revision_request",
-          "tableTo": "recipe",
-          "columnsFrom": [
-            "recipe_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "recipe_revision_request_decided_by_user_id_fk": {
-          "name": "recipe_revision_request_decided_by_user_id_fk",
-          "tableFrom": "recipe_revision_request",
-          "tableTo": "user",
-          "columnsFrom": [
-            "decided_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "recipe_revision_request_status_check": {
-          "name": "recipe_revision_request_status_check",
-          "value": "\"recipe_revision_request\".\"status\" in ('pending', 'done', 'failed')"
-        },
-        "recipe_revision_request_decision_check": {
-          "name": "recipe_revision_request_decision_check",
-          "value": "\"recipe_revision_request\".\"decision\" in ('accepted', 'rejected')"
         }
       },
       "isRLSEnabled": false
@@ -3045,6 +2874,73 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.shopping_meal": {
+      "name": "shopping_meal",
+      "schema": "",
+      "columns": {
+        "list_id": {
+          "name": "list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meal_id": {
+          "name": "meal_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shopping_meal_list_id_shopping_list_id_fk": {
+          "name": "shopping_meal_list_id_shopping_list_id_fk",
+          "tableFrom": "shopping_meal",
+          "tableTo": "shopping_list",
+          "columnsFrom": [
+            "list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "shopping_meal_meal_id_meal_id_fk": {
+          "name": "shopping_meal_meal_id_meal_id_fk",
+          "tableFrom": "shopping_meal",
+          "tableTo": "meal",
+          "columnsFrom": [
+            "meal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "shopping_meal_list_id_meal_id_pk": {
+          "name": "shopping_meal_list_id_meal_id_pk",
+          "columns": [
+            "list_id",
+            "meal_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

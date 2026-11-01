@@ -16,7 +16,7 @@ import { stepImageProblems } from './step-images.js';
 import { isRecord } from './strict-mode.js';
 
 /**
- * AI contract `recipe.revise` (GLOSSARY: Поправка на рецепта, ADR-0011): a recipe, as `recipe.refine` reads it, and an
+ * AI contract `recipe.revise` (GLOSSARY: Поправка на рецепта, ADR-0013): a recipe, as `recipe.refine` reads it, and an
  * instruction in free text of what to change („картофите искат още 20 минути“) → the whole recipe with the changes
  * (products and amounts, steps, preparation, time and servings) and what changed; or none and the reason in
  * `noResults`. The title, tags and appliance are not in the output: the agent does not change them. Its products are

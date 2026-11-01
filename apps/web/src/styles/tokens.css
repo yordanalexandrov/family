@@ -37,6 +37,21 @@
   --color-status-ok: #1fa463;
   --color-status-stale: #e0a100;
   --color-status-off: rgba(20, 24, 38, 0.28);
+
+  /* Щандове (#308): текстът и ръбът на лентата вляво от продуктите. Фонът ѝ е цветът, смесен с --aisle-band-mix в
+     --color-surface; tokens.spec.ts пази текста ≥ 4.5:1 върху него. */
+  --aisle-band-mix: 14%;
+  --color-aisle-produce: #256b25;
+  --color-aisle-bakery: #9a4a12;
+  --color-aisle-meat: #b3261e;
+  --color-aisle-fish: #0a5f8f;
+  --color-aisle-dairy: #3d4fb0;
+  --color-aisle-grains: #6b5800;
+  --color-aisle-canned: #a52a6f;
+  --color-aisle-spices: #9e3f00;
+  --color-aisle-frozen: #006569;
+  --color-aisle-drinks: #6b3fb8;
+  --color-aisle-other: #565e78;
   --shadow:
     0 1px 2px rgba(30, 40, 80, 0.06), 0 18px 40px -18px rgba(30, 40, 80, 0.22);
 
@@ -135,6 +150,19 @@
   --color-status-ok: #5ee8a5;
   --color-status-stale: #ffd166;
   --color-status-off: rgba(255, 255, 255, 0.3);
+
+  --aisle-band-mix: 18%;
+  --color-aisle-produce: #7fd88b;
+  --color-aisle-bakery: #f0a76a;
+  --color-aisle-meat: #ff8f86;
+  --color-aisle-fish: #6cc3ff;
+  --color-aisle-dairy: #a9b5ff;
+  --color-aisle-grains: #e0c95a;
+  --color-aisle-canned: #f593c4;
+  --color-aisle-spices: #ffab57;
+  --color-aisle-frozen: #4fe0d2;
+  --color-aisle-drinks: #c9a3ff;
+  --color-aisle-other: #b4b9cb;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
 
   --glass-bg: rgba(255, 255, 255, 0.06);
@@ -184,6 +212,19 @@
     --color-status-ok: #5ee8a5;
     --color-status-stale: #ffd166;
     --color-status-off: rgba(255, 255, 255, 0.3);
+
+    --aisle-band-mix: 18%;
+    --color-aisle-produce: #7fd88b;
+    --color-aisle-bakery: #f0a76a;
+    --color-aisle-meat: #ff8f86;
+    --color-aisle-fish: #6cc3ff;
+    --color-aisle-dairy: #a9b5ff;
+    --color-aisle-grains: #e0c95a;
+    --color-aisle-canned: #f593c4;
+    --color-aisle-spices: #ffab57;
+    --color-aisle-frozen: #4fe0d2;
+    --color-aisle-drinks: #c9a3ff;
+    --color-aisle-other: #b4b9cb;
     --shadow:
       0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 60px -20px rgba(0, 0, 0, 0.6);
 

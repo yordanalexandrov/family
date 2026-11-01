@@ -62,6 +62,7 @@ import {
   isMenuRecipe,
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
+import { deleteShoppingMealsOf } from '../db/repositories/shopping.js';
 import { findUser, listUsers } from '../db/repositories/users.js';
 import { menuProposalRequest } from '../db/schema/menu.js';
 import type {
@@ -412,6 +413,8 @@ export function createMenuService({
           );
           if (recipeChanged) {
             await keepRemoval(tx, current, patch, actingUserId, line, now());
+            // The list was for the old recipe: the meal is added again by hand, also after „Върни“ (ADR-0011).
+            await deleteShoppingMealsOf(tx, id);
           }
         }
         const changed = await reread(tx, id, current.planId);

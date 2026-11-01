@@ -24,6 +24,7 @@ import { formatDayLong } from '../../lib/format';
 import { useRecipes } from '../recipes/queries';
 import { useDebouncedValue } from '../recipes/useDebouncedValue';
 import { MealReplace } from './MealReplace';
+import { MealShopping } from './MealShopping';
 import { MoveMeal } from './MoveMeal';
 import { usePlan, useRestoreMeal, useUpdateMeal } from './queries';
 import { Thread } from './Thread';
@@ -48,7 +49,7 @@ interface MealSheetProps {
 
 /**
  * Листът на едно ястие: отгоре цялото заглавие и „защо“ (редът ги съкращава), гласовете на двамата и разговорът, после
- * връзка към рецептата, „Избери сам“ (изборът от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
+ * връзка към рецептата, „🛒 Добави в списъка“ (без него ястието не е в списъка за пазаруване), „Избери сам“ (изборът от регистъра), „✨ Предложи друго“ (`meal.replace`), бележка, готвач и порции; всяко действие е отделен `PATCH`. Минал ден пази рецептата и бележката, а
  * готвачът и порциите се сменят; разговорът му се чете, но не се пише. В минала седмица (`readOnly`) не се сменят и те.
  * Празен ден (без рецепта и бележка) е без гласове: чака ястие. Махнатата рецепта отива в `onRecipeRemoved`, за „Върни“.
  */
@@ -144,6 +145,9 @@ export function MealSheet({
             Към рецептата
           </Link>
         </div>
+      )}
+      {meal.recipeId !== null && !readOnly && (
+        <MealShopping meal={meal} weekStart={plan.weekStart} />
       )}
       {past ? (
         <p className="sheet__section meal-votes__past">

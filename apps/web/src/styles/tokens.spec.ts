@@ -1,3 +1,4 @@
+import { AISLES } from '@family/shared';
 import { describe, expect, it } from 'vitest';
 import { THEME_BACKGROUNDS } from '../app/theme';
 // Като текст: jsdom не изчислява custom properties от CSS файлове.
@@ -123,6 +124,33 @@ describe('tokens.css', () => {
         }
       },
     );
+  });
+
+  describe.each([
+    ['светла', light],
+    ['тъмна', dark],
+  ])('лентите на щандовете (#308), %s тема', (_name, theme) => {
+    // Фонът на лентата е плътен: цветът на щанда, смесен в --color-surface (виж .shopping__aisle-band).
+    const share = Number.parseFloat(token(theme, '--aisle-band-mix')) / 100;
+    const surface = parseColor(token(theme, '--color-surface'));
+
+    it.each(AISLES.map(({ key }) => key))(
+      '--color-aisle-%s има контраст ≥ 4.5:1 върху лентата си',
+      (key) => {
+        const ink = parseColor(token(theme, `--color-aisle-${key}`));
+        const band = over([ink[0], ink[1], ink[2], share], surface);
+
+        expect(contrast(ink, band)).toBeGreaterThanOrEqual(4.5);
+      },
+    );
+
+    it('всеки щанд има свой цвят', () => {
+      const colors = AISLES.map(({ key }) =>
+        token(theme, `--color-aisle-${key}`),
+      );
+
+      expect(new Set(colors).size).toBe(AISLES.length);
+    });
   });
 
   it('тъмната тема по системата е същата като изричната тъмна', () => {

@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { Aurora } from '../components/Aurora';
+import { restoreScrollBetweenScreens } from '../components/sheet-history';
 import { CalendarScreen } from '../features/calendar/CalendarScreen';
 import {
   CookingScreen,
@@ -339,7 +340,7 @@ export function createAppRouter(history?: RouterHistory) {
   return createRouter({
     routeTree,
     ...(history ? { history } : {}),
-    scrollRestoration: true,
+    scrollRestoration: restoreScrollBetweenScreens(),
   });
 }
 

@@ -145,22 +145,32 @@ function requireOnline() {
   }
 }
 
-/** Промяна, която изисква връзка; после списъкът се презарежда. */
-function useListChange<T>(
+/**
+ * Промяна, която изисква връзка; после списъкът се презарежда, а отговорът ѝ стига до `onSuccess` на извикващия.
+ * `listOf` дава списъка от отговор, който го носи цял: той се показва веднага, преди презареждането.
+ */
+function useListChange<T, R = unknown>(
   weekStart: DateKey,
-  change: (input: T) => Promise<unknown>,
+  change: (input: T) => Promise<R>,
+  listOf?: (result: R) => ShoppingList,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: T) => {
       requireOnline();
-      await change(input);
+      return change(input);
     },
     networkMode: 'always',
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: shoppingKeys.list(weekStart),
-      }),
+    onSuccess: (result) => {
+      const queryKey = shoppingKeys.list(weekStart);
+      if (listOf) {
+        queryClient.setQueryData<ShoppingWeekData>(queryKey, {
+          list: listOf(result),
+          staleSince: null,
+        });
+      }
+      return queryClient.invalidateQueries({ queryKey });
+    },
   });
 }
 
@@ -198,5 +208,22 @@ export function useDeleteManualItem(weekStart: DateKey) {
       { parse: () => undefined },
       { method: 'DELETE' },
     ),
+  );
+}
+
+/**
+ * Добавя ястие от менюто в списъка на седмицата (GLOSSARY: Ястие в списъка, ADR-0011) или го маха; иска връзка.
+ * Отговорът е целият списък: показва се веднага, после списъкът се презарежда.
+ */
+export function useSetMealListed(weekStart: DateKey) {
+  return useListChange(
+    weekStart,
+    ({ mealId, listed }: { mealId: string; listed: boolean }) =>
+      apiFetch(
+        `${listPath(weekStart)}/meals/${mealId}`,
+        shoppingListResponseSchema,
+        { method: listed ? 'PUT' : 'DELETE' },
+      ),
+    (response) => response.list,
   );
 }
