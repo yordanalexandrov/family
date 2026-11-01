@@ -11,9 +11,8 @@ import {
  * A cooking change (GLOSSARY: Промяна за готвенето): what the answer to a question in Готвене changes in the recipe
  * for this cooking only, applied with „Промени“. Its products are free names with an amount for the servings on the
  * screen when the question was asked; the lines are by their index in the recipe as Готвене shows it (the recipe's
- * lines in order, with the lines added by applied changes after them).
- *
- * `ingredients` is the only part for now; the new text of steps (#277) goes next to it as one more list.
+ * lines in order, with the lines added by applied changes after them). Its steps are new text for steps the recipe has,
+ * by their number on the screen (from 1): steps are never added or removed.
  */
 
 /** Longest product name a change may bring. */
@@ -45,12 +44,26 @@ export const ingredientChangeSchema = z.discriminatedUnion('kind', [
 
 export type IngredientChange = z.infer<typeof ingredientChangeSchema>;
 
-/** At most one entry for a line, and something to change. */
+/** Longest new text of a step a change may bring. */
+export const COOKING_CHANGE_STEP_MAX = 1000;
+
+/** One entry for the steps: the new text of the step with `number` („Стъпка 3 от 4“), from 1. */
+export const stepChangeSchema = z.object({
+  number: z.int().min(1),
+  text: z.string().trim().min(1).max(COOKING_CHANGE_STEP_MAX),
+});
+
+export type StepChange = z.infer<typeof stepChangeSchema>;
+
+/** At most one entry for a line and for a step, and something to change. */
 function checkChange(
-  change: { ingredients: readonly IngredientChange[] },
+  change: {
+    ingredients: readonly IngredientChange[];
+    steps: readonly StepChange[];
+  },
   ctx: z.RefinementCtx,
 ): void {
-  if (change.ingredients.length === 0) {
+  if (change.ingredients.length === 0 && change.steps.length === 0) {
     ctx.addIssue({
       code: 'custom',
       message: 'Празна промяна: без промяна change е null.',
@@ -70,11 +83,28 @@ function checkChange(
     }
     seen.add(entry.index);
   });
+  const seenSteps = new Set<number>();
+  change.steps.forEach((entry, at) => {
+    if (seenSteps.has(entry.number)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['steps', at, 'number'],
+        message: `Два записа за стъпка ${entry.number}.`,
+      });
+    }
+    seenSteps.add(entry.number);
+  });
 }
 
-/** A cooking change as the answer brings it and as it is stored with the question. */
+/**
+ * A cooking change as the answer brings it and as it is stored with the question. A missing list is empty: the changes
+ * stored before the steps (#276) have none.
+ */
 export const cookingChangeSchema = z
-  .object({ ingredients: z.array(ingredientChangeSchema) })
+  .object({
+    ingredients: z.array(ingredientChangeSchema).default([]),
+    steps: z.array(stepChangeSchema).default([]),
+  })
   .superRefine(checkChange);
 
 export type CookingChange = z.infer<typeof cookingChangeSchema>;
@@ -149,6 +179,32 @@ export function applyCookingChanges(
   applied: readonly AppliedCookingChange[],
 ): CookingLine[] {
   return applied.reduce<CookingLine[]>(applyOne, [...lines]);
+}
+
+/** A step in Готвене: the recipe's (its text and photo), `changed` when an applied change gave it new text. */
+export type CookingStep<Step extends { text: string }> = Step & {
+  changed?: true;
+};
+
+/**
+ * The steps after the applied changes, in the order they were applied: the new text of a step in its place, with the
+ * rest of the step (its photo) as it is, marked `changed`; a later entry for a step wins. The number of steps never
+ * changes: an entry for a step the recipe does not have is passed over.
+ */
+export function applyStepChanges<Step extends { text: string }>(
+  steps: readonly Step[],
+  applied: readonly AppliedCookingChange[],
+): CookingStep<Step>[] {
+  const next: CookingStep<Step>[] = [...steps];
+  for (const { change } of applied) {
+    for (const entry of change.steps) {
+      const step = next[entry.number - 1];
+      if (step) {
+        next[entry.number - 1] = { ...step, text: entry.text, changed: true };
+      }
+    }
+  }
+  return next;
 }
 
 /** The line's amount for `servings` on the screen, as Готвене reads it (`scaleQuantity`). */

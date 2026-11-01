@@ -19,8 +19,9 @@ import { isRecord, withoutNulls } from './strict-mode.js';
  *
  * The recipe comes with the cooking changes applied on the screen (GLOSSARY: Промяна за готвенето): its lines by their
  * index, the ones a change replaced or added marked `changed`, the removed ones still in their place and marked
- * `removed`. The answer may bring a `change` of its own, by those indices; only the products for now (#276), the steps
- * follow (#277).
+ * `removed`, and its steps by their number, the ones a change gave new text marked `changed`. The answer may bring a
+ * `change` of its own: its products by those indices and new text for its steps by those numbers (steps are never
+ * added or removed).
  */
 
 /** Longest question a cook types; the sheet's field stops there. */
@@ -53,10 +54,14 @@ const askIngredientSchema = z.object({
   removed: z.literal(true).optional(),
 });
 
-/** A step by its number on the screen („Стъпка 3 от 4“), from 1. */
+/**
+ * A step by its number on the screen („Стъпка 3 от 4“), from 1 (what a change names it by); `changed` when an applied
+ * change gave it new text.
+ */
 const askStepSchema = z.object({
   number: z.int().min(1),
   text: z.string().trim().min(1),
+  changed: z.literal(true).optional(),
 });
 
 const askRecipeSchema = z
@@ -73,6 +78,13 @@ const askRecipeSchema = z
   .refine(
     (recipe) => recipe.ingredients.every((line, at) => line.index === at),
     { path: ['ingredients'], message: 'Индексите на продуктите не са по ред.' },
+  )
+  .refine(
+    (recipe) => recipe.steps.every((step, at) => step.number === at + 1),
+    {
+      path: ['steps'],
+      message: 'Номерата на стъпките не са по ред.',
+    },
   );
 
 /** An earlier question of the chain and the answer it got. */
@@ -111,7 +123,7 @@ const cookingAskOutputSchema = z.preprocess(
 
 export type CookingAskOutput = { answer: string; change?: CookingChange };
 
-/** Every line a change names is a line of the input's recipe. */
+/** Every line and every step a change names is one of the input's recipe. */
 function checkChangeLines(
   input: CookingAskInput,
   output: CookingAskOutput,
@@ -126,6 +138,15 @@ function checkChangeLines(
         code: 'custom',
         path: ['change', 'ingredients', at, 'index'],
         message: `Ред ${entry.index} го няма в продуктите на рецептата.`,
+      });
+    }
+  });
+  output.change?.steps.forEach((entry, at) => {
+    if (entry.number > input.recipe.steps.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['change', 'steps', at, 'number'],
+        message: `Стъпка ${entry.number} я няма в рецептата: стъпки не се добавят.`,
       });
     }
   });
@@ -155,6 +176,7 @@ const COOKING_ASK_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
             z.object({ kind: z.literal('add'), ingredient: strictIngredient }),
           ]),
         ),
+        steps: z.array(z.object({ number: z.int(), text: z.string() })),
       })
       .nullable(),
   }),
@@ -162,8 +184,8 @@ const COOKING_ASK_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
 );
 
 /**
- * `cooking.ask`. An empty or too long answer, or a change that names a line the recipe does not have, has two entries
- * for one line or changes nothing, goes through the client's single retry, then fails `invalid_output`.
+ * `cooking.ask`. An empty or too long answer, or a change that names a line or a step the recipe does not have, has
+ * two entries for one line or one step or changes nothing, goes through the client's single retry, then fails `invalid_output`.
  */
 export const cookingAsk: AiContract<CookingAskInput, CookingAskOutput> = {
   id: 'cooking.ask',

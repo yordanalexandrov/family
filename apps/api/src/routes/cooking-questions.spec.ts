@@ -544,6 +544,52 @@ describe('a cooking change (change, applied)', () => {
     expect(recipeResponseSchema.parse(response.json()).recipe).toEqual(recipe);
   });
 
+  it('sends the agent the steps with the applied new text, marked, in the same number, after a change of the steps and the products', async () => {
+    const recipe = await createdRecipe();
+    const drain = {
+      ingredients: PULP.ingredients,
+      steps: [
+        { number: 2, text: 'Отцеди консервата и я добави. Задуши 5 минути.' },
+      ],
+    };
+    answering({ answer: ANSWER, change: drain });
+    const asked1 = await finished(await asked(recipe.id));
+    expect(asked1).toMatchObject({ status: 'done', change: drain });
+    openclaw.resetHandlers();
+    const sent = answering();
+
+    await finished(
+      await asked(recipe.id, { ...QUESTION, applied: [asked1.id] }),
+    );
+
+    expect(sent[0]?.input.recipe.steps).toEqual([
+      { number: 1, text: 'Нарежи лука и го запържи 5 минути.' },
+      {
+        number: 2,
+        text: 'Отцеди консервата и я добави. Задуши 5 минути.',
+        changed: true,
+      },
+      { number: 3, text: 'Печи 30 минути.' },
+    ]);
+    expect(sent[0]?.input.recipe.ingredients[0]).toMatchObject({
+      name: 'консерва pulp',
+      changed: true,
+    });
+  });
+
+  it('fails invalid_output for new text of a step the recipe does not have, even after the retry', async () => {
+    const recipe = await createdRecipe();
+    const sent = answering({
+      answer: ANSWER,
+      change: { ingredients: [], steps: [{ number: 4, text: 'Сервирай.' }] },
+    });
+
+    const done = await finished(await asked(recipe.id));
+
+    expect(done).toMatchObject({ status: 'failed', error: 'invalid_output' });
+    expect(sent).toHaveLength(2);
+  });
+
   it('answers 404 for an applied that is not a question of this recipe with a change', async () => {
     const recipe = await createdRecipe();
     const other = await createdRecipe();

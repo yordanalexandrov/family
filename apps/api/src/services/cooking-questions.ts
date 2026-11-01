@@ -2,6 +2,7 @@ import {
   type AppliedCookingChange,
   type AskCookingQuestion,
   applyCookingChanges,
+  applyStepChanges,
   COOKING_HISTORY_MAX,
   type CookingAskInput,
   type CookingAskOutput,
@@ -65,7 +66,8 @@ interface Loaded {
 /**
  * The input of `cooking.ask` for a question about `recipe`: its products after the applied cooking changes (`applied`,
  * in their order, the changed and removed lines marked) scaled to the servings on the screen (as Готвене shows them,
- * `scaleCookingLine`), its steps numbered from 1 with the current one by its number, its preparation, the enabled
+ * `scaleCookingLine`), its steps after the same changes numbered from 1 (the ones with new text marked) with the
+ * current one by its number, its preparation, the enabled
  * appliances, the earlier questions of the chain with their answers (`history`, oldest first) and the question. Shared
  * with `ask:smoke`.
  */
@@ -94,9 +96,10 @@ export function cookingAskInput(
         ...(line.changed ? { changed: true as const } : {}),
         ...(line.removed ? { removed: true as const } : {}),
       })),
-      steps: recipe.steps.map((current, index) => ({
+      steps: applyStepChanges(recipe.steps, applied).map((current, index) => ({
         number: index + 1,
         text: current.text,
+        ...(current.changed ? { changed: true as const } : {}),
       })),
       preparation: recipe.preparation,
     },

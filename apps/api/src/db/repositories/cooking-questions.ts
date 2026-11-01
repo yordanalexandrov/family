@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  AppliedCookingChange,
-  AskCookingQuestion,
-  CookingChange,
-  CookingQuestion,
+import {
+  type AppliedCookingChange,
+  type AskCookingQuestion,
+  type CookingChange,
+  type CookingQuestion,
+  cookingChangeSchema,
 } from '@family/shared';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
@@ -11,7 +12,10 @@ import { cookingQuestionRequest } from '../schema/food.js';
 
 type QuestionRow = typeof cookingQuestionRequest.$inferSelect;
 
-/** API shape of a question: DB nulls of optional fields become absent, dates ISO strings. */
+/**
+ * API shape of a question: DB nulls of optional fields become absent, dates ISO strings; the change as the schema reads
+ * it (one stored before the steps has none).
+ */
 function toCookingQuestion(row: QuestionRow): CookingQuestion {
   return {
     id: row.id,
@@ -23,7 +27,7 @@ function toCookingQuestion(row: QuestionRow): CookingQuestion {
     status: row.status,
     error: row.error ?? undefined,
     answer: row.answer ?? undefined,
-    change: row.change ?? undefined,
+    change: row.change ? cookingChangeSchema.parse(row.change) : undefined,
     requestedBy: row.requestedBy,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? undefined,
@@ -125,7 +129,10 @@ export async function findAppliedChanges(
     if (!row?.change) {
       return undefined;
     }
-    applied.push({ change: row.change, servings: row.servings });
+    applied.push({
+      change: cookingChangeSchema.parse(row.change),
+      servings: row.servings,
+    });
   }
   return applied;
 }

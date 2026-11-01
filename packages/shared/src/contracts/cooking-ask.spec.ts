@@ -73,6 +73,26 @@ describe('cookingAsk.inputSchema', () => {
     expect(parse([lines[1], lines[0]])).toBe(false);
   });
 
+  it('reads the steps by their number, with the ones an applied change gave new text marked', () => {
+    const steps = fixtureInput.recipe.steps.map((step) =>
+      step.number === 3
+        ? {
+            number: 3,
+            text: 'Отцеди консервата и задуши 5 минути.',
+            changed: true,
+          }
+        : step,
+    );
+    const parse = (recipeSteps: unknown[]) =>
+      cookingAsk.inputSchema.safeParse({
+        ...fixtureInput,
+        recipe: { ...fixtureInput.recipe, steps: recipeSteps },
+      }).success;
+
+    expect(parse(steps)).toBe(true);
+    expect(parse([steps[1], steps[0], steps[2], steps[3]])).toBe(false);
+  });
+
   it('refuses a current step the recipe does not have', () => {
     expect(
       cookingAsk.inputSchema.safeParse({ ...fixtureInput, currentStep: 5 })
@@ -125,8 +145,52 @@ describe('cookingAsk.outputSchema: the change', () => {
   });
 
   it('accepts a change of the lines of the input', () => {
-    const output = { answer: 'Да.', change: { ingredients: [PULP] } };
+    const output = {
+      answer: 'Да.',
+      change: { ingredients: [PULP], steps: [] },
+    };
     expect(outputSchema.parse(output)).toEqual(output);
+  });
+
+  it('accepts new text for a step of the input, alone or with the products', () => {
+    const DRAIN = { number: 3, text: 'Отцеди консервата и задуши 5 минути.' };
+    const stepsOnly = {
+      answer: 'Да.',
+      change: { ingredients: [], steps: [DRAIN] },
+    };
+    const both = {
+      answer: 'Да.',
+      change: { ingredients: [PULP], steps: [DRAIN] },
+    };
+
+    expect(outputSchema.parse(stepsOnly)).toEqual(stepsOnly);
+    expect(outputSchema.parse(both)).toEqual(both);
+  });
+
+  it('refuses a step the input does not have and two entries for one step', () => {
+    const last = INPUT.recipe.steps.length;
+    const step = (...numbers: number[]) => ({
+      answer: 'Да.',
+      change: {
+        ingredients: [],
+        steps: numbers.map((number) => ({ number, text: 'Нов текст.' })),
+      },
+    });
+
+    expect(messages(step(last))).toEqual([]);
+    expect(messages(step(last + 1))).toEqual([
+      `Стъпка ${last + 1} я няма в рецептата: стъпки не се добавят.`,
+    ]);
+    expect(messages(step(2, 2))).toEqual(['Два записа за стъпка 2.']);
+  });
+
+  it('asks the gateway for the steps of a change next to its products', () => {
+    const change = (
+      cookingAsk.responseFormat.schema as {
+        properties: { change: { anyOf: { required?: string[] }[] } };
+      }
+    ).properties.change.anyOf[0];
+    expect(change?.required).toEqual(['ingredients', 'steps']);
   });
 
   it('refuses a line the input does not have', () => {

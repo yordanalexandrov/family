@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import {
   applyCookingChanges,
+  applyStepChanges,
   type CookingChange,
   type CookingLine,
   cookingChangeSchema,
@@ -25,10 +27,14 @@ const RECIPE = {
 
 const LINES = recipeCookingLines(RECIPE);
 
-/** A change asked about at `servings` on the screen. */
-const at = (servings: number, change: CookingChange) => ({ servings, change });
+/** A change asked about at `servings` on the screen, as the schema reads it (without steps: none). */
+const at = (servings: number, change: z.input<typeof cookingChangeSchema>) => ({
+  servings,
+  change: cookingChangeSchema.parse(change),
+});
 
 const PULP: CookingChange = {
+  steps: [],
   ingredients: [
     {
       kind: 'replace',
@@ -118,6 +124,102 @@ describe('cookingChangeSchema', () => {
         ],
       }),
     ).not.toEqual([]);
+  });
+});
+
+describe('cookingChangeSchema: the steps', () => {
+  it('accepts a change of the steps only, and of the steps and the products together', () => {
+    expect(
+      issues({ steps: [{ number: 3, text: 'Отцеди консервата и я добави.' }] }),
+    ).toEqual([]);
+    expect(
+      issues({
+        ingredients: PULP.ingredients,
+        steps: [{ number: 3, text: 'Отцеди консервата и я добави.' }],
+      }),
+    ).toEqual([]);
+  });
+
+  it('reads a change without steps (stored before them) as one with none', () => {
+    expect(
+      cookingChangeSchema.parse({ ingredients: PULP.ingredients }),
+    ).toEqual({ ingredients: PULP.ingredients, steps: [] });
+  });
+
+  it('refuses a change with no products and no steps', () => {
+    expect(issues({ ingredients: [], steps: [] })).not.toEqual([]);
+    expect(issues({})).not.toEqual([]);
+  });
+
+  it('refuses two entries for one step', () => {
+    expect(
+      issues({
+        steps: [
+          { number: 2, text: 'Едно.' },
+          { number: 2, text: 'Друго.' },
+        ],
+      }),
+    ).toEqual(['Два записа за стъпка 2.']);
+  });
+
+  it('refuses a step 0 and an empty text', () => {
+    expect(issues({ steps: [{ number: 0, text: 'Едно.' }] })).not.toEqual([]);
+    expect(issues({ steps: [{ number: 1, text: ' ' }] })).not.toEqual([]);
+  });
+});
+
+describe('applyStepChanges', () => {
+  const STEPS = [
+    { text: 'Нарежи лука.' },
+    { text: 'Настържи доматите и задуши 10 минути.', photoId: 'photo' },
+    { text: 'Вари 20 минути.' },
+  ];
+  const DRAIN = {
+    number: 2,
+    text: 'Отцеди консервата и задуши 5 минути.',
+  };
+  const steps = (...entries: { number: number; text: string }[]) =>
+    at(2, { ingredients: [], steps: entries });
+
+  it('keeps the steps as they are without applied changes', () => {
+    expect(applyStepChanges(STEPS, [])).toEqual(STEPS);
+  });
+
+  it('gives a step the new text, marked changed, with its photo and the same number of steps', () => {
+    expect(applyStepChanges(STEPS, [steps(DRAIN)])).toEqual([
+      STEPS[0],
+      {
+        text: 'Отцеди консервата и задуши 5 минути.',
+        photoId: 'photo',
+        changed: true,
+      },
+      STEPS[2],
+    ]);
+  });
+
+  it('applies the changes in order: the last one for a step wins', () => {
+    const later = { number: 2, text: 'Добави доматките цели.' };
+    expect(applyStepChanges(STEPS, [steps(DRAIN), steps(later)])[1]).toEqual({
+      text: 'Добави доматките цели.',
+      photoId: 'photo',
+      changed: true,
+    });
+  });
+
+  it('reads the steps of a change of the steps and the products, and the products of it as before', () => {
+    const both = at(2, { ingredients: PULP.ingredients, steps: [DRAIN] });
+
+    expect(applyStepChanges(STEPS, [both])[1]?.text).toBe(DRAIN.text);
+    expect(applyCookingChanges(LINES, [both])).toEqual(
+      applyCookingChanges(LINES, [at(2, PULP)]),
+    );
+    expect(applyStepChanges(STEPS, [at(2, PULP)])).toEqual(STEPS);
+  });
+
+  it('passes over a step the recipe does not have (it lost steps since)', () => {
+    expect(
+      applyStepChanges(STEPS, [steps({ number: 4, text: 'Нова.' })]),
+    ).toEqual(STEPS);
   });
 });
 
