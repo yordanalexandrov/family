@@ -184,7 +184,7 @@ export async function deleteManualItem(
   return rows.length > 0;
 }
 
-/** The meals in the list (GLOSSARY: Ястие в списъка), in the order they were added. */
+/** The meals in the list (GLOSSARY: Ястие в списъка), in no particular order. */
 export async function listShoppingMealIds(
   db: DbExecutor,
   listId: string,
@@ -192,8 +192,7 @@ export async function listShoppingMealIds(
   const rows = await db
     .select({ mealId: shoppingMeal.mealId })
     .from(shoppingMeal)
-    .where(eq(shoppingMeal.listId, listId))
-    .orderBy(shoppingMeal.createdAt, shoppingMeal.id);
+    .where(eq(shoppingMeal.listId, listId));
   return rows.map((row) => row.mealId);
 }
 

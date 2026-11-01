@@ -1,6 +1,6 @@
 {
-  "id": "bad99368-75f2-4454-bd96-e1d42e797cdf",
-  "prevId": "fd8d0081-7eed-4f8e-90e8-94c668c33e94",
+  "id": "83912dc5-3bb4-4326-be1b-0dae987ed6f0",
+  "prevId": "0030283f-f61b-4041-999e-ae8bb62c0bf7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2882,13 +2882,6 @@
       "name": "shopping_meal",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
         "list_id": {
           "name": "list_id",
           "type": "uuid",
@@ -2909,29 +2902,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "shopping_meal_list_meal": {
-          "name": "shopping_meal_list_meal",
-          "columns": [
-            {
-              "expression": "list_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "meal_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "shopping_meal_list_id_shopping_list_id_fk": {
           "name": "shopping_meal_list_id_shopping_list_id_fk",
@@ -2960,7 +2931,15 @@
           "onDelete": "cascade"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "shopping_meal_list_id_meal_id_pk": {
+          "name": "shopping_meal_list_id_meal_id_pk",
+          "columns": [
+            "list_id",
+            "meal_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

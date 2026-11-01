@@ -12,6 +12,7 @@ import {
   date,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -80,7 +81,6 @@ export const shoppingItem = pgTable(
 export const shoppingMeal = pgTable(
   'shopping_meal',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
     listId: uuid('list_id')
       .notNull()
       .references(() => shoppingList.id, { onDelete: 'cascade' }),
@@ -89,5 +89,5 @@ export const shoppingMeal = pgTable(
       .references(() => meal.id, { onDelete: 'cascade' }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('shopping_meal_list_meal').on(t.listId, t.mealId)],
+  (t) => [primaryKey({ columns: [t.listId, t.mealId] })],
 );
