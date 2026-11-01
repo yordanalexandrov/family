@@ -40,6 +40,7 @@ import { failureMessage, requestErrorFor } from '../../lib/ai-requests';
 import { capitalize, formatDate, formatWeekday } from '../../lib/format';
 import { useNow } from '../../lib/use-now';
 import { useRateRecipe } from '../recipes/queries';
+import { useShoppingWeek } from '../shopping/queries';
 import { DraggableMeal, MealDrag } from './MealDrag';
 import { MealRow, mealRowId } from './MealRow';
 import { MealSheet, type RemovedRecipe, RemovedRecipeToast } from './MealSheet';
@@ -552,6 +553,9 @@ function PlanView({
   const mealsId = useId();
   const vote = useVote(plan.weekStart);
   const rate = useRateRecipe();
+  const listedMealIds = new Set(
+    useShoppingWeek(plan.weekStart).data?.list.listedMealIds,
+  );
   const openMeal = plan.meals.find((meal) => meal.id === openMealId);
   // Ястието от адреса (известие) е някъде в седмицата: редът му идва в изгледа под листа. Докоснат ред вече се вижда.
   const fromUrl = useRef(openMealId);
@@ -674,6 +678,7 @@ function PlanView({
                     onOpen={() => onOpenMeal(meal.id)}
                     voting={voting}
                     handle={handle}
+                    listed={listedMealIds.has(meal.id)}
                   />
                 )}
               </DraggableMeal>
@@ -691,6 +696,7 @@ function PlanView({
                   ? {}
                   : { onOpen: () => onOpenMeal(meal.id) })}
                 {...(voting ? { voting } : {})}
+                listed={listedMealIds.has(meal.id)}
               />
             </li>
           )),

@@ -335,10 +335,11 @@ describe('PUT …/items/:key/checked', () => {
       checkedBy: DANI.id,
       checkedAt: NOW.toISOString(),
     });
-    // Monday's salad becomes a stew: 250 g of tomato become 150 g, the check stays.
+    // Monday's salad becomes a stew, which takes Monday out of the list (ADR-0011): 250 g of tomato fewer, the check
+    // stays.
     await patchMeal(meals[0] ?? '', { recipeId: recipes.stew });
     expect(await itemOf(key.tomato())).toMatchObject({
-      quantity: 1180,
+      quantity: 1030,
       checkedBy: DANI.id,
       checkedAt: NOW.toISOString(),
     });
@@ -637,6 +638,74 @@ describe('meals in the list (ADR-0011)', () => {
     expect(deleted.statusCode).toBe(204);
     expect(await testDb().select().from(shoppingMeal)).toEqual([]);
     expect((await getList()).json().list.listedMealIds).toEqual([]);
+  });
+});
+
+describe('a meal in the list whose recipe changes (ADR-0011)', () => {
+  beforeEach(seedPlan);
+
+  async function listed() {
+    return (await getList()).json().list.listedMealIds;
+  }
+
+  it('takes a meal out of the list when its recipe changes, by hand or with a picked „Предложи друго“', async () => {
+    const [monday = '', tuesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    await patchMeal(monday, { recipeId: recipes.stew });
+    await patchMeal(tuesday, {
+      recipeId: recipes.salad,
+      why: 'Има домати за изяждане.',
+    });
+
+    expect(await listed()).toEqual([]);
+    expect(rows((await getList()).json().list)).toEqual([]);
+  });
+
+  it('keeps a meal in the list when its servings change, when it is swapped, and when its recipe is sent unchanged', async () => {
+    const [monday = '', tuesday = '', wednesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    await patchMeal(monday, {
+      recipeId: recipes.salad,
+      servings: { [DANI.id]: 2, [POLI.id]: 2 },
+    });
+    const swapped = await inject('POST', `/api/menu/meals/${tuesday}/swap`, {
+      withMealId: wednesday,
+    });
+
+    expect(swapped.statusCode).toBe(200);
+    expect(await listed()).toEqual([monday, tuesday]);
+  });
+
+  it('takes a meal removed from its day out of the list, and „Върни“ does not bring it back', async () => {
+    const [monday = '', tuesday = ''] = meals;
+    await addMeal(monday);
+    await addMeal(tuesday);
+
+    await patchMeal(monday, { recipeId: null });
+    const restored = await inject('POST', `/api/menu/meals/${monday}/restore`);
+
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json().meal.recipeId).toBe(recipes.salad);
+    expect(await listed()).toEqual([tuesday]);
+  });
+
+  it('signals shopping.changed for the week when the recipe change takes a meal out', async () => {
+    const monday = meals[0] ?? '';
+    await addMeal(monday);
+    const signals: unknown[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await patchMeal(monday, { recipeId: recipes.omelette });
+    unsubscribe();
+
+    expect(signals).toContainEqual({
+      type: 'shopping.changed',
+      weekStart: WEEK,
+    });
   });
 });
 

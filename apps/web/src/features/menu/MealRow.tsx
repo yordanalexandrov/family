@@ -45,6 +45,8 @@ interface MealRowProps {
   voting?: RowVoting;
   /** Дръжката за влачене (`MealDrag`): в реда с гласовете, а на празен ден в края на единствения ред. */
   handle?: ReactNode;
+  /** Ястието е в списъка за пазаруване (GLOSSARY: Ястие в списъка): малък 🛒 до заглавието. */
+  listed?: boolean;
 }
 
 /**
@@ -52,7 +54,14 @@ interface MealRowProps {
  * ред от разговора. Заглавието е до 3 реда, а „защо“ на 1 ред (с „…“): целите са в листа на ястието. Минал ден е приглушен, без бутони за глас и без изход; празен ден е без гласове и без изход: чака ястие. Под минало ястие с неоценена рецепта
  * телефонът пита „Как беше?“: оценката е на рецептата, не на ястието, затова денят остава само за четене.
  */
-export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
+export function MealRow({
+  meal,
+  users,
+  onOpen,
+  voting,
+  handle,
+  listed = false,
+}: MealRowProps) {
   const cook = users.find((user) => user.id === meal.cookUserId);
   const title = mealTitle(meal);
   const servings = totalServings(meal.servings);
@@ -76,6 +85,15 @@ export function MealRow({ meal, users, onOpen, voting, handle }: MealRowProps) {
           <span className="meal-row__title-text">
             {title ?? (onOpen && !past ? 'Избери ястие' : '—')}
           </span>
+          {listed && (
+            <span
+              className="meal-row__listed"
+              role="img"
+              aria-label="в списъка за пазаруване"
+            >
+              🛒
+            </span>
+          )}
           {meal.recipe?.archivedAt && <span className="badge">архивирана</span>}
         </span>
         {meal.recipe && meal.note && (

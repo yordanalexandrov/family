@@ -518,6 +518,13 @@ button.meal-row__content:hover {
   line-clamp: 3;
 }
 
+/* Ястие в списъка за пазаруване: малък знак до заглавието, не значка. */
+.meal-row__listed {
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
 /* „Защо“ на 1 ред с „…“: целият текст е в листа на ястието. */
 .meal-row__why {
   overflow: hidden;
