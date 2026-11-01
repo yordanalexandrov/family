@@ -11,12 +11,22 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useId, useState } from 'react';
 import { ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
+import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { useObjectUrl } from '../../lib/use-object-url';
+import { useOnline } from '../../lib/use-online';
 import { ApplianceBadge } from '../recipes/ApplianceBadge';
 import { ingredientSearchQuery, useRecipes } from '../recipes/queries';
-import { RecipeForm } from '../recipes/RecipeForm';
+import { type AiReplacement, RecipeForm } from '../recipes/RecipeForm';
+import { ReviseSheet } from '../recipes/ReviseSheet';
+import { toRevisableRecipe } from '../recipes/recipe-form-values';
+import {
+  type RevisionBase,
+  type RevisionTarget,
+  revisionBaseOf,
+  revisionReplacement,
+} from '../recipes/revisions';
 import {
   useApproveSuggestion,
   useRejectSuggestion,
@@ -273,6 +283,7 @@ function duplicateOf(
 /**
  * Преглед, редакция и одобрение на едно предложение за рецепта, от заявка за предложения или от внасяне. На мястото на
  * „защо“ при внасянето са допусканията на агента; новите продукти се свързват или създават в листа на реда, преди „Одобри“.
+ * „✏️ Поправи с AI“ поправя рецептата от формата, както е сега; „Приеми“ я сменя, а „Одобри“ маркира поправката приета.
  */
 export function ReviewSuggestion({
   suggestion,
@@ -305,6 +316,18 @@ export function ReviewSuggestion({
   const [importedAnyway, setImportedAnyway] = useState<string>();
   const sameTitle = duplicateOf(title, suggestion, registry.data);
   const duplicate = sameTitle?.id === importedAnyway ? undefined : sameTitle;
+  const connection = useNeedsConnection(useOnline(), 'recipe-form__hint');
+  const [revising, setRevising] = useState(false);
+  /** Рецептата от формата, която листът „Поправи с AI“ поправя и с която сравнява; взета при отваряне без поправка. */
+  const [snapshot, setSnapshot] = useState<{
+    base: RevisionBase;
+    target: RevisionTarget;
+  }>();
+  /** Поправката, която още чака или не е решена: затвореният и отворен пак лист продължава нея, със същата рецепта. */
+  const [revisionId, setRevisionId] = useState<string>();
+  /** Приетата поправка във формата: одобрението я маркира приета. */
+  const [acceptedRevision, setAcceptedRevision] = useState<string>();
+  const [replacement, setReplacement] = useState<AiReplacement>();
   const rejectAction = {
     label: 'Отхвърли',
     disabled: reject.isPending,
@@ -390,7 +413,11 @@ export function ReviewSuggestion({
               // „Без уред“ е `null`: без поле API-то би взело уреда на предложението.
               {
                 id: suggestion.id,
-                input: { ...input, appliance: input.appliance ?? null },
+                input: {
+                  ...input,
+                  appliance: input.appliance ?? null,
+                  ...(acceptedRevision ? { revisionId: acceptedRevision } : {}),
+                },
               },
               { onSuccess: ({ recipe }) => onApproved(recipe.id) },
             );
@@ -409,6 +436,60 @@ export function ReviewSuggestion({
           extraActions={[rejectAction]}
           onTitleChange={setTitle}
           onApplianceChange={setChosenAppliance}
+          aiReplacement={replacement}
+          aiActions={(values) => {
+            const revisable = toRevisableRecipe(values);
+            return (
+              <div className="recipe-form__ai">
+                <button
+                  type="button"
+                  className="button button--quiet recipe-form__refine"
+                  disabled={
+                    connection.disabled ||
+                    (!revisable && revisionId === undefined)
+                  }
+                  aria-describedby={connection.describedBy}
+                  onClick={() => {
+                    if (revisionId === undefined && revisable) {
+                      setSnapshot({
+                        base: revisionBaseOf(
+                          revisable.recipe,
+                          revisable.linked,
+                        ),
+                        target: {
+                          suggestionId: suggestion.id,
+                          recipe: revisable.recipe,
+                        },
+                      });
+                    }
+                    setRevising(true);
+                  }}
+                >
+                  ✏️ Поправи с AI
+                </button>
+                {connection.hint}
+              </div>
+            );
+          }}
+        />
+      )}
+      {revising && snapshot && (
+        <ReviseSheet
+          recipe={snapshot.base}
+          target={snapshot.target}
+          requestId={revisionId}
+          onRequested={setRevisionId}
+          onAccept={(accepted, revision) => {
+            setReplacement((current) => revisionReplacement(revision, current));
+            setAcceptedRevision(accepted);
+            setRevisionId(undefined);
+            setRevising(false);
+          }}
+          onRejected={() => {
+            setRevisionId(undefined);
+            setRevising(false);
+          }}
+          onClose={() => setRevising(false)}
         />
       )}
     </>

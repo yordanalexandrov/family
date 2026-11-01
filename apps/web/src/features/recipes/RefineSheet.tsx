@@ -33,22 +33,29 @@ function droppedText(count: number): string {
 }
 
 /**
- * Едната колона на сравнението: подготовката (ако я има в някоя от двете колони, иначе нищо) и стъпките. Без
- * подготовка в тази колона пише „Без подготовка“, за да личи, че „Приеми“ я маха или добавя.
+ * Едната колона на сравнението: каквото е преди подготовката (порциите и продуктите при поправка), подготовката (ако я
+ * има в някоя от двете колони, иначе нищо) и стъпките. Без подготовка в тази колона пише „Без подготовка“, за да личи,
+ * че „Приеми“ я маха или добавя. Използва го и „Поправи с AI“.
  */
-function ComparisonColumn({
+export function ComparisonColumn({
   name,
   steps,
   preparation,
+  stepsLabel = name,
+  children,
 }: {
   name: string;
   steps: readonly RecipeStep[];
   /** `undefined`: и двете колони са без подготовка. */
   preparation: Preparation | undefined;
+  /** Името на списъка със стъпките, ако не е `name`. */
+  stepsLabel?: string;
+  children?: ReactNode;
 }) {
   return (
     <section className="refine__column">
       <h3 className="refine__heading">{name}</h3>
+      {children}
       {preparation &&
         (preparation.length > 0 ? (
           <PreparationList
@@ -58,7 +65,7 @@ function ComparisonColumn({
         ) : (
           <p className="refine__note refine__no-preparation">Без подготовка</p>
         ))}
-      <ol className="refine__steps" aria-label={name}>
+      <ol className="refine__steps" aria-label={stepsLabel}>
         {steps.map((step, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id; редът е идентичността им.
           <li key={index} className="refine__step">

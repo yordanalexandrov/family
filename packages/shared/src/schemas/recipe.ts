@@ -82,6 +82,17 @@ export const recipeInputSchema = z.object({
 export type RecipeInput = z.infer<typeof recipeInputSchema>;
 
 /**
+ * `PUT /api/recipes/:id`: the recipe and, when the form holds an accepted revision (GLOSSARY: Поправка на рецепта),
+ * its id; the save marks it `accepted`. 409 `revision_stale` (`revisionStaleSchema`) when the recipe was saved after
+ * the revision was asked for: nothing is saved.
+ */
+export const replaceRecipeInputSchema = recipeInputSchema.extend({
+  revisionId: z.uuid().optional(),
+});
+
+export type ReplaceRecipeInput = z.infer<typeof replaceRecipeInputSchema>;
+
+/**
  * A stored ingredient line with its ingredient (name, base unit, aisle) joined in. It is a superset of
  * `RecipeIngredient`, so the lines of a fetched recipe can be sent back as input unchanged.
  */
@@ -103,6 +114,17 @@ export const putRatingSchema = z.object({ rating: ratingSchema });
 export type PutRating = z.infer<typeof putRatingSchema>;
 
 /**
+ * The open revision of a recipe (GLOSSARY: Поправка на рецепта, „Поправка чака преглед“): `pending`, or `done` with a
+ * revised recipe and no decision yet. A recipe has at most one.
+ */
+export const openRevisionSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(['pending', 'done']),
+});
+
+export type OpenRevision = z.infer<typeof openRevisionSchema>;
+
+/**
  * A recipe in the registry; archived ones keep `archivedAt` and are hidden by default. `rating` is `null` while the
  * recipe is unrated; it is not part of `RecipeInput`, so replacing a recipe keeps it.
  */
@@ -113,6 +135,7 @@ export const recipeSchema = recipeInputSchema.extend({
   rating: ratingSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  openRevision: openRevisionSchema.nullable(),
 });
 
 export type Recipe = z.infer<typeof recipeSchema>;
@@ -130,6 +153,7 @@ export const recipeSummarySchema = recipeSchema.pick({
   tags: true,
   archivedAt: true,
   rating: true,
+  openRevision: true,
 });
 
 export type RecipeSummary = z.infer<typeof recipeSummarySchema>;

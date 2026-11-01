@@ -12,10 +12,14 @@ import {
   prepTimeRangeSchema,
   type RecipeImportSource,
   type RecipeRefinement,
+  type RecipeRevision,
   type RecipeStep,
   type RecipeSuggestionStatus,
+  type RevisableRecipe,
+  type RevisionDecision,
   recipeImportSourceSchema,
   recipeSuggestionStatusSchema,
+  revisionDecisionSchema,
   type Slot,
   type SuggestionPayload,
   slotSchema,
@@ -249,6 +253,57 @@ export const recipeRefineRequest = pgTable(
     check(
       'recipe_refine_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+  ],
+);
+
+/**
+ * GLOSSARY: Поправка на рецепта. One run of `recipe.revise` for a recipe of the registry or a suggestion waiting for
+ * approval, exactly one of `recipe_id` and `suggestion_id`: the instruction, when the recipe was saved as it was sent
+ * (`base_updated_at`) or the review form's recipe the run reads (`base_recipe`, for a suggestion), the revised recipe
+ * once it is `done` or the agent's reason in `no_results`, and what the person decided. The kiosk has no acting user, so
+ * `requested_by` and `decided_by` may be `null`. The recipe changes only when the person saves it with the revision.
+ */
+export const recipeRevisionRequest = pgTable(
+  'recipe_revision_request',
+  {
+    ...contractRequestColumns(),
+    // The kiosk asks without an acting user.
+    requestedBy: uuid('requested_by').references(() => user.id),
+    recipeId: uuid('recipe_id').references(() => recipe.id, {
+      onDelete: 'cascade',
+    }),
+    suggestionId: uuid('suggestion_id').references(() => recipeSuggestion.id, {
+      onDelete: 'cascade',
+    }),
+    instruction: text('instruction').notNull(),
+    // The questions in Готвене whose cooking changes were applied in the last cooking, in their order.
+    appliedIds: uuid('applied_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    baseUpdatedAt: timestamp('base_updated_at', { withTimezone: true }),
+    baseRecipe: jsonb('base_recipe').$type<RevisableRecipe>(),
+    revision: jsonb('revision').$type<RecipeRevision>(),
+    noResults: text('no_results'),
+    decision: text('decision').$type<RevisionDecision>(),
+    decidedBy: uuid('decided_by').references(() => user.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('recipe_revision_request_recipe_idx').on(t.recipeId),
+    index('recipe_revision_request_suggestion_idx').on(t.suggestionId),
+    check(
+      'recipe_revision_request_target_check',
+      sql`num_nonnulls(${t.recipeId}, ${t.suggestionId}) = 1`,
+    ),
+    check(
+      'recipe_revision_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+    check(
+      'recipe_revision_request_decision_check',
+      oneOf(t.decision, revisionDecisionSchema.options),
     ),
   ],
 );

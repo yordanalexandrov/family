@@ -1,8 +1,18 @@
-import type { RecipeNormalizeInput } from '@family/shared';
+import type {
+  RecipeNormalizeInput,
+  RecipeReviseInput,
+  RecipeReviseOutput,
+} from '@family/shared';
 import normalizeInput from '@family/shared/fixtures/recipe-normalize.input.json' with {
   type: 'json',
 };
 import normalizeFixture from '@family/shared/fixtures/recipe-normalize.valid.json' with {
+  type: 'json',
+};
+import reviseInput from '@family/shared/fixtures/recipe-revise.input.json' with {
+  type: 'json',
+};
+import reviseFixture from '@family/shared/fixtures/recipe-revise.valid.json' with {
   type: 'json',
 };
 import fixture from '@family/shared/fixtures/recipe-suggest.valid.json' with {
@@ -22,6 +32,7 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   importAgent: 'family-import',
   refineAgent: 'family-refine',
   cookAgent: 'family-cook',
+  reviseAgent: 'family-revise',
   timeoutMs: 2_000,
   cookTimeoutMs: 2_000,
 };
@@ -46,6 +57,29 @@ export function normalizeAnswer(input: RecipeNormalizeInput) {
     noResults: string | null;
   };
   const names = new Map(normalizeInput.ingredients.map((i) => [i.id, i.name]));
+  const ids = new Map(input.ingredients.map((i) => [i.name, i.id]));
+  for (const line of answer.recipe?.ingredients ?? []) {
+    if (line.ingredientId !== null) {
+      const id = ids.get(names.get(line.ingredientId) ?? '');
+      if (!id) {
+        throw new Error(`no registry ingredient for ${line.ingredientId}`);
+      }
+      line.ingredientId = id;
+    }
+  }
+  return answer;
+}
+
+/**
+ * The recorded `recipe.revise` answer from `packages/shared` for `input`, its lines linked to the ids of the same names
+ * in `input.ingredients` (the seed products of the test database). Cloned, so a spec can change it.
+ */
+export function reviseAnswer(input: RecipeReviseInput): RecipeReviseOutput {
+  // As the agent writes it (`rack: null`), which the contract reads as `RecipeReviseOutput`.
+  const answer = structuredClone(
+    reviseFixture,
+  ) as unknown as RecipeReviseOutput;
+  const names = new Map(reviseInput.ingredients.map((i) => [i.id, i.name]));
   const ids = new Map(input.ingredients.map((i) => [i.name, i.id]));
   for (const line of answer.recipe?.ingredients ?? []) {
     if (line.ingredientId !== null) {

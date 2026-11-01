@@ -9,9 +9,9 @@ import {
   putRatingSchema,
   type Rating,
   type Recipe,
-  type RecipeInput,
   type RecipeSummary,
   type RecipesSort,
+  type ReplaceRecipeInput,
   recipeResponseSchema,
   recipesResponseSchema,
   type Tag,
@@ -100,7 +100,7 @@ export function useRecipe(id: string) {
 export function useSaveRecipe() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id?: string; input: RecipeInput }) =>
+    mutationFn: ({ id, input }: { id?: string; input: ReplaceRecipeInput }) =>
       apiFetch(id ? `/recipes/${id}` : '/recipes', recipeResponseSchema, {
         method: id ? 'PUT' : 'POST',
         headers: JSON_HEADERS,

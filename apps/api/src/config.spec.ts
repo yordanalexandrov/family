@@ -33,6 +33,7 @@ const defaults = {
     importAgent: 'family-import',
     refineAgent: 'family-refine',
     cookAgent: 'family-cook',
+    reviseAgent: 'family-revise',
     timeoutMs: 180_000,
     cookTimeoutMs: 120_000,
   },
@@ -92,6 +93,7 @@ describe('loadConfig', () => {
           OPENCLAW_IMPORT_AGENT: 'family-import-test',
           OPENCLAW_REFINE_AGENT: 'family-refine-test',
           OPENCLAW_COOK_AGENT: 'family-cook-test',
+          OPENCLAW_REVISE_AGENT: 'family-revise-test',
           OPENCLAW_TIMEOUT_MS: '60000',
         }),
       ).toMatchObject({
@@ -104,6 +106,7 @@ describe('loadConfig', () => {
           importAgent: 'family-import-test',
           refineAgent: 'family-refine-test',
           cookAgent: 'family-cook-test',
+          reviseAgent: 'family-revise-test',
           timeoutMs: 60_000,
           cookTimeoutMs: 60_000,
         },

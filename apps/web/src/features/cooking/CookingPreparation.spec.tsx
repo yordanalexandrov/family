@@ -151,6 +151,7 @@ describe('Подготовка в Готвене', () => {
     await user.click(within(row).getByRole('button', { name: BUTTER }));
     await user.click(screen.getByRole('button', { name: 'Напред' }));
     await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
     first.unmount();
 
     renderApp(`/recipes/${roast.id}/cook`);

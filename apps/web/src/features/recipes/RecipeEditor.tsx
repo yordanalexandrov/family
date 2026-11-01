@@ -1,28 +1,53 @@
 import type { RecipeInput } from '@family/shared';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearch,
+} from '@tanstack/react-router';
 import { useState } from 'react';
+import { refusalOf } from '../../api/client';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Spinner } from '../../components/Spinner';
 import { useOnline } from '../../lib/use-online';
 import { useRecipe, useSaveRecipe } from './queries';
-import { RecipeForm, type StepsReplacement } from './RecipeForm';
+import { type AiReplacement, RecipeForm } from './RecipeForm';
 import { RefineSheet } from './RefineSheet';
+import { ReviseSheet } from './ReviseSheet';
 import { recipeToFormValues } from './recipe-form-values';
+import { revisionReplacement, useRefreshRevision } from './revisions';
 import './recipes.css';
 
-/** Запис и после към прегледа на рецептата. */
-function useSaveAndView(id?: string) {
+/**
+ * Запис и после към прегледа на рецептата; с `revisionId` — с приетата поправка, а ако рецептата е записана след нея
+ * (`409 revision_stale`), нищо не се записва и `onStale` получава поправката.
+ */
+function useSaveAndView(
+  id?: string,
+  revisionId?: string,
+  onStale?: (revisionId: string) => void,
+) {
   const save = useSaveRecipe();
   const navigate = useNavigate();
   return {
     save,
     submit(input: RecipeInput) {
       save.mutate(
-        { ...(id ? { id } : {}), input },
+        {
+          ...(id ? { id } : {}),
+          input: revisionId ? { ...input, revisionId } : input,
+        },
         {
           onSuccess(recipe) {
             void navigate({ to: '/recipes/$id', params: { id: recipe.id } });
+          },
+          onError(error) {
+            if (revisionId && onStale && refusalOf(error, 'revision_stale')) {
+              // Листът казва защо; грешката под формата би го повторила.
+              save.reset();
+              onStale(revisionId);
+            }
           },
         },
       );
@@ -51,15 +76,44 @@ export function NewRecipeScreen() {
   );
 }
 
+export interface EditRecipeSearch {
+  /** „Поправка чака преглед“: редакцията се отваря с листа на поправката. */
+  revise?: true;
+}
+
+export function parseEditRecipeSearch(
+  search: Record<string, unknown>,
+): EditRecipeSearch {
+  return search.revise === true || search.revise === 'true'
+    ? { revise: true }
+    : {};
+}
+
 export function EditRecipeScreen() {
   const { id } = useParams({ from: '/recipes/$id/edit' });
+  const { revise } = useSearch({ from: '/recipes/$id/edit' });
   const recipe = useRecipe(id);
-  const { save, submit } = useSaveAndView(id);
+  /** Приетата поправка във формата: записът я маркира приета. */
+  const [acceptedRevision, setAcceptedRevision] = useState<string>();
+  const [revising, setRevising] = useState(revise === true);
+  /**
+   * Поправката, която листът пусна или към която го води „Поправка чака преглед“; `null` — решена тук. Без нея листът
+   * продължава отворената поправка на рецептата, ако има такава, иначе иска указание.
+   */
+  const [revisionId, setRevisionId] = useState<string | null>();
+  const refreshRevision = useRefreshRevision();
+  // Рецептата е записана след приетата поправка: листът я показва `stale`, без „Приеми“. Приета остава, докато листът
+  // не я отхвърли или пусне наново, така че нов запис пак не затрива по-новия.
+  const { save, submit } = useSaveAndView(id, acceptedRevision, (stale) => {
+    refreshRevision(stale);
+    setRevisionId(stale);
+    setRevising(true);
+  });
   const navigate = useNavigate();
   const [refining, setRefining] = useState(false);
   /** Подобряването, което още чака: затвореният и отворен пак лист продължава него. */
   const [refineId, setRefineId] = useState<string>();
-  const [replacement, setReplacement] = useState<StepsReplacement>();
+  const [replacement, setReplacement] = useState<AiReplacement>();
   const connection = useNeedsConnection(useOnline(), 'recipe-form__hint');
   return (
     <main className="screen recipes">
@@ -85,9 +139,9 @@ export function EditRecipeScreen() {
           isSubmitting={save.isPending}
           submitError={save.error}
           onCancel={() => void navigate({ to: '/recipes/$id', params: { id } })}
-          replaceSteps={replacement}
-          stepsAction={
-            <>
+          aiReplacement={replacement}
+          aiActions={
+            <div className="recipe-form__ai">
               <button
                 type="button"
                 className="button button--quiet recipe-form__refine"
@@ -97,8 +151,17 @@ export function EditRecipeScreen() {
               >
                 ✨ Подобри рецептата
               </button>
+              <button
+                type="button"
+                className="button button--quiet recipe-form__refine"
+                disabled={connection.disabled}
+                aria-describedby={connection.describedBy}
+                onClick={() => setRevising(true)}
+              >
+                ✏️ Поправи с AI
+              </button>
               {connection.hint}
-            </>
+            </div>
           }
         />
       )}
@@ -125,6 +188,33 @@ export function EditRecipeScreen() {
             }
             setRefining(false);
           }}
+        />
+      )}
+      {revising && recipe.data && (
+        <ReviseSheet
+          recipe={recipe.data}
+          target={{ recipeId: id }}
+          requestId={
+            revisionId === undefined
+              ? recipe.data.openRevision?.id
+              : (revisionId ?? undefined)
+          }
+          onRequested={(requested) => {
+            setAcceptedRevision(undefined);
+            setRevisionId(requested);
+          }}
+          onAccept={(accepted, revision) => {
+            setReplacement((current) => revisionReplacement(revision, current));
+            setAcceptedRevision(accepted);
+            setRevisionId(null);
+            setRevising(false);
+          }}
+          onRejected={() => {
+            setAcceptedRevision(undefined);
+            setRevisionId(null);
+            setRevising(false);
+          }}
+          onClose={() => setRevising(false)}
         />
       )}
     </main>

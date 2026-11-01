@@ -60,23 +60,34 @@ export interface RecipeFormProps {
   onTitleChange?: (title: string) => void;
   /** Изборът в „Уред“ се смени (`''` = „Без уред“), напр. за значката над формата при преглед. */
   onApplianceChange?: (appliance: string) => void;
-  /** Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията. */
-  stepsAction?: ReactNode;
   /**
-   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и подготовката и попълва времето, ако го
-   * има, веднъж за всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
+   * AI действията под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ и „✏️ Поправи с AI“ в редакцията; като функция
+   * получава полетата, както са сега (напр. „✏️ Поправи с AI“ при преглед праща незаписаната форма).
    */
-  replaceSteps?: StepsReplacement | undefined;
+  aiActions?: ReactNode | ((values: RecipeFormValues) => ReactNode);
+  /**
+   * Прието подобрение (GLOSSARY: Подобряване на рецепта) или поправка (GLOSSARY: Поправка на рецепта): заменя стъпките и
+   * подготовката, попълва времето, ако го има, а поправката — и порциите и продуктите, веднъж за всеки нов `key`;
+   * другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
+   */
+  aiReplacement?: AiReplacement | undefined;
 }
 
-/** Стъпките, подготовката (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
-export interface StepsReplacement {
+/**
+ * Каквото прието подобрение или поправка слага във формата наведнъж: стъпките и подготовката, и времето, порциите и
+ * продуктите, ако ги има.
+ */
+export interface AiReplacement {
   /** Нов номер = ново подобрение за прилагане. */
   key: number;
   steps: RecipeStep[];
   /** Цялата подготовка: заменя сегашната, и `[]` я маха; `undefined` (подобрение отпреди подготовката) не я пипа. */
   preparation?: Preparation | undefined;
   prepMinutes?: number | undefined;
+  /** Порциите от поправка; `undefined` не ги пипа. */
+  servings?: number | undefined;
+  /** Всички продукти от поправка (новите неразрешени, за свързване); `undefined` не ги пипа. */
+  ingredients?: IngredientRowValues[] | undefined;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -191,24 +202,30 @@ export function RecipeForm({
   primaryAction,
   onTitleChange,
   onApplianceChange,
-  stepsAction,
-  replaceSteps,
+  aiActions,
+  aiReplacement,
 }: RecipeFormProps) {
   const [values, setValues] = useState<RecipeFormValues>(
     () => initialValues ?? emptyRecipeFormValues(),
   );
-  const [replacedKey, setReplacedKey] = useState(replaceSteps?.key);
-  if (replaceSteps && replaceSteps.key !== replacedKey) {
-    setReplacedKey(replaceSteps.key);
+  const [replacedKey, setReplacedKey] = useState(aiReplacement?.key);
+  if (aiReplacement && aiReplacement.key !== replacedKey) {
+    setReplacedKey(aiReplacement.key);
     setValues((current) => ({
       ...current,
-      steps: replaceSteps.steps.map((step) => ({ ...step })),
-      ...(replaceSteps.preparation === undefined
+      steps: aiReplacement.steps.map((step) => ({ ...step })),
+      ...(aiReplacement.preparation === undefined
         ? {}
-        : { preparation: preparationToValues(replaceSteps.preparation) }),
-      ...(replaceSteps.prepMinutes === undefined
+        : { preparation: preparationToValues(aiReplacement.preparation) }),
+      ...(aiReplacement.prepMinutes === undefined
         ? {}
-        : { prepMinutes: String(replaceSteps.prepMinutes) }),
+        : { prepMinutes: String(aiReplacement.prepMinutes) }),
+      ...(aiReplacement.servings === undefined
+        ? {}
+        : { servings: String(aiReplacement.servings) }),
+      ...(aiReplacement.ingredients === undefined
+        ? {}
+        : { ingredients: aiReplacement.ingredients }),
     }));
   }
   /**
@@ -590,7 +607,7 @@ export function RecipeForm({
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Стъпки</legend>
-          {stepsAction}
+          {typeof aiActions === 'function' ? aiActions(values) : aiActions}
           {errors.steps && <p className="field__error">{errors.steps}</p>}
           <ol className="step-lines" aria-label="Стъпки">
             {values.steps.map((step, index) => {

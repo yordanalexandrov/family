@@ -162,6 +162,7 @@ export function serveDinnerRecipes() {
             tags: ['dinner'],
             archivedAt: null,
             rating: null,
+            openRevision: null,
           })),
       });
     }),

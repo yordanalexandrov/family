@@ -4,6 +4,7 @@ import {
   menuPropose,
   recipeNormalize,
   recipeRefine,
+  recipeRevise,
   recipeSuggest,
 } from '@family/shared';
 import Fastify, {
@@ -40,6 +41,7 @@ import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
 import { recipeImportsRoutes } from './routes/recipe-imports.js';
 import { recipeRefinementsRoutes } from './routes/recipe-refinements.js';
+import { recipeRevisionsRoutes } from './routes/recipe-revisions.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { shoppingRoutes } from './routes/shopping.js';
@@ -83,6 +85,10 @@ import {
   type RecipeRefinements,
 } from './services/recipe-refinements.js';
 import {
+  createRecipeRevisionStore,
+  type RecipeRevisions,
+} from './services/recipe-revisions.js';
+import {
   createRecipeSuggestionsService,
   type RecipeSuggestionsService,
   suggestionRequestStore,
@@ -108,6 +114,8 @@ declare module 'fastify' {
     recipeImports: RecipeImportsService;
     /** „Подобри рецептата“ for a recipe (`recipe.refine`). */
     recipeRefinements: RecipeRefinements;
+    /** „✏️ Поправи с AI“ for a recipe (`recipe.revise`). */
+    recipeRevisions: RecipeRevisions;
     /** „Питай“ in Готвене (`cooking.ask`). */
     cookingQuestions: CookingQuestions;
     /** The weekly menu and its proposals (`menu.propose`). */
@@ -257,6 +265,7 @@ export function buildApp({
     importAgent: '',
     refineAgent: '',
     cookAgent: '',
+    reviseAgent: '',
     cookTimeoutMs: 0,
   };
   app.decorate(
@@ -314,6 +323,14 @@ export function buildApp({
     ),
   );
   app.decorate(
+    'recipeRevisions',
+    contractRequests.register(
+      recipeRevise,
+      createRecipeRevisionStore(),
+      agents.reviseAgent,
+    ),
+  );
+  app.decorate(
     'cookingQuestions',
     contractRequests.register(
       cookingAsk,
@@ -347,6 +364,7 @@ export function buildApp({
   app.register(recipeSuggestionsRoutes);
   app.register(recipeImportsRoutes);
   app.register(recipeRefinementsRoutes);
+  app.register(recipeRevisionsRoutes);
   app.register(cookingQuestionsRoutes);
   app.register(stepPhotosRoutes);
   app.register(menuRoutes);

@@ -106,7 +106,7 @@ const normalizeSourceSchema = z.discriminatedUnion('kind', [
 export type RecipeNormalizeSource = z.infer<typeof normalizeSourceSchema>;
 
 /** A registry ingredient as the agent sees it, to link lines to. */
-const registryIngredientSchema = z.object({
+export const registryIngredientSchema = z.object({
   id: z.string(),
   name: z.string(),
   unit: baseUnitSchema,
@@ -121,7 +121,7 @@ const recipeNormalizeInputSchema = z.object({
 export type RecipeNormalizeInput = z.infer<typeof recipeNormalizeInputSchema>;
 
 /** A product the registry lacks, as the agent proposes it; only the person creates it, on approval. */
-const newProductSchema = z.object({
+export const newProductSchema = z.object({
   /** Canonical: generic, in Bulgarian, singular, without brand. */
   name: z.string().trim().min(1),
   unit: baseUnitSchema,
@@ -130,7 +130,7 @@ const newProductSchema = z.object({
 
 export type NewProduct = z.infer<typeof newProductSchema>;
 
-const normalizedIngredientFields = {
+export const normalizedIngredientFields = {
   /** A registry ingredient of the input; `null` when the line proposes `newProduct` instead. */
   ingredientId: z.string().nullable(),
   newProduct: newProductSchema.nullable(),
@@ -154,7 +154,7 @@ function checkOneProduct(
   }
 }
 
-const normalizedIngredientSchema = z
+export const normalizedIngredientSchema = z
   .object(normalizedIngredientFields)
   .superRefine(checkPinchQuantity)
   .superRefine(checkOneProduct);

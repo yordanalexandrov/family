@@ -207,6 +207,7 @@ describe('Готвене', () => {
     await user.click(await screen.findByRole('link', { name: 'Готви' }));
     await user.click(await screen.findByRole('button', { name: 'Стъпка 3' }));
     await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Пиле с ориз' }),
@@ -222,6 +223,7 @@ describe('Готвене', () => {
     const { router } = renderApp(`/recipes/${stew.id}/cook`);
     await user.click(await screen.findByRole('button', { name: 'Стъпка 3' }));
     await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
 
     expect(
       await screen.findByRole('heading', { name: 'Пиле с ориз' }),
@@ -492,6 +494,7 @@ describe('Готвене', () => {
       screen.getByRole('button', { name: 'Използвани (1)' }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
     again.unmount();
 
     renderApp(`/recipes/${stew.id}/cook`);

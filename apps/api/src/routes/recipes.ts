@@ -4,6 +4,7 @@ import {
   recipeResponseSchema,
   recipesQuerySchema,
   recipesResponseSchema,
+  replaceRecipeInputSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import {
@@ -67,12 +68,17 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         params: idParamsSchema,
-        body: recipeInputSchema,
+        body: replaceRecipeInputSchema,
         response: { 200: recipeResponseSchema },
       },
     },
     async (request) => ({
-      recipe: await replaceRecipe(app.db, request.params.id, request.body),
+      recipe: await replaceRecipe(
+        app.db,
+        request.params.id,
+        request.body,
+        request.actor.id,
+      ),
     }),
   );
 
@@ -94,10 +100,12 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
     );
   }
 
-  // GLOSSARY: Оценка. Not a change to the menu, so no `menu.changed`.
+  // GLOSSARY: Оценка. Not a change to the menu, so no `menu.changed`. Anyone may change it, also the kiosk without an
+  // acting user („Как мина?“ at „Готово“ in Готвене).
   app.put(
     '/api/recipes/:id/rating',
     {
+      config: { actingUser: 'optional' },
       schema: {
         params: idParamsSchema,
         body: putRatingSchema,
@@ -112,6 +120,7 @@ export const recipesRoutes: FastifyPluginAsyncZod = async (app) => {
   app.delete(
     '/api/recipes/:id/rating',
     {
+      config: { actingUser: 'optional' },
       schema: {
         params: idParamsSchema,
         response: { 200: recipeResponseSchema },

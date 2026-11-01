@@ -7,6 +7,7 @@ import { BackLink } from '../../components/BackLink';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatMinutes } from './format';
+import { OpenRevisionBadge } from './OpenRevisionBadge';
 import { useRecipes } from './queries';
 import {
   clearedFilters,
@@ -159,6 +160,13 @@ export function RecipeList() {
                       )}
                       {recipe.archivedAt && (
                         <span className="badge">архивирана</span>
+                      )}
+                      {recipe.openRevision && (
+                        // Картата е връзка: значката в нея не води другаде.
+                        <OpenRevisionBadge
+                          recipeId={recipe.id}
+                          canEdit={false}
+                        />
                       )}
                     </span>
                     {recipe.tags.length > 0 && (

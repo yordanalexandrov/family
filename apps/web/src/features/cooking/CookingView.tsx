@@ -2,7 +2,9 @@ import type { Recipe } from '@family/shared';
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { SHEET_WINDOW_QUERY } from '../../components/sheet-drag';
+import { afterSheetClosed } from '../../components/sheet-history';
 import { useMediaQuery } from '../../lib/use-media-query';
+import { CookingFeedbackSheet } from '../recipes/CookingFeedbackSheet';
 import { AskButton } from './AskButton';
 import { type CookingProducts, productsLabel } from './CookingChecklist';
 import {
@@ -12,7 +14,11 @@ import {
 import { CookingPreparation } from './CookingPreparation';
 import { CookingQuestionSheet } from './CookingQuestionSheet';
 import { CookingSteps } from './CookingSteps';
-import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
+import {
+  rememberLastCooking,
+  useCookingProgress,
+  useIngredientsOpen,
+} from './cooking-memory';
 import { ListenButton } from './ListeningControls';
 import { ReadStepButton, ReadStepsToggle } from './ReadAloudControls';
 import { findStepLines } from './step-ingredients';
@@ -67,6 +73,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const questions = useCookingQuestions(recipe.id);
   useReadNewAnswers(
     questions.results.map((result) => result.data),
@@ -91,7 +98,10 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       step={step}
       onStepChange={setStep}
       onClose={() => onExit()}
-      onDone={() => onExit(finish)}
+      onDone={() => {
+        rememberLastCooking(recipe.id, changes.applied);
+        setFeedbackOpen(true);
+      }}
       ask={<AskButton open={askOpen} onOpen={() => setAskOpen(true)} />}
       readStep={<ReadStepButton reading={reading} />}
       listen={<ListenButton listening={listening} />}
@@ -122,12 +132,24 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
             question,
             step,
             servings: shownServings,
-            applied: changes.appliedIds,
+            applied: changes.applied,
           },
           replaces,
         )
       }
       onClose={() => setAskOpen(false)}
+    />
+  );
+
+  // „Готово“ отваря „Как мина?“; „Пропусни“ и пуснатата поправка излизат, а затвореният лист оставя в Готвене.
+  const feedbackSheet = feedbackOpen && (
+    <CookingFeedbackSheet
+      recipe={recipe}
+      onDone={() => {
+        setFeedbackOpen(false);
+        afterSheetClosed(() => onExit(finish));
+      }}
+      onClose={() => setFeedbackOpen(false)}
     />
   );
 
@@ -152,6 +174,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
           </Sheet>
         )}
         {questionSheet}
+        {feedbackSheet}
       </main>
     );
   }
@@ -168,6 +191,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       />
       {steps}
       {questionSheet}
+      {feedbackSheet}
     </main>
   );
 }
