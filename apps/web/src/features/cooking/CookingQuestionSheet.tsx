@@ -1,7 +1,10 @@
 import {
   COOKING_QUESTION_MAX,
+  type CookingChange,
+  type CookingLine,
   type CookingQuestion,
   type Recipe,
+  scaleQuantity,
 } from '@family/shared';
 import { useQueries } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
@@ -11,9 +14,11 @@ import { useNeedsConnection } from '../../components/NeedsConnection';
 import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage } from '../../lib/ai-requests';
+import { formatQuantity } from '../../lib/format';
 import { useOnline } from '../../lib/use-online';
 import { StepText } from '../timers/StepText';
 import { cookingQuestionQuery, isLostQuestion } from './questions';
+import type { CookingChanges } from './use-cooking-changes';
 import type { CookingQuestions } from './use-cooking-questions';
 
 /** От толкова знака нагоре под полето личи колко остават. */
@@ -23,6 +28,10 @@ interface CookingQuestionSheetProps {
   /** Рецептата, която се готви: надписът на таймер, пуснат от време в отговора. */
   recipe: Pick<Recipe, 'id' | 'title'>;
   questions: CookingQuestions;
+  /** Приложените промени за готвенето: „Промени“ и „Върни“ под отговор с промяна. */
+  changes: CookingChanges;
+  /** Порциите на екрана: количествата на промяната се показват за тях. */
+  servings: number;
   /** Пуска въпрос за стъпката и порциите на екрана; с `replaces` — на мястото на неуспешен („Опитай пак“). */
   onAsk: (question: string, replaces?: string) => void;
   onClose: () => void;
@@ -56,6 +65,81 @@ function Failed({
   );
 }
 
+/** Един запис на промяната, както се чете: „вместо домат: консерва pulp 200 г“, „без сол“, „добави захар 1 ч.л.“. */
+function changeText(
+  entry: CookingChange['ingredients'][number],
+  lines: readonly CookingLine[],
+  from: number,
+  to: number,
+): string {
+  if (entry.kind === 'remove') {
+    return `без ${lines[entry.index]?.name ?? `ред ${entry.index + 1}`}`;
+  }
+  const product = [
+    entry.ingredient.name,
+    formatQuantity(scaleQuantity(entry.ingredient, from, to)),
+  ]
+    .filter((part) => part !== '')
+    .join(' ');
+  if (entry.kind === 'add') {
+    return `добави ${product}`;
+  }
+  return `вместо ${lines[entry.index]?.name ?? `ред ${entry.index + 1}`}: ${product}`;
+}
+
+/**
+ * Промяната за готвенето под отговора: какво сменя (за порциите на екрана) и „Промени“; приложената — „Приложено“ и
+ * „Върни“.
+ */
+function ChangeBlock({
+  question,
+  change,
+  changes,
+  servings,
+}: {
+  question: CookingQuestion;
+  change: CookingChange;
+  changes: CookingChanges;
+  servings: number;
+}) {
+  const applied = changes.isApplied(question.id);
+  const lines = changes.linesBefore(question.id);
+  return (
+    <div className="cooking-question__change">
+      <ul className="cooking-question__change-list" aria-label="Промяна">
+        {change.ingredients.map((entry, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: записите на промяната не се местят
+          <li key={index}>
+            {changeText(entry, lines, question.servings, servings)}
+          </li>
+        ))}
+      </ul>
+      <div className="cooking-question__change-actions">
+        {applied ? (
+          <>
+            <p className="cooking-question__applied">Приложено</p>
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={() => changes.revert(question.id)}
+            >
+              Върни
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="button"
+            onClick={() => changes.apply({ ...question, change })}
+          >
+            Промени
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Един зададен въпрос: текстът му и отговорът, „Мисли…“ или неуспехът с „Опитай пак“. Изгубен въпрос (api вече не го
  * знае) е неуспех като другите; текстът му е от паметта на устройството.
@@ -67,8 +151,12 @@ function QuestionItem({
   error,
   onRetry,
   retrying,
+  changes,
+  servings,
 }: {
   recipe: Pick<Recipe, 'id' | 'title'>;
+  changes: CookingChanges;
+  servings: number;
   /** Текстът на въпроса, както е запомнен на устройството. */
   asked: string;
   question: CookingQuestion | undefined;
@@ -103,17 +191,27 @@ function QuestionItem({
       ) : question.status === 'failed' ? (
         <Failed message={failureMessage('ask', question)} onRetry={onRetry} />
       ) : (
-        <p className="cooking-question__answer">
-          <StepText
-            text={question.answer ?? ''}
-            source={{
-              recipeId: recipe.id,
-              recipeTitle: recipe.title,
-              step: question.step,
-              question: true,
-            }}
-          />
-        </p>
+        <>
+          <p className="cooking-question__answer">
+            <StepText
+              text={question.answer ?? ''}
+              source={{
+                recipeId: recipe.id,
+                recipeTitle: recipe.title,
+                step: question.step,
+                question: true,
+              }}
+            />
+          </p>
+          {question.change && (
+            <ChangeBlock
+              question={question}
+              change={question.change}
+              changes={changes}
+              servings={servings}
+            />
+          )}
+        </>
       )}
     </>
   );
@@ -123,11 +221,13 @@ function QuestionItem({
  * Листът „Въпрос“ в Готвене (GLOSSARY: Въпрос в Готвене): зададените въпроси с отговорите им и поле за нов. Докато
  * отговорът чака, пише „Мисли…“, а листът може да се затвори: чакането продължава в `CookingView` и отговорът се вижда
  * при следващото отваряне. Новият въпрос продължава последния (`follows`), затова полето е изключено, докато предишният
- * чака отговор.
+ * чака отговор. Отговор с промяна за готвенето има „Промени“, а приложената — „Приложено“ и „Върни“.
  */
 export function CookingQuestionSheet({
   recipe,
   questions,
+  changes,
+  servings,
   onAsk,
   onClose,
 }: CookingQuestionSheetProps) {
@@ -171,6 +271,8 @@ export function CookingQuestionSheet({
                   question={results[index]?.data}
                   error={results[index]?.error}
                   retrying={id === replacing}
+                  changes={changes}
+                  servings={servings}
                   onRetry={() => onAsk(question, id)}
                 />
               </li>

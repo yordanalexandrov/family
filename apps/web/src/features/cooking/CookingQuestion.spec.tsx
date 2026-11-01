@@ -1,4 +1,4 @@
-import type { CookingQuestion, Recipe } from '@family/shared';
+import type { CookingChange, CookingQuestion, Recipe } from '@family/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -25,7 +25,13 @@ const ANSWER =
 let nextId = 1;
 
 interface Posted {
-  body: { question: string; step: number; servings: number; follows?: string };
+  body: {
+    question: string;
+    step: number;
+    servings: number;
+    follows?: string;
+    applied?: string[];
+  };
   actingUser: string | null;
   /** The id the api gave the question. */
   id: string;
@@ -105,9 +111,12 @@ async function openCooking(mode: 'kiosk' | 'phone' | 'browser' = 'phone') {
 }
 
 /** Closes the app (a reload, the kiosk going back to the dashboard) and opens Готвене again. */
-async function reopenCooking(rendered: { unmount: () => void }) {
+async function reopenCooking(
+  rendered: { unmount: () => void },
+  mode: Parameters<typeof openCooking>[0] = 'phone',
+) {
   rendered.unmount();
-  return openCooking();
+  return openCooking(mode);
 }
 
 /** Opens the sheet „Въпрос“ without asking. */
@@ -530,6 +539,176 @@ describe('Въпрос в Готвене', () => {
       expect(await asked(user)).toEqual([]);
       await findAnswer(await askInSheet(user), ANSWER);
     });
+  });
+});
+
+describe('„Промени“ (промяна за готвенето)', () => {
+  /** Asked for 5: лук → консерва pulp, без сол, захар отгоре. */
+  const PULP: CookingChange = {
+    ingredients: [
+      {
+        kind: 'replace',
+        index: 1,
+        ingredient: { name: 'консерва pulp', quantity: 250, unit: 'g' },
+      },
+      { kind: 'remove', index: 2 },
+      {
+        kind: 'add',
+        ingredient: { name: 'захар', quantity: 1, unit: 'tsp' },
+      },
+    ],
+  };
+  const WITH_PULP = { status: 'done', answer: ANSWER, change: PULP } as const;
+
+  /** The product lines in the column, as their text reads. */
+  function products(): string[] {
+    return within(screen.getByRole('list', { name: 'Продукти' }))
+      .getAllByRole('listitem')
+      .map((item) => item.textContent ?? '');
+  }
+
+  async function applyIn(
+    user: ReturnType<typeof userEvent.setup>,
+    sheet: HTMLElement,
+  ) {
+    await findAnswer(sheet, ANSWER);
+    await user.click(within(sheet).getByRole('button', { name: 'Промени' }));
+  }
+
+  it('„Промени“ сменя реда, задрасква махнатия и добавя новия накрая, всеки със знак', async () => {
+    const user = userEvent.setup();
+    serveQuestions([WITH_PULP]);
+    await openCooking('browser');
+    const sheet = await askInSheet(user);
+    await findAnswer(sheet, ANSWER);
+    expect(
+      within(within(sheet).getByRole('list', { name: 'Промяна' }))
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
+      'вместо лук: консерва pulp 250 г',
+      'без сол',
+      'добави захар 1 ч.л.',
+    ]);
+
+    await applyIn(user, sheet);
+
+    expect(within(sheet).getByText('Приложено')).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('button', { name: 'Промени' }),
+    ).not.toBeInTheDocument();
+    expect(products()).toEqual([
+      'пилешко филе625 г',
+      'консерва pulpпроменено250 г',
+      'солне се ползвапо вкус',
+      'захарпроменено1 ч.л.',
+    ]);
+    expect(
+      screen.getByRole('checkbox', { name: 'сол по вкус' }),
+    ).toBeDisabled();
+  });
+
+  it('замененият ред губи отметката си, а „Върни“ връща рецептата', async () => {
+    const user = userEvent.setup();
+    serveQuestions([WITH_PULP]);
+    await openCooking('browser');
+    await user.click(screen.getByRole('checkbox', { name: 'лук 2,5 бр.' }));
+    await user.click(
+      screen.getByRole('checkbox', { name: 'пилешко филе 625 г' }),
+    );
+    const sheet = await askInSheet(user);
+
+    await applyIn(user, sheet);
+
+    expect(
+      screen.getByRole('checkbox', { name: 'консерва pulp 250 г' }),
+    ).not.toBeChecked();
+    // Пилешкото не е пипнато: остава в „Използвани“.
+    expect(
+      screen.getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Върни' }));
+
+    expect(
+      within(sheet).getByRole('button', { name: 'Промени' }),
+    ).toBeEnabled();
+    expect(products()).toEqual(['лук2,5 бр.', 'солпо вкус']);
+    expect(
+      screen.getByRole('button', { name: 'Използвани (1)' }),
+    ).toBeInTheDocument();
+  });
+
+  it('количествата на промяната са за порциите при въпроса и се мащабират при смяна на порциите', async () => {
+    const user = userEvent.setup();
+    serveQuestions([WITH_PULP]);
+    await openCooking('browser');
+    const sheet = await askInSheet(user);
+    await applyIn(user, sheet);
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    await user.click(
+      screen.getByRole('button', { name: 'Една порция повече' }),
+    );
+
+    expect(products()).toEqual([
+      'пилешко филе750 г',
+      'консерва pulpпроменено300 г',
+      'солне се ползвапо вкус',
+      'захарпроменено1,2 ч.л.',
+    ]);
+  });
+
+  it('следващият въпрос праща приложените промени (`applied`), по реда на прилагане', async () => {
+    const user = userEvent.setup();
+    const posted = serveQuestions([
+      WITH_PULP,
+      { status: 'done', answer: '10 минути.' },
+    ]);
+    await openCooking('browser');
+    const sheet = await askInSheet(user);
+    await applyIn(user, sheet);
+
+    await askMore(user, sheet, 'а колко дълго?');
+    await findAnswer(sheet, '10 минути.');
+
+    expect(posted[0]?.body.applied).toBeUndefined();
+    expect(posted[1]?.body).toMatchObject({
+      follows: posted[0]?.id,
+      applied: [posted[0]?.id],
+    });
+  });
+
+  it('приложената промяна оцелява презареждане, с „Върни“ в листа', async () => {
+    const user = userEvent.setup();
+    serveQuestions([WITH_PULP]);
+    const first = await openCooking('browser');
+    await applyIn(user, await askInSheet(user));
+
+    await reopenCooking(first, 'browser');
+
+    expect(products()).toContain('консерва pulpпроменено250 г');
+    const sheet = await openSheet(user);
+    await findAnswer(sheet, ANSWER);
+    expect(within(sheet).getByText('Приложено')).toBeInTheDocument();
+    await user.click(within(sheet).getByRole('button', { name: 'Върни' }));
+    expect(products()).toEqual([
+      'пилешко филе625 г',
+      'лук2,5 бр.',
+      'солпо вкус',
+    ]);
+  });
+
+  it('отговор без промяна няма „Промени“', async () => {
+    const user = userEvent.setup();
+    serveQuestions([{ status: 'done', answer: ANSWER }]);
+    await openCooking('browser');
+    const sheet = await askInSheet(user);
+    await findAnswer(sheet, ANSWER);
+
+    expect(
+      within(sheet).queryByRole('button', { name: 'Промени' }),
+    ).not.toBeInTheDocument();
   });
 });
 

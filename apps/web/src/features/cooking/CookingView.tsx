@@ -13,6 +13,7 @@ import { CookingPreparation } from './CookingPreparation';
 import { CookingQuestionSheet } from './CookingQuestionSheet';
 import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
+import { useCookingChanges } from './use-cooking-changes';
 import { useCookingQuestions } from './use-cooking-questions';
 import './cooking.css';
 
@@ -31,23 +32,31 @@ interface CookingViewProps {
  * Готвене (GLOSSARY). На широк екран колоната „Продукти“ е вляво, една стъпка вдясно; на тесен (телефон изправен)
  * стъпката е на целия екран, а продуктите са в лист отдолу зад бутона „Продукти (N)“. Границата е тази на листа:
  * от нея нагоре той е прозорец, не лист отдолу. Нищо не стига до сървъра: порциите и дали листът е отворен живеят
- * само на екрана, стъпката, отметките и въпросите се помнят на устройството до края на деня или до „Готово“, а дали колоната е отворена — на
+ * само на екрана, стъпката, отметките, въпросите и приложените промени за готвенето се помнят на устройството до края на деня или до „Готово“, а дали колоната е отворена — на
  * устройството. „Питай“ отваря листа „Въпрос“ (GLOSSARY: Въпрос в Готвене); чакащият отговор живее тук, над листа.
  */
 export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
     servings ?? recipe.servings,
   );
-  const { step, setStep, used, toggleUsed, prepared, togglePrepared, finish } =
-    useCookingProgress(recipe);
+  const {
+    step,
+    setStep,
+    used,
+    toggleUsed,
+    forgetUsed,
+    prepared,
+    togglePrepared,
+    finish,
+  } = useCookingProgress(recipe);
+  const changes = useCookingChanges(recipe, forgetUsed);
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const questions = useCookingQuestions(recipe.id);
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
   const products: CookingProducts = {
-    ingredients: recipe.ingredients,
-    recipeServings: recipe.servings,
+    lines: changes.lines,
     servings: shownServings,
     onServingsChange: setShownServings,
     used,
@@ -72,13 +81,23 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     />
   );
 
-  // Въпросът е за стъпката и порциите в момента на питането, и „Опитай пак“ също.
+  // Въпросът е за стъпката, порциите и приложените промени в момента на питането, и „Опитай пак“ също.
   const questionSheet = askOpen && (
     <CookingQuestionSheet
       recipe={recipe}
       questions={questions}
+      changes={changes}
+      servings={shownServings}
       onAsk={(question, replaces) =>
-        questions.ask({ question, step, servings: shownServings }, replaces)
+        questions.ask(
+          {
+            question,
+            step,
+            servings: shownServings,
+            applied: changes.appliedIds,
+          },
+          replaces,
+        )
       }
       onClose={() => setAskOpen(false)}
     />

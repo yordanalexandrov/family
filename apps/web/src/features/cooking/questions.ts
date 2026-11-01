@@ -1,5 +1,5 @@
 import {
-  type AskCookingQuestion,
+  type AskCookingQuestionBody,
   type CookingQuestion,
   cookingQuestionResponseSchema,
 } from '@family/shared';
@@ -13,7 +13,7 @@ const questionKey = (id: string) => ['recipes', 'question', id] as const;
 export function useAskCookingQuestion(recipeId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (asked: AskCookingQuestion) =>
+    mutationFn: (asked: AskCookingQuestionBody) =>
       apiFetch(
         `/recipes/${recipeId}/questions`,
         cookingQuestionResponseSchema,

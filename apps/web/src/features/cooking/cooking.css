@@ -113,6 +113,35 @@
   font-weight: 600;
 }
 
+/* Ред от промяна за готвенето: малък знак под името (inline-block на цял ред: задраскването не стига до него). */
+.cooking-ingredients__mark {
+  display: inline-block;
+  inline-size: 100%;
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Махнат от промяна: остава на мястото си, задраскан и без отметка. */
+.cooking-ingredients__line--removed .cooking-ingredients__check {
+  cursor: default;
+}
+
+.cooking-ingredients__line--removed .cooking-ingredients__check input {
+  cursor: default;
+}
+
+.cooking-ingredients__line--removed .cooking-ingredients__name,
+.cooking-ingredients__line--removed .cooking-ingredients__amount {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.cooking-ingredients__line--removed .cooking-ingredients__mark {
+  color: var(--color-text-muted);
+}
+
 /* „Използвани (N)“ в дъното: зачеркнати и приглушени. */
 .cooking-ingredients__used {
   display: flex;
@@ -488,6 +517,34 @@
   font-size: var(--font-size-lg);
   line-height: 1.45;
   white-space: pre-line;
+}
+
+/* Промяната за готвенето под отговора: какво сменя, после „Промени“ или „Приложено“ и „Върни“. */
+.cooking-question__change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.cooking-question__change-list {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}
+
+.cooking-question__change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.cooking-question__applied {
+  margin: 0;
+  color: var(--color-success);
+  font-weight: 600;
 }
 
 .cooking-question__waiting {

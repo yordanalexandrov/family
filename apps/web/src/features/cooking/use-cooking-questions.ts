@@ -1,4 +1,4 @@
-import type { AskCookingQuestion } from '@family/shared';
+import type { AskCookingQuestionBody } from '@family/shared';
 import { useState } from 'react';
 import { useRememberedQuestions } from './cooking-memory';
 import { useAskCookingQuestion, useIsLostQuestion } from './questions';
@@ -22,15 +22,24 @@ export function useCookingQuestions(recipeId: string) {
     asked: remembered.questions,
     start,
     replacing: start.isPending ? replacing : undefined,
-    /** Нов въпрос; с `replaces` („Опитай пак“) новият заема мястото на неуспешния. */
-    ask(asked: Omit<AskCookingQuestion, 'follows'>, replaces?: string) {
+    /**
+     * Нов въпрос; с `replaces` („Опитай пак“) новият заема мястото на неуспешния. `applied` са въпросите с приложени
+     * промени: изгубените (api не ги знае) не се пращат, а без приложени полето липсва.
+     */
+    ask(asked: Omit<AskCookingQuestionBody, 'follows'>, replaces?: string) {
       setReplacing(replaces);
       const at = replaces === undefined ? -1 : ids.indexOf(replaces);
       const follows = (at === -1 ? ids : ids.slice(0, at))
         .filter((id) => !isLost(id))
         .at(-1);
+      const { applied = [], ...rest } = asked;
+      const sent = applied.filter((id) => !isLost(id));
       start.mutate(
-        { ...asked, ...(follows ? { follows } : {}) },
+        {
+          ...rest,
+          ...(follows ? { follows } : {}),
+          ...(sent.length > 0 ? { applied: sent } : {}),
+        },
         {
           onSuccess(question) {
             const asked = { id: question.id, question: question.question };

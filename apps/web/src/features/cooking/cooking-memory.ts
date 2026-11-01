@@ -1,4 +1,12 @@
-import { type DateKey, dateKeyInSofia, type Recipe } from '@family/shared';
+import {
+  applyCookingChanges,
+  type CookingChange,
+  cookingChangeSchema,
+  type DateKey,
+  dateKeyInSofia,
+  type Recipe,
+  recipeCookingLines,
+} from '@family/shared';
 import { useRef, useState } from 'react';
 import { storedSetting } from '../../app/stored-setting';
 import { logger } from '../../logger';
@@ -27,13 +35,24 @@ export interface RememberedQuestion {
 }
 
 /**
+ * Приложена промяна за готвенето (GLOSSARY: Промяна за готвенето): id-то на въпроса, чийто отговор я носи, порциите
+ * при въпроса (за тях са количествата ѝ) и самата промяна, за да важи на екрана и без api.
+ */
+export interface AppliedChange {
+  id: string;
+  servings: number;
+  change: CookingChange;
+}
+
+/**
  * Записът на една рецепта на устройството: напредъкът (отметките на подготовката важат само за подготовката
- * `preparedFor`) и въпросите в Готвене по реда на задаване. Полетата се пишат поотделно и всяко може да липсва;
- * приложените промени за готвенето (#276) са още едно поле до `questions`.
+ * `preparedFor`), въпросите в Готвене по реда на задаване и приложените промени за готвенето по реда на прилагане.
+ * Полетата се пишат поотделно и всяко може да липсва.
  */
 interface StoredRecipeProgress extends CookingProgress {
   preparedFor: string;
   questions: readonly RememberedQuestion[];
+  applied: readonly AppliedChange[];
 }
 
 /** Записът на устройството: напредъкът по рецепта за един ден; запис от друг ден не важи. */
@@ -75,12 +94,22 @@ function readStored(): StoredProgress {
   }
 }
 
-/** Запазеният днес напредък за `recipe`, ако още пасва на стъпките, продуктите и подготовката ѝ. */
+/** Днешният запис на рецептата с `recipeId`; липсващ — празен. */
+function readRecipe(recipeId: string): Partial<StoredRecipeProgress> {
+  const saved: unknown = readStored().recipes[recipeId];
+  return typeof saved === 'object' && saved !== null ? saved : {};
+}
+
+/** Запазеният днес напредък за `recipe`, ако още пасва на стъпките, продуктите (с приложените промени) и подготовката ѝ. */
 function readProgress(recipe: Recipe): CookingProgress {
   const saved: unknown = readStored().recipes[recipe.id];
   if (typeof saved !== 'object' || saved === null) {
     return start(recipe);
   }
+  const lines = applyCookingChanges(
+    recipeCookingLines(recipe),
+    readApplied(recipe.id),
+  ).length;
   const { step, used, prepared, preparedFor } =
     saved as Partial<StoredRecipeProgress>;
   const isIndex = (value: unknown, length: number): value is number =>
@@ -90,11 +119,7 @@ function readProgress(recipe: Recipe): CookingProgress {
   return {
     step: isIndex(step, recipe.steps.length) ? step : 0,
     used: Array.isArray(used)
-      ? [
-          ...new Set(
-            used.filter((index) => isIndex(index, recipe.ingredients.length)),
-          ),
-        ]
+      ? [...new Set(used.filter((index) => isIndex(index, lines)))]
       : [],
     // Отметки от друга подготовка (рецептата е променена) започват отначало.
     prepared:
@@ -170,6 +195,12 @@ export function useCookingProgress(recipe: Recipe) {
           : [...progress.used, index],
       }),
     prepared: progress.prepared,
+    /** Махат се отметките на тези редове (промяна за готвенето ги е сменила). */
+    forgetUsed: (indices: readonly number[]) =>
+      update({
+        ...progress,
+        used: progress.used.filter((index) => !indices.includes(index)),
+      }),
     togglePrepared: (index: number) =>
       update({
         ...progress,
@@ -193,10 +224,7 @@ function isRemembered(value: unknown): value is RememberedQuestion {
 
 /** Днешните въпроси по рецептата; липсващо или повредено поле — няма въпроси. */
 function readQuestions(recipeId: string): readonly RememberedQuestion[] {
-  const saved: unknown = readStored().recipes[recipeId];
-  const { questions } = (
-    typeof saved === 'object' && saved !== null ? saved : {}
-  ) as Partial<StoredRecipeProgress>;
+  const { questions } = readRecipe(recipeId);
   if (!Array.isArray(questions) || !questions.every(isRemembered)) {
     return [];
   }
@@ -222,6 +250,46 @@ export function useRememberedQuestions(recipeId: string) {
       setQuestions(latest.current);
       const next = latest.current;
       updateRecipe(recipeId, (current) => ({ ...current, questions: next }));
+    },
+  };
+}
+
+function isApplied(value: unknown): value is AppliedChange {
+  const { id, servings, change } = (value ?? {}) as Partial<AppliedChange>;
+  return (
+    typeof id === 'string' &&
+    id !== '' &&
+    Number.isInteger(servings) &&
+    (servings as number) >= 1 &&
+    cookingChangeSchema.safeParse(change).success
+  );
+}
+
+/** Днешните приложени промени по рецептата; липсващо или повредено поле — няма приложени. */
+function readApplied(recipeId: string): readonly AppliedChange[] {
+  const { applied } = readRecipe(recipeId);
+  if (!Array.isArray(applied) || !applied.every(isApplied)) {
+    return [];
+  }
+  return applied.map(({ id, servings, change }) => ({ id, servings, change }));
+}
+
+/**
+ * Приложените промени за готвенето на рецептата на това устройство, по реда на прилагане: помнят се с въпросите, до
+ * края на деня или до „Готово“. `update` смята новия списък от последния.
+ */
+export function useAppliedChanges(recipeId: string) {
+  const [applied, setApplied] = useState(() => readApplied(recipeId));
+  const latest = useRef(applied);
+  return {
+    applied,
+    update(
+      change: (current: readonly AppliedChange[]) => readonly AppliedChange[],
+    ) {
+      latest.current = change(latest.current);
+      setApplied(latest.current);
+      const next = latest.current;
+      updateRecipe(recipeId, (current) => ({ ...current, applied: next }));
     },
   };
 }

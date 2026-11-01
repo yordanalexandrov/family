@@ -1,0 +1,64 @@
+import {
+  applyCookingChanges,
+  type CookingChange,
+  type CookingLine,
+  type Recipe,
+  recipeCookingLines,
+} from '@family/shared';
+import { type AppliedChange, useAppliedChanges } from './cooking-memory';
+
+/** Индексите на редовете, които не са същите в `after` (сменени, махнати, добавени или изчезнали). */
+function differing(
+  before: readonly CookingLine[],
+  after: readonly CookingLine[],
+): number[] {
+  const length = Math.max(before.length, after.length);
+  return Array.from({ length }, (_, index) => index).filter(
+    (index) => JSON.stringify(before[index]) !== JSON.stringify(after[index]),
+  );
+}
+
+/**
+ * Промените за готвенето на рецептата (GLOSSARY: Промяна за готвенето), приложени на това устройство: продуктите с
+ * тях (`lines`), прилагането („Промени“) и връщането („Върни“). Последната приложена промяна по ред печели. Редът,
+ * който прилагането или връщането сменя, губи отметката си (`onLinesChanged`). Рецептата, менюто и списъкът за
+ * пазаруване не се пипат.
+ */
+export function useCookingChanges(
+  recipe: Recipe,
+  onLinesChanged: (indices: number[]) => void,
+) {
+  const { applied, update } = useAppliedChanges(recipe.id);
+  const base = recipeCookingLines(recipe);
+  const linesOf = (changes: readonly AppliedChange[]) =>
+    applyCookingChanges(base, changes);
+  const lines = linesOf(applied);
+  const change = (
+    next: (current: readonly AppliedChange[]) => readonly AppliedChange[],
+  ) => {
+    const after = next(applied);
+    update(next);
+    onLinesChanged(differing(lines, linesOf(after)));
+  };
+  return {
+    lines,
+    /** id-тата на въпросите с приложени промени, по реда на прилагане. */
+    appliedIds: applied.map(({ id }) => id),
+    isApplied: (id: string) => applied.some((other) => other.id === id),
+    /** Редовете, към които сочи промяната на въпроса `id`: без нея самата, както при въпроса. */
+    linesBefore: (id: string) =>
+      linesOf(applied.filter((other) => other.id !== id)),
+    apply(question: { id: string; servings: number; change: CookingChange }) {
+      const { id, servings } = question;
+      change((current) => [
+        ...current.filter((other) => other.id !== id),
+        { id, servings, change: question.change },
+      ]);
+    },
+    revert(id: string) {
+      change((current) => current.filter((other) => other.id !== id));
+    },
+  };
+}
+
+export type CookingChanges = ReturnType<typeof useCookingChanges>;
