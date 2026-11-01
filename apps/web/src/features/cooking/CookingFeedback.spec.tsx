@@ -332,22 +332,6 @@ describe('„Как мина?“ с промените от готвенето (
     ]);
   });
 
-  it('по-късно в същия ден ги праща още', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    setUpDevice('phone', dani.id);
-    serveRecipe();
-    const posts = serveRevisions();
-    cookedWithChanges();
-
-    const { sheet } = await finishCooking(user);
-    // 23:30 в София.
-    vi.setSystemTime(new Date('2026-11-01T21:30:00.000Z'));
-    await send(user, sheet);
-    expect(posts).toEqual([
-      { instruction: 'запази замяната', applied: [PULP_ID, SALT_ID] },
-    ]);
-  });
-
   it('промяна, която api не знае (404 `no_applied_change`), се пуска пак без нея', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     setUpDevice('phone', dani.id);
@@ -389,6 +373,41 @@ describe('„Как мина?“ с промените от готвенето (
     ]);
   });
 
+  /** „Готово“ и „Пропусни“ в 18:00, после „Как мина?“ от изгледа на рецептата в `later`; връща листа. */
+  async function feedbackLater(
+    user: ReturnType<typeof userEvent.setup>,
+    later: string,
+  ) {
+    const { sheet } = await finishCooking(user);
+    await user.click(within(sheet).getByRole('button', { name: 'Пропусни' }));
+    await screen.findByRole('heading', { name: stew.title });
+    vi.setSystemTime(new Date(later));
+    await user.click(screen.getByRole('button', { name: 'Как мина?' }));
+    return screen.findByRole('dialog', { name: 'Как мина?' });
+  }
+
+  it('по-късно в същия ден „Как мина?“ от изгледа на рецептата ги праща', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+    const posts = serveRevisions();
+    cookedWithChanges();
+
+    // 23:30 в София.
+    const sheet = await feedbackLater(user, '2026-11-01T21:30:00.000Z');
+    await user.type(
+      within(sheet).getByLabelText('Какво да се промени?'),
+      'запази замяната',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
+
+    await vi.waitFor(() =>
+      expect(posts).toEqual([
+        { instruction: 'запази замяната', applied: [PULP_ID, SALT_ID] },
+      ]),
+    );
+  });
+
   it('на следващия ден поправката е само с указанието', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     setUpDevice('phone', dani.id);
@@ -396,11 +415,16 @@ describe('„Как мина?“ с промените от готвенето (
     const posts = serveRevisions();
     cookedWithChanges();
 
-    const { sheet } = await finishCooking(user);
     // 00:30 в София на 2 ноември.
-    vi.setSystemTime(new Date('2026-11-01T22:30:00.000Z'));
-    await send(user, sheet);
+    const sheet = await feedbackLater(user, '2026-11-01T22:30:00.000Z');
+    await user.type(
+      within(sheet).getByLabelText('Какво да се промени?'),
+      'запази замяната',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
 
-    expect(posts).toEqual([{ instruction: 'запази замяната' }]);
+    await vi.waitFor(() =>
+      expect(posts).toEqual([{ instruction: 'запази замяната' }]),
+    );
   });
 });
