@@ -40,6 +40,14 @@ export interface StoredCookingQuestion extends CookingQuestion {
   appliedIds: string[];
 }
 
+function toStoredCookingQuestion(row: QuestionRow): StoredCookingQuestion {
+  return {
+    ...toCookingQuestion(row),
+    chainId: row.chainId,
+    appliedIds: row.appliedIds,
+  };
+}
+
 /**
  * A new `pending` question for the recipe; `requestedBy` is `null` on the kiosk. `chainId` is the chain of the question
  * it follows; without one it starts its own chain.
@@ -50,7 +58,7 @@ export async function insertCookingQuestion(
   asked: AskCookingQuestion,
   requestedBy: string | null,
   chainId?: string,
-): Promise<CookingQuestion> {
+): Promise<StoredCookingQuestion> {
   const id = randomUUID();
   const [row] = await db
     .insert(cookingQuestionRequest)
@@ -69,19 +77,20 @@ export async function insertCookingQuestion(
   if (!row) {
     throw new Error('insert into cooking_question_request returned no row');
   }
-  return toCookingQuestion(row);
+  return toStoredCookingQuestion(row);
 }
 
+/** The question with the chain it belongs to and the questions whose changes were applied when it was asked. */
 export async function findCookingQuestion(
   db: DbExecutor,
   id: string,
-): Promise<CookingQuestion | undefined> {
+): Promise<StoredCookingQuestion | undefined> {
   const [row] = await db
     .select()
     .from(cookingQuestionRequest)
     .where(eq(cookingQuestionRequest.id, id))
     .limit(1);
-  return row && toCookingQuestion(row);
+  return row && toStoredCookingQuestion(row);
 }
 
 /** The answer and its cooking change, if it brings one. */
@@ -98,16 +107,16 @@ export async function setCookingAnswer(
 }
 
 /**
- * The changes of the questions `ids` of the recipe, in the order of `ids`, each with the servings it was asked for.
- * `undefined` when one of them is not a question of the recipe with a change.
+ * The changes of the questions `ids` of the recipe, in the order of `ids`, each with the servings it was asked for;
+ * `missing` are the ids that are not a question of the recipe with a change.
  */
 export async function findAppliedChanges(
   db: DbExecutor,
   recipeId: string,
   ids: readonly string[],
-): Promise<AppliedCookingChange[] | undefined> {
+): Promise<{ applied: AppliedCookingChange[]; missing: string[] }> {
   if (ids.length === 0) {
-    return [];
+    return { applied: [], missing: [] };
   }
   const rows = await db
     .select({
@@ -124,36 +133,19 @@ export async function findAppliedChanges(
     );
   const byId = new Map(rows.map((row) => [row.id, row]));
   const applied: AppliedCookingChange[] = [];
+  const missing: string[] = [];
   for (const id of ids) {
     const row = byId.get(id);
-    if (!row?.change) {
-      return undefined;
+    if (row?.change) {
+      applied.push({
+        change: cookingChangeSchema.parse(row.change),
+        servings: row.servings,
+      });
+    } else {
+      missing.push(id);
     }
-    applied.push({
-      change: cookingChangeSchema.parse(row.change),
-      servings: row.servings,
-    });
   }
-  return applied;
-}
-
-/** The question with the chain it belongs to; for checking a `follows`. */
-export async function findStoredCookingQuestion(
-  db: DbExecutor,
-  id: string,
-): Promise<StoredCookingQuestion | undefined> {
-  const [row] = await db
-    .select()
-    .from(cookingQuestionRequest)
-    .where(eq(cookingQuestionRequest.id, id))
-    .limit(1);
-  return (
-    row && {
-      ...toCookingQuestion(row),
-      chainId: row.chainId,
-      appliedIds: row.appliedIds,
-    }
-  );
+  return { applied, missing };
 }
 
 /** Holds the chain until the transaction ends, so two questions cannot both wait in it. */

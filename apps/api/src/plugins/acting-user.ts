@@ -7,7 +7,10 @@ import { isApiRequest } from './scope.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** The acting user picked on the device (`X-Acting-User`); set on every `/api/*` route that needs one. */
+    /**
+     * The acting user picked on the device (`X-Acting-User`); set on every `/api/*` route that needs one. A route with
+     * `actingUser: 'optional'` may have none: it reads it with {@link actorOf}.
+     */
     actor: User;
   }
 
@@ -59,8 +62,9 @@ const actingUser: FastifyPluginAsync = async (app) => {
 
 /** The acting user of a route with `actingUser: 'optional'`; `undefined` when the device has none (the kiosk). */
 export function actorOf(request: FastifyRequest): User | undefined {
-  // Not set by the hook when no header was sent.
-  return (request.actor as User | undefined) ?? undefined;
+  // The hook leaves it unset when no header was sent, although `actor` is typed for the routes that require one.
+  const actor: User | undefined = request.actor;
+  return actor;
 }
 
 export default fp(actingUser, { name: 'acting-user' });

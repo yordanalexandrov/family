@@ -122,7 +122,8 @@ async function asked(
 ): Promise<CookingQuestion> {
   const response = await ask(recipeId, payload, options);
   expect(response.statusCode).toBe(202);
-  return cookingQuestionSchema.parse(response.json().request);
+  // Strict: what the api keeps of the chain (`chainId`, `appliedIds`) never reaches the client.
+  return cookingQuestionSchema.strict().parse(response.json().request);
 }
 
 /** Polls `GET /api/recipes/questions/:id` without an acting user (as the kiosk does) until the run has finished. */
@@ -137,7 +138,7 @@ async function finished(
       url: `/api/recipes/questions/${question.id}`,
     });
     expect(response.statusCode).toBe(200);
-    const body = cookingQuestionSchema.parse(response.json().request);
+    const body = cookingQuestionSchema.strict().parse(response.json().request);
     if (body.status !== 'pending') {
       return body;
     }
@@ -431,7 +432,7 @@ describe('a follow-up question (follows)', () => {
     await finished(cookingQuestionSchema.parse(afterAnswer.json().request));
   });
 
-  it('answers 404 for a follows that is not a question of this recipe', async () => {
+  it('answers 404 `no_earlier_question` for a follows that is not a question of this recipe', async () => {
     const recipe = await createdRecipe();
     const other = await createdRecipe();
     answering();
@@ -442,7 +443,10 @@ describe('a follow-up question (follows)', () => {
       follows: ofOther.id,
     });
     expect(fromOther.statusCode).toBe(404);
-    expect(fromOther.json()).toMatchObject({ error: 'not_found' });
+    expect(fromOther.json()).toMatchObject({
+      error: 'not_found',
+      code: 'no_earlier_question',
+    });
 
     const unknown = await ask(recipe.id, {
       ...QUESTION,
@@ -590,18 +594,23 @@ describe('a cooking change (change, applied)', () => {
     expect(sent).toHaveLength(2);
   });
 
-  it('answers 404 for an applied that is not a question of this recipe with a change', async () => {
+  it('answers 404 `no_applied_change` with the ids for an applied that is not a question of this recipe with a change', async () => {
     const recipe = await createdRecipe();
     const other = await createdRecipe();
     answering({ answer: ANSWER, change: PULP });
     const ofOther = await finished(await asked(other.id));
+    const own = await finished(await asked(recipe.id));
 
     const fromOther = await ask(recipe.id, {
       ...QUESTION,
-      applied: [ofOther.id],
+      applied: [own.id, ofOther.id],
     });
     expect(fromOther.statusCode).toBe(404);
-    expect(fromOther.json()).toMatchObject({ error: 'not_found' });
+    expect(fromOther.json()).toMatchObject({
+      error: 'not_found',
+      code: 'no_applied_change',
+      ids: [ofOther.id],
+    });
 
     const unknown = await ask(recipe.id, {
       ...QUESTION,

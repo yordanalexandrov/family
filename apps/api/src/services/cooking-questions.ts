@@ -6,7 +6,6 @@ import {
   COOKING_HISTORY_MAX,
   type CookingAskInput,
   type CookingAskOutput,
-  type CookingQuestion,
   type Recipe,
   recipeCookingLines,
   scaleCookingLine,
@@ -16,10 +15,10 @@ import {
   answeredBefore,
   findAppliedChanges,
   findCookingQuestion,
-  findStoredCookingQuestion,
   hasPendingInChain,
   insertCookingQuestion,
   lockCookingChain,
+  type StoredCookingQuestion,
   setCookingAnswer,
 } from '../db/repositories/cooking-questions.js';
 import { findRecipe } from '../db/repositories/recipes.js';
@@ -28,7 +27,12 @@ import type {
   ContractRequestHandle,
   ContractRequestStore,
 } from './contract-requests.js';
-import { ConflictError, InvalidActionError, NotFoundError } from './errors.js';
+import {
+  ConflictError,
+  InvalidActionError,
+  NotFoundError,
+  refuse,
+} from './errors.js';
 
 const NO_SUCH_RECIPE = 'Няма такава рецепта';
 const NO_SUCH_STEP = 'Рецептата няма такава стъпка';
@@ -48,7 +52,7 @@ export interface CookingQuestionParams {
  */
 export type CookingQuestions = ContractRequestHandle<
   CookingQuestionParams,
-  CookingQuestion,
+  StoredCookingQuestion,
   string | null
 >;
 
@@ -120,7 +124,7 @@ export function cookingAskInput(
  */
 export function createCookingQuestionStore(): ContractRequestStore<
   CookingQuestionParams,
-  CookingQuestion,
+  StoredCookingQuestion,
   CookingAskInput,
   CookingAskOutput,
   string | null,
@@ -138,15 +142,16 @@ export function createCookingQuestionStore(): ContractRequestStore<
       if (asked.step >= recipe.steps.length) {
         throw new InvalidActionError(NO_SUCH_STEP);
       }
-      if (!(await findAppliedChanges(tx, recipeId, asked.applied))) {
-        throw new NotFoundError(NO_SUCH_CHANGE);
+      const { missing } = await findAppliedChanges(tx, recipeId, asked.applied);
+      if (missing.length > 0) {
+        throw refuse('no_applied_change', NO_SUCH_CHANGE, { ids: missing });
       }
       if (asked.follows === undefined) {
         return insertCookingQuestion(tx, recipeId, asked, requestedBy);
       }
-      const earlier = await findStoredCookingQuestion(tx, asked.follows);
+      const earlier = await findCookingQuestion(tx, asked.follows);
       if (!earlier || earlier.recipeId !== recipeId) {
-        throw new NotFoundError(NO_SUCH_EARLIER);
+        throw refuse('no_earlier_question', NO_SUCH_EARLIER);
       }
       await lockCookingChain(tx, earlier.chainId);
       if (await hasPendingInChain(tx, earlier.chainId)) {
@@ -168,17 +173,16 @@ export function createCookingQuestionStore(): ContractRequestStore<
       if (!recipe) {
         throw new Error('recipe of a cooking question vanished');
       }
-      const stored = await findStoredCookingQuestion(db, request.id);
+      const { applied } = await findAppliedChanges(
+        db,
+        request.recipeId,
+        request.appliedIds,
+      );
       return {
         recipe,
         appliances: await listEnabledApplianceNames(db),
         history: await answeredBefore(db, request, COOKING_HISTORY_MAX),
-        applied:
-          (await findAppliedChanges(
-            db,
-            request.recipeId,
-            stored?.appliedIds ?? [],
-          )) ?? [],
+        applied,
       };
     },
 

@@ -4,6 +4,7 @@ import { contractFailureSchema } from '../contracts/failure.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
 import { cookingChangeSchema } from '../food/cooking-change.js';
 import { instantSchema } from './dates.js';
+import { refusalBody } from './error.js';
 
 /**
  * `POST /api/recipes/:id/questions` (GLOSSARY: Въпрос в Готвене): the question, the step on the screen (its index, from
@@ -55,3 +56,22 @@ export const cookingQuestionResponseSchema = z.object({
 export type CookingQuestionResponse = z.infer<
   typeof cookingQuestionResponseSchema
 >;
+
+/**
+ * 404 of `POST /api/recipes/:id/questions` when `follows` is not a question of the recipe (e.g. one remembered on the
+ * device from another database): asked without it, the question starts a new chain.
+ */
+export const noEarlierQuestionSchema = refusalBody(
+  'not_found',
+  'no_earlier_question',
+);
+
+/**
+ * 404 of `POST /api/recipes/:id/questions` when some of `applied` are not questions of the recipe with a change: `ids`
+ * are those, so the client can ask again without them.
+ */
+export const noAppliedChangeSchema = refusalBody(
+  'not_found',
+  'no_applied_change',
+  { ids: z.array(z.uuid()).min(1) },
+);
