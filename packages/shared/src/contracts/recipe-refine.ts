@@ -3,8 +3,8 @@ import { preparationSchema } from '../food/preparation.js';
 import { quantitySchema, unitSchema } from '../food/units.js';
 import type { AiContract } from './contract.js';
 import {
-  aiPreparationResponseSchema,
-  aiPreparationSchema,
+  preparationFromStrict,
+  preparationStrictSchema,
 } from './preparation.js';
 import { IMPORT_TEXT_MAX } from './recipe-normalize.js';
 
@@ -80,7 +80,7 @@ const refinementSchema = z.object({
   ...refinementFields,
   steps: z.array(refineStepSchema).min(1),
   /** The whole preparation anew, the items the recipe had among them; `[]` when it needs none. */
-  preparation: aiPreparationSchema,
+  preparation: z.preprocess(preparationFromStrict, preparationSchema),
 });
 
 export type Refinement = z.infer<typeof refinementSchema>;
@@ -119,7 +119,7 @@ const RECIPE_REFINE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
         steps: z.array(
           z.object({ text: z.string(), image: z.string().nullable() }),
         ),
-        preparation: aiPreparationResponseSchema,
+        preparation: preparationStrictSchema,
       })
       .nullable(),
     noResults: z.string().nullable(),

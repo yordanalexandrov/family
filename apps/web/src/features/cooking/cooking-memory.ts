@@ -7,19 +7,35 @@ export const COOKING_PROGRESS_KEY = 'family.cooking.progress';
 export const COOKING_INGREDIENTS_OPEN_KEY = 'family.cooking.ingredientsOpen';
 export const COOKING_TEXT_SIZE_KEY = 'family.cooking.textSize';
 
-/** Докъдето е стигнало Готвене за една рецепта: индексът на стъпката и на отметнатите редове продукти. */
+/**
+ * Докъдето е стигнало Готвене за една рецепта: индексът на стъпката, на отметнатите редове продукти и кои елементи от
+ * подготовката са направени (по един на елемент, в реда на рецептата).
+ */
 export interface CookingProgress {
   step: number;
   used: readonly number[];
+  prepared: readonly boolean[];
+}
+
+/** Напредъкът по една рецепта на устройството: отметките на подготовката важат само за подготовката `preparedFor`. */
+interface StoredRecipeProgress extends CookingProgress {
+  preparedFor: string;
 }
 
 /** Записът на устройството: напредъкът по рецепта за един ден; запис от друг ден не важи. */
 interface StoredProgress {
   day: DateKey;
-  recipes: Record<string, CookingProgress>;
+  recipes: Record<string, StoredRecipeProgress>;
 }
 
-const START: CookingProgress = { step: 0, used: [] };
+/** Отпечатъкът на подготовката: друга подготовка (рецептата е променена) прави старите отметки невалидни. */
+function preparationKey(recipe: Recipe): string {
+  return JSON.stringify(recipe.preparation);
+}
+
+function start(recipe: Recipe): CookingProgress {
+  return { step: 0, used: [], prepared: recipe.preparation.map(() => false) };
+}
 
 function today(): DateKey {
   return dateKeyInSofia(new Date());
@@ -45,13 +61,14 @@ function readStored(): StoredProgress {
   }
 }
 
-/** Запазеният днес напредък за `recipe`, ако още пасва на стъпките и продуктите ѝ. */
+/** Запазеният днес напредък за `recipe`, ако още пасва на стъпките, продуктите и подготовката ѝ. */
 function readProgress(recipe: Recipe): CookingProgress {
   const saved: unknown = readStored().recipes[recipe.id];
   if (typeof saved !== 'object' || saved === null) {
-    return START;
+    return start(recipe);
   }
-  const { step, used } = saved as Partial<CookingProgress>;
+  const { step, used, prepared, preparedFor } =
+    saved as Partial<StoredRecipeProgress>;
   const isIndex = (value: unknown, length: number): value is number =>
     Number.isInteger(value) &&
     (value as number) >= 0 &&
@@ -65,17 +82,28 @@ function readProgress(recipe: Recipe): CookingProgress {
           ),
         ]
       : [],
+    // Отметки от друга подготовка (рецептата е променена) започват отначало.
+    prepared:
+      preparedFor === preparationKey(recipe) &&
+      Array.isArray(prepared) &&
+      prepared.length === recipe.preparation.length &&
+      prepared.every((done) => typeof done === 'boolean')
+        ? prepared
+        : start(recipe).prepared,
   };
 }
 
 /** Записва напредъка по рецептата за днес; без `progress` го трие. */
-function writeProgress(recipeId: string, progress?: CookingProgress): void {
+function writeProgress(recipe: Recipe, progress?: CookingProgress): void {
   // Записът е само за днес: преминаването в нов ден изхвърля напредъка по всички рецепти.
   const stored = readStored();
   if (progress) {
-    stored.recipes[recipeId] = progress;
+    stored.recipes[recipe.id] = {
+      ...progress,
+      preparedFor: preparationKey(recipe),
+    };
   } else {
-    delete stored.recipes[recipeId];
+    delete stored.recipes[recipe.id];
   }
   try {
     localStorage.setItem(COOKING_PROGRESS_KEY, JSON.stringify(stored));
@@ -85,7 +113,7 @@ function writeProgress(recipeId: string, progress?: CookingProgress): void {
 }
 
 /**
- * Стъпката и отметките на Готвене за `recipe`, запомнени на устройството до края на деня (по софийско време).
+ * Стъпката, отметките на продуктите и на подготовката в Готвене за `recipe`, запомнени на устройството до края на деня (по софийско време).
  * `finish` („Готово“) ги забравя, така че ново влизане същия ден започва отначало. Нищо не стига до сървъра; без
  * localStorage Готвене работи без памет.
  */
@@ -93,7 +121,7 @@ export function useCookingProgress(recipe: Recipe) {
   const [progress, setProgress] = useState(() => readProgress(recipe));
   const update = (next: CookingProgress) => {
     setProgress(next);
-    writeProgress(recipe.id, next);
+    writeProgress(recipe, next);
   };
   return {
     step: progress.step,
@@ -106,7 +134,15 @@ export function useCookingProgress(recipe: Recipe) {
           ? progress.used.filter((other) => other !== index)
           : [...progress.used, index],
       }),
-    finish: () => writeProgress(recipe.id),
+    prepared: progress.prepared,
+    togglePrepared: (index: number) =>
+      update({
+        ...progress,
+        prepared: progress.prepared.map((done, other) =>
+          other === index ? !done : done,
+        ),
+      }),
+    finish: () => writeProgress(recipe),
   };
 }
 

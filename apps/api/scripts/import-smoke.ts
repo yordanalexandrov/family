@@ -1,8 +1,9 @@
 // Imports recipes through the real `family-import` agent, through the api's OpenClaw client, and prints them.
 // Manual check against the gateway (docs/openclaw/README.md → "Smoke преди merge"); not part of `pnpm test`.
-//   pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
-// Without `--text-file`, `--url` or `--photo` it imports two built-in texts: a Bulgarian blog post („Продукти:“ /
-// „Начин на приготвяне:“, a range of servings, cups and cloves) and an English recipe with cups and ounces. `--url`
+//   pnpm --filter api import:smoke -- [--case bg|en|beans|steak|fan|salad] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
+// Without `--text-file`, `--url` or `--photo` it imports the built-in texts: a Bulgarian blog post („Продукти:“ /
+// „Начин на приготвяне:“, a range of servings, cups and cloves), an English recipe with cups and ounces, and four
+// short Bulgarian recipes for the preparation (soaked beans, a marinated steak, chicken in a fan oven, a salad). `--url`
 // fetches and reads the page the way the api does (services/recipe-page) before the agent; its `HowToStep.image`s go
 // as references (`s1`, …), and after the answer the photos the agent chose are downloaded and made JPEGs as the api
 // does (`prepareStepPhotos`: public addresses, 10 MB, 10 s, at most 50 megapixels), without storing them. `--photo` makes the picture
@@ -19,6 +20,8 @@ import {
   IMPORT_PHOTO_MAX_SIDE,
   IMPORT_PHOTOS_MAX_BYTES,
   importPhotoLayout,
+  preparationKind,
+  preparationLabel,
   type RecipeNormalizeInput,
   type RecipeNormalizeOutput,
   type RecipeNormalizeSource,
@@ -92,6 +95,57 @@ Mix in the baking soda and salt. Stir in the sugar, beaten egg, and vanilla extr
 Pour the batter into the prepared loaf pan. Bake for 55 to 65 minutes, until a tester inserted into the center comes out clean.
 Remove from oven and let cool in the pan for a few minutes. Then remove the banana bread from the pan and let cool completely before serving.`;
 
+const BEANS = `Боб яхния по селски
+
+Порции: 6
+
+Продукти:
+- 500 г бял боб
+- 2 глави лук
+- 2 моркова
+- 1 червена чушка
+- 2 с.л. доматено пюре
+- 1 с.л. червен пипер
+- джоджен, сол
+- 5 с.л. олио
+
+Приготвяне:
+Вечерта накиснете боба в студена вода. На следващия ден изхвърлете водата, залейте с прясна и варете 15 минути. Сменете водата и варете, докато омекне, около час.
+Запържете нарязания лук, морковите и чушката в олиото. Добавете червения пипер и доматеното пюре и веднага изсипете в боба.
+Подправете с джоджен и сол и варете още 15 минути.`;
+
+const STEAK = `Свински пържоли в марината на тиган
+
+Продукти (за 4 порции):
+4 свински пържоли от врат
+4 с.л. олио
+2 с.л. соев сос
+1 с.л. горчица
+3 скилидки чесън
+1 ч.л. мащерка
+черен пипер
+
+Смесете олиото, соевия сос, горчицата, пресования чесън, мащерката и черния пипер. Намажете пържолите и ги оставете в хладилника да се мариноват поне 2 часа, а най-добре за една нощ.
+Извадете ги от хладилника 30 минути преди печене.
+Загрейте добре тежък тиган или грил тиган и печете пържолите по 4–5 минути от всяка страна. Оставете ги да починат 5 минути преди сервиране.`;
+
+const FAN_CHICKEN = `Пиле с картофи на фурна
+
+4 порции, 1 ч 20 мин
+
+Продукти: 1 цяло пиле (около 1,5 кг), 1 кг картофи, 4 с.л. зехтин, 1 ч.л. червен пипер, 1 ч.л. сол, розмарин.
+
+1. Загрейте фурната на 200 градуса с вентилатор.
+2. Нарежете картофите на резени и ги разстелете в тава, намазана със зехтин. Посолете.
+3. Намажете пилето със зехтин, червен пипер, сол и розмарин и го сложете върху картофите.
+4. Печете на средна скара около час и 10 минути, докато пилето се зачерви и сокът му стане бистър. След 40 минути намалете на 180 градуса.`;
+
+const SALAD = `Шопска салата
+
+Продукти за 2 порции: 3 домата, 1 краставица, 1 печена чушка, половин глава лук, 150 г сирене, 2 с.л. олио, сол, магданоз.
+
+Нарежете доматите, краставицата и чушката на кубчета, а лука на полумесеци. Смесете ги, посолете и полейте с олиото. Настържете сиренето отгоре и поръсете с магданоз.`;
+
 /**
  * One thing to import: a name for the output and the source as the api would send it; what reading the page gave or
  * the photo as sent (`page`); why it cannot go to the agent (`fetchFailure`: a page that does not open, a photo the api
@@ -117,9 +171,15 @@ const BUILT_IN: SmokeCase[] = [
     },
   },
   { name: 'en', source: { kind: 'text', text: ENGLISH_RECIPE } },
+  // Preparation (#283): soaking from the evening, a marinade and the fridge without an oven, an oven with a fan and a
+  // rack, and a dish with neither oven nor preparation; „bg“ is an oven at 200° without a mode, „en“ °F and °C.
+  { name: 'beans', source: { kind: 'text', text: BEANS } },
+  { name: 'steak', source: { kind: 'text', text: STEAK } },
+  { name: 'fan', source: { kind: 'text', text: FAN_CHICKEN } },
+  { name: 'salad', source: { kind: 'text', text: SALAD } },
 ];
 
-const USAGE = `Usage: pnpm --filter api import:smoke -- [--case bg|en] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
+const USAGE = `Usage: pnpm --filter api import:smoke -- [--case <name>] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
   no options         the built-in cases (${BUILT_IN.map((c) => c.name).join(', ')})
   --case <name>      only that built-in case (repeatable)
   --text-file <p>    pasted text from a file, or every *.txt in a directory (repeatable); replaces the built-in cases
@@ -423,6 +483,11 @@ function summary(
     ...recipe.steps.map(
       (step, index) =>
         `   ${index + 1}. ${step.text}${stepPhoto(step.image, stepImages, photos)}`,
+    ),
+    `   Подготовка: ${recipe.preparation.length === 0 ? 'няма' : recipe.preparation.length}`,
+    ...recipe.preparation.map(
+      (item) =>
+        `   - ${preparationKind(item.kind).labelBg}: ${preparationLabel(item)}`,
     ),
     `   Хранителна стойност на 100 г: ${recipe.nutritionPer100g ? JSON.stringify(recipe.nutritionPer100g) : 'няма'}`,
     `   за ${seconds} s`,

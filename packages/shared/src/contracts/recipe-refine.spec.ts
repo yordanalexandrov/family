@@ -87,12 +87,11 @@ describe('recipeRefine.outputSchema', () => {
     expect(outputSchema.parse(output).recipe?.preparation).toEqual([]);
   });
 
-  it('refuses a preparation the recipe cannot keep: two ovens, an oven without its fan, text on an oven, too long a text', () => {
+  it('refuses a preparation the recipe cannot keep: two ovens, an oven without its fan, too long a text or time before, too many', () => {
     const oven = { kind: 'oven', degrees: 200, fan: 'fan', rack: null };
     const cases = [
       [oven, { ...oven, degrees: 180 }],
       [{ ...oven, fan: null }],
-      [{ ...oven, text: 'загрей фурната' }],
       [{ kind: 'other', text: 'х'.repeat(61), minutesBefore: null }],
       [{ kind: 'soak', text: 'накисни боба', minutesBefore: 3000 }],
       Array.from({ length: 9 }, () => ({

@@ -1,59 +1,62 @@
 import { z } from 'zod';
 import {
   MINUTES_BEFORE_MAX,
+  OVEN_DEGREES_MAX,
+  OVEN_DEGREES_MIN,
   ovenFanSchema,
   ovenRackSchema,
-  type Preparation,
-  type PreparationItem,
+  PREPARATION_MAX,
+  PREPARATION_TEXT_MAX,
   preparationKindSchema,
-  preparationSchema,
 } from '../food/preparation.js';
 
 /**
- * The preparation (GLOSSARY: Подготовка) as an AI contract returns it. Strict structured outputs want every field, so
- * an optional field of the recipe's preparation is `null` here when there is none: the oven's `rack`, the other kinds'
- * `minutesBefore`. The output schema reads it into the recipe's {@link Preparation} (`null` → absent) and checks it with
- * {@link preparationSchema} (0–8 items, at most one oven).
+ * The preparation (GLOSSARY: Подготовка) of an AI contract's recipe as the agent writes it under strict structured
+ * outputs: an oven or another kind, every property required, an optional one (`rack`, `minutesBefore`) sent as `null`.
+ * Only for the JSON Schema of a contract's `responseFormat`; the output itself is parsed with `preparationSchema`, after
+ * {@link preparationFromStrict}. At most one oven is not in it.
  */
-const aiOvenSchema = z.object({
-  kind: z.literal('oven'),
-  degrees: z.int(),
-  fan: ovenFanSchema,
-  rack: ovenRackSchema.nullable(),
-});
-
-const aiTextSchema = z.object({
-  kind: preparationKindSchema.exclude(['oven']),
-  text: z.string(),
-  minutesBefore: z.int().max(MINUTES_BEFORE_MAX).nullable(),
-});
-
-function fromAi(
-  item: z.infer<typeof aiOvenSchema> | z.infer<typeof aiTextSchema>,
-): PreparationItem {
-  if (item.kind === 'oven') {
-    const { rack, ...oven } = item;
-    return rack === null ? oven : { ...oven, rack };
-  }
-  const { minutesBefore, ...rest } = item;
-  return minutesBefore === null ? rest : { ...rest, minutesBefore };
-}
-
-/** The output schema of the preparation: the AI form, read into the recipe's preparation and checked as it. */
-export const aiPreparationSchema: z.ZodType<Preparation, unknown> = z
+export const preparationStrictSchema = z
   .array(
-    z.discriminatedUnion('kind', [
-      aiOvenSchema.strict(),
-      aiTextSchema.strict(),
+    z.union([
+      z.object({
+        kind: z.literal('oven'),
+        degrees: z.int().min(OVEN_DEGREES_MIN).max(OVEN_DEGREES_MAX),
+        fan: ovenFanSchema,
+        rack: ovenRackSchema.nullable(),
+      }),
+      z.object({
+        kind: preparationKindSchema.exclude(['oven']),
+        text: z.string().max(PREPARATION_TEXT_MAX),
+        minutesBefore: z.int().min(1).max(MINUTES_BEFORE_MAX).nullable(),
+      }),
     ]),
   )
-  .transform((items) => items.map(fromAi))
-  .pipe(preparationSchema);
+  .max(PREPARATION_MAX);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
- * The preparation in the response JSON Schema: `anyOf` (not the `oneOf` of a discriminated union), which strict
- * structured outputs accept.
+ * `rack: null` and `minutesBefore: null` of the items (how strict mode says "none") become absent; anything else is
+ * left for `preparationSchema`.
  */
-export const aiPreparationResponseSchema = z.array(
-  z.union([aiOvenSchema, aiTextSchema]),
-);
+export function preparationFromStrict(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  return value.map((item) => {
+    if (!isRecord(item)) {
+      return item;
+    }
+    const { rack, minutesBefore, ...rest } = item;
+    return {
+      ...rest,
+      ...(rack === null || rack === undefined ? {} : { rack }),
+      ...(minutesBefore === null || minutesBefore === undefined
+        ? {}
+        : { minutesBefore }),
+    };
+  });
+}

@@ -114,10 +114,12 @@ describe('recipeSuggestionSchema', () => {
 
 describe('anyRecipeSuggestionSchema', () => {
   const IMPORT = '55555555-5555-4555-8555-555555555555';
-  // The contract's steps carry the agent's photo reference; a stored step has text (and a photo id) only.
+  // The contract's steps carry the agent's photo reference; a stored step has text (and a photo id) only, and a
+  // stored preparation item has no strict-mode nulls.
   const { nutritionPer100g: _none, ...recipe } = {
     ...normalizeFixture.recipe,
     steps: normalizeFixture.recipe.steps.map(({ text }) => ({ text })),
+    preparation: [{ kind: 'oven', degrees: 200, fan: 'conventional' }],
   };
   const imported = {
     id: '88888888-8888-4888-8888-888888888889',

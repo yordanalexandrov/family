@@ -8,6 +8,7 @@ import {
   CookingIngredients,
   CookingIngredientsBody,
 } from './CookingIngredients';
+import { CookingPreparation } from './CookingPreparation';
 import { CookingSteps } from './CookingSteps';
 import { useCookingProgress, useIngredientsOpen } from './cooking-memory';
 import './cooking.css';
@@ -34,7 +35,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const [shownServings, setShownServings] = useState(
     servings ?? recipe.servings,
   );
-  const { step, setStep, used, toggleUsed, finish } =
+  const { step, setStep, used, toggleUsed, prepared, togglePrepared, finish } =
     useCookingProgress(recipe);
   const [ingredientsOpen, setIngredientsOpen] = useIngredientsOpen();
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -55,6 +56,13 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       onStepChange={setStep}
       onClose={() => onExit()}
       onDone={() => onExit(finish)}
+      preparation={
+        <CookingPreparation
+          preparation={recipe.preparation}
+          prepared={prepared}
+          onToggle={togglePrepared}
+        />
+      }
     />
   );
 

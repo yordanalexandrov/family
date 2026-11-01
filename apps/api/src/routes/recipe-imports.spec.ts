@@ -156,6 +156,25 @@ function withForeignId(input: RecipeNormalizeInput) {
   return answer;
 }
 
+/** The recorded answer with `preparation` as the agent writes it under strict mode. */
+function withPreparation(preparation: unknown[]) {
+  return (input: RecipeNormalizeInput) => {
+    const answer = normalizeAnswer(input) as {
+      recipe: Record<string, unknown> | null;
+    };
+    if (answer.recipe) {
+      answer.recipe.preparation = preparation;
+    }
+    return answer;
+  };
+}
+
+const SOAK_AND_OVEN = [
+  { kind: 'soak', text: 'накисни ориза', minutesBefore: 30 },
+  { kind: 'oven', degrees: 200, fan: 'conventional', rack: null },
+  { kind: 'pan', text: 'намажи тавата', minutesBefore: null },
+];
+
 describe('POST /api/recipe-imports', () => {
   it('answers 202 with a pending text import, then the run stores one suggestion linked to the registry', async () => {
     const calls = answerInTurn(normalizeAnswer);
@@ -1062,6 +1081,58 @@ describe('the recipe.normalize run', () => {
     expect(body.suggestion).toBeUndefined();
   });
 
+  it('stores the preparation of the answer with the suggestion, rack and minutesBefore of null left out', async () => {
+    answerInTurn(withPreparation(SOAK_AND_OVEN));
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(body.suggestion?.payload.preparation).toEqual([
+      { kind: 'soak', text: 'накисни ориза', minutesBefore: 30 },
+      { kind: 'oven', degrees: 200, fan: 'conventional' },
+      { kind: 'pan', text: 'намажи тавата' },
+    ]);
+  });
+
+  it('stores a suggestion without preparation when the answer has none', async () => {
+    answerInTurn(withPreparation([]));
+
+    const body = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(body.suggestion?.payload.preparation).toEqual([]);
+  });
+
+  it('fails with invalid_output after two answers with two ovens, and takes a valid retry after one', async () => {
+    const twoOvens = withPreparation([
+      { kind: 'oven', degrees: 180, fan: 'fan', rack: null },
+      { kind: 'oven', degrees: 220, fan: 'fan', rack: 'high' },
+    ]);
+    const calls = answerInTurn(twoOvens);
+
+    const failed = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(calls.bodies).toHaveLength(2);
+    expect(textOf(calls.bodies[1]?.messages.at(-1))).toContain('preparation');
+    expect(failed.request).toMatchObject({
+      status: 'failed',
+      error: 'invalid_output',
+    });
+    expect(failed.suggestion).toBeUndefined();
+
+    const retried = answerInTurn(twoOvens, withPreparation(SOAK_AND_OVEN));
+    const done = await finished(
+      await imported({ kind: 'text', text: BLOG_TEXT }),
+    );
+
+    expect(retried.bodies).toHaveLength(2);
+    expect(done.suggestion?.payload.preparation).toHaveLength(3);
+  });
+
   it('takes a valid retry after one answer with a foreign product', async () => {
     const calls = answerInTurn(withForeignId, normalizeAnswer);
 
@@ -1245,6 +1316,47 @@ describe('deciding an imported suggestion', () => {
     expect((await decide(suggestion.id, 'approve', input)).statusCode).toBe(
       409,
     );
+  });
+
+  it('the preparation of the import goes into the recipe with approval, as the review sends it', async () => {
+    const suggestion = await aSuggestion();
+    expect(suggestion.payload.preparation).toEqual([
+      { kind: 'oven', degrees: 200, fan: 'conventional' },
+    ]);
+    const preparation = [
+      { kind: 'oven' as const, degrees: 200, fan: 'fan' as const },
+      { kind: 'fridge' as const, text: 'извади пилето', minutesBefore: 30 },
+    ];
+
+    const response = await decide(suggestion.id, 'approve', {
+      ...editedInput(suggestion),
+      preparation,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe.preparation).toEqual(preparation);
+    const stored = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(stored.json().recipe.preparation).toEqual(preparation);
+  });
+
+  it('a suggestion stored before the preparation reads with none', async () => {
+    const suggestion = await aSuggestion();
+    await app.db.execute(
+      sql`update recipe_suggestion set payload = payload - 'preparation' where id = ${suggestion.id}`,
+    );
+
+    const response = await getImport(suggestion.importRequestId);
+
+    expect(response.statusCode).toBe(200);
+    expect(
+      recipeImportDetailSchema.parse(response.json()).suggestion?.payload
+        .preparation,
+    ).toEqual([]);
   });
 
   it('rejection marks it rejected', async () => {
