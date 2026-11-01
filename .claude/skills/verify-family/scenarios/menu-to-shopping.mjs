@@ -65,6 +65,12 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
     }),
     'Monday row updated',
   );
+  await see(
+    dinners
+      .getByRole('button', { name: new RegExp(title) })
+      .getByRole('img', { name: 'в списъка за пазаруване' }),
+    'Monday row 🛒',
+  );
   await aria('menu-filled');
   await shot('menu-filled');
 

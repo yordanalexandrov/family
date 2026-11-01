@@ -136,3 +136,48 @@ describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () =
     }
   });
 });
+
+describe('MealRow: 🛒 на ястията в списъка (ADR-0011)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('показва 🛒 само на реда на ястието, което е в списъка', async () => {
+    const week = planFor(thisWeek, {
+      2: {
+        recipeId: dinnerRecipes[1].id,
+        recipe: {
+          title: dinnerRecipes[1].title,
+          archivedAt: null,
+          rating: null,
+        },
+      },
+      3: {
+        recipeId: moussaka.id,
+        recipe: { title: moussaka.title, archivedAt: null, rating: null },
+      },
+    });
+    servePlans({ [thisWeek]: week });
+    serveShopping({
+      [thisWeek]: withMenu(thisWeek, [week.meals[3]?.id ?? '']),
+    });
+
+    renderApp('/menu');
+    const thursday = await screen.findByRole('button', { name: /Мусака/ });
+
+    expect(
+      await within(thursday).findByRole('img', {
+        name: 'в списъка за пазаруване',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('img', { name: 'в списъка за пазаруване' }),
+    ).toHaveLength(1);
+  });
+});
