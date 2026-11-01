@@ -95,22 +95,31 @@ export const shoppingRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 
   // A meal of the week's menu joins the list by hand (GLOSSARY: Ястие в списъка, ADR-0011).
-  for (const [method, listed] of [
-    ['PUT', true],
-    ['DELETE', false],
-  ] as const) {
-    app.route({
-      method,
-      url: '/api/shopping-lists/:weekStart/meals/:mealId',
+  app.put(
+    '/api/shopping-lists/:weekStart/meals/:mealId',
+    {
       schema: {
         params: shoppingMealParamsSchema,
         response: { 200: shoppingListResponseSchema },
       },
-      handler: async (request) => ({
-        list: await setMealListed(deps, { ...request.params, listed }),
-      }),
-    });
-  }
+    },
+    async (request) => ({
+      list: await setMealListed(deps, { ...request.params, listed: true }),
+    }),
+  );
+
+  app.delete(
+    '/api/shopping-lists/:weekStart/meals/:mealId',
+    {
+      schema: {
+        params: shoppingMealParamsSchema,
+        response: { 200: shoppingListResponseSchema },
+      },
+    },
+    async (request) => ({
+      list: await setMealListed(deps, { ...request.params, listed: false }),
+    }),
+  );
 
   app.delete(
     '/api/shopping-lists/:weekStart/items/:key',
