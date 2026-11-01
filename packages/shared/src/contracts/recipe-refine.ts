@@ -1,13 +1,18 @@
 import { z } from 'zod';
+import { preparationSchema } from '../food/preparation.js';
 import { quantitySchema, unitSchema } from '../food/units.js';
 import type { AiContract } from './contract.js';
+import {
+  preparationFromStrict,
+  preparationStrictSchema,
+} from './preparation.js';
 import { IMPORT_TEXT_MAX } from './recipe-normalize.js';
 
 /**
  * AI contract `recipe.refine` („Подобри рецептата“, GLOSSARY: Подобряване на рецепта): a recipe of the registry and, when
  * its source is a link that opened, the page read from it again → the recipe's steps written out in detail (one action
- * each, with amounts, heat, oven and a sign of doneness), its missing time, and photos of the page on the steps that
- * have none; or none and the reason in `noResults`. The title, products, tags and notes are not the agent's to change.
+ * each, with amounts, heat, oven and a sign of doneness), its missing time, photos of the page on the steps that have
+ * none, and its whole preparation (GLOSSARY: Подготовка) anew; or none and the reason in `noResults`. The title, products, tags and notes are not the agent's to change.
  * Everything the agent writes is in Bulgarian.
  *
  * Photos go as references only, never as URLs: the photos the recipe's steps have as `e1`, `e2`, … (in the order of the
@@ -36,6 +41,8 @@ const refineRecipeSchema = z.object({
   prepMinutes: z.int().positive().nullable(),
   ingredients: z.array(refineIngredientSchema),
   steps: z.array(refineStepSchema).min(1),
+  /** The preparation the recipe has; `[]` for one without (as every recipe from before the preparation). */
+  preparation: preparationSchema.default([]),
 });
 
 /**
@@ -72,6 +79,8 @@ const refinementFields = {
 const refinementSchema = z.object({
   ...refinementFields,
   steps: z.array(refineStepSchema).min(1),
+  /** The whole preparation anew, the items the recipe had among them; `[]` when it needs none. */
+  preparation: z.preprocess(preparationFromStrict, preparationSchema),
 });
 
 export type Refinement = z.infer<typeof refinementSchema>;
@@ -110,6 +119,7 @@ const RECIPE_REFINE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
         steps: z.array(
           z.object({ text: z.string(), image: z.string().nullable() }),
         ),
+        preparation: preparationStrictSchema,
       })
       .nullable(),
     noResults: z.string().nullable(),

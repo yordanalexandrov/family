@@ -1,9 +1,12 @@
 // Asks the real `family-recipe` agent for suggestions once, through the api's OpenClaw client, and prints a summary.
-// Manual check against the gateway (README → "Smoke тест на recipe.suggest"); not part of `pnpm test`.
+// Manual check against the gateway (README → "Smoke тест на recipe.suggest"); not part of `pnpm test`. Each suggestion
+// shows its preparation (#284) and the steps with a temperature, to compare the degrees with the step and the source.
 //   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--save out.json]
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
+  preparationKind,
+  preparationLabel,
   type RecipeSuggestInput,
   recipeSuggest,
   recipeSuggestParamsSchema,
@@ -81,6 +84,9 @@ const input: RecipeSuggestInput = {
   appliances,
 };
 
+/** A step that names a temperature: its degrees are compared with the oven of the preparation. */
+const TEMPERATURE = /°|градус|фурна/i;
+
 process.stderr.write(
   `→ ${config.url} openclaw/${config.recipeAgent}, timeout ${config.timeoutMs} ms, input ${JSON.stringify(params.data)}\n`,
 );
@@ -100,6 +106,14 @@ try {
       `   Уред: ${suggestion.appliance ?? '—'}`,
       `   Продукти: ${suggestion.ingredients.length}, нови: ${newOnes.length}${newOnes.length > 0 ? ` (${newOnes.map((i) => i.name).join(', ')})` : ''}`,
       `   Стъпки: ${suggestion.steps.length}`,
+      ...suggestion.steps.flatMap((step, stepIndex) =>
+        TEMPERATURE.test(step) ? [`   ${stepIndex + 1}. ${step}`] : [],
+      ),
+      `   Подготовка: ${suggestion.preparation.length === 0 ? 'няма' : suggestion.preparation.length}`,
+      ...suggestion.preparation.map(
+        (item) =>
+          `   - ${preparationKind(item.kind).labelBg}: ${preparationLabel(item)}`,
+      ),
       '',
     ];
   });

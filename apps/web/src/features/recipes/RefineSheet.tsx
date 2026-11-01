@@ -1,9 +1,10 @@
-import type { RecipeRefinement, RecipeStep } from '@family/shared';
+import type { Preparation, RecipeRefinement, RecipeStep } from '@family/shared';
 import { type ReactNode, useCallback, useEffect, useRef } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
 import { failureMessage } from '../../lib/ai-requests';
+import { PreparationList } from '../preparation/PreparationList';
 import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
 import { formatMinutes } from './format';
 import { useRefinement, useRequestRefinement } from './refinements';
@@ -12,6 +13,8 @@ interface RefineSheetProps {
   recipeId: string;
   /** Стъпките на записаната рецепта: тях подобрява AI и с тях се сравнява. */
   steps: readonly RecipeStep[];
+  /** Подготовката на записаната рецепта: с нея се сравнява предложената. */
+  preparation: Preparation;
   /** Заявката, която листът чака: пусната при предишно отваряне и още неизчакана. Без нея листът пуска нова. */
   requestId: string | undefined;
   /** Листът пусна заявка (при отваряне или с „Опитай пак“). */
@@ -29,16 +32,32 @@ function droppedText(count: number): string {
     : `${count} снимки не се свалиха.`;
 }
 
-function StepList({
+/**
+ * Едната колона на сравнението: подготовката (ако я има в някоя от двете колони, иначе нищо) и стъпките. Без
+ * подготовка в тази колона пише „Без подготовка“, за да личи, че „Приеми“ я маха или добавя.
+ */
+function ComparisonColumn({
   name,
   steps,
+  preparation,
 }: {
   name: string;
   steps: readonly RecipeStep[];
+  /** `undefined`: и двете колони са без подготовка. */
+  preparation: Preparation | undefined;
 }) {
   return (
     <section className="refine__column">
       <h3 className="refine__heading">{name}</h3>
+      {preparation &&
+        (preparation.length > 0 ? (
+          <PreparationList
+            preparation={preparation}
+            label={`Подготовка: ${name.toLocaleLowerCase('bg')}`}
+          />
+        ) : (
+          <p className="refine__note refine__no-preparation">Без подготовка</p>
+        ))}
       <ol className="refine__steps" aria-label={name}>
         {steps.map((step, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: стъпките нямат id; редът е идентичността им.
@@ -59,12 +78,13 @@ function StepList({
 
 /**
  * „✨ Подобри рецептата“ (`recipe.refine`): пуска заявката при отваряне (или продължава чакащата), чака я и показва
- * предложението до сегашните стъпки. „Приеми“ го слага във формата, „Откажи“ не променя нищо. Рецептата се променя
+ * предложението (стъпки и подготовка) до сегашните. „Приеми“ го слага във формата, „Откажи“ не променя нищо. Рецептата се променя
  * едва при „Запази“.
  */
 export function RefineSheet({
   recipeId,
   steps,
+  preparation,
   requestId,
   onRequested,
   onAccept,
@@ -135,6 +155,10 @@ export function RefineSheet({
       );
   } else if (current.refinement) {
     const refinement = current.refinement;
+    // Подобрение отпреди подготовката е без нея и не я сменя: няма какво да се сравнява.
+    const proposed = refinement.preparation;
+    const comparesPreparation =
+      proposed !== undefined && (preparation.length > 0 || proposed.length > 0);
     body = (
       <>
         <p>{refinement.changes}</p>
@@ -152,8 +176,16 @@ export function RefineSheet({
           <p>Време: {formatMinutes(refinement.prepMinutes)}</p>
         )}
         <div className="refine__compare">
-          <StepList name="Сега" steps={steps} />
-          <StepList name="Предложение" steps={refinement.steps} />
+          <ComparisonColumn
+            name="Сега"
+            steps={steps}
+            preparation={comparesPreparation ? preparation : undefined}
+          />
+          <ComparisonColumn
+            name="Предложение"
+            steps={refinement.steps}
+            preparation={comparesPreparation ? proposed : undefined}
+          />
         </div>
         <div className="refine__actions">
           <button

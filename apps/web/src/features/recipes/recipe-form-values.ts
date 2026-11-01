@@ -2,9 +2,14 @@ import {
   type BaseUnit,
   displaySourceUrl,
   type Ingredient,
+  isSecondOvenIssue,
+  MINUTES_BEFORE_MAX,
   type NewProduct,
   type Nutrition,
   normalizeSourceUrl,
+  OVEN_DEGREES_MAX,
+  OVEN_DEGREES_MIN,
+  PREPARATION_MAX,
   type Recipe,
   type RecipeInput,
   type RecipeStep,
@@ -14,6 +19,11 @@ import {
   type Unit,
 } from '@family/shared';
 import { formatQuantity } from '../../lib/format';
+import {
+  type PreparationItemValues,
+  preparationToValues,
+  valuesToPreparation,
+} from '../preparation/preparation-values';
 
 /**
  * Един ред продукт във формата. `ingredient: null` е неразрешен ред: има само текст в `query`
@@ -72,6 +82,8 @@ export interface RecipeFormValues {
   appliance: string;
   /** Стъпките с текста им и снимката им, ако има: при местене и махане снимката върви със стъпката. */
   steps: RecipeStep[];
+  /** GLOSSARY: Подготовка. Елементите в реда им, като в полетата. */
+  preparation: PreparationItemValues[];
   ingredients: IngredientRowValues[];
   nutrition: NutritionValues;
 }
@@ -130,6 +142,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     tags: [],
     appliance: '',
     steps: [],
+    preparation: [],
     ingredients: [],
     nutrition: nutritionToValues(undefined),
   };
@@ -148,6 +161,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     tags: [...recipe.tags],
     appliance: recipe.appliance ?? '',
     steps: recipe.steps.map((step) => ({ ...step })),
+    preparation: preparationToValues(recipe.preparation),
     ingredients: recipe.ingredients.map((line) =>
       emptyIngredientRow({
         ingredient: line.ingredient,
@@ -176,6 +190,8 @@ function valuesToNutrition(values: NutritionValues): Nutrition | undefined {
   ) as Nutrition;
 }
 
+const MINUTES_PER_DAY = 24 * 60;
+
 const FIELD_MESSAGES: [RegExp, string][] = [
   [/^title$/, 'Въведи заглавие'],
   [/^servings$/, 'Порциите са цяло число, поне 1'],
@@ -188,6 +204,16 @@ const FIELD_MESSAGES: [RegExp, string][] = [
     'Избери продукт от списъка или създай нов',
   ],
   [/^ingredients\.\d+\.quantity$/, 'Количеството е положително число'],
+  [/^preparation$/, `Най-много ${PREPARATION_MAX} неща в подготовката`],
+  [
+    /^preparation\.\d+\.degrees$/,
+    `Градусите са цяло число от ${OVEN_DEGREES_MIN} до ${OVEN_DEGREES_MAX}`,
+  ],
+  [/^preparation\.\d+\.text$/, 'Напиши какво да се направи'],
+  [
+    /^preparation\.\d+\.minutesBefore$/,
+    `Времето е от 1 мин до ${MINUTES_BEFORE_MAX / MINUTES_PER_DAY} дни`,
+  ],
   [/^nutritionPer100g\.\w+$/, 'Неотрицателно число'],
 ];
 
@@ -227,6 +253,7 @@ export function toRecipeInput(
     tags: values.tags,
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),
     ...(nutritionPer100g ? { nutritionPer100g } : {}),
+    preparation: valuesToPreparation(values.preparation),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',
       quantity:
@@ -244,7 +271,10 @@ export function toRecipeInput(
   for (const issue of result.error.issues) {
     // Грешката в текста на стъпка (`steps.1.text`) е на реда на стъпката (`steps.1`).
     const path = issue.path.join('.').replace(/^(steps\.\d+)\.text$/, '$1');
-    errors[path] ??= messageFor(path);
+    // Втора фурна е грешка по `kind`, но не единствената възможна там.
+    errors[path] ??= isSecondOvenIssue(issue)
+      ? 'Фурната е само една'
+      : messageFor(path);
   }
   return { ok: false, errors };
 }

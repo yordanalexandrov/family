@@ -75,6 +75,7 @@ function recipe(
     servings,
     steps: [{ text: 'готви' }],
     tags: [],
+    preparation: [],
     ingredients: lines.map(([ingredient, quantity, unit]) => ({
       ingredientId: ingredient.id,
       quantity,

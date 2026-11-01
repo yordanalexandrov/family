@@ -127,6 +127,13 @@ function ingredientLines() {
   );
 }
 
+/** Редовете в списъка „Подготовка“ на формата, като текст. */
+function preparationLines() {
+  return within(screen.getByRole('list', { name: 'Подготовка' }))
+    .queryAllByRole('listitem')
+    .map((line) => line.textContent);
+}
+
 /** Листът за един ред продукт. */
 function lineSheet() {
   return within(screen.getByRole('dialog', { name: 'Продукт' }));
@@ -247,6 +254,7 @@ describe('SuggestionReview', () => {
         steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
         sourceUrl: chickenSkewers.sourceUrl,
         appliance: null,
+        preparation: [],
         ingredients: [
           { ingredientId: chicken.id, quantity: 0.6, unit: 'kg' },
           { ingredientId: sumac.id, quantity: 1, unit: 'tsp' },
@@ -427,6 +435,46 @@ describe('SuggestionReview', () => {
       chicken.id,
       sumac.id,
       salt.id,
+    ]);
+  });
+
+  it('подготовката от предложението е във формата, поправя се преди одобрението и „Одобри“ я праща', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const { approved } = serveReview({
+      ...knownSkewers(chickenSkewers.steps),
+      payload: {
+        ...knownSkewers(chickenSkewers.steps).payload,
+        preparation: [
+          { kind: 'marinate', text: 'мариновай пилето', minutesBefore: 120 },
+          { kind: 'oven', degrees: 220, fan: 'fan', rack: 'high' },
+        ],
+      },
+    });
+
+    renderApp(reviewPath);
+
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    expect(preparationLines()).toEqual([
+      '🧂мариновай пилето · 2 ч преди',
+      '🔥220° · с вентилатор · горна скара',
+    ]);
+    await user.click(
+      screen.getByRole('button', { name: /220° · с вентилатор/ }),
+    );
+    const sheet = within(screen.getByRole('dialog', { name: 'Подготовка' }));
+    await user.click(sheet.getByRole('radio', { name: 'Без вентилатор' }));
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+    expect(preparationLines()).toEqual([
+      '🧂мариновай пилето · 2 ч преди',
+      '🔥220° · без вентилатор · горна скара',
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Предложения' });
+    expect(approved[0]?.preparation).toEqual([
+      { kind: 'marinate', text: 'мариновай пилето', minutesBefore: 120 },
+      { kind: 'oven', degrees: 220, fan: 'conventional', rack: 'high' },
     ]);
   });
 

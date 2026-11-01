@@ -106,6 +106,7 @@ export function EditRecipeScreen() {
         <RefineSheet
           recipeId={id}
           steps={recipe.data.steps}
+          preparation={recipe.data.preparation}
           requestId={refineId}
           onRequested={setRefineId}
           onAccept={(refinement) => {
@@ -113,6 +114,7 @@ export function EditRecipeScreen() {
               key: (current?.key ?? 0) + 1,
               steps: refinement.steps,
               prepMinutes: refinement.prepMinutes,
+              preparation: refinement.preparation,
             }));
             setRefineId(undefined);
             setRefining(false);

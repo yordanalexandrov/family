@@ -62,6 +62,53 @@ describe('RecipeView', () => {
     );
   });
 
+  it('показва подготовката над продуктите, с иконите на видовете и надписите', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe({
+      ...chickenWithRice,
+      preparation: [
+        { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
+        { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
+        { kind: 'fridge', text: 'извади пилето', minutesBefore: 30 },
+      ],
+    });
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    const heading = await screen.findByRole('heading', { name: 'Подготовка' });
+    const items = within(
+      screen.getByRole('list', { name: 'Подготовка' }),
+    ).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      '🔥200° · с вентилатор · средна скара',
+      '💧накисни боба · от вечерта',
+      '🧊извади пилето · 30 мин преди',
+    ]);
+    expect(
+      within(items[0] as HTMLElement).getByRole('img', { name: 'Фурна' }),
+    ).toBeInTheDocument();
+    // Разделът е над продуктите.
+    const products = screen.getByRole('heading', { name: 'Продукти' });
+    expect(
+      heading.compareDocumentPosition(products) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('рецепта без подготовка няма раздел „Подготовка“', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe();
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Продукти' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Подготовка' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('стъпка със снимка има миниатюра, която се отваря на цял екран', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);

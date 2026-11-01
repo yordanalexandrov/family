@@ -1,4 +1,10 @@
-import type { Ingredient, RecipeInput, RecipeStep, Tag } from '@family/shared';
+import type {
+  Ingredient,
+  Preparation,
+  RecipeInput,
+  RecipeStep,
+  Tag,
+} from '@family/shared';
 import {
   type FormEvent,
   type ReactNode,
@@ -12,6 +18,8 @@ import { type Action, ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Field } from '../../components/Field';
 import { applianceShortName, useAppliances } from '../appliances/queries';
+import { PreparationField } from '../preparation/PreparationField';
+import { preparationToValues } from '../preparation/preparation-values';
 import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
@@ -55,17 +63,19 @@ export interface RecipeFormProps {
   /** Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията. */
   stepsAction?: ReactNode;
   /**
-   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и попълва времето, ако го има, веднъж за
-   * всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
+   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и подготовката и попълва времето, ако го
+   * има, веднъж за всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
    */
   replaceSteps?: StepsReplacement | undefined;
 }
 
-/** Стъпките (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
+/** Стъпките, подготовката (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
 export interface StepsReplacement {
   /** Нов номер = ново подобрение за прилагане. */
   key: number;
   steps: RecipeStep[];
+  /** Цялата подготовка: заменя сегашната, и `[]` я маха; `undefined` (подобрение отпреди подготовката) не я пипа. */
+  preparation?: Preparation | undefined;
   prepMinutes?: number | undefined;
 }
 
@@ -113,7 +123,7 @@ function move<T>(items: readonly T[], from: number, to: number): T[] {
  */
 function reindexErrors(
   errors: RecipeFormErrors,
-  list: 'steps' | 'ingredients',
+  list: 'steps' | 'ingredients' | 'preparation',
   newIndex: (index: number) => number | undefined,
 ): RecipeFormErrors {
   const pattern = new RegExp(`^${list}\\.(\\d+)(\\..+)?$`);
@@ -149,6 +159,19 @@ function stillFailing(
   );
 }
 
+/** Грешките на подготовката без `preparation.` отпред; грешката на целия списък е под `''`. */
+function preparationErrors(errors: RecipeFormErrors): RecipeFormErrors {
+  return Object.fromEntries(
+    Object.entries(errors).flatMap(([path, message]) =>
+      path === 'preparation'
+        ? [['', message]]
+        : path.startsWith('preparation.')
+          ? [[path.slice('preparation.'.length), message]]
+          : [],
+    ),
+  );
+}
+
 /** Новият индекс на ред след махането на `removed`. */
 function afterRemoving(removed: number) {
   return (index: number) =>
@@ -180,6 +203,9 @@ export function RecipeForm({
     setValues((current) => ({
       ...current,
       steps: replaceSteps.steps.map((step) => ({ ...step })),
+      ...(replaceSteps.preparation === undefined
+        ? {}
+        : { preparation: preparationToValues(replaceSteps.preparation) }),
       ...(replaceSteps.prepMinutes === undefined
         ? {}
         : { prepMinutes: String(replaceSteps.prepMinutes) }),
@@ -481,6 +507,19 @@ export function RecipeForm({
             onToggle={toggleTag}
           />
         </fieldset>
+
+        <PreparationField
+          items={values.preparation}
+          errors={preparationErrors(errors)}
+          onChange={(preparation, reindex) => {
+            set('preparation', preparation);
+            if (reindex) {
+              setFlagged((current) =>
+                reindexErrors(current, 'preparation', reindex),
+              );
+            }
+          }}
+        />
 
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Продукти</legend>

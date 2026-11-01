@@ -3,7 +3,8 @@
 //   pnpm --filter api refine:smoke -- [--recipe <file.json> ...] [--url <link>] [--no-source] [--save out.json]
 // Without `--recipe` it refines the fixture `recipe-refine.input.json` (terse steps, a photo of its own on step 2, a
 // JSON-LD page with 3 step photos). `--recipe` is a recipe as `recipe` of the input (title, servings, prepMinutes,
-// ingredients by name, steps with `image` `e1`, … or null), so a recipe of the registry can be pasted in. `--url` reads
+// ingredients by name, steps with `image` `e1`, … or null, and optionally its `preparation`), so a recipe of the
+// registry can be pasted in. `--url` reads
 // the page the way the api does (services/recipe-page) and sends it as the source; its photos go as references and
 // after the answer the photos the agent chose are downloaded and made JPEGs as the api does, without storing them.
 // `--no-source` sends `source: null`, as for a recipe without a link or one whose page did not open.
@@ -11,6 +12,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
+  type Preparation,
+  preparationKind,
+  preparationLabel,
   type RecipeRefineInput,
   type RecipeRefineOutput,
   recipeRefine,
@@ -116,6 +120,16 @@ if (!client) {
   process.exit(2);
 }
 
+/** „🔥 200° · с вентилатор“, one item a line; „—“ for none. */
+function preparationLines(preparation: Preparation): string[] {
+  return preparation.length === 0
+    ? ['   —']
+    : preparation.map(
+        (item) =>
+          `   ${preparationKind(item.kind).icon} ${preparationLabel(item)}`,
+      );
+}
+
 function summary(
   input: RecipeRefineInput,
   output: RecipeRefineOutput,
@@ -151,6 +165,10 @@ function summary(
     ...refined.steps.map(
       (step, index) => `   ${index + 1}. ${step.text}${photo(step.image)}`,
     ),
+    '   Подготовка сега:',
+    ...preparationLines(input.recipe.preparation),
+    '   Подготовка предложение:',
+    ...preparationLines(refined.preparation),
     `   за ${seconds} s`,
     '',
   ].join('\n');

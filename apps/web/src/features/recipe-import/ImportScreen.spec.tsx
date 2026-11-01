@@ -111,6 +111,13 @@ function ingredientLines() {
   );
 }
 
+/** Редовете в списъка „Подготовка“ на формата, като текст. */
+function preparationLines() {
+  return within(screen.getByRole('list', { name: 'Подготовка' }))
+    .queryAllByRole('listitem')
+    .map((line) => line.textContent);
+}
+
 /** Листът за един ред продукт. */
 function lineSheet() {
   return within(screen.getByRole('dialog', { name: 'Продукт' }));
@@ -216,6 +223,7 @@ describe('ImportScreen', () => {
         ],
         appliance: null,
         sourceUrl: importUrl,
+        preparation: [],
         ingredients: [
           {
             ingredientId: chicken.id,
@@ -656,6 +664,52 @@ describe('ImportScreen', () => {
 
     await screen.findByRole('heading', { name: 'Пилешко филе със сумак' });
     expect(api.approved[0]?.sourceUrl).toBe(encoded);
+  });
+
+  it('подготовката от внасянето е във формата, поправя се преди одобрението и „Одобри“ я праща', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const api = serveImport({
+      ...DONE,
+      suggestion: {
+        ...importedSuggestion,
+        payload: {
+          ...importedSuggestion.payload,
+          ingredients: importedSuggestion.payload.ingredients.filter(
+            (line) => line.ingredientId !== null,
+          ),
+          preparation: [
+            { kind: 'oven', degrees: 200, fan: 'conventional' },
+            { kind: 'marinate', text: 'мариновай пилето', minutesBefore: 120 },
+          ],
+        },
+      },
+    });
+
+    renderApp(`/recipes/import/${importId}`);
+
+    await screen.findByRole('textbox', { name: 'Заглавие' });
+    expect(preparationLines()).toEqual([
+      '🔥200° · без вентилатор',
+      '🧂мариновай пилето · 2 ч преди',
+    ]);
+    await user.click(
+      screen.getByRole('button', { name: /200° · без вентилатор/ }),
+    );
+    const sheet = within(screen.getByRole('dialog', { name: 'Подготовка' }));
+    await user.click(sheet.getByRole('radio', { name: 'С вентилатор' }));
+    await user.click(sheet.getByRole('button', { name: 'Готово' }));
+    expect(preparationLines()).toEqual([
+      '🔥200° · с вентилатор',
+      '🧂мариновай пилето · 2 ч преди',
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await screen.findByRole('heading', { name: 'Пилешко филе със сумак' });
+    expect(api.approved[0]?.preparation).toEqual([
+      { kind: 'oven', degrees: 200, fan: 'fan' },
+      { kind: 'marinate', text: 'мариновай пилето', minutesBefore: 120 },
+    ]);
   });
 
   it('един нов продукт на два реда: създаден от единия, свързва и другия', async () => {

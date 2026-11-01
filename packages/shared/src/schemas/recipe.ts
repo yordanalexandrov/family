@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
+import { preparationSchema } from '../food/preparation.js';
 import { tagSchema } from '../food/tags.js';
 import {
   checkPinchQuantity,
@@ -73,6 +74,8 @@ export const recipeInputSchema = z.object({
    * the hob. Text, not a reference: the recipe keeps it when the appliance is removed or renamed.
    */
   appliance: z.string().trim().min(1).max(APPLIANCE_NAME_MAX).optional(),
+  /** GLOSSARY: Подготовка. A client that does not send it (and a recipe from before it) has none. */
+  preparation: preparationSchema.default([]),
   ingredients: z.array(recipeIngredientSchema),
 });
 

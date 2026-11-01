@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
+import { preparationSchema } from '../food/preparation.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
 import {
   checkPinchQuantity,
@@ -9,6 +10,11 @@ import {
 import { nutritionSchema } from '../schemas/recipe.js';
 import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
+import {
+  preparationFromStrict,
+  preparationStrictSchema,
+} from './preparation.js';
+import { isRecord, withoutNulls } from './strict-mode.js';
 
 /**
  * AI contract `recipe.suggest` (GLOSSARY: AI контракт): fixed JSON in → 3–5 normalized recipes out, or none and
@@ -61,6 +67,11 @@ export const suggestionSchema = z.object({
   ingredients: z.array(suggestionIngredientSchema).min(2),
   steps: z.array(z.string().trim().min(1)).min(2),
   nutritionPer100g: nutritionSchema.optional(),
+  /**
+   * GLOSSARY: Подготовка — what the recipe has done before the first step or alongside it (the oven with its first
+   * temperature, soaking, marinating…), without rewriting the steps; empty when there is nothing. Always present.
+   */
+  preparation: preparationSchema,
   /**
    * The household appliance (GLOSSARY: Уред) the recipe is for, exactly as one of the input's `appliances`; absent
    * when it is for the oven or the hob. Checked against the input by {@link checkAppliances}.
@@ -198,6 +209,7 @@ const recipeSuggestWireSchema = z.object({
         sourceUrl: z.string(),
         nutritionPer100g: nutritionSchema.nullable(),
         appliance: z.string().nullable(),
+        preparation: preparationStrictSchema,
       }),
     )
     // 0 for an answer with `noResults`; the 3–5 otherwise is checked by the contract only.
@@ -208,7 +220,8 @@ const recipeSuggestWireSchema = z.object({
 
 /**
  * JSON Schema of the output for `response_format: { type: 'json_schema', strict: true }`: every object closed and
- * every property required, `nutritionPer100g`, `appliance` and `noResults` nullable. Refinements (3–5 suggestions without
+ * every property required, `nutritionPer100g`, `appliance`, `noResults` and the preparation's `rack` and
+ * `minutesBefore` nullable. Refinements (3–5 suggestions without
  * `noResults`, a pinch has no quantity) are not expressible there; the API still parses with {@link recipeSuggestAgentOutputSchema}.
  */
 const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
@@ -216,11 +229,11 @@ const RECIPE_SUGGEST_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
   { io: 'output', unrepresentable: 'any' },
 );
 
-/** The optional fields of a suggestion that strict mode sends as `null`. */
-const NULLABLE_SUGGESTION_FIELDS = ['nutritionPer100g', 'appliance'] as const;
-
-/** `nutritionPer100g: null` and `appliance: null` (how strict mode says "none") become absent; anything else is left for the contract. */
-function withoutNullFields(value: unknown): unknown {
+/**
+ * How strict mode says "none" becomes absent: `nutritionPer100g: null` and `appliance: null` of a suggestion, and
+ * `rack: null` and `minutesBefore: null` of its preparation items. Anything else is left for the contract.
+ */
+function fromStrictMode(value: unknown): unknown {
   if (!isRecord(value) || !Array.isArray(value.suggestions)) {
     return value;
   }
@@ -230,28 +243,21 @@ function withoutNullFields(value: unknown): unknown {
       if (!isRecord(suggestion)) {
         return suggestion;
       }
-      return Object.fromEntries(
-        Object.entries(suggestion).filter(
-          ([key, field]) =>
-            field !== null ||
-            !(NULLABLE_SUGGESTION_FIELDS as readonly string[]).includes(key),
-        ),
-      );
+      return {
+        ...withoutNulls(suggestion, ['nutritionPer100g', 'appliance']),
+        preparation: preparationFromStrict(suggestion.preparation),
+      };
     }),
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /**
- * The agent's answer parsed into {@link RecipeSuggestOutput}: accepts `nutritionPer100g: null` and `appliance: null`
- * from strict mode as well as the fields left out, and otherwise refuses exactly what {@link recipeSuggestOutputSchema}
+ * The agent's answer parsed into {@link RecipeSuggestOutput}: accepts `nutritionPer100g: null`, `appliance: null` and
+ * the preparation's `rack: null` and `minutesBefore: null` from strict mode as well as the fields left out, and otherwise refuses exactly what {@link recipeSuggestOutputSchema}
  * refuses.
  */
 const recipeSuggestAgentOutputSchema = z.preprocess(
-  withoutNullFields,
+  fromStrictMode,
   recipeSuggestOutputSchema,
 );
 

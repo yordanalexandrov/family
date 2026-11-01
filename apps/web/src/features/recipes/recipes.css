@@ -585,6 +585,12 @@ fieldset.chips {
   color: var(--color-text-muted);
 }
 
+/* Подготовката над стъпките на колоната, както в Готвене. */
+.refine__column > .preparation-list,
+.refine__no-preparation {
+  margin: 0 0 var(--space-3);
+}
+
 .refine__steps {
   display: flex;
   flex-direction: column;

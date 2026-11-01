@@ -48,6 +48,7 @@ export const chickenSkewers: SuggestionPayload = {
     { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
   ],
   steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
+  preparation: [],
 };
 
 export const lentilSoup: SuggestionPayload = {
@@ -62,6 +63,7 @@ export const lentilSoup: SuggestionPayload = {
     { name: 'лук', isNew: false, quantity: 1, unit: 'pcs' },
   ],
   steps: [{ text: 'Запържи лука.' }, { text: 'Свари лещата с лука.' }],
+  preparation: [],
 };
 
 export const omeletteSuggestion: SuggestionPayload = {
@@ -76,6 +78,7 @@ export const omeletteSuggestion: SuggestionPayload = {
     { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
   ],
   steps: [{ text: 'Разбий яйцата със солта.' }, { text: 'Изпечи ги в тиган.' }],
+  preparation: [],
 };
 
 export const skewersSuggestion: RecipeSuggestion = {

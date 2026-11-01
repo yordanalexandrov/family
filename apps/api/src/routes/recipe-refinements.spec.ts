@@ -6,11 +6,13 @@ import {
   recipeRefineRequestSchema,
   recipeResponseSchema,
 } from '@family/shared';
+import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import sharp from 'sharp';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
+import { testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -104,6 +106,7 @@ async function createdRecipe(overrides: Partial<RecipeInput> = {}) {
         unit: 'pinch',
       },
     ],
+    preparation: [],
     ...overrides,
   };
   const response = await app.inject({
@@ -242,11 +245,23 @@ const REFINED_STEPS = [
   },
 ];
 
-function refined(steps = REFINED_STEPS, prepMinutes: number | null = 75) {
+/** The preparation as the agent answers it: `null` for a rack or a time before it does not give. */
+const REFINED_PREPARATION = [
+  { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
+  { kind: 'fridge', text: 'извади пилето от хладилника', minutesBefore: 30 },
+  { kind: 'pan', text: 'намазни тава с олио', minutesBefore: null },
+];
+
+function refined(
+  steps = REFINED_STEPS,
+  prepMinutes: number | null = 75,
+  preparation: unknown[] = REFINED_PREPARATION,
+) {
   return () => ({
     recipe: {
       steps,
       prepMinutes,
+      preparation,
       changes: 'Стъпките са по-подробни, времето е от източника.',
     },
     noResults: null,
@@ -276,6 +291,7 @@ describe('POST /api/recipes/:id/refinements', () => {
         { text: 'Сложи пилето отгоре.', image: 'e1' },
         { text: 'Печи.', image: null },
       ],
+      preparation: [],
     });
     expect(inputs[0]?.source).toMatchObject({
       url: SOURCE_URL,
@@ -307,6 +323,71 @@ describe('POST /api/recipes/:id/refinements', () => {
     });
     expect(recipeResponseSchema.parse(stored.json()).recipe.steps).toEqual(
       recipe.steps,
+    );
+  });
+
+  it('proposes the whole preparation for a recipe without one, and the recipe keeps none until it is saved', async () => {
+    const { recipe } = await createdRecipe();
+    serveSource();
+    answerInTurn(refined());
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(done.refinement?.preparation).toEqual([
+      { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
+      {
+        kind: 'fridge',
+        text: 'извади пилето от хладилника',
+        minutesBefore: 30,
+      },
+      { kind: 'pan', text: 'намазни тава с олио' },
+    ]);
+    const stored = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(
+      recipeResponseSchema.parse(stored.json()).recipe.preparation,
+    ).toEqual([]);
+  });
+
+  it('sends the preparation the recipe has, and keeps an answer that needs none', async () => {
+    const preparation = [
+      { kind: 'oven' as const, degrees: 180, fan: 'conventional' as const },
+      { kind: 'soak' as const, text: 'накисни боба', minutesBefore: 480 },
+    ];
+    const { recipe } = await createdRecipe({
+      sourceUrl: undefined,
+      preparation,
+    });
+    const inputs = answerInTurn(
+      refined([{ text: 'Сложи пилето отгоре.', image: 'e1' }], 75, []),
+    );
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(inputs[0]?.recipe.preparation).toEqual(preparation);
+    expect(done.refinement?.preparation).toEqual([]);
+  });
+
+  it('a refinement stored before the preparation reads without one, so it leaves the recipe preparation alone', async () => {
+    const { recipe } = await createdRecipe({ sourceUrl: undefined });
+    answerInTurn(refined([{ text: 'Сложи пилето отгоре.', image: 'e1' }]));
+    const done = await finished(await requested(recipe.id));
+    await testDb().execute(
+      sql`update recipe_refine_request set refinement = refinement - 'preparation' where id = ${done.id}`,
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/refinements/${done.id}`,
+      headers,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().request.refinement).not.toHaveProperty(
+      'preparation',
     );
   });
 
