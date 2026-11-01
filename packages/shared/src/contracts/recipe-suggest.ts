@@ -14,6 +14,7 @@ import {
   preparationFromStrict,
   preparationStrictSchema,
 } from './preparation.js';
+import { isRecord, withoutNulls } from './strict-mode.js';
 
 /**
  * AI contract `recipe.suggest` (GLOSSARY: AI контракт): fixed JSON in → 3–5 normalized recipes out, or none and
@@ -242,23 +243,12 @@ function fromStrictMode(value: unknown): unknown {
       if (!isRecord(suggestion)) {
         return suggestion;
       }
-      const { nutritionPer100g, appliance, preparation, ...rest } = suggestion;
       return {
-        ...rest,
-        ...(nutritionPer100g === null || nutritionPer100g === undefined
-          ? {}
-          : { nutritionPer100g }),
-        ...(appliance === null || appliance === undefined ? {} : { appliance }),
-        ...(preparation === undefined
-          ? {}
-          : { preparation: preparationFromStrict(preparation) }),
+        ...withoutNulls(suggestion, ['nutritionPer100g', 'appliance']),
+        preparation: preparationFromStrict(suggestion.preparation),
       };
     }),
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   preparationFromStrict,
   preparationStrictSchema,
 } from './preparation.js';
+import { isRecord, withoutNulls } from './strict-mode.js';
 
 /**
  * AI contract `recipe.normalize` (GLOSSARY: Внасяне на рецепта): a foreign recipe (pasted text, a page the api
@@ -266,10 +267,6 @@ const RECIPE_NORMALIZE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
   { io: 'output', unrepresentable: 'any' },
 );
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /**
  * How strict mode says "none" becomes absent: `recipe.nutritionPer100g: null`, and `rack: null` and
  * `minutesBefore: null` of the preparation items. Anything else is left for the contract.
@@ -278,17 +275,11 @@ function fromStrictMode(value: unknown): unknown {
   if (!isRecord(value) || !isRecord(value.recipe)) {
     return value;
   }
-  const { nutritionPer100g, preparation, ...recipe } = value.recipe;
   return {
     ...value,
     recipe: {
-      ...recipe,
-      ...(nutritionPer100g === null || nutritionPer100g === undefined
-        ? {}
-        : { nutritionPer100g }),
-      ...(preparation === undefined
-        ? {}
-        : { preparation: preparationFromStrict(preparation) }),
+      ...withoutNulls(value.recipe, ['nutritionPer100g']),
+      preparation: preparationFromStrict(value.recipe.preparation),
     },
   };
 }
