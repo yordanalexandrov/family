@@ -308,6 +308,16 @@
   background: color-mix(in srgb, var(--color-success) 16%, transparent);
 }
 
+/*
+ * Обобщеният чип на нисък екран (телефон легнал, `LOW_SCREEN_QUERY`): иконите и „1/3“ на един ред вместо чиповете,
+ * за да остане височината за текста на стъпката. Пълните чипове са в лист зад него.
+ */
+.cooking-preparation__summary {
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .cooking-preparation__check {
   flex: none;
   color: var(--color-success);
@@ -423,20 +433,6 @@
 
   .cooking-steps__dots {
     display: none;
-  }
-
-  /* Един ред, който се превърта встрани (като лентата с таймерите): височината остава за текста на стъпката. */
-  .cooking-preparation {
-    flex: none;
-    flex-wrap: nowrap;
-    overflow: auto hidden;
-    overscroll-behavior-inline: contain;
-  }
-
-  .cooking-preparation__chip {
-    flex: none;
-    max-inline-size: 90%;
-    font-size: var(--font-size-md);
   }
 
   .cooking-ingredients {

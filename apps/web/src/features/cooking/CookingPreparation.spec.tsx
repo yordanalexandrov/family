@@ -3,7 +3,7 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
-import { server } from '../../test/msw';
+import { dani, server } from '../../test/msw';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 
@@ -191,6 +191,113 @@ describe('Подготовка в Готвене', () => {
   );
 });
 
+describe('Подготовка в Готвене на нисък екран (легнал телефон)', () => {
+  it('на висок екран редът си остава с пълните чипове', async () => {
+    setUpDevice('kiosk');
+    stubScreen({ low: false });
+    serveRecipe();
+
+    renderApp(`/recipes/${roast.id}/cook`);
+
+    expect(chipNames(await preparationRow())).toEqual([OVEN, BUTTER]);
+    expect(
+      screen.queryByRole('button', { name: /готови$/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('редът е един обобщен чип с иконите и брояча, без думата „Подготовка“', async () => {
+    setUpDevice('phone', dani.id);
+    stubScreen({ low: true });
+    serveRecipe();
+
+    renderApp(`/recipes/${roast.id}/cook`);
+    const summary = await screen.findByRole('button', {
+      name: 'Подготовка: 0 от 2 готови',
+    });
+
+    expect(summary).toHaveTextContent('🔥🧊0/2');
+    expect(summary).not.toHaveTextContent('Подготовка');
+    expect(summary).not.toHaveTextContent('✓');
+    expect(summary).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByRole('button', { name: OVEN }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('докосването отваря лист с чиповете, а отметката в него сменя брояча', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    stubScreen({ low: true });
+    serveRecipe();
+
+    renderApp(`/recipes/${roast.id}/cook`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Подготовка: 0 от 2 готови' }),
+    );
+
+    const sheet = screen.getByRole('dialog', { name: 'Подготовка' });
+    const oven = within(sheet).getByRole('button', { name: OVEN });
+    expect(oven).toHaveAttribute('aria-pressed', 'false');
+    await user.click(oven);
+    expect(oven).toHaveAttribute('aria-pressed', 'true');
+
+    const summary = screen.getByRole('button', {
+      name: 'Подготовка: 1 от 2 готови',
+      hidden: true,
+    });
+    expect(summary).toHaveTextContent('🔥🧊1/2');
+    expect(summary).toHaveAttribute('aria-expanded', 'true');
+    expect(summary).not.toHaveClass('cooking-preparation__chip--done');
+
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('когато всички са отметнати, чипът е зелен с ✓ и пак без думата', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    stubScreen({ low: true });
+    serveRecipe();
+
+    renderApp(`/recipes/${roast.id}/cook`);
+    await user.click(
+      await screen.findByRole('button', { name: 'Подготовка: 0 от 2 готови' }),
+    );
+    const sheet = screen.getByRole('dialog', { name: 'Подготовка' });
+    await user.click(within(sheet).getByRole('button', { name: OVEN }));
+    await user.click(within(sheet).getByRole('button', { name: BUTTER }));
+    // Листът остава с двата чипа: последният зелен не го свива.
+    expect(
+      within(sheet).getAllByRole('button', { pressed: true }),
+    ).toHaveLength(2);
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    const summary = screen.getByRole('button', {
+      name: 'Подготовка: 2 от 2 готови',
+    });
+    expect(summary).toHaveTextContent('🔥🧊✓');
+    expect(summary).not.toHaveTextContent('Подготовка');
+    expect(summary).toHaveClass('cooking-preparation__chip--done');
+  });
+
+  it('два елемента от един вид дават една икона', async () => {
+    setUpDevice('phone', dani.id);
+    stubScreen({ low: true });
+    serveRecipe({
+      ...roast,
+      preparation: [oven, butter, { kind: 'fridge', text: 'яйцата' }],
+    });
+
+    renderApp(`/recipes/${roast.id}/cook`);
+
+    expect(
+      await screen.findByRole('button', { name: 'Подготовка: 0 от 3 готови' }),
+    ).toHaveTextContent('🔥🧊0/3');
+  });
+});
+
 /** Имената на бутоните в реда, по реда им. */
 function chipNames(row: HTMLElement) {
   return within(row)
@@ -208,5 +315,20 @@ function atTime(iso: string) {
   vi.setSystemTime(new Date(iso));
   onTestFinished(() => {
     vi.useRealTimers();
+  });
+}
+
+/** Широк екран (границата на листа, `min-width: 48rem`, важи); `low` — и нисък (`max-height: 32rem`), като легнал телефон. */
+function stubScreen({ low }: { low: boolean }) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches:
+      query === '(min-width: 48rem)' ||
+      (low && query === '(max-height: 32rem)'),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  onTestFinished(() => {
+    vi.unstubAllGlobals();
   });
 }
