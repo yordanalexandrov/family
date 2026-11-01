@@ -63,13 +63,14 @@ export interface RecipeFormProps {
   /** Действие под заглавието „Стъпки“, напр. „✨ Подобри рецептата“ в редакцията. */
   stepsAction?: ReactNode;
   /**
-   * Прието подобрение (GLOSSARY: Подобряване на рецепта): заменя стъпките и подготовката и попълва времето, ако го
-   * има, веднъж за всеки нов `key`; другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
+   * Прието подобрение (GLOSSARY: Подобряване на рецепта) или поправка (GLOSSARY: Поправка на рецепта): заменя стъпките и
+   * подготовката, попълва времето, ако го има, а поправката — и порциите и продуктите, веднъж за всеки нов `key`;
+   * другите полета, и незапазените промени в тях, остават. Рецептата се променя при „Запази“.
    */
   replaceSteps?: StepsReplacement | undefined;
 }
 
-/** Стъпките, подготовката (и времето), които влизат във формата наведнъж, напр. от прието подобрение. */
+/** Стъпките, подготовката (и времето, порциите и продуктите), които влизат във формата наведнъж, напр. от прието подобрение. */
 export interface StepsReplacement {
   /** Нов номер = ново подобрение за прилагане. */
   key: number;
@@ -77,6 +78,10 @@ export interface StepsReplacement {
   /** Цялата подготовка: заменя сегашната, и `[]` я маха; `undefined` (подобрение отпреди подготовката) не я пипа. */
   preparation?: Preparation | undefined;
   prepMinutes?: number | undefined;
+  /** Порциите от поправка; `undefined` не ги пипа. */
+  servings?: number | undefined;
+  /** Всички продукти от поправка (новите неразрешени, за свързване); `undefined` не ги пипа. */
+  ingredients?: IngredientRowValues[] | undefined;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -209,6 +214,12 @@ export function RecipeForm({
       ...(replaceSteps.prepMinutes === undefined
         ? {}
         : { prepMinutes: String(replaceSteps.prepMinutes) }),
+      ...(replaceSteps.servings === undefined
+        ? {}
+        : { servings: String(replaceSteps.servings) }),
+      ...(replaceSteps.ingredients === undefined
+        ? {}
+        : { ingredients: replaceSteps.ingredients }),
     }));
   }
   /**

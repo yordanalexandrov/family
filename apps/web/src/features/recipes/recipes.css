@@ -618,3 +618,39 @@ fieldset.chips {
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* „✏️ Поправи с AI“: до „✨ Подобри рецептата“, указанието и продуктите в сравнението. */
+.recipe-form__ai {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.refine__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.refine__input {
+  resize: vertical;
+  min-block-size: 5.5rem;
+}
+
+.refine__form .refine__note,
+.refine__column > .refine__note {
+  margin: 0 0 var(--space-2);
+}
+
+.refine__actions > .needs-connection {
+  margin: 0;
+  align-self: center;
+}
+
+.refine__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  padding-inline-start: 1.25em;
+}

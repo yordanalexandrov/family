@@ -8,18 +8,23 @@ import { useOnline } from '../../lib/use-online';
 import { useRecipe, useSaveRecipe } from './queries';
 import { RecipeForm, type StepsReplacement } from './RecipeForm';
 import { RefineSheet } from './RefineSheet';
+import { ReviseSheet } from './ReviseSheet';
 import { recipeToFormValues } from './recipe-form-values';
+import { revisionToIngredientRows } from './revisions';
 import './recipes.css';
 
-/** Запис и после към прегледа на рецептата. */
-function useSaveAndView(id?: string) {
+/** Запис и после към прегледа на рецептата; с `revisionId` — с приетата поправка. */
+function useSaveAndView(id?: string, revisionId?: string) {
   const save = useSaveRecipe();
   const navigate = useNavigate();
   return {
     save,
     submit(input: RecipeInput) {
       save.mutate(
-        { ...(id ? { id } : {}), input },
+        {
+          ...(id ? { id } : {}),
+          input: revisionId ? { ...input, revisionId } : input,
+        },
         {
           onSuccess(recipe) {
             void navigate({ to: '/recipes/$id', params: { id: recipe.id } });
@@ -54,9 +59,14 @@ export function NewRecipeScreen() {
 export function EditRecipeScreen() {
   const { id } = useParams({ from: '/recipes/$id/edit' });
   const recipe = useRecipe(id);
-  const { save, submit } = useSaveAndView(id);
+  /** Приетата поправка във формата: записът я маркира приета. */
+  const [acceptedRevision, setAcceptedRevision] = useState<string>();
+  const { save, submit } = useSaveAndView(id, acceptedRevision);
   const navigate = useNavigate();
   const [refining, setRefining] = useState(false);
+  const [revising, setRevising] = useState(false);
+  /** Поправката, която още чака или не е решена: затвореният и отворен пак лист продължава нея. */
+  const [revisionId, setRevisionId] = useState<string>();
   /** Подобряването, което още чака: затвореният и отворен пак лист продължава него. */
   const [refineId, setRefineId] = useState<string>();
   const [replacement, setReplacement] = useState<StepsReplacement>();
@@ -87,7 +97,7 @@ export function EditRecipeScreen() {
           onCancel={() => void navigate({ to: '/recipes/$id', params: { id } })}
           replaceSteps={replacement}
           stepsAction={
-            <>
+            <div className="recipe-form__ai">
               <button
                 type="button"
                 className="button button--quiet recipe-form__refine"
@@ -97,8 +107,17 @@ export function EditRecipeScreen() {
               >
                 ✨ Подобри рецептата
               </button>
+              <button
+                type="button"
+                className="button button--quiet recipe-form__refine"
+                disabled={connection.disabled}
+                aria-describedby={connection.describedBy}
+                onClick={() => setRevising(true)}
+              >
+                ✏️ Поправи с AI
+              </button>
               {connection.hint}
-            </>
+            </div>
           }
         />
       )}
@@ -125,6 +144,31 @@ export function EditRecipeScreen() {
             }
             setRefining(false);
           }}
+        />
+      )}
+      {revising && recipe.data && (
+        <ReviseSheet
+          recipe={recipe.data}
+          requestId={revisionId}
+          onRequested={setRevisionId}
+          onAccept={(accepted, revision) => {
+            setReplacement((current) => ({
+              key: (current?.key ?? 0) + 1,
+              steps: revision.steps,
+              prepMinutes: revision.prepMinutes,
+              preparation: revision.preparation,
+              servings: revision.servings,
+              ingredients: revisionToIngredientRows(revision.ingredients),
+            }));
+            setAcceptedRevision(accepted);
+            setRevisionId(undefined);
+            setRevising(false);
+          }}
+          onRejected={() => {
+            setRevisionId(undefined);
+            setRevising(false);
+          }}
+          onClose={() => setRevising(false)}
         />
       )}
     </main>
