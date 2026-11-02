@@ -616,6 +616,9 @@ function report(
     }
   }
 
+  // What changed in the products and steps, before the components are printed.
+  const changedLines = lines.length;
+
   // Components: as the case expects them, or as they were, each with the same products.
   const componentText = (
     components: readonly { name: string; servings: number }[],
@@ -688,7 +691,7 @@ function report(
   const preparationAfter = preparationText(revised.preparation);
   if (
     checked &&
-    lines.length === 0 &&
+    changedLines === 0 &&
     !componentsChanged &&
     revised.servings === recipe.servings &&
     revised.prepMinutes === recipe.prepMinutes &&
