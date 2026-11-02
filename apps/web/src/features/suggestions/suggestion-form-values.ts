@@ -6,21 +6,24 @@ import {
 } from '@family/shared';
 import { preparationToValues } from '../preparation/preparation-values';
 import {
+  componentsToValues,
   emptyIngredientRow,
   emptyRecipeFormValues,
+  lineComponent,
   nutritionToValues,
   type RecipeFormValues,
 } from '../recipes/recipe-form-values';
 
 /**
  * Началните стойности на `RecipeForm` от предложение. `resolved` е продуктът от регистъра по име на реда
- * (точно съвпадение); ред без него остава неразрешен и откроен като нов продукт. Подготовката идва във формата, за да
- * се поправи.
+ * (точно съвпадение); ред без него остава неразрешен и откроен като нов продукт. Подготовката и компонентите идват във
+ * формата, за да се поправят.
  */
 export function suggestionToFormValues(
   suggestion: SuggestionPayload,
   resolved: ReadonlyMap<string, Ingredient>,
 ): RecipeFormValues {
+  const components = componentsToValues(suggestion.components);
   return {
     ...emptyRecipeFormValues(),
     title: suggestion.title,
@@ -31,6 +34,7 @@ export function suggestionToFormValues(
     appliance: suggestion.appliance ?? '',
     steps: suggestion.steps.map((step) => ({ ...step })),
     preparation: preparationToValues(suggestion.preparation),
+    components,
     ingredients: suggestion.ingredients.map((line) => {
       const ingredient = line.isNew ? undefined : resolved.get(line.name);
       return emptyIngredientRow({
@@ -39,6 +43,7 @@ export function suggestionToFormValues(
         quantity: line.quantity === null ? '' : String(line.quantity),
         unit: line.unit,
         ...(ingredient ? {} : { isNew: true }),
+        ...lineComponent(components, line.component),
       });
     }),
     nutrition: nutritionToValues(suggestion.nutritionPer100g),
@@ -48,7 +53,8 @@ export function suggestionToFormValues(
 /**
  * Началните стойности на `RecipeForm` от внасяне. Редът с `ingredientId` идва свързан с продукта от `linked`
  * (регистъра); редът с `newProduct` остава неразрешен, с предложеното име и форма „Нов продукт“, попълнена от него.
- * Бележката на реда (оригиналната единица) остава в рецептата, а подготовката идва във формата, за да се поправи.
+ * Бележката на реда (оригиналната единица) остава в рецептата, а подготовката и компонентите идват във формата, за да
+ * се поправят.
  */
 export function importToFormValues(
   recipe: ImportPayload,
@@ -56,6 +62,7 @@ export function importToFormValues(
   sourceUrl: string | undefined,
 ): RecipeFormValues {
   const byId = new Map(linked.map((ingredient) => [ingredient.id, ingredient]));
+  const components = componentsToValues(recipe.components);
   return {
     ...emptyRecipeFormValues(),
     title: recipe.title,
@@ -65,6 +72,7 @@ export function importToFormValues(
     tags: [...recipe.tags],
     steps: recipe.steps.map((step) => ({ ...step })),
     preparation: preparationToValues(recipe.preparation),
+    components,
     ingredients: recipe.ingredients.map((line) => {
       const ingredient =
         line.ingredientId === null ? undefined : byId.get(line.ingredientId);
@@ -77,6 +85,7 @@ export function importToFormValues(
         ...(line.newProduct
           ? { isNew: true, newProduct: line.newProduct }
           : {}),
+        ...lineComponent(components, line.component),
       });
     }),
     nutrition: nutritionToValues(recipe.nutritionPer100g),
