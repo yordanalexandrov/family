@@ -67,3 +67,14 @@ export function checkComponents(
     }
   });
 }
+
+/**
+ * Whole batches of `component` that make at least `servings` (ADR-0012): pesto for 5 is 1 batch for a meal for 4
+ * and 2 for a meal for 7.
+ */
+export function batches(
+  servings: number,
+  component: Pick<RecipeComponent, 'servings'>,
+): number {
+  return Math.ceil(servings / component.servings);
+}
