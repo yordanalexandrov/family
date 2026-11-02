@@ -142,3 +142,24 @@ export function componentCounter(
 ): number {
   return set ?? defaultComponentServings(servings, component);
 }
+
+/**
+ * The lines of a recipe-shaped object by component (GLOSSARY: Компонент), each group in the order of `lines`: `main`
+ * the main lines (and any whose component is not one of the `count` components), `components[i]` the lines of the
+ * component `i`. `componentOf` reads a line's component index (`null` or `undefined` for a main line).
+ */
+export function linesByComponent<Line>(
+  lines: readonly Line[],
+  count: number,
+  componentOf: (line: Line) => number | null | undefined,
+): { main: Line[]; components: Line[][] } {
+  const main: Line[] = [];
+  const components = Array.from({ length: count }, (): Line[] => []);
+  for (const line of lines) {
+    const index = componentOf(line);
+    const group =
+      index === null || index === undefined ? undefined : components[index];
+    (group ?? main).push(line);
+  }
+  return { main, components };
+}
