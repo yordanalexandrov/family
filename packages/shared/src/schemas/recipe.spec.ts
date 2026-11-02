@@ -57,6 +57,10 @@ describe('recipeSchema', () => {
       rating: 4,
       createdAt: '2026-10-25T10:00:00.000Z',
       updatedAt: '2026-10-25T10:00:00.000Z',
+      openRevision: {
+        id: '77777777-7777-4777-8777-777777777777',
+        status: 'done',
+      },
     };
 
     expect(recipeSchema.parse(stored)).toEqual(stored);

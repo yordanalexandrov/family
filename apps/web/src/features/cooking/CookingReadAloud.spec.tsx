@@ -161,6 +161,11 @@ describe('Четене на глас в Готвене', () => {
       expect(speech.speaking()).toBe('Стъпка 3. Посоли и сервирай.');
 
       await user.click(screen.getByRole('button', { name: exit }));
+      if (exit === 'Готово') {
+        await user.click(
+          await screen.findByRole('button', { name: 'Пропусни' }),
+        );
+      }
 
       await screen.findByRole('link', { name: 'Готви' });
       expect(speech.speaking()).toBeNull();

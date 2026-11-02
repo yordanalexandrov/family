@@ -4,6 +4,7 @@ import type {
   RecipeInput,
   RecipeSummary,
   RecipesQuery,
+  ReplaceRecipeInput,
 } from '@family/shared';
 import type { Db, DbExecutor } from '../db/client.js';
 import { existingIngredientIds } from '../db/repositories/ingredients.js';
@@ -18,6 +19,7 @@ import {
 } from '../db/repositories/recipes.js';
 import { existingStepPhotoIds } from '../db/repositories/step-photos.js';
 import { InvalidReferenceError, NotFoundError } from './errors.js';
+import { acceptRevision } from './recipe-revisions.js';
 import { stepPhotoIds } from './step-photos.js';
 
 const NO_SUCH_RECIPE = 'Няма такава рецепта';
@@ -55,13 +57,20 @@ export async function addRecipe(
   return getRecipe(tx, id);
 }
 
-/** Replaces the whole recipe, its ingredient list included. */
+/**
+ * Replaces the whole recipe, its ingredient list included. With `revisionId` the form held that revision (GLOSSARY:
+ * Поправка на рецепта), which the save marks `accepted` by `actingUserId`.
+ */
 export function replaceRecipe(
   db: Db,
   id: string,
-  input: RecipeInput,
+  { revisionId, ...input }: ReplaceRecipeInput,
+  actingUserId: string,
 ): Promise<Recipe> {
   return db.transaction(async (tx) => {
+    if (revisionId !== undefined) {
+      await acceptRevision(tx, revisionId, id, actingUserId);
+    }
     await checkReferencesExist(tx, input);
     if (!(await updateRecipe(tx, id, input))) {
       throw new NotFoundError(NO_SUCH_RECIPE);

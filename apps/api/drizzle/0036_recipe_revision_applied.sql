@@ -1,0 +1,1 @@
+ALTER TABLE "recipe_revision_request" ADD COLUMN "applied_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL;

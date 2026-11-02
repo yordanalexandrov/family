@@ -160,6 +160,8 @@ export type RecipeSuggestionResponse = z.infer<
  */
 export const approveSuggestionInputSchema = recipeInputSchema.extend({
   appliance: recipeInputSchema.shape.appliance.unwrap().nullable().optional(),
+  /** The revision the review form holds (GLOSSARY: Поправка на рецепта); the approval marks it `accepted`. */
+  revisionId: z.uuid().optional(),
 });
 
 export type ApproveSuggestionInput = z.infer<

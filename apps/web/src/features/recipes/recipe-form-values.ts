@@ -13,7 +13,9 @@ import {
   type Recipe,
   type RecipeInput,
   type RecipeStep,
+  type RevisableRecipe,
   recipeInputSchema,
+  revisableRecipeSchema,
   type Tag,
   UNIT_LABELS_BG,
   type Unit,
@@ -222,6 +224,39 @@ function messageFor(path: string): string {
     FIELD_MESSAGES.find(([pattern]) => pattern.test(path))?.[1] ??
     'Невалидна стойност'
   );
+}
+
+/**
+ * Полетата като рецептата, която „✏️ Поправи с AI“ праща от прегледа на предложение (формата не е записана): продуктите
+ * по име, и несвързаните; ред без продукт и без име отпада. `linked` казва за всеки ред дали е свързан с регистъра.
+ * `undefined`, ако полетата не стават за поправка (напр. без порции или без стъпки).
+ */
+export function toRevisableRecipe(
+  values: RecipeFormValues,
+): { recipe: RevisableRecipe; linked: boolean[] } | undefined {
+  const rows = values.ingredients.filter(
+    (row) => row.ingredient !== null || row.query.trim() !== '',
+  );
+  const result = revisableRecipeSchema.safeParse({
+    title: values.title,
+    servings: parseNumber(values.servings) ?? Number.NaN,
+    prepMinutes: parseNumber(values.prepMinutes) ?? null,
+    ingredients: rows.map((row) => ({
+      name: ingredientLineName(row),
+      quantity:
+        row.unit === 'pinch' ? null : (parseNumber(row.quantity) ?? null),
+      unit: row.unit,
+      ...(row.note === undefined ? {} : { note: row.note }),
+    })),
+    steps: values.steps,
+    preparation: valuesToPreparation(values.preparation),
+  });
+  return result.success
+    ? {
+        recipe: result.data,
+        linked: rows.map((row) => row.ingredient !== null),
+      }
+    : undefined;
 }
 
 /** Грешките на един ред продукт от `toRecipeInput`, по поле. */

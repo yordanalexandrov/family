@@ -241,3 +241,43 @@ export function applyStepChanges<Step extends { text: string }>(
 export function scaleCookingLine(line: CookingLine, servings: number): Amount {
   return scaleQuantity(line, line.servings, servings);
 }
+
+function amountText(amount: Amount): string {
+  return amount.quantity === null
+    ? amount.unit
+    : `${amount.quantity} ${amount.unit}`;
+}
+
+/**
+ * The applied changes as `recipe.revise` reads them (`cookingChanges`), one readable line each, with the amounts for the
+ * recipe's servings: „вместо домат: консерва pulp 400 g“ for a replaced line, „без черен пипер“ for a removed one,
+ * „добавен: магданоз 20 g“ for a new one, then „стъпка 3: …“ for each step with new text. The changes are applied in
+ * their order first, so a line or step changed twice is described once, as it ended up.
+ */
+export function describeCookingChanges<Step extends { text: string }>(
+  recipe: {
+    servings: number;
+    lines: readonly CookingLine[];
+    steps: readonly Step[];
+  },
+  applied: readonly AppliedCookingChange[],
+): string[] {
+  const lines = applyCookingChanges(recipe.lines, applied);
+  const described = lines.flatMap((line, index): string[] => {
+    const original = recipe.lines[index];
+    const product = () =>
+      `${line.name} ${amountText(scaleCookingLine(line, recipe.servings))}`;
+    if (!original) {
+      return line.removed ? [] : [`добавен: ${product()}`];
+    }
+    if (line.removed) {
+      return [`без ${original.name}`];
+    }
+    return line.changed ? [`вместо ${original.name}: ${product()}`] : [];
+  });
+  const steps = applyStepChanges(recipe.steps, applied).flatMap(
+    (step, index) =>
+      step.changed ? [`стъпка ${index + 1}: ${step.text}`] : [],
+  );
+  return [...described, ...steps];
+}

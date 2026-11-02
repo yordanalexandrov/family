@@ -30,6 +30,7 @@ import {
 import {
   EditRecipeScreen,
   NewRecipeScreen,
+  parseEditRecipeSearch,
 } from '../features/recipes/RecipeEditor';
 import { RecipeList } from '../features/recipes/RecipeList';
 import { RecipeView } from '../features/recipes/RecipeView';
@@ -234,6 +235,7 @@ const editRecipeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/recipes/$id/edit',
   component: EditRecipeScreen,
+  validateSearch: parseEditRecipeSearch,
 });
 
 // Готвене (GLOSSARY): kiosk, телефон и браузър; влиза се от изгледа на рецептата.

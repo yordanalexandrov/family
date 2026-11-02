@@ -285,7 +285,38 @@ describe('RecipeView', () => {
       expect(screen.queryByRole('group', { name: 'Оценка' })).toBeNull();
       expect(screen.queryByRole('link', { name: 'Редактирай' })).toBeNull();
       expect(screen.queryByRole('button', { name: 'Архивирай' })).toBeNull();
-      expect(screen.queryByRole('button')).toBeNull();
+      // „Как мина?“ работи и без действащ потребител, но не на TV.
+      expect(
+        screen.queryAllByRole('button').map((button) => button.textContent),
+      ).toEqual(mode === 'kiosk' ? ['Как мина?'] : []);
+    },
+  );
+
+  it.each(['phone', 'kiosk'] as const)(
+    'на %s „Как мина?“ отваря листа с текущата оценка, а „Пропусни“ го затваря',
+    async (mode) => {
+      const user = userEvent.setup();
+      setUpDevice(mode, mode === 'phone' ? dani.id : undefined);
+      serveRecipe({ ...chickenWithRice, rating: 4 });
+
+      const { router } = renderApp(`/recipes/${chickenWithRice.id}`);
+      await user.click(
+        await screen.findByRole('button', { name: 'Как мина?' }),
+      );
+      const sheet = await screen.findByRole('dialog', { name: 'Как мина?' });
+      expect(
+        within(within(sheet).getByRole('group', { name: 'Оценка' })).getByRole(
+          'button',
+          { name: '4 от 5' },
+        ),
+      ).toHaveAttribute('aria-pressed', 'true');
+
+      await user.click(within(sheet).getByRole('button', { name: 'Пропусни' }));
+
+      expect(screen.queryByRole('dialog', { name: 'Как мина?' })).toBeNull();
+      expect(router.state.location.pathname).toBe(
+        `/recipes/${chickenWithRice.id}`,
+      );
     },
   );
 

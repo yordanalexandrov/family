@@ -773,3 +773,17 @@ button.meal-row__content:hover {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+
+/* „Как беше?“ и звездите са на свой ред, както без „Как мина?“; бутонът е под тях вдясно (или сам, без звездите). */
+.meal-row__stars {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.meal-row__feedback {
+  margin-inline-start: auto;
+}

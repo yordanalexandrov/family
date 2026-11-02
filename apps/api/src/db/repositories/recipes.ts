@@ -2,6 +2,7 @@ import {
   canonicalTitle,
   type DuplicateOf,
   type MenuProposeRecipe,
+  type OpenRevision,
   PREP_TIME_RANGES,
   type PrepTimeRange,
   type Rating,
@@ -36,11 +37,16 @@ import { likePattern } from '../like.js';
 import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
 import { meal } from '../schema/menu.js';
 import { ingredientColumns } from './ingredients.js';
+import { findOpenRevisions } from './recipe-revisions.js';
 
 type RecipeRow = typeof recipe.$inferSelect;
 
 /** API shape of a stored recipe: DB nulls of optional fields become absent, dates ISO strings. */
-function toRecipe(row: RecipeRow, ingredients: RecipeLine[]): Recipe {
+function toRecipe(
+  row: RecipeRow,
+  ingredients: RecipeLine[],
+  openRevision: OpenRevision | null,
+): Recipe {
   return {
     id: row.id,
     title: row.title,
@@ -57,6 +63,7 @@ function toRecipe(row: RecipeRow, ingredients: RecipeLine[]): Recipe {
     rating: row.rating,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    openRevision,
   };
 }
 
@@ -107,6 +114,7 @@ export async function findRecipe(
       quantity: line.quantity === null ? null : Number(line.quantity),
       note: line.note ?? undefined,
     })),
+    (await findOpenRevisions(db, [id])).get(id) ?? null,
   );
 }
 
@@ -175,10 +183,15 @@ export async function listRecipes(
       asc(recipe.title),
       asc(recipe.createdAt),
     );
+  const open = await findOpenRevisions(
+    db,
+    rows.map((row) => row.id),
+  );
   return rows.map((row) => ({
     ...row,
     prepMinutes: row.prepMinutes ?? undefined,
     archivedAt: row.archivedAt?.toISOString() ?? null,
+    openRevision: open.get(row.id) ?? null,
   }));
 }
 

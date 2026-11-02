@@ -119,6 +119,26 @@ export function useSheetHistory(onClose: () => void) {
 }
 
 /**
+ * Пуска `run`, след като записът на затварящия се лист е махнат от историята: навигация „назад“ (напр. излизане от
+ * Готвене след „Как мина?“) иначе би махнала само записа на листа и би останала на същия екран. Листът се затваря
+ * (размонтира) в същото действие; без запис на лист отгоре `run` върви веднага.
+ */
+export function afterSheetClosed(run: () => void) {
+  if (!openSheets.includes(markerOf(window.history.state) ?? '')) {
+    run();
+    return;
+  }
+  function onPopState() {
+    if (openSheets.includes(markerOf(window.history.state) ?? '')) {
+      return;
+    }
+    window.removeEventListener('popstate', onPopState);
+    run();
+  }
+  window.addEventListener('popstate', onPopState);
+}
+
+/**
  * `scrollRestoration` на router-а: превъртането се възстановява само при смяна на записа в историята (друг екран,
  * „назад“ към него). Записът на листа е със същия ключ като екрана под него, затова `history.back()` при затваряне
  * стига до router-а като навигация към същия запис; там възстановяването би върнало превъртането отпреди миг и би

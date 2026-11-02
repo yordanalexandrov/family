@@ -64,6 +64,7 @@ describe('Излизане от Готвене с таймер', () => {
 
     const { router } = await cookFromRecipe(user);
     await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
 
     await screen.findByRole('heading', { name: stew.title });
     expect(router.state.location.pathname).toBe(`/recipes/${stew.id}`);
@@ -80,6 +81,11 @@ describe('Излизане от Готвене с таймер', () => {
       const { router } = await cookFromRecipe(user);
       await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
       await user.click(screen.getByRole('button', { name: button }));
+      if (button === 'Готово') {
+        await user.click(
+          await screen.findByRole('button', { name: 'Пропусни' }),
+        );
+      }
 
       const dialog = await screen.findByRole('alertdialog', {
         name: 'Излизане от Готвене',
@@ -104,6 +110,7 @@ describe('Излизане от Готвене с таймер', () => {
     await user.click(screen.getByRole('button', { name: 'Таймер 15 мин' }));
     await user.click(screen.getByRole('button', { name: 'Таймер 10–15 мин' }));
     await user.click(screen.getByRole('button', { name: 'Готово' }));
+    await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
 
     const dialog = await screen.findByRole('alertdialog', {
       name: 'Излизане от Готвене',

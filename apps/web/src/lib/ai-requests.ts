@@ -2,7 +2,7 @@ import type { CONTRACT_FAILURES, ContractFailure } from '@family/shared';
 import { ApiError } from '../api/client';
 
 /**
- * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване, въпрос в Готвене): `POST`
+ * Общото на AI заявките (меню, смяна на ястие, предложения за рецепти, внасяне, подобряване, поправка, въпрос в Готвене): `POST`
  * → `pending`, клиентът пита отново, докато заявката не е `done`/`failed`; кодовете на `failed` са едни и същи.
  */
 
@@ -22,6 +22,7 @@ export type AiRequestKind =
   | 'suggest'
   | 'import'
   | 'refine'
+  | 'revise'
   | 'ask';
 
 /** Полетата на заявката, от които зависи съобщението; общи за всички AI заявки. */
@@ -53,6 +54,10 @@ const KINDS: Record<AiRequestKind, { failed: string; next: string }> = {
     failed: 'AI не успя да подобри рецептата',
     next: 'Опитай пак.',
   },
+  revise: {
+    failed: 'AI не успя да поправи рецептата',
+    next: 'Опитай пак.',
+  },
   ask: {
     failed: 'AI не успя да отговори',
     next: 'Опитай пак.',
@@ -75,6 +80,7 @@ const OWN_MESSAGES: Partial<
     suggest: 'Не намерих подходящи рецепти. Опитай пак или с друга подсказка.',
     import: 'Не намерих рецепта в източника.',
     refine: 'Рецептата вече е наред.',
+    revise: 'Няма какво да се поправи.',
   },
   fetch_blocked: {
     import: 'Сайтът не позволява автоматично четене — постави текста.',

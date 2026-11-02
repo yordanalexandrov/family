@@ -86,6 +86,7 @@ function recipe(
     rating: null,
     createdAt: INSTANT,
     updatedAt: INSTANT,
+    openRevision: null,
   };
 }
 

@@ -15,6 +15,7 @@ import {
 } from '../db/repositories/recipe-refinements.js';
 import { findRecipe } from '../db/repositories/recipes.js';
 import { recipeRefineRequest } from '../db/schema/food.js';
+import { contractRecipe, photosByRef } from './contract-recipe.js';
 import type {
   ContractRequestHandle,
   ContractRequestStore,
@@ -100,26 +101,7 @@ export function createRecipeRefineStore(): ContractRequestStore<
     },
 
     async buildInput(_db, _request, { recipe, ownPhotos, page }) {
-      const refs = new Map([...ownPhotos].map(([ref, id]) => [id, ref]));
-      return {
-        recipe: {
-          title: recipe.title,
-          servings: recipe.servings,
-          prepMinutes: recipe.prepMinutes ?? null,
-          ingredients: recipe.ingredients.map((line) => ({
-            name: line.ingredient.name,
-            quantity: line.quantity,
-            unit: line.unit,
-            ...(line.note === undefined ? {} : { note: line.note }),
-          })),
-          steps: recipe.steps.map((step) => ({
-            text: step.text,
-            image: (step.photoId && refs.get(step.photoId)) ?? null,
-          })),
-          preparation: recipe.preparation,
-        },
-        source: page,
-      };
+      return { recipe: contractRecipe(recipe, ownPhotos), source: page };
     },
 
     async prepare(output, loaded, signal) {
@@ -168,17 +150,6 @@ export function createRecipeRefineStore(): ContractRequestStore<
       await setRefineNoResults(tx, request.id, reason);
     },
   };
-}
-
-/** The photo of each step that has one, by its reference in the input: `e1`, `e2`, … in the order of the steps. */
-function photosByRef(recipe: Recipe): Map<string, string> {
-  const photos = new Map<string, string>();
-  for (const step of recipe.steps) {
-    if (step.photoId) {
-      photos.set(`e${photos.size + 1}`, step.photoId);
-    }
-  }
-  return photos;
 }
 
 /**

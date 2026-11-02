@@ -3,12 +3,12 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { COOKING_PROGRESS_KEY } from '../../lib/cooking-record';
 import { dani, server } from '../../test/msw';
 import { goOffline } from '../../test/network';
 import { chickenWithRice } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 import { englishVoice, fakeSpeech } from '../../test/speech';
-import { COOKING_PROGRESS_KEY } from './cooking-memory';
 
 const stew: Recipe = {
   ...chickenWithRice,
@@ -616,6 +616,7 @@ describe('Въпрос в Готвене', () => {
       );
       await user.click(screen.getByRole('button', { name: 'Стъпка 3' }));
       await user.click(screen.getByRole('button', { name: 'Готово' }));
+      await user.click(await screen.findByRole('button', { name: 'Пропусни' }));
       await reopenCooking(nextDay);
       expect(await asked(user)).toEqual([]);
     });

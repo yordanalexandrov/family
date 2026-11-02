@@ -161,6 +161,14 @@
   font-size: var(--font-size-sm);
 }
 
+/* „Поправка чака преглед“ (GLOSSARY: Поправка на рецепта): иска действие, затова е с акцента. */
+.badge--revision {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 /* Списък */
 .recipe-cards {
   display: grid;
@@ -194,6 +202,8 @@
 
 .recipe-card__meta {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
 }
@@ -617,4 +627,60 @@ fieldset.chips {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* „✏️ Поправи с AI“: до „✨ Подобри рецептата“, указанието и продуктите в сравнението. */
+.recipe-form__ai {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.refine__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.refine__input {
+  resize: vertical;
+  min-block-size: 5.5rem;
+}
+
+.refine__form .refine__note,
+.refine__column > .refine__note {
+  margin: 0 0 var(--space-2);
+}
+
+.refine__actions > .needs-connection {
+  margin: 0;
+  align-self: center;
+}
+
+/* „Как мина?“: звездите и „Поправка чака преглед“ не се разтягат по ширината на листа. */
+.feedback > .stars,
+.feedback > .badge {
+  align-self: flex-start;
+}
+
+/*
+ * На kiosk звездите се натискат с пръст от разстояние: целта остава `--touch-target` (kiosk няма своя), а знакът я
+ * запълва, за да личи колкото бутоните под него.
+ */
+:root[data-device="kiosk"] .feedback .stars__star {
+  font-size: var(--touch-target);
+}
+
+/* Полето при отворена поправка личи изключено, като изключен бутон. */
+.feedback .field__input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.refine__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  padding-inline-start: 1.25em;
 }

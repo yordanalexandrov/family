@@ -34,6 +34,7 @@ import type {
   ContractRequestStore,
 } from './contract-requests.js';
 import { ConflictError, NotFoundError } from './errors.js';
+import { acceptSuggestionRevision } from './recipe-revisions.js';
 import { addRecipe } from './recipes.js';
 import { stepPhotoIds } from './step-photos.js';
 
@@ -196,7 +197,14 @@ export function createRecipeSuggestionsService({
     approveSuggestion(id, input, actingUserId) {
       return db.transaction(async (tx) => {
         const proposed = await lockWith(tx, id, 'proposed', ALREADY_DECIDED);
-        const { appliance = applianceOf(proposed), ...rest } = input;
+        const {
+          appliance = applianceOf(proposed),
+          revisionId,
+          ...rest
+        } = input;
+        if (revisionId !== undefined) {
+          await acceptSuggestionRevision(tx, revisionId, id, actingUserId);
+        }
         const recipe = await addRecipe(tx, {
           ...rest,
           ...(appliance === null ? {} : { appliance }),

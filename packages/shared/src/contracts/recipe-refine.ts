@@ -7,6 +7,7 @@ import {
   preparationStrictSchema,
 } from './preparation.js';
 import { IMPORT_TEXT_MAX } from './recipe-normalize.js';
+import { stepImageProblems } from './step-images.js';
 
 /**
  * AI contract `recipe.refine` („Подобри рецептата“, GLOSSARY: Подобряване на рецепта): a recipe of the registry and, when
@@ -28,14 +29,14 @@ const refineIngredientSchema = z.object({
 });
 
 /** A step: its text and the reference of its photo, an `e` one in the input, or `null`. */
-const refineStepSchema = z.object({
+export const refineStepSchema = z.object({
   text: z.string().trim().min(1),
   image: z.string().trim().min(1).nullable(),
 });
 
 export type RefineStep = z.infer<typeof refineStepSchema>;
 
-const refineRecipeSchema = z.object({
+export const refineRecipeSchema = z.object({
   title: z.string().trim().min(1),
   servings: z.int().min(1),
   prepMinutes: z.int().positive().nullable(),
@@ -60,6 +61,9 @@ const refineSourceSchema = z
   .refine((page) => page.jsonLd !== undefined || page.text !== undefined, {
     message: 'Страницата е без jsonLd и без text.',
   });
+
+/** A recipe as `recipe.refine` and `recipe.revise` read it: products by name, the steps' photos as `e1`, `e2`, …. */
+export type ContractRecipe = z.infer<typeof refineRecipeSchema>;
 
 const recipeRefineInputSchema = z.object({
   recipe: refineRecipeSchema,
@@ -128,7 +132,7 @@ const RECIPE_REFINE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
 );
 
 /** The photos the recipe's steps have, by their references in the input. */
-export function recipePhotoRefs(input: RecipeRefineInput): string[] {
+export function recipePhotoRefs(input: { recipe: ContractRecipe }): string[] {
   return input.recipe.steps.flatMap((step) =>
     step.image === null ? [] : [step.image],
   );
@@ -143,28 +147,12 @@ export function validateRefinement(
   input: RecipeRefineInput,
   refinement: Refinement,
 ): string[] {
-  const problems: string[] = [];
   const own = recipePhotoRefs(input);
-  const known = new Set([...own, ...(input.source?.photos ?? [])]);
-  const count = new Map<string, number>();
-  refinement.steps.forEach((step, index) => {
-    if (step.image === null) {
-      return;
-    }
-    if (!known.has(step.image)) {
-      problems.push(
-        `Стъпка ${index + 1}: снимка ${step.image} не е във входа; ползвай само референциите от recipe.steps и source.photos.`,
-      );
-    }
-    count.set(step.image, (count.get(step.image) ?? 0) + 1);
-  });
-  for (const [ref, times] of count) {
-    if (times > 1) {
-      problems.push(
-        `Снимка ${ref} е на ${times} стъпки; всяка снимка е най-много на една стъпка.`,
-      );
-    }
-  }
+  const { problems, count } = stepImageProblems(
+    refinement.steps,
+    new Set([...own, ...(input.source?.photos ?? [])]),
+    'ползвай само референциите от recipe.steps и source.photos',
+  );
   for (const ref of own) {
     if (!count.has(ref)) {
       problems.push(
