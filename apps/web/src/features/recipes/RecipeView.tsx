@@ -10,7 +10,7 @@ import { PreparationList } from '../preparation/PreparationList';
 import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
 import { ApplianceBadge } from './ApplianceBadge';
 import { CookingFeedbackSheet } from './CookingFeedbackSheet';
-import { formatMinutes } from './format';
+import { componentHeading, formatMinutes } from './format';
 import { OpenRevisionBadge } from './OpenRevisionBadge';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
 import { RatingStars, StarsBadge } from './Stars';
@@ -36,12 +36,37 @@ export function RecipeView() {
   );
 }
 
+/** Редовете на компонента с индекс `component` (`null` — главните), в реда на рецептата. */
+function linesOf(lines: Recipe['ingredients'], component: number | null) {
+  return lines.filter((line) => line.component === component);
+}
+
 /** Продуктите по щандове, в реда на обхождане на магазина. */
 function groupByAisle(lines: Recipe['ingredients']) {
   return AISLES.map((aisle) => ({
     ...aisle,
     lines: lines.filter((line) => line.ingredient.aisle === aisle.key),
   })).filter((group) => group.lines.length > 0);
+}
+
+function IngredientLines({
+  lines,
+  labelledBy,
+}: {
+  lines: Recipe['ingredients'];
+  labelledBy: string;
+}) {
+  return (
+    <ul className="recipe-view__lines" aria-labelledby={labelledBy}>
+      {lines.map((line, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: един продукт може да е на два реда (за блата и за крема), а редовете нямат id.
+        <li key={index} className="recipe-view__line">
+          <span>{line.ingredient.name}</span>
+          <span>{formatQuantity(line)}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function RecipeDetails({ recipe }: { recipe: Recipe }) {
@@ -153,21 +178,23 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         {recipe.ingredients.length === 0 && (
           <p className="recipe-view__meta">Няма въведени продукти.</p>
         )}
-        {groupByAisle(recipe.ingredients).map((group) => (
+        {groupByAisle(linesOf(recipe.ingredients, null)).map((group) => (
           <div key={group.key}>
             <h3 id={`aisle-${group.key}`}>{group.labelBg}</h3>
-            <ul
-              className="recipe-view__lines"
-              aria-labelledby={`aisle-${group.key}`}
-            >
-              {group.lines.map((line, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: един продукт може да е на два реда (за блата и за крема), а редовете нямат id.
-                <li key={index} className="recipe-view__line">
-                  <span>{line.ingredient.name}</span>
-                  <span>{formatQuantity(line)}</span>
-                </li>
-              ))}
-            </ul>
+            <IngredientLines
+              lines={group.lines}
+              labelledBy={`aisle-${group.key}`}
+            />
+          </div>
+        ))}
+        {recipe.components.map((component, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: компонентите нямат id; редът им е идентичността им.
+          <div key={index}>
+            <h3 id={`component-${index}`}>{componentHeading(component)}</h3>
+            <IngredientLines
+              lines={linesOf(recipe.ingredients, index)}
+              labelledBy={`component-${index}`}
+            />
           </div>
         ))}
       </section>

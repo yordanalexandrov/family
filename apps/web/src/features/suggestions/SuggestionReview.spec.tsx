@@ -255,10 +255,21 @@ describe('SuggestionReview', () => {
         sourceUrl: chickenSkewers.sourceUrl,
         appliance: null,
         preparation: [],
+        components: [],
         ingredients: [
-          { ingredientId: chicken.id, quantity: 0.6, unit: 'kg' },
-          { ingredientId: sumac.id, quantity: 1, unit: 'tsp' },
-          { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+          {
+            ingredientId: chicken.id,
+            quantity: 0.6,
+            unit: 'kg',
+            component: null,
+          },
+          { ingredientId: sumac.id, quantity: 1, unit: 'tsp', component: null },
+          {
+            ingredientId: salt.id,
+            quantity: null,
+            unit: 'pinch',
+            component: null,
+          },
         ],
       },
     ]);
@@ -317,8 +328,13 @@ describe('SuggestionReview', () => {
       { name: 'кокосово мляко', unit: 'ml', aisle: 'canned' },
     ]);
     expect(approved[0]?.ingredients).toEqual([
-      { ingredientId: coconutMilk.id, quantity: 0.4, unit: 'l' },
-      { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+      {
+        ingredientId: coconutMilk.id,
+        quantity: 0.4,
+        unit: 'l',
+        component: null,
+      },
+      { ingredientId: salt.id, quantity: null, unit: 'pinch', component: null },
     ]);
   });
 

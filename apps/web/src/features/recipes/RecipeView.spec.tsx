@@ -62,6 +62,46 @@ describe('RecipeView', () => {
     );
   });
 
+  it('показва компонента като заглавие с порциите му над редовете му', async () => {
+    setUpDevice('phone', dani.id);
+    serveRecipe({
+      ...chickenWithRice,
+      components: [
+        { name: 'Песто', servings: 5 },
+        { name: 'Сос', servings: 1 },
+      ],
+      ingredients: chickenWithRice.ingredients.map((line, index) => ({
+        ...line,
+        component: index === 0 ? null : index - 1,
+      })),
+    });
+
+    renderApp(`/recipes/${chickenWithRice.id}`);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Песто · за 5 порции' }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('list', { name: 'Песто · за 5 порции' }))
+        .getAllByRole('listitem')
+        .map((line) => line.textContent),
+    ).toEqual(['лук2 бр.']);
+    expect(
+      within(screen.getByRole('list', { name: 'Сос · за 1 порция' }))
+        .getAllByRole('listitem')
+        .map((line) => line.textContent),
+    ).toEqual(['солпо вкус']);
+    // Главните редове са по щандове, без тези на компонентите.
+    expect(
+      within(screen.getByRole('list', { name: 'Месо и колбаси' }))
+        .getAllByRole('listitem')
+        .map((line) => line.textContent),
+    ).toEqual(['пилешко филе500 г']);
+    expect(
+      screen.queryByRole('list', { name: 'Плод и зеленчук' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('показва подготовката над продуктите, с иконите на видовете и надписите', async () => {
     setUpDevice('phone', dani.id);
     serveRecipe({

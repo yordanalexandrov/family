@@ -394,6 +394,27 @@
   list-style: none;
 }
 
+/* GLOSSARY: Компонент. Заглавието му отваря листа му, а редовете му са под него. */
+.recipe-form__component {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.recipe-form__component-open {
+  min-block-size: 2.75rem;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-block-end: 2px solid var(--color-line);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
 .ingredient-line {
   display: flex;
   flex-wrap: wrap;

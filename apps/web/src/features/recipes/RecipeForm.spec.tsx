@@ -154,8 +154,14 @@ describe('RecipeForm', () => {
           tags: ['lunch'],
           steps: [{ text: 'Свари пилето.' }, { text: 'Добави фиде.' }],
           preparation: [],
+          components: [],
           ingredients: [
-            { ingredientId: chicken.id, quantity: 0.5, unit: 'kg' },
+            {
+              ingredientId: chicken.id,
+              quantity: 0.5,
+              unit: 'kg',
+              component: null,
+            },
           ],
         },
       },
@@ -349,12 +355,19 @@ describe('RecipeForm', () => {
         sourceUrl: 'https://recepti.example/pile-s-oriz',
         nutritionPer100g: { kcal: 150, proteinG: 12, fatG: 5, carbsG: 14 },
         preparation: [],
+        components: [],
         ingredients: [
-          { ingredientId: chicken.id, quantity: 700, unit: 'g' },
+          {
+            ingredientId: chicken.id,
+            quantity: 700,
+            unit: 'g',
+            component: null,
+          },
           {
             ingredientId: salt.id,
             quantity: null,
             unit: 'pinch',
+            component: null,
           },
         ],
       },

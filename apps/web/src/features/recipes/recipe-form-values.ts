@@ -1,5 +1,7 @@
 import {
   type BaseUnit,
+  COMPONENT_NAME_MAX,
+  COMPONENTS_MAX,
   displaySourceUrl,
   type Ingredient,
   isSecondOvenIssue,
@@ -42,6 +44,15 @@ export interface IngredientRowValues {
   isNew?: boolean;
   /** Новият продукт, както го предлага внасянето: попълва формата „Нов продукт“ (име, основна единица, щанд). */
   newProduct?: NewProduct;
+  /** GLOSSARY: Компонент. Ключът на компонента на реда (`ComponentValues.key`); без него редът е от главните. */
+  component?: string | undefined;
+}
+
+/** Един компонент (GLOSSARY: Компонент) във формата; редовете сочат към него с `key`. */
+export interface ComponentValues {
+  key: string;
+  name: string;
+  servings: string;
 }
 
 /** Името на реда: продуктът от регистъра, иначе текстът, с който е дошъл. */
@@ -86,6 +97,8 @@ export interface RecipeFormValues {
   steps: RecipeStep[];
   /** GLOSSARY: Подготовка. Елементите в реда им, като в полетата. */
   preparation: PreparationItemValues[];
+  /** GLOSSARY: Компонент. В реда им; редовете им са в `ingredients` с техния `key`. */
+  components: ComponentValues[];
   ingredients: IngredientRowValues[];
   nutrition: NutritionValues;
 }
@@ -145,6 +158,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     appliance: '',
     steps: [],
     preparation: [],
+    components: [],
     ingredients: [],
     nutrition: nutritionToValues(undefined),
   };
@@ -155,6 +169,11 @@ function numberText(value: number | null | undefined): string {
 }
 
 export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
+  const components = recipe.components.map((component) => ({
+    key: newRowKey(),
+    name: component.name,
+    servings: String(component.servings),
+  }));
   return {
     title: recipe.title,
     servings: String(recipe.servings),
@@ -164,12 +183,16 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     appliance: recipe.appliance ?? '',
     steps: recipe.steps.map((step) => ({ ...step })),
     preparation: preparationToValues(recipe.preparation),
+    components,
     ingredients: recipe.ingredients.map((line) =>
       emptyIngredientRow({
         ingredient: line.ingredient,
         quantity: numberText(line.quantity),
         unit: line.unit,
         ...(line.note === undefined ? {} : { note: line.note }),
+        ...(line.component === null
+          ? {}
+          : { component: components[line.component]?.key }),
       }),
     ),
     nutrition: nutritionToValues(recipe.nutritionPer100g),
@@ -217,6 +240,10 @@ const FIELD_MESSAGES: [RegExp, string][] = [
     `Времето е от 1 мин до ${MINUTES_BEFORE_MAX / MINUTES_PER_DAY} дни`,
   ],
   [/^nutritionPer100g\.\w+$/, 'Неотрицателно число'],
+  [/^components$/, `Най-много ${COMPONENTS_MAX} компонента`],
+  [/^components\.\d+$/, 'Компонентът е без продукти'],
+  [/^components\.\d+\.name$/, `Въведи име, до ${COMPONENT_NAME_MAX} знака`],
+  [/^components\.\d+\.servings$/, 'Порциите са цяло число, поне 1'],
 ];
 
 function messageFor(path: string): string {
@@ -270,6 +297,15 @@ export function ingredientRowErrors(
   };
 }
 
+/** Индексът на компонента с ключ `key` в `components`; `null` за главен ред (или компонент, който го няма). */
+function componentIndex(
+  components: readonly ComponentValues[],
+  key: string | undefined,
+): number | null {
+  const index = components.findIndex((component) => component.key === key);
+  return index === -1 ? null : index;
+}
+
 /** Полетата → `RecipeInput`, валидиран с `recipeInputSchema`; иначе грешки по поле на български. */
 export function toRecipeInput(
   values: RecipeFormValues,
@@ -289,12 +325,17 @@ export function toRecipeInput(
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),
     ...(nutritionPer100g ? { nutritionPer100g } : {}),
     preparation: valuesToPreparation(values.preparation),
+    components: values.components.map((component) => ({
+      name: component.name,
+      servings: parseNumber(component.servings) ?? Number.NaN,
+    })),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',
       quantity:
         row.unit === 'pinch' ? null : (parseNumber(row.quantity) ?? null),
       unit: row.unit,
       ...(row.note === undefined ? {} : { note: row.note }),
+      component: componentIndex(values.components, row.component),
     })),
   };
 
