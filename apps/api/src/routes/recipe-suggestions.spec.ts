@@ -717,6 +717,26 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
     ).toEqual([]);
   });
 
+  it('a suggestion stored before the components (GLOSSARY: Компонент) reads with none, all its lines main', async () => {
+    const suggestion = await aSuggestion();
+    await testDb().execute(
+      sql`update recipe_suggestion set payload = (payload - 'components') || jsonb_build_object('ingredients', (select jsonb_agg(line - 'component') from jsonb_array_elements(payload->'ingredients') line)) where id = ${suggestion.id}`,
+    );
+
+    const detail = await getRequest(suggestion.requestId);
+
+    expect(detail.statusCode).toBe(200);
+    const payload = detail
+      .json()
+      .suggestions.find(
+        (s: RecipeSuggestion) => s.id === suggestion.id,
+      ).payload;
+    expect(payload.components).toEqual([]);
+    expect(
+      payload.ingredients.map((line: { component: unknown }) => line.component),
+    ).toEqual(payload.ingredients.map(() => null));
+  });
+
   it('a suggestion with a component (GLOSSARY: Компонент) keeps it, and approval brings it into the recipe', async () => {
     const fixture = suggestFixture();
     const [first, ...rest] = fixture.suggestions;

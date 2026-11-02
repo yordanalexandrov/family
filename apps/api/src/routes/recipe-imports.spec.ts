@@ -1359,6 +1359,22 @@ describe('deciding an imported suggestion', () => {
     ).toEqual([]);
   });
 
+  it('a suggestion stored before the components (GLOSSARY: Компонент) reads with none, all its lines main', async () => {
+    const suggestion = await aSuggestion();
+    await app.db.execute(
+      sql`update recipe_suggestion set payload = (payload - 'components') || jsonb_build_object('ingredients', (select jsonb_agg(line - 'component') from jsonb_array_elements(payload->'ingredients') line)) where id = ${suggestion.id}`,
+    );
+
+    const response = await getImport(suggestion.importRequestId);
+
+    expect(response.statusCode).toBe(200);
+    const { payload } = response.json().suggestion;
+    expect(payload.components).toEqual([]);
+    expect(
+      payload.ingredients.map((line: { component: unknown }) => line.component),
+    ).toEqual(payload.ingredients.map(() => null));
+  });
+
   it('rejection marks it rejected', async () => {
     const suggestion = await aSuggestion();
 
