@@ -309,6 +309,68 @@ describe('GET /api/shopping-lists/:weekStart', () => {
   });
 });
 
+describe('a meal with a component (ADR-0012)', () => {
+  it('buys whole batches of the component for every meal and says how much each meal wants', async () => {
+    const rice = await createIngredient('ориз арборио', 'g', 'grains');
+    const basil = await createIngredient('пресен босилек', 'g', 'produce');
+    // Ризото за 1 с песто за 5 (#303).
+    const risotto = (
+      await created(
+        await inject('POST', '/api/recipes', {
+          title: 'Ризото с песто',
+          servings: 1,
+          steps: [{ text: 'Сготви.' }],
+          tags: ['dinner'],
+          components: [{ name: 'Песто', servings: 5 }],
+          ingredients: [
+            { ingredientId: rice, quantity: 80, unit: 'g' },
+            { ingredientId: basil, quantity: 40, unit: 'g', component: 0 },
+          ],
+        }),
+      )
+    ).recipe.id as string;
+    const plan = (
+      await created(
+        await inject('POST', '/api/menu/plans', { weekStart: WEEK }),
+      )
+    ).plan;
+    const [mon, tue] = plan.meals.map((meal: { id: string }) => meal.id);
+    await patchMeal(mon, {
+      recipeId: risotto,
+      servings: { [DANI.id]: 2, [POLI.id]: 2 },
+    });
+    await patchMeal(tue, {
+      recipeId: risotto,
+      servings: { [DANI.id]: 4, [POLI.id]: 3 },
+    });
+    for (const id of [mon, tue]) {
+      expect((await addMeal(id)).statusCode).toBe(200);
+    }
+
+    const { list } = (await getList()).json();
+
+    // Rice: 80 × (4 + 7); basil: 1 batch for 4 and 2 batches for 7.
+    expect(rows(list)).toEqual([
+      'produce пресен босилек 120 g ×2',
+      'grains ориз арборио 880 g ×2',
+    ]);
+    expect(list.aisles[0].items[0].sources).toEqual([
+      {
+        date: WEEK,
+        mealId: mon,
+        recipeTitle: 'Ризото с песто',
+        amounts: [{ quantity: 40, unit: 'g' }],
+      },
+      {
+        date: '2026-11-03',
+        mealId: tue,
+        recipeTitle: 'Ризото с песто',
+        amounts: [{ quantity: 80, unit: 'g' }],
+      },
+    ]);
+  });
+});
+
 describe('PUT …/items/:key/checked', () => {
   beforeEach(seedMenu);
 

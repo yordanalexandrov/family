@@ -885,6 +885,123 @@ describe('buildShoppingList listed meals', () => {
   });
 });
 
+describe('buildShoppingList components', () => {
+  const BASIL = {
+    id: '10000000-0000-4000-8000-000000000007',
+    name: 'босилек',
+    unit: 'g',
+    aisle: 'produce',
+  } as const;
+  const FLOUR = {
+    id: '10000000-0000-4000-8000-000000000008',
+    name: 'брашно',
+    unit: 'g',
+    aisle: 'grains',
+  } as const;
+
+  /** `of` with components; each `[component index, line]` is one more line of that component. */
+  function withComponents(
+    of: Recipe,
+    components: { name: string; servings: number }[],
+    lines: [number, Ingredient, number | null, Unit][],
+  ): Recipe {
+    return {
+      ...of,
+      components,
+      ingredients: [
+        ...of.ingredients,
+        ...lines.map(([component, ingredient, quantity, unit]) => ({
+          ingredientId: ingredient.id,
+          quantity,
+          unit,
+          component,
+          ingredient: { ...ingredient },
+        })),
+      ],
+    };
+  }
+
+  // Ризото за 1 с песто за 5 (#303).
+  const risotto = withComponents(
+    recipe('Ризото с песто', 1, [[RICE, 100, 'g']]),
+    [{ name: 'Песто', servings: 5 }],
+    [[0, BASIL, 50, 'g']],
+  );
+  const forServings = (servings: number) =>
+    meal('2026-10-26', risotto, { [DANI]: servings });
+
+  it('buys 1 batch of pesto for 5 for a meal for 4, the main lines scaled as before', () => {
+    expect(lines(build([forServings(4)], [risotto]))).toEqual([
+      'босилек 50 g',
+      'ориз 400 g',
+    ]);
+  });
+
+  it('buys 2 batches of pesto for 5 for a meal for 7', () => {
+    expect(lines(build([forServings(7)], [risotto]))).toEqual([
+      'босилек 100 g',
+      'ориз 700 g',
+    ]);
+  });
+
+  it('counts the batches of every component on its own servings', () => {
+    const pizza = withComponents(
+      recipe('Пица', 4, [[ONION, 100, 'g']]),
+      [
+        { name: 'Песто', servings: 5 },
+        { name: 'Тесто', servings: 2 },
+      ],
+      [
+        [0, BASIL, 50, 'g'],
+        [1, FLOUR, 300, 'g'],
+      ],
+    );
+
+    const list = build([meal('2026-10-26', pizza, { [DANI]: 3 })], [pizza]);
+
+    expect(lines(list)).toEqual(['босилек 50 g', 'лук 80 g', 'брашно 600 g']);
+  });
+
+  it('counts the batches per meal: two meals for 2 with pesto for 5 buy 2 batches', () => {
+    const list = build(
+      [
+        meal('2026-10-26', risotto, { [DANI]: 2 }),
+        meal('2026-10-27', risotto, { [DANI]: 2 }),
+      ],
+      [risotto],
+    );
+
+    expect(lines(list)).toEqual(['босилек 100 g', 'ориз 400 g']);
+  });
+
+  it('says on the source how much of a component line its meal wants, in whole batches', () => {
+    const monday = forServings(4);
+    const tuesday = meal('2026-10-27', risotto, { [DANI]: 7 });
+
+    const basil = build([monday, tuesday], [risotto])
+      .aisles.flatMap(({ items }) => items)
+      .find((item) => item.title === 'босилек');
+
+    expect(
+      basil?.sources.map(({ mealId, amounts }) => [mealId, amounts]),
+    ).toEqual([
+      [monday.id, [{ quantity: 50, unit: 'g' }]],
+      [tuesday.id, [{ quantity: 100, unit: 'g' }]],
+    ]);
+  });
+
+  it('sums a component line with a main line of the same ingredient', () => {
+    const soup = recipe('Супа', 2, [[BASIL, 20, 'g']]);
+
+    const list = build(
+      [forServings(4), meal('2026-10-27', soup, { [DANI]: 2 })],
+      [risotto, soup],
+    );
+
+    expect(lines(list)).toEqual(['босилек 70 g', 'ориз 400 g']);
+  });
+});
+
 describe('withCheck', () => {
   const breakfast = recipe('Закуска', 2, [
     [MILK, 200, 'ml'],
