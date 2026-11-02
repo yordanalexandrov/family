@@ -8,6 +8,10 @@
 // The cases of #321 bring cooking changes applied in the last cooking (`cookingChanges`, described as the api does):
 // „запази замяната“ with tomatoes replaced by canned pulp and with new text of the baking step, which must end up in
 // the recipe; and an instruction about something else with the pulp applied, which must leave the tomatoes as they are.
+// The cases of #326 are about components (GLOSSARY: Компонент): „направи пестото отделно, за 5“ on recipes that mix
+// a part for other servings into their lines (risotto with pesto for 5, pasta with pesto for 6, pizza with dough for 2),
+// which must make that component with its lines; and a recipe that has one, revised about something else (it must
+// keep the component as it is), with the component for other servings and with it gone.
 // Every case says which products and steps the instruction may change; every other product and step must come back
 // word for word (✗ otherwise), and so must the servings, the time and the preparation unless the case expects them to
 // change; a revision that changes nothing is a ✗ too (it should be `noResults`). A failure exits 1.
@@ -18,7 +22,6 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
   type AppliedCookingChange,
-  type ContractRecipe,
   describeCookingChanges,
   type Preparation,
   preparationKind,
@@ -28,6 +31,7 @@ import {
   type RevisedRecipe,
   recipeRevise,
   recipeSchema,
+  type refineRecipeSchema,
   UNIT_LABELS_BG,
 } from '@family/shared';
 import fixtureInput from '@family/shared/fixtures/recipe-revise.input.json' with {
@@ -65,9 +69,19 @@ const { values } = parseArgs({
 });
 
 /** One built-in case and what its revision may change; everything else must come back word for word. */
+/** A recipe of a case as the input takes it: a line without `component` is a main one, no `components` is none. */
+type CaseRecipe = z.input<typeof refineRecipeSchema>;
+
+/** A component the revision must have: its name (matched), servings and products (by name) it must hold, at least. */
+interface ExpectedComponent {
+  name: RegExp;
+  servings: number;
+  lines: string[];
+}
+
 interface Case {
   name: string;
-  recipe: ContractRecipe;
+  recipe: CaseRecipe;
   instruction: string;
   /** The answer must be `noResults`. */
   noResults?: boolean;
@@ -87,12 +101,14 @@ interface Case {
   applied?: AppliedCookingChange[];
   /** Text that must be in the revision, in a product's name or a step. */
   includes?: string[];
+  /** The components the revision must have, in their order; without it they must stay as they are, lines and all. */
+  components?: ExpectedComponent[];
 }
 
-const moussaka = fixtureInput.recipe as ContractRecipe;
+const moussaka = fixtureInput.recipe as CaseRecipe;
 
 /** A risotto for 1 whose pesto is for 5 (#303). */
-const risotto: ContractRecipe = {
+const risotto: CaseRecipe = {
   title: 'Ризото с песто',
   servings: 1,
   prepMinutes: 40,
@@ -130,6 +146,87 @@ const risotto: ContractRecipe = {
     },
   ],
   preparation: [],
+};
+
+const PESTO_LINES = ['босилек пресен', 'орех', 'чесън', 'зехтин'];
+
+/** The risotto with its pesto for 5 as a component: the first five lines. */
+const risottoWithPesto: CaseRecipe = {
+  ...risotto,
+  components: [{ name: 'Песто', servings: 5 }],
+  ingredients: risotto.ingredients.map((line, index) => ({
+    ...line,
+    component: index < 5 ? 0 : null,
+  })),
+};
+
+/** Pasta for 2 with pesto for 6 written into it (#326). */
+const pasta: CaseRecipe = {
+  title: 'Паста с песто и чери домати',
+  servings: 2,
+  prepMinutes: 25,
+  ingredients: [
+    { name: 'спагети', quantity: 200, unit: 'g' },
+    { name: 'чери домат', quantity: 150, unit: 'g' },
+    { name: 'босилек пресен', quantity: 60, unit: 'g', note: 'за пестото' },
+    { name: 'кедрови ядки', quantity: 40, unit: 'g' },
+    { name: 'пармезан', quantity: 60, unit: 'g', note: 'за пестото' },
+    { name: 'чесън', quantity: 1, unit: 'pcs', note: 'скилидка' },
+    { name: 'зехтин', quantity: 150, unit: 'ml' },
+    { name: 'сол', quantity: null, unit: 'pinch' },
+  ],
+  steps: [
+    {
+      text: 'Пасирай босилека, кедровите ядки, пармезана, чесъна и зехтина до гладко песто; стига за 6 порции, остатъкът се пази в буркан в хладилника.',
+      image: null,
+    },
+    {
+      text: 'Свари спагетите в подсолена вода 1 минута по-малко от написаното на опаковката.',
+      image: null,
+    },
+    { text: 'Разрежи доматите на половинки.', image: null },
+    {
+      text: 'Смеси спагетите с 2 супени лъжици песто на порция и доматите и сервирай веднага.',
+      image: null,
+    },
+  ],
+  preparation: [],
+};
+
+/** A margherita for 1 whose dough is for 2 pizzas (#326). */
+const pizza: CaseRecipe = {
+  title: 'Пица Маргарита',
+  servings: 1,
+  prepMinutes: 120,
+  ingredients: [
+    { name: 'брашно', quantity: 500, unit: 'g', note: 'за тестото' },
+    { name: 'суха мая', quantity: 7, unit: 'g' },
+    { name: 'вода', quantity: 320, unit: 'ml', note: 'хладка' },
+    { name: 'зехтин', quantity: 2, unit: 'tbsp', note: 'за тестото' },
+    { name: 'сол', quantity: 10, unit: 'g' },
+    { name: 'доматено пюре', quantity: 80, unit: 'g' },
+    { name: 'моцарела', quantity: 125, unit: 'g' },
+    { name: 'босилек пресен', quantity: 5, unit: 'g' },
+  ],
+  steps: [
+    {
+      text: 'Замеси брашното, маята, водата, зехтина и солта до гладко тесто; то е за 2 пици, втората половина се замразява.',
+      image: null,
+    },
+    {
+      text: 'Остави тестото да втаси на топло 90 минути, докато удвои обема си.',
+      image: null,
+    },
+    {
+      text: 'Разточи половината тесто на кръг, намажи с доматеното пюре и наръсй с разкъсаната моцарела.',
+      image: null,
+    },
+    {
+      text: 'Печи 10 минути на 250 °C, докато краищата покафенеят, и поръси с босилека.',
+      image: null,
+    },
+  ],
+  preparation: [{ kind: 'oven', degrees: 250, fan: 'conventional' }],
 };
 
 /** In the last cooking for 4: the 2 tomatoes replaced by 400 g canned pulp. */
@@ -247,6 +344,73 @@ const CASES: Case[] = [
     prepMinutes: 110,
   },
   {
+    name: 'ризото-песто-отделно',
+    recipe: risotto,
+    instruction: 'направи пестото отделно, за 5',
+    ingredients: [...PESTO_LINES, 'пармезан'],
+    steps: 2,
+    components: [{ name: /песто/i, servings: 5, lines: PESTO_LINES }],
+  },
+  {
+    name: 'паста-песто-отделно',
+    recipe: pasta,
+    instruction: 'пестото направи отделно, то е за 6 порции',
+    ingredients: [
+      'босилек пресен',
+      'кедрови ядки',
+      'пармезан',
+      'чесън',
+      'зехтин',
+    ],
+    steps: 2,
+    components: [
+      {
+        name: /песто/i,
+        servings: 6,
+        lines: ['босилек пресен', 'кедрови ядки', 'пармезан', 'зехтин'],
+      },
+    ],
+  },
+  {
+    name: 'пица-тесто-отделно',
+    recipe: pizza,
+    instruction: 'тестото е за 2 пици, направи го отделно',
+    ingredients: ['брашно', 'суха мая', 'вода', 'зехтин', 'сол'],
+    steps: 2,
+    components: [
+      {
+        name: /тест/i,
+        servings: 2,
+        lines: ['брашно', 'суха мая', 'вода'],
+      },
+    ],
+  },
+  {
+    name: 'ризото-компонент-бульон',
+    recipe: risottoWithPesto,
+    instruction: 'бульонът да е зеленчуков, не от кубче',
+    ingredients: ['бульон кубче'],
+    adds: true,
+    steps: 1,
+  },
+  {
+    name: 'ризото-компонент-за-8',
+    recipe: risottoWithPesto,
+    instruction: 'пестото да е за 8 порции',
+    ingredients: [...PESTO_LINES, 'пармезан'],
+    steps: 2,
+    components: [{ name: /песто/i, servings: 8, lines: PESTO_LINES }],
+  },
+  {
+    name: 'ризото-без-компонент',
+    recipe: risottoWithPesto,
+    instruction:
+      'пестото да не е отделно: направи го за 1 порция, колкото ризотото',
+    ingredients: [...PESTO_LINES, 'пармезан'],
+    steps: 2,
+    components: [],
+  },
+  {
     name: 'извън-рецептата',
     recipe: moussaka,
     instruction: 'купи хляб за утре и ми напомни в 18 ч',
@@ -299,7 +463,7 @@ const cases = await ownCase();
 const checked = values.recipe === undefined;
 
 /** The registry the api would send: the seed ingredients with made-up ids, and the recipe's products the seed lacks. */
-function registry(recipe: ContractRecipe): RecipeReviseInput['ingredients'] {
+function registry(recipe: CaseRecipe): RecipeReviseInput['ingredients'] {
   const names = new Map(
     seed.ingredients.map((ingredient) => [
       ingredient.name,
@@ -375,12 +539,27 @@ function report(
       : (names.get(line.ingredientId) ?? line.ingredientId);
   const lines: string[] = [];
   const problems: string[] = [];
+  // The component a line is in, by its name; `null` for a main line.
+  const before = (line: { component: number | null }) =>
+    line.component === null
+      ? null
+      : (recipe.components[line.component]?.name ?? '?');
+  const after = (line: { component: number | null }) =>
+    line.component === null
+      ? null
+      : (revised.components[line.component]?.name ?? '?');
+  const where = (component: string | null) =>
+    component === null ? '' : ` [${component}]`;
 
-  // Products: each line of the recipe is matched once by name and amount; what is left changed, went or came.
+  // Products: each line of the recipe is matched once by name, amount and component; what is left changed, went or
+  // came.
   const left = [...revised.ingredients];
   for (const line of recipe.ingredients) {
     const same = left.findIndex(
-      (out) => nameOf(out) === line.name && sameLine(out, line),
+      (out) =>
+        nameOf(out) === line.name &&
+        sameLine(out, line) &&
+        after(out) === before(line),
     );
     if (same >= 0) {
       left.splice(same, 1);
@@ -389,14 +568,14 @@ function report(
     const renamed = left.findIndex((out) => nameOf(out) === line.name);
     const now = renamed >= 0 ? left.splice(renamed, 1)[0] : undefined;
     lines.push(
-      `   ~ ${line.name}: ${amount(line)} → ${now ? amount(now) : 'махнат'}`,
+      `   ~ ${line.name}: ${amount(line)}${where(before(line))} → ${now ? `${amount(now)}${where(after(now))}` : 'махнат'}`,
     );
     if (checked && !check.ingredients?.includes(line.name)) {
       problems.push(`продуктът ${line.name} не е поискан, а е сменен`);
     }
   }
   for (const out of left) {
-    lines.push(`   + ${nameOf(out)}: ${amount(out)}`);
+    lines.push(`   + ${nameOf(out)}: ${amount(out)}${where(after(out))}`);
     if (checked && !check.adds && !check.ingredients?.includes(nameOf(out))) {
       problems.push(`нов ред ${nameOf(out)} не е поискан`);
     }
@@ -437,15 +616,83 @@ function report(
     }
   }
 
+  // Components: as the case expects them, or as they were, each with the same products.
+  const componentText = (
+    components: readonly { name: string; servings: number }[],
+    names: readonly string[],
+    of: readonly (number | null)[],
+  ) =>
+    components.map(
+      (component, index) =>
+        `${component.name} за ${component.servings}: ${names
+          .filter((_, at) => of[at] === index)
+          .sort()
+          .join(', ')}`,
+    );
+  const componentsBefore = componentText(
+    recipe.components,
+    recipe.ingredients.map((line) => line.name),
+    recipe.ingredients.map((line) => line.component),
+  );
+  const componentsAfter = componentText(
+    revised.components,
+    revised.ingredients.map(nameOf),
+    revised.ingredients.map((line) => line.component),
+  );
+  const componentsChanged =
+    JSON.stringify(componentsBefore) !== JSON.stringify(componentsAfter);
+  if (componentsChanged) {
+    lines.push(
+      `   компоненти: ${componentsBefore.join(' | ') || '—'} → ${componentsAfter.join(' | ') || '—'}`,
+    );
+  } else if (componentsAfter.length > 0) {
+    lines.push(`   компоненти (същите): ${componentsAfter.join(' | ')}`);
+  }
+  if (checked && !check.noResults) {
+    const expected = check.components;
+    if (expected === undefined) {
+      if (componentsChanged) {
+        problems.push('компонентите не са поискани, а са сменени');
+      }
+    } else if (expected.length !== revised.components.length) {
+      problems.push(
+        `компонентите са ${revised.components.length}, а трябва ${expected.length}`,
+      );
+    } else {
+      expected.forEach((want, index) => {
+        const got = revised.components[index];
+        if (!got || !want.name.test(got.name)) {
+          problems.push(`компонент ${index + 1} не е ${want.name}`);
+          return;
+        }
+        if (got.servings !== want.servings) {
+          problems.push(
+            `${got.name} е за ${got.servings} порции, а трябва за ${want.servings}`,
+          );
+        }
+        const held = new Set(
+          revised.ingredients
+            .filter((line) => line.component === index)
+            .map(nameOf),
+        );
+        const missing = want.lines.filter((name) => !held.has(name));
+        if (missing.length > 0) {
+          problems.push(`${got.name} е без ${missing.join(', ')}`);
+        }
+      });
+    }
+  }
+
   // A revision that changes nothing is not one: the agent should have said `noResults`.
-  const before = preparationText(recipe.preparation);
-  const after = preparationText(revised.preparation);
+  const preparationBefore = preparationText(recipe.preparation);
+  const preparationAfter = preparationText(revised.preparation);
   if (
     checked &&
     lines.length === 0 &&
+    !componentsChanged &&
     revised.servings === recipe.servings &&
     revised.prepMinutes === recipe.prepMinutes &&
-    before === after
+    preparationBefore === preparationAfter
   ) {
     problems.push('нищо не е сменено');
   }
@@ -462,8 +709,8 @@ function report(
       problems.push(`времето е ${revised.prepMinutes}, а трябва ${time}`);
     }
   }
-  if (before !== after) {
-    lines.push(`   подготовка: ${before} → ${after}`);
+  if (preparationBefore !== preparationAfter) {
+    lines.push(`   подготовка: ${preparationBefore} → ${preparationAfter}`);
     if (checked && !check.preparation) {
       problems.push('подготовката не е поискана, а е сменена');
     }
@@ -489,7 +736,8 @@ for (const check of cases) {
     cookingChanges: describeCookingChanges(
       {
         servings: check.recipe.servings,
-        lines: check.recipe.ingredients.map((line) => ({
+        components: check.recipe.components,
+        lines: check.recipe.ingredients.map(({ component: _, ...line }) => ({
           ...line,
           servings: check.recipe.servings,
         })),

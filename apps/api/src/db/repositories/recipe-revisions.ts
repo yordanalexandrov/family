@@ -1,9 +1,11 @@
-import type {
-  OpenRevision,
-  RecipeRevision,
-  RecipeRevisionRequest,
-  RevisableRecipe,
-  RevisionDecision,
+import {
+  type OpenRevision,
+  type RecipeRevision,
+  type RecipeRevisionRequest,
+  type RevisableRecipe,
+  type RevisionDecision,
+  recipeRevisionSchema,
+  revisableRecipeSchema,
 } from '@family/shared';
 import {
   and,
@@ -36,7 +38,10 @@ type RevisionRow = typeof recipeRevisionRequest.$inferSelect & {
   stale: boolean;
 };
 
-/** API shape of a revision: DB nulls of optional fields become absent, dates ISO strings. */
+/**
+ * API shape of a revision: DB nulls of optional fields become absent, dates ISO strings; the revised recipe as the schema
+ * reads it (one stored before the components has none, GLOSSARY: Компонент).
+ */
 function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
   return {
     id: row.id,
@@ -46,7 +51,9 @@ function toRevisionRequest(row: RevisionRow): RecipeRevisionRequest {
     applied: row.appliedIds,
     status: row.status,
     error: row.error ?? undefined,
-    revision: row.revision ?? undefined,
+    revision: row.revision
+      ? recipeRevisionSchema.parse(row.revision)
+      : undefined,
     noResults: row.noResults ?? undefined,
     decision: row.decision ?? undefined,
     requestedBy: row.requestedBy,
@@ -146,7 +153,10 @@ export async function findRevisionBaseRecipe(
     .from(recipeRevisionRequest)
     .where(eq(recipeRevisionRequest.id, id))
     .limit(1);
-  return row?.baseRecipe ?? undefined;
+  // One stored before the components has none.
+  return row?.baseRecipe
+    ? revisableRecipeSchema.parse(row.baseRecipe)
+    : undefined;
 }
 
 /** The id of the suggestion's open revision (still `pending`, or `done` with a revision and no decision), if any. */

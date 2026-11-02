@@ -359,6 +359,11 @@ export const cookingQuestionRequest = pgTable(
     question: text('question').notNull(),
     step: integer('step').notNull(),
     servings: integer('servings').notNull(),
+    // The counters of the recipe's components on the screen, by index (GLOSSARY: Компонент); `{}` when none were sent.
+    components: integer('components')
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
     answer: text('answer'),
     followsId: uuid('follows_id').references(
       (): AnyPgColumn => cookingQuestionRequest.id,

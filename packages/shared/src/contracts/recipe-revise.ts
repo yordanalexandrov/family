@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  checkComponents,
+  recipeComponentSchema,
+  recipeComponentsSchema,
+} from '../food/component.js';
 import { preparationSchema } from '../food/preparation.js';
 import type { AiContract } from './contract.js';
 import {
@@ -6,11 +11,12 @@ import {
   preparationStrictSchema,
 } from './preparation.js';
 import {
+  importedIngredientSchema,
   normalizedIngredientFields,
-  normalizedIngredientSchema,
   registryIngredientSchema,
 } from './recipe-normalize.js';
 import {
+  checkRecipeComponents,
   recipePhotoRefs,
   refineRecipeSchema,
   refineStepSchema,
@@ -37,7 +43,8 @@ export const revisionInstructionSchema = z
   .min(1)
   .max(RECIPE_REVISION_INSTRUCTION_MAX);
 
-const recipeReviseInputSchema = z.object({
+const recipeReviseInputSchema = z
+  .object({
   recipe: refineRecipeSchema,
   instruction: revisionInstructionSchema,
   /**
@@ -47,7 +54,8 @@ const recipeReviseInputSchema = z.object({
   cookingChanges: z.array(z.string().trim().min(1)),
   /** The whole registry, to link the lines to. */
   ingredients: z.array(registryIngredientSchema),
-});
+  })
+  .superRefine(checkRecipeComponents);
 
 export type RecipeReviseInput = z.infer<typeof recipeReviseInputSchema>;
 
@@ -59,14 +67,16 @@ const revisedRecipeFields = {
 };
 
 /**
- * The revised recipe: its lines are a registry product or a new one, as in `recipe.normalize`; its steps take the
- * reference of a photo of the recipe (`e1`, …) or `null`, as in `recipe.refine`.
+ * The revised recipe: its lines are a registry product or a new one, as in `recipe.normalize`, each with its
+ * `component`; its steps take the reference of a photo of the recipe (`e1`, …) or `null`, as in `recipe.refine`. Its
+ * components (GLOSSARY: Компонент) are all of them, the ones it adds, changes or keeps, at most 3, each with a line.
  */
 const revisedRecipeSchema = z.object({
   ...revisedRecipeFields,
-  ingredients: z.array(normalizedIngredientSchema),
+  ingredients: z.array(importedIngredientSchema),
   steps: z.array(refineStepSchema).min(1),
   preparation: preparationSchema,
+  components: recipeComponentsSchema,
 });
 
 export type RevisedRecipe = z.infer<typeof revisedRecipeSchema>;
@@ -92,7 +102,12 @@ const recipeReviseOutputSchema = z
     /** Why there is nothing to revise, in Bulgarian; `null` when there is a revision. */
     noResults: z.string().trim().min(1).nullable(),
   })
-  .superRefine(checkAnswerShape);
+  .superRefine(checkAnswerShape)
+  .superRefine((output, ctx) => {
+    if (output.recipe) {
+      checkComponents(output.recipe, ctx, ['recipe']);
+    }
+  });
 
 export type RecipeReviseOutput = z.infer<typeof recipeReviseOutputSchema>;
 
@@ -102,7 +117,13 @@ const RECIPE_REVISE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
     recipe: z
       .object({
         ...revisedRecipeFields,
-        ingredients: z.array(z.object(normalizedIngredientFields)),
+        ingredients: z.array(
+          z.object({
+            ...normalizedIngredientFields,
+            component: z.int().min(0).nullable(),
+          }),
+        ),
+        components: z.array(recipeComponentSchema),
         steps: z.array(
           z.object({ text: z.string(), image: z.string().nullable() }),
         ),

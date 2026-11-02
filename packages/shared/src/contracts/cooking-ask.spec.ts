@@ -93,6 +93,42 @@ describe('cookingAsk.inputSchema', () => {
     expect(parse([steps[1], steps[0], steps[2], steps[3]])).toBe(false);
   });
 
+  it('reads the components (GLOSSARY: Компонент) with their counters on the screen, and their lines', () => {
+    const recipe = {
+      ...fixtureInput.recipe,
+      components: [{ name: 'Песто', servings: 5, shownServings: 10 }],
+      ingredients: fixtureInput.recipe.ingredients.map((line) =>
+        line.index === 4 ? { ...line, component: 0 } : line,
+      ),
+    };
+
+    const parsed = cookingAsk.inputSchema.parse({ ...fixtureInput, recipe });
+
+    expect(parsed.recipe.components).toEqual([
+      { name: 'Песто', servings: 5, shownServings: 10 },
+    ]);
+    expect(parsed.recipe.ingredients[4]?.component).toBe(0);
+    expect(parsed.recipe.ingredients[0]?.component).toBeUndefined();
+    expect(INPUT.recipe.components).toEqual([]);
+  });
+
+  it('refuses a line of a component the recipe does not have, a component without a line and a counter under 1', () => {
+    const pesto = { name: 'Песто', servings: 5, shownServings: 5 };
+    const inComponent = fixtureInput.recipe.ingredients.map((line) =>
+      line.index === 4 ? { ...line, component: 0 } : line,
+    );
+    const parse = (components: unknown[], ingredients: unknown[]) =>
+      cookingAsk.inputSchema.safeParse({
+        ...fixtureInput,
+        recipe: { ...fixtureInput.recipe, components, ingredients },
+      }).success;
+
+    expect(parse([pesto], inComponent)).toBe(true);
+    expect(parse([], inComponent)).toBe(false);
+    expect(parse([pesto], fixtureInput.recipe.ingredients)).toBe(false);
+    expect(parse([{ ...pesto, shownServings: 0 }], inComponent)).toBe(false);
+  });
+
   it('refuses a current step the recipe does not have', () => {
     expect(
       cookingAsk.inputSchema.safeParse({ ...fixtureInput, currentStep: 5 })

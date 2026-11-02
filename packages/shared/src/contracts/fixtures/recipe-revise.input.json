@@ -4,21 +4,67 @@
     "servings": 4,
     "prepMinutes": 90,
     "ingredients": [
-      { "name": "картоф", "quantity": 1, "unit": "kg" },
-      { "name": "смесена кайма", "quantity": 500, "unit": "g" },
-      { "name": "лук", "quantity": 1, "unit": "pcs" },
-      { "name": "домат", "quantity": 2, "unit": "pcs" },
-      { "name": "слънчогледово олио", "quantity": 3, "unit": "tbsp" },
+      {
+        "name": "картоф",
+        "quantity": 1,
+        "unit": "kg",
+        "component": null
+      },
+      {
+        "name": "смесена кайма",
+        "quantity": 500,
+        "unit": "g",
+        "component": null
+      },
+      {
+        "name": "лук",
+        "quantity": 1,
+        "unit": "pcs",
+        "component": null
+      },
+      {
+        "name": "домат",
+        "quantity": 2,
+        "unit": "pcs",
+        "component": null
+      },
+      {
+        "name": "слънчогледово олио",
+        "quantity": 3,
+        "unit": "tbsp",
+        "component": null
+      },
       {
         "name": "червен пипер",
         "quantity": 1,
         "unit": "tsp",
-        "note": "сладък"
+        "note": "сладък",
+        "component": null
       },
-      { "name": "черен пипер", "quantity": null, "unit": "pinch" },
-      { "name": "яйце", "quantity": 2, "unit": "pcs" },
-      { "name": "кисело мляко", "quantity": 400, "unit": "g" },
-      { "name": "брашно", "quantity": 2, "unit": "tbsp" }
+      {
+        "name": "черен пипер",
+        "quantity": null,
+        "unit": "pinch",
+        "component": null
+      },
+      {
+        "name": "яйце",
+        "quantity": 2,
+        "unit": "pcs",
+        "component": null
+      },
+      {
+        "name": "кисело мляко",
+        "quantity": 400,
+        "unit": "g",
+        "component": null
+      },
+      {
+        "name": "брашно",
+        "quantity": 2,
+        "unit": "tbsp",
+        "component": null
+      }
     ],
     "steps": [
       {
@@ -33,13 +79,23 @@
         "text": "Смеси картофите с каймата и настърганите домати, подреди в тава и залей с 250 ml вода.",
         "image": null
       },
-      { "text": "Печи 40 минути на 200 °C с вентилатор.", "image": null },
+      {
+        "text": "Печи 40 минути на 200 °C с вентилатор.",
+        "image": null
+      },
       {
         "text": "Разбий яйцата с киселото мляко и брашното, залей мусаката и печи още 15 минути, докато заливката хване златиста коричка.",
         "image": "e2"
       }
     ],
-    "preparation": [{ "kind": "oven", "degrees": 200, "fan": "fan" }]
+    "preparation": [
+      {
+        "kind": "oven",
+        "degrees": 200,
+        "fan": "fan"
+      }
+    ],
+    "components": []
   },
   "instruction": "картофите искат още 20 минути",
   "cookingChanges": [],
@@ -94,6 +150,10 @@
       "name": "брашно",
       "unit": "g"
     },
-    { "id": "e0000000-0000-4000-8000-000000000111", "name": "сол", "unit": "g" }
+    {
+      "id": "e0000000-0000-4000-8000-000000000111",
+      "name": "сол",
+      "unit": "g"
+    }
   ]
 }

@@ -52,6 +52,44 @@ describe('recipeRefine.inputSchema', () => {
     ).toEqual([]);
   });
 
+  it('reads the components of the recipe (GLOSSARY: Компонент) with their lines, and none for a recipe without', () => {
+    const recipe = {
+      ...INPUT.recipe,
+      components: [{ name: 'Песто', servings: 5 }],
+      ingredients: INPUT.recipe.ingredients.map((line, index) => ({
+        ...line,
+        component: index === 0 ? 0 : null,
+      })),
+    };
+
+    const parsed = recipeRefine.inputSchema.parse({ ...INPUT, recipe });
+
+    expect(parsed.recipe.components).toEqual([{ name: 'Песто', servings: 5 }]);
+    expect(parsed.recipe.ingredients[0]?.component).toBe(0);
+    expect(INPUT.recipe.components).toEqual([]);
+    expect(INPUT.recipe.ingredients[0]?.component).toBeNull();
+  });
+
+  it('refuses a recipe whose component has no line or whose line names a component it does not have', () => {
+    const withoutLine = {
+      ...INPUT.recipe,
+      components: [{ name: 'Песто', servings: 5 }],
+    };
+    const unknown = {
+      ...INPUT.recipe,
+      ingredients: INPUT.recipe.ingredients.map((line) => ({
+        ...line,
+        component: 0,
+      })),
+    };
+
+    for (const recipe of [withoutLine, unknown]) {
+      expect(
+        recipeRefine.inputSchema.safeParse({ ...INPUT, recipe }).success,
+      ).toBe(false);
+    }
+  });
+
   it('refuses a page without JSON-LD and without text', () => {
     const result = recipeRefine.inputSchema.safeParse({
       ...INPUT,

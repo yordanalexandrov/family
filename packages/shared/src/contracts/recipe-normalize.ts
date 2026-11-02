@@ -171,7 +171,7 @@ export type NormalizedIngredient = z.infer<typeof normalizedIngredientSchema>;
  * A line of the imported recipe: a {@link normalizedIngredientSchema} line and its `component` (GLOSSARY: Компонент),
  * the index of its component in `components`, `null` (or absent) for a main line.
  */
-const importedIngredientSchema = z
+export const importedIngredientSchema = z
   .object({ ...normalizedIngredientFields, component: lineComponentSchema })
   .superRefine(checkPinchQuantity)
   .superRefine(checkOneProduct);

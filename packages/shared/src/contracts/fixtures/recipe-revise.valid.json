@@ -9,72 +9,83 @@
         "newProduct": null,
         "quantity": 1,
         "unit": "kg",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000102",
         "newProduct": null,
         "quantity": 500,
         "unit": "g",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000103",
         "newProduct": null,
         "quantity": 1,
         "unit": "pcs",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000104",
         "newProduct": null,
         "quantity": 2,
         "unit": "pcs",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000105",
         "newProduct": null,
         "quantity": 3,
         "unit": "tbsp",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000106",
         "newProduct": null,
         "quantity": 1,
         "unit": "tsp",
-        "note": "сладък"
+        "note": "сладък",
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000107",
         "newProduct": null,
         "quantity": null,
         "unit": "pinch",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000108",
         "newProduct": null,
         "quantity": 2,
         "unit": "pcs",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000109",
         "newProduct": null,
         "quantity": 400,
         "unit": "g",
-        "note": null
+        "note": null,
+        "component": null
       },
       {
         "ingredientId": "e0000000-0000-4000-8000-000000000110",
         "newProduct": null,
         "quantity": 2,
         "unit": "tbsp",
-        "note": null
+        "note": null,
+        "component": null
       }
     ],
+    "components": [],
     "steps": [
       {
         "text": "Обели картофите и ги нарежи на кубчета около 1,5 cm.",
@@ -98,7 +109,12 @@
       }
     ],
     "preparation": [
-      { "kind": "oven", "degrees": 200, "fan": "fan", "rack": null }
+      {
+        "kind": "oven",
+        "degrees": 200,
+        "fan": "fan",
+        "rack": null
+      }
     ]
   },
   "noResults": null

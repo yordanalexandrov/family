@@ -4,23 +4,54 @@
     "servings": 4,
     "prepMinutes": null,
     "ingredients": [
-      { "name": "пилешко бутче", "quantity": 4, "unit": "pcs" },
-      { "name": "картоф", "quantity": 1, "unit": "kg" },
-      { "name": "олио", "quantity": 3, "unit": "tbsp" },
+      {
+        "name": "пилешко бутче",
+        "quantity": 4,
+        "unit": "pcs",
+        "component": null
+      },
+      {
+        "name": "картоф",
+        "quantity": 1,
+        "unit": "kg",
+        "component": null
+      },
+      {
+        "name": "олио",
+        "quantity": 3,
+        "unit": "tbsp",
+        "component": null
+      },
       {
         "name": "червен пипер",
         "quantity": 1,
         "unit": "tsp",
-        "note": "сладък"
+        "note": "сладък",
+        "component": null
       },
-      { "name": "сол", "quantity": null, "unit": "pinch" }
+      {
+        "name": "сол",
+        "quantity": null,
+        "unit": "pinch",
+        "component": null
+      }
     ],
     "steps": [
-      { "text": "Нарежи картофите и ги подреди в тава.", "image": null },
-      { "text": "Овкуси пилето и го сложи върху картофите.", "image": "e1" },
-      { "text": "Печи до готовност.", "image": null }
+      {
+        "text": "Нарежи картофите и ги подреди в тава.",
+        "image": null
+      },
+      {
+        "text": "Овкуси пилето и го сложи върху картофите.",
+        "image": "e1"
+      },
+      {
+        "text": "Печи до готовност.",
+        "image": null
+      }
     ],
-    "preparation": []
+    "preparation": [],
+    "components": []
   },
   "source": {
     "url": "https://blog.example/pile-s-kartofi",
