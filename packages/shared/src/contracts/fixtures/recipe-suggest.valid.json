@@ -12,37 +12,43 @@
           "name": "чушка",
           "isNew": false,
           "quantity": 6,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "яйце",
           "isNew": false,
           "quantity": 2,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "сирене",
           "isNew": false,
           "quantity": 400,
-          "unit": "g"
+          "unit": "g",
+          "component": null
         },
         {
           "name": "сол",
           "isNew": false,
           "quantity": null,
-          "unit": "pinch"
+          "unit": "pinch",
+          "component": null
         },
         {
           "name": "черен пипер",
           "isNew": false,
           "quantity": null,
-          "unit": "pinch"
+          "unit": "pinch",
+          "component": null
         },
         {
           "name": "слънчогледово олио",
           "isNew": false,
           "quantity": 2,
-          "unit": "tbsp"
+          "unit": "tbsp",
+          "component": null
         }
       ],
       "steps": [
@@ -51,6 +57,7 @@
         "Напълнете чушките, подредете ги в подходяща тавичка за еърфрайъра и полейте с олиото.",
         "Печете на 180°C за около 15 минути, докато плънката се стегне."
       ],
+      "components": [],
       "preparation": [],
       "appliance": "air fryer (Cosori CAF-R121-KEU)"
     },
@@ -66,73 +73,85 @@
           "name": "пилешко филе",
           "isNew": false,
           "quantity": 500,
-          "unit": "g"
+          "unit": "g",
+          "component": null
         },
         {
           "name": "зехтин",
           "isNew": false,
           "quantity": 2,
-          "unit": "tbsp"
+          "unit": "tbsp",
+          "component": null
         },
         {
           "name": "сол",
           "isNew": false,
           "quantity": 1,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "черен пипер",
           "isNew": false,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "червен пипер",
           "isNew": false,
           "quantity": 1,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "чесън на прах",
           "isNew": true,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "лук на прах",
           "isNew": true,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "риган",
           "isNew": false,
           "quantity": 1,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "куркума",
           "isNew": false,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "сушен босилек",
           "isNew": false,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "лимон",
           "isNew": false,
           "quantity": 0.5,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "мед",
           "isNew": false,
           "quantity": 1,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         }
       ],
       "steps": [
@@ -143,6 +162,7 @@
         "Печете 10 минути, обърнете и печете още 8–10 минути, до вътрешна температура поне 74°C в най-дебелата част.",
         "Оставете месото да почине под алуминиево фолио 3–5 минути преди нарязване."
       ],
+      "components": [],
       "preparation": [],
       "appliance": "air fryer (Cosori CAF-R121-KEU)"
     },
@@ -158,97 +178,113 @@
           "name": "свински врат",
           "isNew": false,
           "quantity": 600,
-          "unit": "g"
+          "unit": "g",
+          "component": null
         },
         {
           "name": "зехтин",
           "isNew": false,
           "quantity": 3,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "сол",
           "isNew": false,
           "quantity": 1.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "черен пипер",
           "isNew": false,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "червен пипер",
           "isNew": false,
           "quantity": 1.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "чубрица",
           "isNew": false,
           "quantity": 1,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "чесън на прах",
           "isNew": true,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "кимион",
           "isNew": false,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "риган",
           "isNew": false,
           "quantity": 1,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "сушена чушка",
           "isNew": true,
           "quantity": 0.5,
-          "unit": "tsp"
+          "unit": "tsp",
+          "component": null
         },
         {
           "name": "куркума",
           "isNew": false,
           "quantity": null,
-          "unit": "pinch"
+          "unit": "pinch",
+          "component": null
         },
         {
           "name": "чесън",
           "isNew": false,
           "quantity": 2,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "картоф",
           "isNew": false,
           "quantity": 5,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "морков",
           "isNew": false,
           "quantity": 2,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "лук",
           "isNew": false,
           "quantity": 1,
-          "unit": "pcs"
+          "unit": "pcs",
+          "component": null
         },
         {
           "name": "риган",
           "isNew": false,
           "quantity": null,
-          "unit": "pinch"
+          "unit": "pinch",
+          "component": null
         }
       ],
       "steps": [
@@ -260,6 +296,7 @@
         "Печете на 190°C за 12–15 минути, обърнете и продължете още 10–12 минути; проверете за вътрешна температура 70–75°C.",
         "Оставете месото да почине 3–5 минути. Изпечете зеленчуците отделно на 190°C за около 18–20 минути, до омекване, и поднесете с месото."
       ],
+      "components": [],
       "preparation": [],
       "appliance": "air fryer (Cosori CAF-R121-KEU)"
     }

@@ -3,6 +3,7 @@ import type {
   ImportedSuggestion,
   ImportPayload,
   Preparation,
+  RecipeComponent,
   RecipeSuggestion,
   RecipeSuggestionStatus,
   RecipeSuggestParams,
@@ -45,12 +46,25 @@ function decisionOf(row: SuggestionRow) {
 
 /**
  * The stored payload, with `preparation: []` when it is from before the preparation (GLOSSARY: Подготовка, #283/#284)
- * and has none. Not left to a `.default([])` of the schema: the response serializer encodes, and encoding applies no
- * default.
+ * and has none, and `components: []` and `component: null` on every line when it is from before the components
+ * (GLOSSARY: Компонент, #325). Not left to a `.default(…)` of the schema: the response serializer encodes, and encoding
+ * applies no default.
  */
 function payloadOf(row: SuggestionRow): SuggestionPayload | ImportPayload {
-  const { preparation } = row.payload as { preparation?: Preparation };
-  return { ...row.payload, preparation: preparation ?? [] };
+  const { preparation, components, ingredients } = row.payload as {
+    preparation?: Preparation;
+    components?: RecipeComponent[];
+    ingredients: { component?: number | null }[];
+  };
+  return {
+    ...row.payload,
+    preparation: preparation ?? [],
+    components: components ?? [],
+    ingredients: ingredients.map((line) => ({
+      ...line,
+      component: line.component ?? null,
+    })),
+  } as SuggestionPayload | ImportPayload;
 }
 
 /** A suggestion of a suggestion request; the row must have `request_id` (read by it). */

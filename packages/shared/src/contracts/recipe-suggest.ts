@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  checkComponents,
+  lineComponentSchema,
+  recipeComponentsSchema,
+} from '../food/component.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { preparationSchema } from '../food/preparation.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
@@ -50,6 +55,8 @@ const suggestionIngredientSchema = z
     isNew: z.boolean(),
     quantity: quantitySchema,
     unit: unitSchema,
+    /** GLOSSARY: Компонент — the index of the line's component in `components`; `null` (or absent) for a main line. */
+    component: lineComponentSchema,
   })
   .superRefine(checkPinchQuantity);
 
@@ -77,6 +84,12 @@ export const suggestionSchema = z.object({
    * when it is for the oven or the hob. Checked against the input by {@link checkAppliances}.
    */
   appliance: z.string().trim().min(1).optional(),
+  /**
+   * GLOSSARY: Компонент — a part written for other servings or made as a batch that keeps (pesto, dough for two
+   * pizzas), at most 3; `[]` (or absent) when there is none. Its lines point to it with `component`; checked across
+   * the suggestion by {@link checkSuggestionComponents}.
+   */
+  components: recipeComponentsSchema,
 });
 
 export type Suggestion = z.infer<typeof suggestionSchema>;
@@ -184,6 +197,16 @@ function checkAnswerShape(
   }
 }
 
+/** Each suggestion's components and the `component` of its lines (index, a line for each component). */
+function checkSuggestionComponents(
+  output: { suggestions: Suggestion[] },
+  ctx: z.RefinementCtx,
+): void {
+  output.suggestions.forEach((suggestion, index) => {
+    checkComponents(suggestion, ctx, ['suggestions', index]);
+  });
+}
+
 const recipeSuggestOutputSchema = z
   .object({
     suggestions: z
@@ -193,7 +216,8 @@ const recipeSuggestOutputSchema = z
     /** Why there are no suggestions, in Bulgarian; `null` when there are. */
     noResults: z.string().trim().min(1).nullable(),
   })
-  .superRefine(checkAnswerShape);
+  .superRefine(checkAnswerShape)
+  .superRefine(checkSuggestionComponents);
 
 export type RecipeSuggestOutput = z.infer<typeof recipeSuggestOutputSchema>;
 
