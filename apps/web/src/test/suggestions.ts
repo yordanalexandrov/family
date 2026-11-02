@@ -43,12 +43,25 @@ export const chickenSkewers: SuggestionPayload = {
   servings: 4,
   tags: ['dinner', 'quick'],
   ingredients: [
-    { name: 'пилешко филе', isNew: false, quantity: 0.6, unit: 'kg' },
-    { name: 'сумак', isNew: true, quantity: 1, unit: 'tsp' },
-    { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
+    {
+      name: 'пилешко филе',
+      isNew: false,
+      quantity: 0.6,
+      unit: 'kg',
+      component: null,
+    },
+    { name: 'сумак', isNew: true, quantity: 1, unit: 'tsp', component: null },
+    {
+      name: 'сол',
+      isNew: false,
+      quantity: null,
+      unit: 'pinch',
+      component: null,
+    },
   ],
   steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
   preparation: [],
+  components: [],
 };
 
 export const lentilSoup: SuggestionPayload = {
@@ -59,11 +72,12 @@ export const lentilSoup: SuggestionPayload = {
   servings: 6,
   tags: ['dinner'],
   ingredients: [
-    { name: 'леща', isNew: false, quantity: 300, unit: 'g' },
-    { name: 'лук', isNew: false, quantity: 1, unit: 'pcs' },
+    { name: 'леща', isNew: false, quantity: 300, unit: 'g', component: null },
+    { name: 'лук', isNew: false, quantity: 1, unit: 'pcs', component: null },
   ],
   steps: [{ text: 'Запържи лука.' }, { text: 'Свари лещата с лука.' }],
   preparation: [],
+  components: [],
 };
 
 export const omeletteSuggestion: SuggestionPayload = {
@@ -74,11 +88,18 @@ export const omeletteSuggestion: SuggestionPayload = {
   servings: 2,
   tags: ['dinner', 'quick'],
   ingredients: [
-    { name: 'яйце', isNew: false, quantity: 4, unit: 'pcs' },
-    { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
+    { name: 'яйце', isNew: false, quantity: 4, unit: 'pcs', component: null },
+    {
+      name: 'сол',
+      isNew: false,
+      quantity: null,
+      unit: 'pinch',
+      component: null,
+    },
   ],
   steps: [{ text: 'Разбий яйцата със солта.' }, { text: 'Изпечи ги в тиган.' }],
   preparation: [],
+  components: [],
 };
 
 export const skewersSuggestion: RecipeSuggestion = {

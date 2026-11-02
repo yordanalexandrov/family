@@ -32,7 +32,9 @@ export const lineComponentSchema = z.int().min(0).nullable().default(null);
 /**
  * Object-level rules for a recipe-shaped object with components: every line's `component` is an index of
  * `components` and every component has at least one line. Use with `.superRefine(checkComponents)` on any schema
- * (recipe, AI contract) that carries `components` and lines with `component`.
+ * (recipe, AI contract) that carries `components` and lines with `component`; an AI contract whose recipe is nested
+ * calls it with the recipe's path (`at`), so the issue goes back to the agent where it is. The messages are for the
+ * agent's retry; forms show their own.
  */
 export function checkComponents(
   value: {
@@ -40,6 +42,7 @@ export function checkComponents(
     ingredients: readonly { component?: number | null | undefined }[];
   },
   ctx: z.RefinementCtx,
+  at: readonly (string | number)[] = [],
 ): void {
   const used = new Set<number>();
   value.ingredients.forEach((line, index) => {
@@ -50,8 +53,8 @@ export function checkComponents(
     if (component >= value.components.length) {
       ctx.addIssue({
         code: 'custom',
-        path: ['ingredients', index, 'component'],
-        message: 'No such component',
+        path: [...at, 'ingredients', index, 'component'],
+        message: `Няма компонент ${component}: component е индекс в components (от 0) или null за главен ред.`,
       });
       return;
     }
@@ -61,8 +64,8 @@ export function checkComponents(
     if (!used.has(index)) {
       ctx.addIssue({
         code: 'custom',
-        path: ['components', index],
-        message: 'A component has at least one line',
+        path: [...at, 'components', index],
+        message: `Компонент ${index} е без продукти: всеки компонент има поне един ред с неговия индекс в component.`,
       });
     }
   });

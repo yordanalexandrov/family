@@ -13,6 +13,7 @@ import {
   OVEN_DEGREES_MIN,
   PREPARATION_MAX,
   type Recipe,
+  type RecipeComponent,
   type RecipeInput,
   type RecipeStep,
   type RevisableRecipe,
@@ -168,12 +169,28 @@ function numberText(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : String(value);
 }
 
-export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
-  const components = recipe.components.map((component) => ({
+/** Компонентите (GLOSSARY: Компонент) на рецепта или предложение във формата, в реда им, всеки с нов ключ. */
+export function componentsToValues(
+  components: readonly RecipeComponent[],
+): ComponentValues[] {
+  return components.map((component) => ({
     key: newRowKey(),
     name: component.name,
     servings: String(component.servings),
   }));
+}
+
+/** `component` на реда във формата: ключът на компонента с индекс `index`; за главен ред (`null`) — нищо. */
+export function lineComponent(
+  components: readonly ComponentValues[],
+  index: number | null,
+): { component?: string } {
+  const key = index === null ? undefined : components[index]?.key;
+  return key === undefined ? {} : { component: key };
+}
+
+export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
+  const components = componentsToValues(recipe.components);
   return {
     title: recipe.title,
     servings: String(recipe.servings),
@@ -190,9 +207,7 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
         quantity: numberText(line.quantity),
         unit: line.unit,
         ...(line.note === undefined ? {} : { note: line.note }),
-        ...(line.component === null
-          ? {}
-          : { component: components[line.component]?.key }),
+        ...lineComponent(components, line.component),
       }),
     ),
     nutrition: nutritionToValues(recipe.nutritionPer100g),

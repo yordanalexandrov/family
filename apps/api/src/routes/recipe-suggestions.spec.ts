@@ -717,6 +717,94 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
     ).toEqual([]);
   });
 
+  it('a suggestion with a component (GLOSSARY: Компонент) keeps it, and approval brings it into the recipe', async () => {
+    const fixture = suggestFixture();
+    const [first, ...rest] = fixture.suggestions;
+    if (!first) {
+      throw new Error('a fixture without suggestions');
+    }
+    // The last two lines of the first suggestion are made as their own batch for 5.
+    const pesto = first.ingredients.length - 2;
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, () =>
+        HttpResponse.json(
+          completion(
+            JSON.stringify({
+              ...fixture,
+              suggestions: [
+                {
+                  ...first,
+                  components: [{ name: 'Песто', servings: 5 }],
+                  ingredients: first.ingredients.map((line, index) => ({
+                    ...line,
+                    component: index >= pesto ? 0 : null,
+                  })),
+                },
+                ...rest,
+              ],
+            }),
+          ),
+        ),
+      ),
+    );
+    const suggestion = await aSuggestion();
+    expect(suggestion.payload.components).toEqual([
+      { name: 'Песто', servings: 5 },
+    ]);
+    expect(
+      suggestion.payload.ingredients.map((line) => line.component).slice(-3),
+    ).toEqual([null, 0, 0]);
+    // The review sends the known lines; the last one goes into the component, as the agent had it.
+    const input = await editedInput(suggestion);
+    const lines = input.ingredients.map((line, index, all) => ({
+      ...line,
+      component: index === all.length - 1 ? 0 : null,
+    }));
+
+    const response = await decide(suggestion.id, 'approve', {
+      ...input,
+      components: [{ name: 'Песто', servings: 5 }],
+      ingredients: lines,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    const stored = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(stored.json().recipe.components).toEqual([
+      { name: 'Песто', servings: 5 },
+    ]);
+    expect(
+      stored
+        .json()
+        .recipe.ingredients.map(
+          (line: { component: number | null }) => line.component,
+        ),
+    ).toEqual(lines.map((line) => line.component));
+  });
+
+  it('a suggestion stored before components reads with none, every line a main one', async () => {
+    const suggestion = await aSuggestion();
+    await testDb().execute(
+      sql`update recipe_suggestion set payload = (payload - 'components') || jsonb_build_object('ingredients', (select jsonb_agg(line - 'component') from jsonb_array_elements(payload -> 'ingredients') line)) where id = ${suggestion.id}`,
+    );
+
+    const detail = await getRequest(suggestion.requestId);
+
+    const { payload } = detail
+      .json()
+      .suggestions.find((s: RecipeSuggestion) => s.id === suggestion.id);
+    expect(payload.components).toEqual([]);
+    expect(
+      payload.ingredients.every(
+        (line: { component: unknown }) => line.component === null,
+      ),
+    ).toBe(true);
+  });
+
   it('leaves the suggestion proposed when the recipe points at an unknown ingredient', async () => {
     const suggestion = await aSuggestion();
     const input = await editedInput(suggestion);

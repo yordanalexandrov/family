@@ -274,6 +274,104 @@ describe('recipeSuggest.outputSchema: appliance', () => {
   });
 });
 
+describe('recipeSuggest.outputSchema: components', () => {
+  /** The fixture with the last two lines of the first suggestion as „Песто · за 5 порции“ (GLOSSARY: Компонент). */
+  function withPesto() {
+    const output = validOutput();
+    const [first] = output.suggestions;
+    first.components = [{ name: 'Песто', servings: 5 }];
+    const last = first.ingredients.length - 2;
+    first.ingredients.forEach(
+      (line: { component: number | null }, index: number) => {
+        line.component = index >= last ? 0 : null;
+      },
+    );
+    return output;
+  }
+
+  it('reads a suggestion without components as one without any, every line a main one', () => {
+    const output = validOutput();
+    for (const suggestion of output.suggestions) {
+      delete suggestion.components;
+      for (const line of suggestion.ingredients) {
+        delete line.component;
+      }
+    }
+
+    const [first] = outputSchema.parse(output).suggestions;
+
+    expect(first?.components).toEqual([]);
+    expect(first?.ingredients.every((line) => line.component === null)).toBe(
+      true,
+    );
+  });
+
+  it('keeps a component with its servings and the index of its lines', () => {
+    const [first] = outputSchema.parse(withPesto()).suggestions;
+
+    expect(first?.components).toEqual([{ name: 'Песто', servings: 5 }]);
+    expect(first?.ingredients.slice(-3).map((line) => line.component)).toEqual([
+      null,
+      0,
+      0,
+    ]);
+  });
+
+  it('refuses a line whose component is not one of components', () => {
+    const output = withPesto();
+    output.suggestions[0].ingredients[0].component = 2;
+
+    expect(issuePaths(output)).toEqual([
+      'suggestions.0.ingredients.0.component',
+    ]);
+  });
+
+  it('refuses a component without lines', () => {
+    const output = withPesto();
+    output.suggestions[0].components.push({ name: 'Сос', servings: 2 });
+
+    expect(issuePaths(output)).toEqual(['suggestions.0.components.1']);
+  });
+
+  it('refuses more than 3 components', () => {
+    const output = withPesto();
+    const [first] = output.suggestions;
+    first.components = [1, 2, 3, 4].map((n) => ({
+      name: `Част ${n}`,
+      servings: 2,
+    }));
+    first.ingredients.forEach(
+      (line: { component: number | null }, index: number) => {
+        line.component = index % 4;
+      },
+    );
+
+    expect(issuePaths(output)).toEqual(['suggestions.0.components']);
+  });
+
+  it('refuses a component for less than 1 serving', () => {
+    const output = withPesto();
+    output.suggestions[0].components[0].servings = 0;
+
+    expect(issuePaths(output)).toEqual(['suggestions.0.components.0.servings']);
+  });
+
+  it('asks for components and the component of every line in the response format', () => {
+    // biome-ignore lint/suspicious/noExplicitAny: walking a JSON Schema
+    const schema = recipeSuggest.responseFormat.schema as any;
+    const suggestion = schema.properties.suggestions.items;
+
+    expect(suggestion.required).toContain('components');
+    expect(suggestion.properties.components.items.required.sort()).toEqual([
+      'name',
+      'servings',
+    ]);
+    expect(suggestion.properties.ingredients.items.required).toContain(
+      'component',
+    );
+  });
+});
+
 describe('recipeSuggest.inputSchema', () => {
   const input = {
     slots: ['lunch', 'dinner'],
