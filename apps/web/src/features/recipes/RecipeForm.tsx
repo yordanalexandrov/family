@@ -273,7 +273,7 @@ export function RecipeForm({
     index: number;
     added: boolean;
   } | null>(null);
-  /** Компонентът в отворения лист; `added` = нов от „+ Компонент“, който се маха, ако се затвори без име. */
+  /** Компонентът в отворения лист; `added` = нов от „+ Компонент“, който остава само с „Добави“. */
   const [editingComponent, setEditingComponent] = useState<{
     key: string;
     added: boolean;
@@ -393,7 +393,8 @@ export function RecipeForm({
     const component: ComponentValues = {
       key: newRowKey(),
       name: '',
-      servings: values.servings.trim() || '1',
+      // Компонентът е за други порции от рецептата (GLOSSARY: Компонент): ги пише човекът.
+      servings: '',
     };
     set('components', [...values.components, component]);
     setEditingComponent({ key: component.key, added: true });
@@ -431,13 +432,10 @@ export function RecipeForm({
     setEditingComponent(null);
   }
 
+  /** Затварянето на нов компонент (без „Добави“) е отказ: той се маха. */
   function closeComponent() {
-    const editingNow = editingComponent;
-    const component = values.components.find(
-      (item) => item.key === editingNow?.key,
-    );
-    if (editingNow?.added && component && component.name.trim() === '') {
-      removeComponent(component.key);
+    if (editingComponent?.added) {
+      removeComponent(editingComponent.key);
       return;
     }
     setEditingComponent(null);
@@ -877,6 +875,9 @@ export function RecipeForm({
             updateComponent(editingComponentValues.key, patch)
           }
           onRemove={() => removeComponent(editingComponentValues.key)}
+          onAdd={
+            editingComponent.added ? () => setEditingComponent(null) : undefined
+          }
           onClose={closeComponent}
         />
       )}

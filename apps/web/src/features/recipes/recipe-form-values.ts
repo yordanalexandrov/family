@@ -17,6 +17,7 @@ import {
   type RecipeInput,
   type RecipeStep,
   type RevisableRecipe,
+  recipeComponentSchema,
   recipeInputSchema,
   revisableRecipeSchema,
   type Tag,
@@ -266,6 +267,23 @@ function messageFor(path: string): string {
     FIELD_MESSAGES.find(([pattern]) => pattern.test(path))?.[1] ??
     'Невалидна стойност'
   );
+}
+
+/** Грешките на един компонент по поле (името, порциите), със същите думи като при запис; `{}` за верен. */
+export function componentErrors(component: ComponentValues): {
+  name?: string;
+  servings?: string;
+} {
+  const [values] = valuesToComponents([component]);
+  const result = recipeComponentSchema.safeParse(values);
+  const errors: { name?: string; servings?: string } = {};
+  for (const issue of result.error?.issues ?? []) {
+    const field = issue.path[0];
+    if (field === 'name' || field === 'servings') {
+      errors[field] ??= messageFor(`components.0.${field}`);
+    }
+  }
+  return errors;
 }
 
 /**

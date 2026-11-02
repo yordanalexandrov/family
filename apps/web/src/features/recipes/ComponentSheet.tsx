@@ -1,6 +1,7 @@
+import { useRef, useState } from 'react';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
-import type { ComponentValues } from './recipe-form-values';
+import { type ComponentValues, componentErrors } from './recipe-form-values';
 
 interface ComponentSheetProps {
   component: ComponentValues;
@@ -9,34 +10,62 @@ interface ComponentSheetProps {
   onChange: (patch: Partial<Omit<ComponentValues, 'key'>>) => void;
   /** Махане на компонента: редовете му се връщат при главните. */
   onRemove: () => void;
+  /**
+   * Само за нов компонент от „+ Компонент“: „Добави“ го оставя във формата, щом има име и порции поне 1. Затварянето
+   * на листа без него е отказ.
+   */
+  onAdd?: (() => void) | undefined;
   onClose: () => void;
 }
 
 /**
  * Лист за един компонент (GLOSSARY: Компонент) в `RecipeForm`: името, порциите, за които е написан, и „Премахни
- * компонент“. Редовете се местят в него от листа на реда.
+ * компонент“. Новият е с празни порции (компонентът е за други порции от рецептата), фокус в името, „Добави“ и
+ * „Затвори“ вместо „Готово“. Редовете се местят в него от листа на реда.
  */
 export function ComponentSheet({
   component,
   errors,
   onChange,
   onRemove,
+  onAdd,
   onClose,
 }: ComponentSheetProps) {
+  const nameRef = useRef<HTMLInputElement>(null);
+  /** Грешките от последното „Добави“; заместват тези от записа. */
+  const [addErrors, setAddErrors] = useState<
+    ReturnType<typeof componentErrors> | undefined
+  >();
+  const shown = addErrors ?? errors;
+
+  function add() {
+    const found = componentErrors(component);
+    if (found.name === undefined && found.servings === undefined) {
+      onAdd?.();
+      return;
+    }
+    setAddErrors(found);
+  }
+
   return (
-    <Sheet title="Компонент" onClose={onClose}>
+    <Sheet
+      title="Компонент"
+      onClose={onClose}
+      {...(onAdd ? { closeLabel: 'Затвори', focusRef: nameRef } : {})}
+    >
       <div className="recipe-form__row">
-        <Field label="Име" error={errors.name}>
+        <Field label="Име" error={shown.name}>
           {(props) => (
             <input
               {...props}
+              ref={nameRef}
               className="field__input"
               value={component.name}
               onChange={(event) => onChange({ name: event.target.value })}
             />
           )}
         </Field>
-        <Field label="Порции" error={errors.servings}>
+        <Field label="Порции" error={shown.servings}>
           {(props) => (
             <input
               {...props}
@@ -53,13 +82,19 @@ export function ComponentSheet({
         ризото за 1.
       </p>
       <div className="recipes__actions">
-        <button
-          type="button"
-          className="button button--quiet"
-          onClick={onRemove}
-        >
-          Премахни компонент
-        </button>
+        {onAdd ? (
+          <button type="button" className="button" onClick={add}>
+            Добави
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={onRemove}
+          >
+            Премахни компонент
+          </button>
+        )}
       </div>
     </Sheet>
   );

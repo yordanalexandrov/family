@@ -73,13 +73,12 @@ describe('RecipeForm: Компонент', () => {
       sheet('Компонент').getByRole('textbox', { name: 'Име' }),
       'Песто',
     );
-    const servings = sheet('Компонент').getByRole('textbox', {
-      name: 'Порции',
-    });
-    await user.clear(servings);
-    await user.type(servings, '5');
+    await user.type(
+      sheet('Компонент').getByRole('textbox', { name: 'Порции' }),
+      '5',
+    );
     await user.click(
-      sheet('Компонент').getByRole('button', { name: 'Готово' }),
+      sheet('Компонент').getByRole('button', { name: 'Добави' }),
     );
 
     expect(
@@ -117,6 +116,53 @@ describe('RecipeForm: Компонент', () => {
       null,
       0,
     ]);
+  });
+
+  it('„+ Компонент“: порциите са празни (не тези на рецептата), а „Добави“ иска име и порции поне 1', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveEdit();
+    await openEdit();
+
+    await user.click(screen.getByRole('button', { name: '+ Компонент' }));
+    const name = sheet('Компонент').getByRole('textbox', { name: 'Име' });
+    const servings = sheet('Компонент').getByRole('textbox', {
+      name: 'Порции',
+    });
+    expect(name).toHaveFocus();
+    expect(servings).toHaveValue('');
+
+    await user.click(
+      sheet('Компонент').getByRole('button', { name: 'Добави' }),
+    );
+    expect(name).toHaveAccessibleDescription('Въведи име, до 40 знака');
+    expect(servings).toHaveAccessibleDescription(
+      'Порциите са цяло число, поне 1',
+    );
+
+    await user.type(name, 'Песто');
+    await user.type(servings, '0');
+    await user.click(
+      sheet('Компонент').getByRole('button', { name: 'Добави' }),
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Компонент' }),
+    ).toBeInTheDocument();
+    expect(servings).toHaveAccessibleDescription(
+      'Порциите са цяло число, поне 1',
+    );
+    expect(name).not.toHaveAccessibleDescription();
+
+    await user.clear(servings);
+    await user.type(servings, '5');
+    await user.click(
+      sheet('Компонент').getByRole('button', { name: 'Добави' }),
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Песто · за 5 порции' }),
+    ).toBeInTheDocument();
   });
 
   it('ред от компонента се връща при главните с „—“', async () => {
@@ -205,7 +251,7 @@ describe('RecipeForm: Компонент', () => {
     ]);
   });
 
-  it('нов компонент, затворен без име, изчезва; при 3 компонента „+ Компонент“ го няма', async () => {
+  it('нов компонент, затворен със „Затвори“, изчезва; при 3 компонента „+ Компонент“ го няма', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);
     serveEdit({
@@ -222,8 +268,13 @@ describe('RecipeForm: Компонент', () => {
     await openEdit();
 
     await user.click(screen.getByRole('button', { name: '+ Компонент' }));
+    await user.type(
+      sheet('Компонент').getByRole('textbox', { name: 'Име' }),
+      'Тесто',
+    );
+    // „Затвори“ на нов компонент е отказ, дори с име.
     await user.click(
-      sheet('Компонент').getByRole('button', { name: 'Готово' }),
+      sheet('Компонент').getByRole('button', { name: 'Затвори' }),
     );
     expect(screen.queryAllByRole('button', { name: /· за/ })).toHaveLength(2);
 
@@ -232,12 +283,16 @@ describe('RecipeForm: Компонент', () => {
       sheet('Компонент').getByRole('textbox', { name: 'Име' }),
       'Тесто',
     );
+    await user.type(
+      sheet('Компонент').getByRole('textbox', { name: 'Порции' }),
+      '2',
+    );
     await user.click(
-      sheet('Компонент').getByRole('button', { name: 'Готово' }),
+      sheet('Компонент').getByRole('button', { name: 'Добави' }),
     );
 
     expect(
-      screen.getByRole('button', { name: 'Тесто · за 4 порции' }),
+      screen.getByRole('button', { name: 'Тесто · за 2 порции' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: '+ Компонент' }),
