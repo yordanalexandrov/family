@@ -103,6 +103,7 @@ describe('recipeNormalize.outputSchema', () => {
       quantity: 600,
       unit: 'g',
       note: 'пилешки гърди',
+      component: null,
     });
     expect(parsed.recipe?.ingredients[3]?.newProduct).toEqual({
       name: 'сумак',
@@ -318,6 +319,105 @@ describe('recipeNormalize.outputSchema', () => {
     expect(issuePaths(both)).toEqual(['noResults']);
 
     expect(issuePaths({ recipe: null, noResults: null })).toEqual(['recipe']);
+  });
+});
+
+describe('recipeNormalize.outputSchema: components', () => {
+  /** The fixture with its last two lines as „Песто · за 5 порции“ (GLOSSARY: Компонент). */
+  function withPesto() {
+    const output = validOutput();
+    output.recipe.components = [{ name: 'Песто', servings: 5 }];
+    output.recipe.ingredients.forEach(
+      (line: { component: number | null }, index: number) => {
+        line.component = index >= 4 ? 0 : null;
+      },
+    );
+    return output;
+  }
+
+  it('reads an answer without components as a recipe without any, every line a main one', () => {
+    const output = validOutput();
+    delete output.recipe.components;
+    for (const line of output.recipe.ingredients) {
+      delete line.component;
+    }
+
+    const recipe = outputSchema.parse(output).recipe;
+
+    expect(recipe?.components).toEqual([]);
+    expect(recipe?.ingredients.map((line) => line.component)).toEqual(
+      Array(6).fill(null),
+    );
+  });
+
+  it('keeps a component with its servings and the index of its lines', () => {
+    const recipe = outputSchema.parse(withPesto()).recipe;
+
+    expect(recipe?.components).toEqual([{ name: 'Песто', servings: 5 }]);
+    expect(recipe?.ingredients.map((line) => line.component)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      0,
+      0,
+    ]);
+  });
+
+  it('refuses a line whose component is not one of components', () => {
+    const output = withPesto();
+    output.recipe.ingredients[1].component = 1;
+
+    expect(issuePaths(output)).toEqual(['recipe.ingredients.1.component']);
+  });
+
+  it('refuses a component without lines', () => {
+    const output = withPesto();
+    output.recipe.components.push({ name: 'Сос', servings: 2 });
+
+    expect(issuePaths(output)).toEqual(['recipe.components.1']);
+  });
+
+  it('refuses more than 3 components', () => {
+    const output = withPesto();
+    output.recipe.components = [1, 2, 3, 4].map((n) => ({
+      name: `Част ${n}`,
+      servings: 2,
+    }));
+    output.recipe.ingredients.forEach(
+      (line: { component: number | null }, index: number) => {
+        line.component = index % 4;
+      },
+    );
+
+    expect(issuePaths(output)).toEqual(['recipe.components']);
+  });
+
+  it('refuses a component for less than 1 serving and one without a name', () => {
+    const output = withPesto();
+    output.recipe.components[0].servings = 0;
+    expect(issuePaths(output)).toEqual(['recipe.components.0.servings']);
+
+    output.recipe.components[0] = { name: ' ', servings: 5 };
+    expect(issuePaths(output)).toEqual(['recipe.components.0.name']);
+  });
+
+  it('asks for components and the component of every line in the response format', () => {
+    const recipe = (
+      recipeNormalize.responseFormat.schema as {
+        properties: {
+          recipe: { anyOf: { properties?: Record<string, never> }[] };
+        };
+      }
+    ).properties.recipe.anyOf.find((option) => option.properties);
+    // biome-ignore lint/suspicious/noExplicitAny: walking a JSON Schema
+    const properties = recipe?.properties as any;
+
+    expect(properties.components.items.required.sort()).toEqual([
+      'name',
+      'servings',
+    ]);
+    expect(properties.ingredients.items.required).toContain('component');
   });
 });
 

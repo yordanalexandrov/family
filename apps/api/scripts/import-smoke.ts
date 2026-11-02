@@ -1,9 +1,12 @@
 // Imports recipes through the real `family-import` agent, through the api's OpenClaw client, and prints them.
 // Manual check against the gateway (docs/openclaw/README.md → "Smoke преди merge"); not part of `pnpm test`.
-//   pnpm --filter api import:smoke -- [--case bg|en|beans|steak|fan|salad] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
+//   pnpm --filter api import:smoke -- [--case bg|en|beans|steak|fan|salad|risotto|pizza] [--repeat N] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
 // Without `--text-file`, `--url` or `--photo` it imports the built-in texts: a Bulgarian blog post („Продукти:“ /
-// „Начин на приготвяне:“, a range of servings, cups and cloves), an English recipe with cups and ounces, and four
-// short Bulgarian recipes for the preparation (soaked beans, a marinated steak, chicken in a fan oven, a salad). `--url`
+// „Начин на приготвяне:“, a range of servings, cups and cloves), an English recipe with cups and ounces, four
+// short Bulgarian recipes for the preparation (soaked beans, a marinated steak, chicken in a fan oven, a salad), and two
+// for the components (GLOSSARY: Компонент, #325): a risotto for 1 with a pesto for 5 and a pizza whose dough is for
+// two. Those two must give a component and the moussaka of „bg“ (a topping for the same servings) must not; a miss is
+// ✗ and exit 1. `--repeat` runs every case that many times. `--url`
 // fetches and reads the page the way the api does (services/recipe-page) before the agent; its `HowToStep.image`s go
 // as references (`s1`, …), and after the answer the photos the agent chose are downloaded and made JPEGs as the api
 // does (`prepareStepPhotos`: public addresses, 10 MB, 10 s, at most 50 megapixels), without storing them. `--photo` makes the picture
@@ -140,6 +143,57 @@ const FAN_CHICKEN = `Пиле с картофи на фурна
 3. Намажете пилето със зехтин, червен пипер, сол и розмарин и го сложете върху картофите.
 4. Печете на средна скара около час и 10 минути, докато пилето се зачерви и сокът му стане бистър. След 40 минути намалете на 180 градуса.`;
 
+const RISOTTO = `Ризото с песто от босилек
+
+Ризотото е за 1 порция, а пестото е за 5 порции: останалото се пази в буркан в хладилника до седмица или във фризера.
+
+За ризотото (1 порция):
+- 80 г ориз арборио
+- 1/4 глава лук
+- 1 с.л. зехтин
+- 50 мл бяло вино
+- 300 мл зеленчуков бульон
+- 20 г пармезан
+- 1 с.л. масло
+
+За пестото (5 порции):
+- 50 г пресен босилек
+- 30 г кедрови ядки
+- 40 г пармезан
+- 1 скилидка чесън
+- 100 мл зехтин
+- сол на вкус
+
+Приготвяне:
+1. Пестото: запечете кедровите ядки на сух тиган 2–3 минути. Пасирайте босилека, ядките, пармезана, чесъна и солта, като наливате зехтина на тънка струя.
+2. Ризотото: задушете ситно нарязания лук в зехтина 3 минути. Добавете ориза и го запържете минута, докато стане прозрачен по краищата.
+3. Налейте виното и бъркайте, докато се изпари. Добавяйте горещия бульон черпак по черпак, като бъркате, около 18 минути.
+4. Свалете от огъня, вмъкнете маслото и пармезана и сервирайте с 2 с.л. от пестото отгоре.`;
+
+const PIZZA = `Пица Маргарита на тава
+
+Тестото е за 2 пици: втората топка тесто се замразява. Плънката е за 1 пица (2 порции).
+
+Тесто (за 2 пици):
+- 500 г брашно тип 00
+- 325 мл хладка вода
+- 7 г суха мая
+- 10 г сол
+- 2 с.л. зехтин
+
+Плънка (за 1 пица):
+- 100 г доматено пюре
+- 125 г моцарела
+- няколко листа босилек
+- 1 с.л. зехтин
+- щипка сол
+
+1. Разтворете маята във водата, добавете брашното, солта и зехтина и месете 10 минути до гладко тесто. Оставете да втаса покрито 2 часа.
+2. Разделете тестото на две топки. Едната увийте във фолио и я замразете.
+3. Загрейте фурната на 250 градуса без вентилатор. Разточете другата топка в намазнена тава.
+4. Намажете с доматеното пюре, посолете, наредете моцарелата и полейте със зехтина.
+5. Печете 10–12 минути на долна скара, докато краищата се зачервят. Поръсете с босилек.`;
+
 const SALAD = `Шопска салата
 
 Продукти за 2 порции: 3 домата, 1 краставица, 1 печена чушка, половин глава лук, 150 г сирене, 2 с.л. олио, сол, магданоз.
@@ -154,6 +208,8 @@ const SALAD = `Шопска салата
  */
 interface SmokeCase {
   name: string;
+  /** GLOSSARY: Компонент — whether the recipe must have a component (`true`) or must not (`false`); unchecked when absent. */
+  component?: boolean;
   source?: RecipeNormalizeSource;
   page?: string;
   fetchFailure?: string;
@@ -164,6 +220,8 @@ interface SmokeCase {
 const BUILT_IN: SmokeCase[] = [
   {
     name: 'bg',
+    // The moussaka's topping („За заливката“) is for the same servings: never a component.
+    component: false,
     source: {
       kind: 'text',
       text: BULGARIAN_BLOG,
@@ -177,11 +235,19 @@ const BUILT_IN: SmokeCase[] = [
   { name: 'steak', source: { kind: 'text', text: STEAK } },
   { name: 'fan', source: { kind: 'text', text: FAN_CHICKEN } },
   { name: 'salad', source: { kind: 'text', text: SALAD } },
+  // Components (#325): a pesto for 5 next to a risotto for 1, a dough for two pizzas next to a topping for one.
+  {
+    name: 'risotto',
+    component: true,
+    source: { kind: 'text', text: RISOTTO },
+  },
+  { name: 'pizza', component: true, source: { kind: 'text', text: PIZZA } },
 ];
 
-const USAGE = `Usage: pnpm --filter api import:smoke -- [--case <name>] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
+const USAGE = `Usage: pnpm --filter api import:smoke -- [--case <name>] [--repeat N] [--text-file <file or dir> ...] [--source-url <url>] [--url <link> ...] [--photo <file or dir> ...] [--save out.json]
   no options         the built-in cases (${BUILT_IN.map((c) => c.name).join(', ')})
   --case <name>      only that built-in case (repeatable)
+  --repeat <N>       run every case N times (default 1)
   --text-file <p>    pasted text from a file, or every *.txt in a directory (repeatable); replaces the built-in cases
   --source-url <url> the source link sent with every --text-file
   --url <link>       a recipe page: fetched and read as the api does, then sent to the agent (repeatable);
@@ -198,6 +264,7 @@ const { values } = parseArgs({
   args: process.argv.slice(2).filter((arg) => arg !== '--'),
   options: {
     case: { type: 'string', multiple: true },
+    repeat: { type: 'string' },
     'text-file': { type: 'string', multiple: true },
     'source-url': { type: 'string' },
     url: { type: 'string', multiple: true },
@@ -387,6 +454,10 @@ async function selectCases(): Promise<SmokeCase[]> {
 }
 
 const cases = await selectCases();
+const repeat = values.repeat === undefined ? 1 : Number(values.repeat);
+if (!Number.isInteger(repeat) || repeat < 1) {
+  usage('--repeat is a whole number from 1.');
+}
 
 const config = loadOpenClawConfig();
 // The client logs only agent, attempt, status, duration and usage; the password stays in the Authorization header.
@@ -471,12 +542,17 @@ function summary(
     const product = line.newProduct
       ? `НОВ „${line.newProduct.name}“ (${line.newProduct.unit}, ${line.newProduct.aisle})`
       : `„${names.get(line.ingredientId ?? '')}“ [${line.ingredientId}]`;
-    return `   - ${product}: ${amount}${line.note ? ` (${line.note})` : ''}`;
+    const component =
+      line.component === null
+        ? ''
+        : ` [${recipe.components[line.component]?.name ?? `компонент ${line.component}`}]`;
+    return `   - ${product}: ${amount}${line.note ? ` (${line.note})` : ''}${component}`;
   });
   const newCount = recipe.ingredients.filter((line) => line.newProduct).length;
   return [
     `${recipe.title} (${recipe.servings} порции, ${recipe.prepMinutes ?? '?'} мин, ${recipe.tags.join(', ') || 'без тагове'})`,
     `   Допускания: ${recipe.assumptions || '—'}`,
+    `   Компоненти: ${recipe.components.length === 0 ? 'няма' : recipe.components.map((c) => `${c.name} · за ${c.servings} порции (${recipe.ingredients.filter((line) => line.component === recipe.components.indexOf(c)).length} реда)`).join('; ')}`,
     `   Продукти: ${recipe.ingredients.length}, нови: ${newCount}`,
     ...lines,
     `   Стъпки: ${recipe.steps.length}, със снимка: ${recipe.steps.filter((step) => step.image !== null).length} (на страницата ${Object.keys(stepImages ?? {}).length}, изпуснати ${dropped})`,
@@ -512,7 +588,38 @@ function described(
   return `${size}${source.url ? `, ${source.url}` : ''}`;
 }
 
-for (const { name, source, page, fetchFailure, images, stepImages } of cases) {
+/** `✓`/`✗` for the expected component of a case (GLOSSARY: Компонент), or nothing when it has none. */
+function componentCheck(
+  expected: boolean | undefined,
+  output: RecipeNormalizeOutput,
+): { line: string; ok: boolean } {
+  if (expected === undefined) {
+    return { line: '', ok: true };
+  }
+  const has = (output.recipe?.components.length ?? 0) > 0;
+  const ok = has === expected && output.recipe !== null;
+  const want = expected ? 'трябва компонент' : 'не трябва компонент';
+  return {
+    line: `   Компонент: ${ok ? '✓' : '✗'} ${want}, ${has ? 'има' : 'няма'}\n`,
+    ok,
+  };
+}
+
+const runs = cases.flatMap((c) =>
+  Array.from({ length: repeat }, (_, run) =>
+    repeat === 1 ? c : { ...c, name: `${c.name} #${run + 1}` },
+  ),
+);
+
+for (const {
+  name,
+  component,
+  source,
+  page,
+  fetchFailure,
+  images,
+  stepImages,
+} of runs) {
   if (fetchFailure !== undefined || !source) {
     failed = true;
     process.stdout.write(`[${name}] ✗ ${fetchFailure}\n\n`);
@@ -553,8 +660,12 @@ for (const { name, source, page, fetchFailure, images, stepImages } of cases) {
             stepImages,
           )
         : { photos: new Map<string, string>(), dropped: 0 };
+    const expected = componentCheck(component, output);
+    if (!expected.ok) {
+      failed = true;
+    }
     process.stdout.write(
-      `[${name}] ${summary(output, seconds, stepImages, checked.photos, checked.dropped)}\n`,
+      `[${name}] ${summary(output, seconds, stepImages, checked.photos, checked.dropped)}${expected.line}\n`,
     );
     saved[name] = output;
   } catch (error) {

@@ -1,13 +1,16 @@
 // Asks the real `family-recipe` agent for suggestions once, through the api's OpenClaw client, and prints a summary.
 // Manual check against the gateway (README → "Smoke тест на recipe.suggest"); not part of `pnpm test`. Each suggestion
 // shows its preparation (#284) and the steps with a temperature, to compare the degrees with the step and the source.
-//   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--save out.json]
+// Each suggestion shows its components (GLOSSARY: Компонент, #325) with their lines; `--no-component` makes a
+// suggestion with one ✗ and exit 1 (a moussaka's topping is never a component). `--repeat` asks that many times.
+//   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--no-component] [--repeat N] [--save out.json]
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
   preparationKind,
   preparationLabel,
   type RecipeSuggestInput,
+  type RecipeSuggestOutput,
   recipeSuggest,
   recipeSuggestParamsSchema,
 } from '@family/shared';
@@ -25,6 +28,8 @@ const { values } = parseArgs({
     times: { type: 'string' },
     tags: { type: 'string' },
     hint: { type: 'string' },
+    'no-component': { type: 'boolean' },
+    repeat: { type: 'string' },
     save: { type: 'string' },
   },
 });
@@ -38,8 +43,13 @@ const params = recipeSuggestParamsSchema.safeParse({
 if (!params.success) {
   process.stderr.write(
     `Invalid arguments:\n${z.prettifyError(params.error)}\n` +
-      'Usage: pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--save out.json]\n',
+      'Usage: pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--no-component] [--repeat N] [--save out.json]\n',
   );
+  process.exit(2);
+}
+const repeat = values.repeat === undefined ? 1 : Number(values.repeat);
+if (!Number.isInteger(repeat) || repeat < 1) {
+  process.stderr.write('--repeat is a whole number from 1.\n');
   process.exit(2);
 }
 
@@ -87,51 +97,75 @@ const input: RecipeSuggestInput = {
 /** A step that names a temperature: its degrees are compared with the oven of the preparation. */
 const TEMPERATURE = /°|градус|фурна/i;
 
-process.stderr.write(
-  `→ ${config.url} openclaw/${config.recipeAgent}, timeout ${config.timeoutMs} ms, input ${JSON.stringify(params.data)}\n`,
-);
-const started = performance.now();
-try {
-  const output = await client.complete(recipeSuggest, input, {
-    agent: config.recipeAgent,
-  });
-  const seconds = ((performance.now() - started) / 1000).toFixed(1);
-
-  const lines = output.suggestions.flatMap((suggestion, index) => {
-    const newOnes = suggestion.ingredients.filter((i) => i.isNew);
-    return [
-      `${index + 1}. ${suggestion.title} (${suggestion.prepMinutes} мин, ${suggestion.servings} порции, ${suggestion.tags.join(', ') || 'без тагове'})`,
-      `   ${suggestion.sourceUrl}`,
-      `   Защо: ${suggestion.why}`,
-      `   Уред: ${suggestion.appliance ?? '—'}`,
-      `   Продукти: ${suggestion.ingredients.length}, нови: ${newOnes.length}${newOnes.length > 0 ? ` (${newOnes.map((i) => i.name).join(', ')})` : ''}`,
-      `   Стъпки: ${suggestion.steps.length}`,
-      ...suggestion.steps.flatMap((step, stepIndex) =>
-        TEMPERATURE.test(step) ? [`   ${stepIndex + 1}. ${step}`] : [],
-      ),
-      `   Подготовка: ${suggestion.preparation.length === 0 ? 'няма' : suggestion.preparation.length}`,
-      ...suggestion.preparation.map(
-        (item) =>
-          `   - ${preparationKind(item.kind).labelBg}: ${preparationLabel(item)}`,
-      ),
-      '',
-    ];
-  });
-  process.stdout.write(
-    `${lines.join('\n')}${output.suggestions.length} предложения за ${seconds} s\n`,
-  );
-  if (output.noResults !== null) {
-    process.stdout.write(`Няма резултати: ${output.noResults}\n`);
-  }
-
-  if (values.save) {
-    await writeFile(values.save, `${JSON.stringify(output, null, 2)}\n`);
-    process.stdout.write(`Изходът е записан в ${values.save}\n`);
-  }
-} catch (error) {
-  const seconds = ((performance.now() - started) / 1000).toFixed(1);
+const outputs: RecipeSuggestOutput[] = [];
+let failed = false;
+for (let run = 1; run <= repeat; run++) {
   process.stderr.write(
-    `✗ след ${seconds} s: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}\n`,
+    `→ ${config.url} openclaw/${config.recipeAgent}, timeout ${config.timeoutMs} ms, input ${JSON.stringify(params.data)}${repeat > 1 ? `, опит ${run}/${repeat}` : ''}\n`,
   );
-  process.exit(1);
+  const started = performance.now();
+  try {
+    const output = await client.complete(recipeSuggest, input, {
+      agent: config.recipeAgent,
+    });
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+
+    const lines = output.suggestions.flatMap((suggestion, index) => {
+      const newOnes = suggestion.ingredients.filter((i) => i.isNew);
+      const unexpected =
+        values['no-component'] && suggestion.components.length > 0;
+      if (unexpected) {
+        failed = true;
+      }
+      return [
+        `${index + 1}. ${suggestion.title} (${suggestion.prepMinutes} мин, ${suggestion.servings} порции, ${suggestion.tags.join(', ') || 'без тагове'})`,
+        `   ${suggestion.sourceUrl}`,
+        `   Защо: ${suggestion.why}`,
+        `   Уред: ${suggestion.appliance ?? '—'}`,
+        `   Продукти: ${suggestion.ingredients.length}, нови: ${newOnes.length}${newOnes.length > 0 ? ` (${newOnes.map((i) => i.name).join(', ')})` : ''}`,
+        `   Компоненти: ${suggestion.components.length === 0 ? 'няма' : ''}${unexpected ? ' ✗ не трябва компонент' : ''}`,
+        ...suggestion.components.map(
+          (component, componentIndex) =>
+            `   - ${component.name} · за ${component.servings} порции: ${suggestion.ingredients
+              .filter((line) => line.component === componentIndex)
+              .map((line) =>
+                `${line.name} ${line.quantity ?? ''} ${line.unit}`.trim(),
+              )
+              .join(', ')}`,
+        ),
+        `   Стъпки: ${suggestion.steps.length}`,
+        ...suggestion.steps.flatMap((step, stepIndex) =>
+          TEMPERATURE.test(step) ? [`   ${stepIndex + 1}. ${step}`] : [],
+        ),
+        `   Подготовка: ${suggestion.preparation.length === 0 ? 'няма' : suggestion.preparation.length}`,
+        ...suggestion.preparation.map(
+          (item) =>
+            `   - ${preparationKind(item.kind).labelBg}: ${preparationLabel(item)}`,
+        ),
+        '',
+      ];
+    });
+    process.stdout.write(
+      `${lines.join('\n')}${output.suggestions.length} предложения за ${seconds} s\n`,
+    );
+    if (output.noResults !== null) {
+      process.stdout.write(`Няма резултати: ${output.noResults}\n`);
+    }
+    outputs.push(output);
+  } catch (error) {
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    failed = true;
+    process.stderr.write(
+      `✗ след ${seconds} s: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}\n`,
+    );
+  }
 }
+
+if (values.save) {
+  await writeFile(
+    values.save,
+    `${JSON.stringify(repeat === 1 ? outputs[0] : outputs, null, 2)}\n`,
+  );
+  process.stdout.write(`Изходът е записан в ${values.save}\n`);
+}
+process.exit(failed ? 1 : 0);
