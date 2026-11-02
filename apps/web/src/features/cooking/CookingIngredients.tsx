@@ -1,9 +1,9 @@
-import { formatServings } from '../../lib/format';
 import {
   CookingChecklist,
   type CookingProducts,
   productsLabel,
 } from './CookingChecklist';
+import { ServingsStepper } from './ServingsStepper';
 
 interface CookingIngredientsProps {
   products: CookingProducts;
@@ -59,37 +59,20 @@ export function CookingIngredients({
 }
 
 /**
- * Съдържанието на „Продукти“: порциите с −/+ и продуктите с количествата за тях, с отметки. Едно и също в колоната на широк
- * екран и в листа на тесен.
+ * Съдържанието на „Продукти“: порциите с −/+ и продуктите с количествата за тях, с отметки; компонентите със своите
+ * броячи са под главните редове (`CookingChecklist`). Едно и също в колоната на широк екран и в листа на тесен.
  */
 export function CookingIngredientsBody({
   products,
 }: {
   products: CookingProducts;
 }) {
-  const { servings, onServingsChange } = products;
   return (
     <>
-      <div className="cooking-ingredients__servings">
-        <button
-          type="button"
-          className="button button--quiet cooking-ingredients__step"
-          aria-label="Една порция по-малко"
-          disabled={servings <= 1}
-          onClick={() => onServingsChange(servings - 1)}
-        >
-          −
-        </button>
-        <span>за {formatServings(servings)}</span>
-        <button
-          type="button"
-          className="button button--quiet cooking-ingredients__step"
-          aria-label="Една порция повече"
-          onClick={() => onServingsChange(servings + 1)}
-        >
-          +
-        </button>
-      </div>
+      <ServingsStepper
+        servings={products.servings.recipe}
+        onChange={products.onServingsChange}
+      />
       <CookingChecklist products={products} />
     </>
   );

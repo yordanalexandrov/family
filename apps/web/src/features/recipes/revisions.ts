@@ -1,5 +1,6 @@
 import {
   type Preparation,
+  type RecipeComponent,
   type RecipeRevision,
   type RecipeRevisionRequest,
   type RecipeStep,
@@ -18,8 +19,11 @@ import { POLL_INTERVAL_MS, requestErrorFor } from '../../lib/ai-requests';
 import { recipeKeys } from './queries';
 import type { AiReplacement } from './RecipeForm';
 import {
+  type ComponentValues,
+  componentsToValues,
   emptyIngredientRow,
   type IngredientRowValues,
+  lineComponent,
 } from './recipe-form-values';
 
 const revisionKey = (id: string) => ['recipes', 'revision', id] as const;
@@ -32,13 +36,14 @@ export type RevisionTarget =
   | { recipeId: string }
   | { suggestionId: string; recipe: RevisableRecipe };
 
-/** Ред в сравнението: продукт от регистъра или нов (несвързан), по име. */
+/** Ред в сравнението: продукт от регистъра или нов (несвързан), по име, и индексът на компонента му (`null` = главен). */
 export interface ComparedLine {
   ingredient?: { name: string } | undefined;
   newProduct?: { name: string } | undefined;
   quantity: RevisionLine['quantity'];
   unit: RevisionLine['unit'];
   note?: string | undefined;
+  component: number | null;
 }
 
 /** Рецептата, която AI поправя, както я показва колоната „Сега“ в сравнението. */
@@ -48,6 +53,8 @@ export interface RevisionBase {
   ingredients: readonly ComparedLine[];
   steps: readonly RecipeStep[];
   preparation: Preparation;
+  /** Компонентите (GLOSSARY: Компонент); редовете им сочат към тях с `component`. */
+  components: readonly RecipeComponent[];
 }
 
 /** Рецептата от формата за преглед като колоната „Сега“; `linked` казва кои редове са свързани (`toRevisableRecipe`). */
@@ -64,6 +71,7 @@ export function revisionBaseOf(
     })),
     steps: recipe.steps,
     preparation: recipe.preparation,
+    components: recipe.components,
   };
 }
 
@@ -179,13 +187,15 @@ export function useRejectRevision() {
 
 /**
  * Продуктите на поправката като редове на формата: свързаните с продукта си, а предложеният нов продукт неразрешен, с
- * името си и попълнена форма „Нов продукт“, както при внасяне.
+ * името си и попълнена форма „Нов продукт“, както при внасяне; всеки в компонента си от `components`.
  */
 function revisionToIngredientRows(
   lines: readonly RevisionLine[],
+  components: readonly ComponentValues[],
 ): IngredientRowValues[] {
   return lines.map((line) =>
     emptyIngredientRow({
+      ...lineComponent(components, line.component),
       ingredient: line.ingredient ?? null,
       query: line.ingredient?.name ?? line.newProduct?.name ?? '',
       quantity: line.quantity === null ? '' : String(line.quantity),
@@ -196,17 +206,22 @@ function revisionToIngredientRows(
   );
 }
 
-/** „Приеми“ на поправка: цялата поправка влиза във формата като следващата замяна след `current`. */
+/**
+ * „Приеми“ на поправка: цялата поправка влиза във формата като следващата замяна след `current`, и компонентите ѝ
+ * заменят тези на формата.
+ */
 export function revisionReplacement(
   revision: RecipeRevision,
   current: AiReplacement | undefined,
 ): AiReplacement {
+  const components = componentsToValues(revision.components);
   return {
     key: (current?.key ?? 0) + 1,
     steps: revision.steps,
     prepMinutes: revision.prepMinutes,
     preparation: revision.preparation,
     servings: revision.servings,
-    ingredients: revisionToIngredientRows(revision.ingredients),
+    ingredients: revisionToIngredientRows(revision.ingredients, components),
+    components,
   };
 }

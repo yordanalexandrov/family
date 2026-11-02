@@ -1,6 +1,6 @@
 // Asks questions in Готвене through the real `family-cook` agent via the api's OpenClaw client and prints the answers.
 // Manual check against the gateway (docs/openclaw/README.md → "Smoke преди merge"); not part of `pnpm test`.
-//   pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--chain] [--repeat N] [--save out.json]
+//   pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--components N,N] [--step N] [--question "…" ...] [--expect <pattern>] [--chain] [--repeat N] [--save out.json]
 // Without `--question` it asks the built-in cases of #272 (substitution with pulp and with whole canned tomatoes, a
 // sign of doneness, scaling the servings, a question that needs a search, one outside cooking), each at its own step,
 // and the follow-up questions of #273 after some of them („а колко дълго да я варя тогава?“): a follow-up goes with the
@@ -16,7 +16,9 @@
 // Without `--recipe` the recipe is the fixture `cooking-ask.input.json` (for 4, shown for 2). `--recipe` is a recipe as
 // `GET /api/recipes/:id` answers it (the body or its `recipe`), built into the input as the api does
 // (`cookingAskInput`) with the enabled appliances of the seed; `--servings` and `--step` (from 1) are then the
-// screen's.
+// screen's, and `--components` the counters of its components on the screen (GLOSSARY: Компонент, #326), by index,
+// as Готвене sends them; without it a component is at the counter Готвене starts it with. `--expect` is a pattern
+// (a regular expression, case-insensitive) every answer must match, e.g. the amount of pesto for the counter.
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
@@ -39,12 +41,14 @@ import { loadOpenClawConfig } from '../src/config.js';
 import { createOpenClawClient } from '../src/openclaw/client.js';
 import { cookingAskInput } from '../src/services/cooking-questions.js';
 
-const USAGE = `Usage: pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--step N] [--question "…" ...] [--chain] [--repeat N] [--save out.json]
+const USAGE = `Usage: pnpm --filter api ask:smoke -- [--recipe <file.json>] [--servings N] [--components N,N] [--step N] [--question "…" ...] [--expect <pattern>] [--chain] [--repeat N] [--save out.json]
   no options          the built-in cases on the fixture recipe
   --recipe <file>     a recipe as GET /api/recipes/:id answers it; replaces the fixture recipe
   --servings <N>      the servings on the screen (with --recipe; default: the recipe's)
+  --components <N,N>  the counters of the recipe's components on the screen, by index (with --recipe)
   --step <N>          the step on the screen, from 1 (default: each case's own, or 1)
   --question "…"      ask this instead of the built-in cases (repeatable)
+  --expect <pattern>  every answer must match this regular expression (case-insensitive)
   --chain             the --question's are one chain: each follows the one before
   --repeat <N>        ask every chain N times (default 1)
   --save <file>       every answer by case, as JSON
@@ -56,7 +60,9 @@ const { values } = parseArgs({
   options: {
     recipe: { type: 'string' },
     servings: { type: 'string' },
+    components: { type: 'string' },
     step: { type: 'string' },
+    expect: { type: 'string' },
     question: { type: 'string', multiple: true },
     chain: { type: 'boolean' },
     repeat: { type: 'string' },
@@ -91,6 +97,19 @@ const step = positive('step', values.step);
 if (servings !== undefined && !values.recipe) {
   usage('--servings needs --recipe: the fixture is already scaled.');
 }
+const components =
+  values.components?.split(',').map((each) => {
+    const number = positive('components', each.trim());
+    if (number === undefined) {
+      usage('--components are whole numbers from 1, by commas.');
+    }
+    return number;
+  }) ?? [];
+if (components.length > 0 && !values.recipe) {
+  usage('--components needs --recipe: the fixture has no components.');
+}
+const expect =
+  values.expect === undefined ? undefined : new RegExp(values.expect, 'iu');
 if (values.chain && !values.question) {
   usage('--chain needs --question.');
 }
@@ -301,6 +320,7 @@ async function inputFor(): Promise<{
           question: each.question,
           step: each.step - 1,
           servings: servings ?? recipe.servings,
+          components,
         },
         SEED_APPLIANCES,
         history,
@@ -413,6 +433,10 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
         if (each.steps !== undefined && each.steps !== stepsBrought) {
           failed = true;
         }
+        const matches = expect === undefined || expect.test(output.answer);
+        if (!matches) {
+          failed = true;
+        }
         // Steps are never added or removed: those the agent saw after the chain's changes and those its change names.
         const outside =
           output.change?.steps.filter(
@@ -442,8 +466,25 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
                 (current) =>
                   `   Приложено: стъпка ${current.number} „${current.text}“`,
               ),
+            ...input.recipe.components.map(
+              (component) =>
+                `   Компонент: ${component.name} за ${component.servings}, на екрана за ${component.shownServings}: ${input.recipe.ingredients
+                  .filter(
+                    (line) =>
+                      line.component ===
+                      input.recipe.components.indexOf(component),
+                  )
+                  .map(
+                    (line) =>
+                      `${line.name} ${line.quantity ?? ''} ${UNIT_LABELS_BG[line.unit]}`,
+                  )
+                  .join(', ')}`,
+            ),
             `   Въпрос: ${input.question}`,
             `   Отговор (${output.answer.length}/${COOKING_ANSWER_MAX} знака, ${seconds} s): ${output.answer}`,
+            ...(expect === undefined
+              ? []
+              : [`   Очаквано ${expect}: ${matches ? '✓' : '✗ го няма'}`]),
             `   Промяна: ${changeLine(output.change)}${expected}`,
             `   Стъпки: ${input.recipe.steps.length} от ${stepCount}${sameSteps ? ' ✓' : ` ✗ броят стъпки се смени${outside.length > 0 ? ` (стъпка ${outside.map((entry) => entry.number).join(', ')})` : ''}`}${expectedSteps}`,
             '',
@@ -457,7 +498,13 @@ for (let attempt = 1; attempt <= repeat; attempt++) {
         if (output.change) {
           applied = [
             ...applied,
-            { change: output.change, servings: input.recipe.shownServings },
+            {
+              change: output.change,
+              servings: input.recipe.shownServings,
+              components: input.recipe.components.map(
+                (component) => component.shownServings,
+              ),
+            },
           ];
         }
         history = [

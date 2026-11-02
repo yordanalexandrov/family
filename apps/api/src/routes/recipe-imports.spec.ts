@@ -4,7 +4,7 @@ import {
   type ImportedSuggestion,
   type RecipeImportDetail,
   type RecipeImportRequest,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeNormalizeInput,
   recipeImportDetailSchema,
   recipeImportRequestSchema,
@@ -1252,7 +1252,7 @@ describe('deciding an imported suggestion', () => {
   }
 
   /** What the review sends: the linked lines as they are, the new product left out (as if unlinked by the person). */
-  function editedInput(suggestion: ImportedSuggestion): RecipeInput {
+  function editedInput(suggestion: ImportedSuggestion): RecipeInputBody {
     const { title, servings, steps, tags, ingredients } = suggestion.payload;
     return {
       title,
@@ -1357,6 +1357,22 @@ describe('deciding an imported suggestion', () => {
       recipeImportDetailSchema.parse(response.json()).suggestion?.payload
         .preparation,
     ).toEqual([]);
+  });
+
+  it('a suggestion stored before the components (GLOSSARY: Компонент) reads with none, all its lines main', async () => {
+    const suggestion = await aSuggestion();
+    await app.db.execute(
+      sql`update recipe_suggestion set payload = (payload - 'components') || jsonb_build_object('ingredients', (select jsonb_agg(line - 'component') from jsonb_array_elements(payload->'ingredients') line)) where id = ${suggestion.id}`,
+    );
+
+    const response = await getImport(suggestion.importRequestId);
+
+    expect(response.statusCode).toBe(200);
+    const { payload } = response.json().suggestion;
+    expect(payload.components).toEqual([]);
+    expect(
+      payload.ingredients.map((line: { component: unknown }) => line.component),
+    ).toEqual(payload.ingredients.map(() => null));
   });
 
   it('rejection marks it rejected', async () => {

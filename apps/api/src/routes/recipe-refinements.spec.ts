@@ -1,6 +1,6 @@
 import {
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeRefineInput,
   type RecipeRefineRequest,
   recipeRefineRequestSchema,
@@ -82,9 +82,9 @@ async function seedIngredientId(name: string): Promise<string> {
 }
 
 /** A recipe with terse steps, the second one with a photo of its own. */
-async function createdRecipe(overrides: Partial<RecipeInput> = {}) {
+async function createdRecipe(overrides: Partial<RecipeInputBody> = {}) {
   const photoId = await storedStepPhoto(app);
-  const input: RecipeInput = {
+  const input: RecipeInputBody = {
     title: 'Пиле с картофи на фурна',
     servings: 4,
     sourceUrl: SOURCE_URL,
@@ -283,8 +283,8 @@ describe('POST /api/recipes/:id/refinements', () => {
       servings: 4,
       prepMinutes: null,
       ingredients: [
-        { name: 'картоф', quantity: 1, unit: 'kg' },
-        { name: 'сол', quantity: null, unit: 'pinch' },
+        { name: 'картоф', quantity: 1, unit: 'kg', component: null },
+        { name: 'сол', quantity: null, unit: 'pinch', component: null },
       ],
       steps: [
         { text: 'Нарежи картофите.', image: null },
@@ -292,6 +292,7 @@ describe('POST /api/recipes/:id/refinements', () => {
         { text: 'Печи.', image: null },
       ],
       preparation: [],
+      components: [],
     });
     expect(inputs[0]?.source).toMatchObject({
       url: SOURCE_URL,
@@ -436,6 +437,51 @@ describe('POST /api/recipes/:id/refinements', () => {
     expect(inputs[0]?.source).toBeNull();
     expect(done.refinement).toMatchObject({ source: 'none', droppedPhotos: 0 });
     expect(fetched).toEqual([]);
+  });
+
+  it('sends the agent the components of the recipe (GLOSSARY: Компонент) and leaves them as they are', async () => {
+    const components = [{ name: 'Сол за поръсване', servings: 8 }];
+    const { recipe } = await createdRecipe({
+      sourceUrl: undefined,
+      components,
+      ingredients: [
+        {
+          ingredientId: await seedIngredientId('картоф'),
+          quantity: 1,
+          unit: 'kg',
+        },
+        {
+          ingredientId: await seedIngredientId('сол'),
+          quantity: null,
+          unit: 'pinch',
+          component: 0,
+        },
+      ],
+    });
+    const inputs = answerInTurn(
+      refined(
+        REFINED_STEPS.map((step) => ({
+          ...step,
+          image: step.image === 'e1' ? 'e1' : null,
+        })),
+      ),
+    );
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(done.status).toBe('done');
+    expect(inputs[0]?.recipe.components).toEqual(components);
+    expect(inputs[0]?.recipe.ingredients.map((line) => line.component)).toEqual(
+      [null, 0],
+    );
+    const stored = await app.inject({
+      method: 'GET',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+    });
+    expect(recipeResponseSchema.parse(stored.json()).recipe.components).toEqual(
+      components,
+    );
   });
 
   it('refines without the page when it does not open, and says so', async () => {

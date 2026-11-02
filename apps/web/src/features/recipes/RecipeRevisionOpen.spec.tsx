@@ -31,9 +31,12 @@ const revision: RecipeRevision = {
   changes: 'Задушаването е 30 минути.',
   servings: 4,
   prepMinutes: 55,
-  ingredients: [{ ingredient: chicken, quantity: 500, unit: 'g' }],
+  ingredients: [
+    { ingredient: chicken, quantity: 500, unit: 'g', component: null },
+  ],
   steps: [{ text: 'Нарежи пилето.' }, { text: 'Задуши с лука 30 минути.' }],
   preparation: [],
+  components: [],
   droppedPhotos: 0,
 };
 

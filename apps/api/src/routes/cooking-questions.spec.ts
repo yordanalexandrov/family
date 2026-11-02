@@ -3,7 +3,7 @@ import {
   type CookingQuestion,
   cookingQuestionSchema,
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   recipeResponseSchema,
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
@@ -54,7 +54,7 @@ async function seedIngredientId(name: string): Promise<string> {
 
 /** A recipe for 4 with grated tomatoes on step 2 and the oven in its preparation. */
 async function createdRecipe(target = app) {
-  const input: RecipeInput = {
+  const input: RecipeInputBody = {
     title: 'Пиле с домати',
     servings: 4,
     tags: ['dinner'],
@@ -229,6 +229,7 @@ describe('POST /api/recipes/:id/questions', () => {
           { number: 3, text: 'Печи 30 минути.' },
         ],
         preparation: [{ kind: 'oven', degrees: 200, fan: 'fan' }],
+        components: [],
       },
       currentStep: 2,
       appliances: expect.any(Array),
@@ -637,5 +638,143 @@ describe('GET /api/recipes/questions/:id', () => {
     });
 
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('components (GLOSSARY: Компонент)', () => {
+  /** Risotto for 1 with pesto for 5 as its component. */
+  async function risotto() {
+    const input: RecipeInputBody = {
+      title: 'Ризото с песто',
+      servings: 1,
+      tags: ['dinner'],
+      steps: [
+        { text: 'Направи пестото.' },
+        { text: 'Свари ориза и добави пестото.' },
+      ],
+      components: [{ name: 'Песто', servings: 5 }],
+      ingredients: [
+        {
+          ingredientId: await seedIngredientId('ориз'),
+          quantity: 100,
+          unit: 'g',
+        },
+        {
+          ingredientId: await seedIngredientId('босилек пресен'),
+          quantity: 50,
+          unit: 'g',
+          component: 0,
+        },
+        {
+          ingredientId: await seedIngredientId('зехтин'),
+          quantity: 5,
+          unit: 'tbsp',
+          component: 0,
+        },
+      ],
+      preparation: [],
+    };
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/recipes',
+      headers,
+      payload: input,
+    });
+    expect(response.statusCode).toBe(201);
+    return recipeResponseSchema.parse(response.json()).recipe;
+  }
+
+  const ON_RISOTTO = {
+    question: 'Колко песто да сложа?',
+    step: 1,
+    servings: 2,
+  };
+
+  it('sends the agent the components with the counters from Готвене and their lines scaled to them, and keeps the counters', async () => {
+    const recipe = await risotto();
+    const sent = answering();
+
+    const pending = await asked(recipe.id, {
+      ...ON_RISOTTO,
+      components: [10],
+    });
+    const done = await finished(pending);
+
+    expect(pending.components).toEqual([10]);
+    expect(done.components).toEqual([10]);
+    expect(sent[0]?.input.recipe.components).toEqual([
+      { name: 'Песто', servings: 5, shownServings: 10 },
+    ]);
+    expect(sent[0]?.input.recipe.ingredients).toEqual([
+      { index: 0, name: 'ориз', quantity: 200, unit: 'g' },
+      {
+        index: 1,
+        name: 'босилек пресен',
+        quantity: 100,
+        unit: 'g',
+        component: 0,
+      },
+      { index: 2, name: 'зехтин', quantity: 10, unit: 'tbsp', component: 0 },
+    ]);
+  });
+
+  it('takes a component without a counter at the one Готвене starts it with: whole batches for the servings', async () => {
+    const recipe = await risotto();
+    const sent = answering();
+
+    const done = await finished(await asked(recipe.id, ON_RISOTTO));
+
+    expect(done.components).toEqual([]);
+    expect(sent[0]?.input.recipe.components).toEqual([
+      { name: 'Песто', servings: 5, shownServings: 5 },
+    ]);
+    expect(sent[0]?.input.recipe.ingredients[1]?.quantity).toBe(50);
+  });
+
+  it('scales an applied change of a component’s line from the counter its question was asked at', async () => {
+    const recipe = await risotto();
+    answering({
+      answer: 'Да, със сушен.',
+      change: {
+        ingredients: [
+          {
+            kind: 'replace',
+            index: 1,
+            ingredient: { name: 'сушен босилек', quantity: 20, unit: 'g' },
+          },
+        ],
+        steps: [],
+      },
+    });
+    const first = await finished(
+      await asked(recipe.id, { ...ON_RISOTTO, components: [10] }),
+    );
+    openclaw.resetHandlers();
+    const sent = answering();
+
+    await finished(
+      await asked(recipe.id, {
+        ...ON_RISOTTO,
+        components: [5],
+        applied: [first.id],
+      }),
+    );
+
+    expect(sent[0]?.input.recipe.ingredients[1]).toEqual({
+      index: 1,
+      name: 'сушен босилек',
+      quantity: 10,
+      unit: 'g',
+      component: 0,
+      changed: true,
+    });
+  });
+
+  it('answers 400 for a counter under 1', async () => {
+    const recipe = await risotto();
+
+    const response = await ask(recipe.id, { ...ON_RISOTTO, components: [0] });
+
+    expect(response.statusCode).toBe(400);
   });
 });

@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  checkRecipeComponents,
+  lineComponentSchema,
+  recipeComponentsSchema,
+} from '../food/component.js';
 import { preparationSchema } from '../food/preparation.js';
 import { quantitySchema, unitSchema } from '../food/units.js';
 import type { AiContract } from './contract.js';
@@ -20,12 +25,16 @@ import { stepImageProblems } from './step-images.js';
  * steps), the page's as `s1`, `s2`, … (as in `recipe.normalize`). Every `e` photo stays, on exactly one step.
  */
 
-/** An ingredient line as the agent reads it: the product's name, not its id; it changes no line. */
+/**
+ * An ingredient line as the agent reads it: the product's name, not its id, and its `component` (GLOSSARY: Компонент),
+ * the index of its component in the recipe's `components`, `null` for a main line; `recipe.refine` changes no line.
+ */
 const refineIngredientSchema = z.object({
   name: z.string().trim().min(1),
   quantity: quantitySchema,
   unit: unitSchema,
   note: z.string().optional(),
+  component: lineComponentSchema,
 });
 
 /** A step: its text and the reference of its photo, an `e` one in the input, or `null`. */
@@ -44,6 +53,11 @@ export const refineRecipeSchema = z.object({
   steps: z.array(refineStepSchema).min(1),
   /** The preparation the recipe has; `[]` for one without (as every recipe from before the preparation). */
   preparation: preparationSchema.default([]),
+  /**
+   * GLOSSARY: Компонент — the parts made as their own batch for their own servings („Песто“ for 5), `[]` for a recipe
+   * without any; its lines point to them with `component`. Read only in `recipe.refine`.
+   */
+  components: recipeComponentsSchema,
 });
 
 /**
@@ -65,11 +79,13 @@ const refineSourceSchema = z
 /** A recipe as `recipe.refine` and `recipe.revise` read it: products by name, the steps' photos as `e1`, `e2`, …. */
 export type ContractRecipe = z.infer<typeof refineRecipeSchema>;
 
-const recipeRefineInputSchema = z.object({
-  recipe: refineRecipeSchema,
-  /** `null` for a recipe without a link, or with one whose page did not open. */
-  source: refineSourceSchema.nullable(),
-});
+const recipeRefineInputSchema = z
+  .object({
+    recipe: refineRecipeSchema,
+    /** `null` for a recipe without a link, or with one whose page did not open. */
+    source: refineSourceSchema.nullable(),
+  })
+  .superRefine(checkRecipeComponents);
 
 export type RecipeRefineInput = z.infer<typeof recipeRefineInputSchema>;
 

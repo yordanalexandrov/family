@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { cookingQuestionTextSchema } from '../contracts/cooking-ask.js';
 import { contractFailureSchema } from '../contracts/failure.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
+import { componentCountersSchema } from '../food/component.js';
 import { cookingChangeSchema } from '../food/cooking-change.js';
 import { instantSchema } from './dates.js';
 import { refusalBody } from './error.js';
@@ -10,12 +11,15 @@ import { refusalBody } from './error.js';
  * `POST /api/recipes/:id/questions` (GLOSSARY: Въпрос в Готвене): the question, the step on the screen (its index, from
  * 0, as Готвене keeps it), the servings on the screen and, for a follow-up, `follows`: the earlier question of the same
  * recipe it goes on from (the chain). `applied` are the questions of the recipe whose cooking changes are applied on
- * the screen (GLOSSARY: Промяна за готвенето), in the order they were applied.
+ * the screen (GLOSSARY: Промяна за готвенето), in the order they were applied. `components` are the counters of the
+ * recipe's components on the screen (GLOSSARY: Компонент), by index; a component without one is taken at the counter
+ * Готвене starts it with for `servings`.
  */
 export const askCookingQuestionSchema = z.object({
   question: cookingQuestionTextSchema,
   step: z.int().min(0),
   servings: z.int().min(1),
+  components: componentCountersSchema.default([]),
   follows: z.uuid().optional(),
   applied: z.array(z.uuid()).default([]),
 });
@@ -36,6 +40,8 @@ export const cookingQuestionSchema = z.object({
   question: z.string(),
   step: z.int().min(0),
   servings: z.int().min(1),
+  /** The components' counters it was asked at, by index; `[]` for a recipe without components (or none sent). */
+  components: componentCountersSchema.default([]),
   /** The earlier question this one goes on from; none for the first of a chain. */
   follows: z.uuid().optional(),
   status: contractRequestStatusSchema,

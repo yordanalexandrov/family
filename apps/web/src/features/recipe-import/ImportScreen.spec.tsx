@@ -224,15 +224,28 @@ describe('ImportScreen', () => {
         appliance: null,
         sourceUrl: importUrl,
         preparation: [],
+        components: [],
         ingredients: [
           {
             ingredientId: chicken.id,
             quantity: 600,
             unit: 'g',
             note: 'пилешки гърди',
+            component: null,
           },
-          { ingredientId: sumac.id, quantity: 1, unit: 'tsp', note: 'смлян' },
-          { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+          {
+            ingredientId: sumac.id,
+            quantity: 1,
+            unit: 'tsp',
+            note: 'смлян',
+            component: null,
+          },
+          {
+            ingredientId: salt.id,
+            quantity: null,
+            unit: 'pinch',
+            component: null,
+          },
         ],
       },
     ]);

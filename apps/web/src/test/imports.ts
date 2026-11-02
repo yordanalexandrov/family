@@ -55,6 +55,7 @@ export const importedSuggestion: ImportedSuggestion = {
         quantity: 600,
         unit: 'g',
         note: 'пилешки гърди',
+        component: null,
       },
       {
         ingredientId: null,
@@ -62,6 +63,7 @@ export const importedSuggestion: ImportedSuggestion = {
         quantity: 1,
         unit: 'tsp',
         note: 'смлян',
+        component: null,
       },
       {
         ingredientId: salt.id,
@@ -69,10 +71,12 @@ export const importedSuggestion: ImportedSuggestion = {
         quantity: null,
         unit: 'pinch',
         note: null,
+        component: null,
       },
     ],
     steps: [{ text: 'Овкусете пилето.' }, { text: 'Изпечете го 30 минути.' }],
     preparation: [],
+    components: [],
   },
 };
 

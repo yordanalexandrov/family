@@ -4,7 +4,7 @@ import type {
   Recipe,
   RecipeSuggestion,
 } from '@family/shared';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -255,10 +255,21 @@ describe('SuggestionReview', () => {
         sourceUrl: chickenSkewers.sourceUrl,
         appliance: null,
         preparation: [],
+        components: [],
         ingredients: [
-          { ingredientId: chicken.id, quantity: 0.6, unit: 'kg' },
-          { ingredientId: sumac.id, quantity: 1, unit: 'tsp' },
-          { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+          {
+            ingredientId: chicken.id,
+            quantity: 0.6,
+            unit: 'kg',
+            component: null,
+          },
+          { ingredientId: sumac.id, quantity: 1, unit: 'tsp', component: null },
+          {
+            ingredientId: salt.id,
+            quantity: null,
+            unit: 'pinch',
+            component: null,
+          },
         ],
       },
     ]);
@@ -273,8 +284,20 @@ describe('SuggestionReview', () => {
         ...chickenSkewers,
         ingredients: [
           // isNew: false, но в регистъра го няма: също е нов.
-          { name: 'кокосово мляко', isNew: false, quantity: 0.4, unit: 'l' },
-          { name: 'сол', isNew: false, quantity: null, unit: 'pinch' },
+          {
+            name: 'кокосово мляко',
+            isNew: false,
+            quantity: 0.4,
+            unit: 'l',
+            component: null,
+          },
+          {
+            name: 'сол',
+            isNew: false,
+            quantity: null,
+            unit: 'pinch',
+            component: null,
+          },
         ],
       },
     };
@@ -317,8 +340,13 @@ describe('SuggestionReview', () => {
       { name: 'кокосово мляко', unit: 'ml', aisle: 'canned' },
     ]);
     expect(approved[0]?.ingredients).toEqual([
-      { ingredientId: coconutMilk.id, quantity: 0.4, unit: 'l' },
-      { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+      {
+        ingredientId: coconutMilk.id,
+        quantity: 0.4,
+        unit: 'l',
+        component: null,
+      },
+      { ingredientId: salt.id, quantity: null, unit: 'pinch', component: null },
     ]);
   });
 
@@ -330,9 +358,27 @@ describe('SuggestionReview', () => {
       payload: {
         ...chickenSkewers,
         ingredients: [
-          { name: 'пилешко филе', isNew: false, quantity: 0.6, unit: 'kg' },
-          { name: 'сумак', isNew: true, quantity: 1, unit: 'tsp' },
-          { name: 'кокосово мляко', isNew: true, quantity: 0.4, unit: 'l' },
+          {
+            name: 'пилешко филе',
+            isNew: false,
+            quantity: 0.6,
+            unit: 'kg',
+            component: null,
+          },
+          {
+            name: 'сумак',
+            isNew: true,
+            quantity: 1,
+            unit: 'tsp',
+            component: null,
+          },
+          {
+            name: 'кокосово мляко',
+            isNew: true,
+            quantity: 0.4,
+            unit: 'l',
+            component: null,
+          },
         ],
       },
     };
@@ -476,6 +522,147 @@ describe('SuggestionReview', () => {
       { kind: 'marinate', text: 'мариновай пилето', minutesBefore: 120 },
       { kind: 'oven', degrees: 220, fan: 'conventional', rack: 'high' },
     ]);
+  });
+
+  describe('Компонент', () => {
+    /** Шишчетата без нови продукти, а сумакът и солта са в „Марината · за 8 порции“. */
+    function skewersWithMarinade(): RecipeSuggestion {
+      const known = knownSkewers(chickenSkewers.steps);
+      return {
+        ...known,
+        payload: {
+          ...known.payload,
+          components: [{ name: 'Марината', servings: 8 }],
+          ingredients: known.payload.ingredients.map((line, index) => ({
+            ...line,
+            component: index === 0 ? null : 0,
+          })),
+        },
+      };
+    }
+
+    /** Редовете на списък продукти (`Продукти` за главните, името на компонента за неговите), като текст. */
+    function lines(name: string) {
+      return within(screen.getByRole('list', { name }))
+        .queryAllByRole('listitem')
+        .map((line) => line.textContent);
+    }
+
+    it('компонентът от предложението е във формата с редовете си, поправя се и „Одобри“ го праща', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      const { approved } = serveReview(skewersWithMarinade());
+
+      renderApp(reviewPath);
+
+      await screen.findByRole('textbox', { name: 'Заглавие' });
+      expect(lines('Продукти')).toEqual(['пилешко филе · 0,6 кг✓']);
+      expect(lines('Марината')).toEqual(['сумак · 1 ч.л.✓', 'сол · по вкус✓']);
+
+      // Порциите на компонента се поправят, а солта отива при главните.
+      await user.click(
+        screen.getByRole('button', { name: 'Марината · за 8 порции' }),
+      );
+      const component = within(
+        screen.getByRole('dialog', { name: 'Компонент' }),
+      );
+      const servings = component.getByRole('textbox', { name: 'Порции' });
+      await user.clear(servings);
+      await user.type(servings, '6');
+      await user.click(component.getByRole('button', { name: 'Готово' }));
+      await user.click(screen.getByRole('button', { name: 'сол · по вкус' }));
+      await user.selectOptions(
+        lineSheet().getByRole('combobox', { name: 'Компонент' }),
+        '—',
+      );
+      await user.click(lineSheet().getByRole('button', { name: 'Готово' }));
+      expect(lines('Марината')).toEqual(['сумак · 1 ч.л.✓']);
+      await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+      await screen.findByRole('heading', { name: 'Предложения' });
+      expect(approved[0]?.components).toEqual([
+        { name: 'Марината', servings: 6 },
+      ]);
+      expect(
+        approved[0]?.ingredients.map((line) => [
+          line.ingredientId,
+          line.component,
+        ]),
+      ).toEqual([
+        [chicken.id, null],
+        [sumac.id, 0],
+        [salt.id, null],
+      ]);
+    });
+
+    it('внасяне с компонент: редовете му са под името му, а „Одобри“ го праща', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      const approved: ApproveSuggestionInput[] = [];
+      const linkedSumac = { ...importedSumac };
+      server.use(
+        http.get(`/api/recipe-imports/${importId}`, () =>
+          HttpResponse.json({
+            request: doneImport,
+            suggestion: {
+              ...importedSuggestion,
+              payload: {
+                ...importedSuggestion.payload,
+                components: [{ name: 'Песто', servings: 5 }],
+                ingredients: importedSuggestion.payload.ingredients.map(
+                  (line, index) =>
+                    index === 1
+                      ? {
+                          ...line,
+                          ingredientId: linkedSumac.id,
+                          newProduct: null,
+                          component: 0,
+                        }
+                      : { ...line, component: index === 2 ? 0 : null },
+                ),
+              },
+            },
+            ingredients: [chicken, salt, linkedSumac],
+          }),
+        ),
+        http.post(
+          `/api/recipe-suggestions/${importedSuggestion.id}/approve`,
+          async ({ request }) => {
+            approved.push((await request.json()) as ApproveSuggestionInput);
+            return HttpResponse.json(
+              {
+                recipe: { ...omelette, ingredients: [] },
+                suggestion: { ...importedSuggestion, status: 'approved' },
+              },
+              { status: 201 },
+            );
+          },
+        ),
+      );
+
+      renderApp(`/recipes/import/${importId}`);
+
+      await screen.findByRole('textbox', { name: 'Заглавие' });
+      expect(lines('Продукти')).toEqual([
+        expect.stringMatching(/^пилешко филе · 600 г/),
+      ]);
+      expect(
+        screen.getByRole('button', { name: 'Песто · за 5 порции' }),
+      ).toBeInTheDocument();
+      expect(lines('Песто')).toEqual([
+        expect.stringMatching(/^сумак · 1 ч\.л\./),
+        expect.stringMatching(/^сол · по вкус/),
+      ]);
+      await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+      await waitFor(() => expect(approved).toHaveLength(1));
+      expect(approved[0]?.components).toEqual([{ name: 'Песто', servings: 5 }]);
+      expect(approved[0]?.ingredients.map((line) => line.component)).toEqual([
+        null,
+        0,
+        0,
+      ]);
+    });
   });
 
   it('предложение за уред: значката е в прегледа, уредът е избран във формата и „Одобри“ го праща', async () => {

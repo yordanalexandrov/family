@@ -7,7 +7,7 @@ import {
   type PrepTimeRange,
   type Rating,
   type Recipe,
-  type RecipeIngredient,
+  type RecipeComponent,
   type RecipeInput,
   type RecipeLine,
   type RecipeSummary,
@@ -34,7 +34,12 @@ import {
 } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { likePattern } from '../like.js';
-import { ingredient, recipe, recipeIngredient } from '../schema/food.js';
+import {
+  ingredient,
+  recipe,
+  recipeComponent,
+  recipeIngredient,
+} from '../schema/food.js';
 import { meal } from '../schema/menu.js';
 import { ingredientColumns } from './ingredients.js';
 import { findOpenRevisions } from './recipe-revisions.js';
@@ -44,6 +49,7 @@ type RecipeRow = typeof recipe.$inferSelect;
 /** API shape of a stored recipe: DB nulls of optional fields become absent, dates ISO strings. */
 function toRecipe(
   row: RecipeRow,
+  components: RecipeComponent[],
   ingredients: RecipeLine[],
   openRevision: OpenRevision | null,
 ): Recipe {
@@ -58,6 +64,7 @@ function toRecipe(
     nutritionPer100g: row.nutritionPer100g ?? undefined,
     appliance: row.appliance ?? undefined,
     preparation: row.preparation,
+    components,
     ingredients,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     rating: row.rating,
@@ -94,6 +101,18 @@ export async function findRecipe(
   if (!row) {
     return undefined;
   }
+  const components = await db
+    .select({
+      id: recipeComponent.id,
+      name: recipeComponent.name,
+      servings: recipeComponent.servings,
+    })
+    .from(recipeComponent)
+    .where(eq(recipeComponent.recipeId, id))
+    .orderBy(asc(recipeComponent.position));
+  const componentIndex = new Map(
+    components.map((component, index) => [component.id, index]),
+  );
   const lines = await db
     .select({
       ingredientId: recipeIngredient.ingredientId,
@@ -101,6 +120,7 @@ export async function findRecipe(
       quantity: recipeIngredient.quantity,
       unit: recipeIngredient.unit,
       note: recipeIngredient.note,
+      componentId: recipeIngredient.componentId,
       ingredient: ingredientColumns,
     })
     .from(recipeIngredient)
@@ -109,10 +129,13 @@ export async function findRecipe(
     .orderBy(asc(recipeIngredient.position));
   return toRecipe(
     row,
-    lines.map((line) => ({
+    components.map(({ name, servings }) => ({ name, servings })),
+    lines.map(({ componentId, ...line }) => ({
       ...line,
       quantity: line.quantity === null ? null : Number(line.quantity),
       note: line.note ?? undefined,
+      component:
+        componentId === null ? null : (componentIndex.get(componentId) ?? null),
     })),
     (await findOpenRevisions(db, [id])).get(id) ?? null,
   );
@@ -264,26 +287,55 @@ export async function setRecipeRating(
   return rows.length > 0;
 }
 
-/** Replaces all ingredient lines of a recipe, numbered in the given order; run it in a transaction. */
-export async function replaceRecipeIngredients(
+/**
+ * Replaces all components (GLOSSARY: Компонент) and ingredient lines of a recipe, each numbered in the given order; a
+ * line's `component` is the index of its component. Run it in a transaction.
+ */
+export async function replaceRecipeLines(
   db: DbExecutor,
   recipeId: string,
-  lines: RecipeIngredient[],
+  { components, ingredients }: Pick<RecipeInput, 'components' | 'ingredients'>,
 ): Promise<void> {
   await db
     .delete(recipeIngredient)
     .where(eq(recipeIngredient.recipeId, recipeId));
-  if (lines.length === 0) {
+  await db
+    .delete(recipeComponent)
+    .where(eq(recipeComponent.recipeId, recipeId));
+  const componentIds =
+    components.length === 0
+      ? []
+      : (
+          await db
+            .insert(recipeComponent)
+            .values(
+              components.map((component, position) => ({
+                recipeId,
+                position,
+                name: component.name,
+                servings: component.servings,
+              })),
+            )
+            .returning({
+              id: recipeComponent.id,
+              position: recipeComponent.position,
+            })
+        )
+          .sort((a, b) => a.position - b.position)
+          .map((row) => row.id);
+  if (ingredients.length === 0) {
     return;
   }
   await db.insert(recipeIngredient).values(
-    lines.map((line, position) => ({
+    ingredients.map((line, position) => ({
       recipeId,
       ingredientId: line.ingredientId,
       position,
       quantity: line.quantity === null ? null : String(line.quantity),
       unit: line.unit,
       note: line.note ?? null,
+      componentId:
+        line.component === null ? null : (componentIds[line.component] ?? null),
     })),
   );
 }

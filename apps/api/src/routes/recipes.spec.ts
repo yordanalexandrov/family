@@ -1,7 +1,7 @@
 import {
   type Ingredient,
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   recipeResponseSchema,
   recipesResponseSchema,
   type ServerEvent,
@@ -38,7 +38,9 @@ async function seedIngredient(name: string): Promise<Ingredient> {
   return found;
 }
 
-function recipeInput(overrides: Partial<RecipeInput> = {}): RecipeInput {
+function recipeInput(
+  overrides: Partial<RecipeInputBody> = {},
+): RecipeInputBody {
   return {
     title: 'Печени картофи',
     servings: 4,
@@ -57,7 +59,7 @@ function createRecipe(payload: object) {
   return app.inject({ method: 'POST', url: '/api/recipes', headers, payload });
 }
 
-async function createdRecipe(payload: RecipeInput) {
+async function createdRecipe(payload: RecipeInputBody) {
   const response = await createRecipe(payload);
   expect(response.statusCode).toBe(201);
   return recipeResponseSchema.parse(response.json()).recipe;
@@ -106,11 +108,13 @@ describe('POST /api/recipes', () => {
         tags: ['dinner'],
         nutritionPer100g: { kcal: 120, proteinG: 2, fatG: 5, carbsG: 17 },
         preparation: [],
+        components: [],
         ingredients: [
           {
             ingredientId: potato.id,
             quantity: 1.5,
             unit: 'kg',
+            component: null,
             ingredient: potato,
           },
           {
@@ -118,6 +122,7 @@ describe('POST /api/recipes', () => {
             quantity: null,
             unit: 'pinch',
             note: 'морска',
+            component: null,
             ingredient: salt,
           },
         ],
@@ -185,7 +190,7 @@ describe('POST /api/recipes', () => {
   });
 
   it('keeps the preparation in its order and reads it back', async () => {
-    const preparation: RecipeInput['preparation'] = [
+    const preparation: RecipeInputBody['preparation'] = [
       { kind: 'soak', text: 'накисни боба', minutesBefore: 720 },
       { kind: 'oven', degrees: 200, fan: 'fan', rack: 'middle' },
       { kind: 'pan', text: 'намажи тавата' },
@@ -265,6 +270,188 @@ function archive(id: string, action: 'archive' | 'unarchive' = 'archive') {
     headers,
   });
 }
+
+describe('components (GLOSSARY: Компонент)', () => {
+  /** A risotto for 1 with a pesto for 5: rice is a main line, basil and oil are the pesto's. */
+  async function risottoInput() {
+    const rice = await seedIngredient('ориз');
+    const basil = await seedIngredient('босилек пресен');
+    const oil = await seedIngredient('зехтин');
+    return {
+      ingredients: { rice, basil, oil },
+      input: recipeInput({
+        title: 'Ризото с песто',
+        servings: 1,
+        components: [{ name: 'Песто', servings: 5 }],
+        ingredients: [
+          { ingredientId: rice.id, quantity: 80, unit: 'g' },
+          { ingredientId: basil.id, quantity: 50, unit: 'g', component: 0 },
+          { ingredientId: oil.id, quantity: 100, unit: 'ml', component: 0 },
+        ],
+      }),
+    };
+  }
+
+  it('saves the components with their lines and reads them back', async () => {
+    const { ingredients, input } = await risottoInput();
+
+    const created = await createdRecipe(input);
+    const { recipe } = recipeResponseSchema.parse(
+      (await getRecipe(created.id)).json(),
+    );
+
+    expect(recipe.components).toEqual([{ name: 'Песто', servings: 5 }]);
+    expect(
+      recipe.ingredients.map((line) => [line.ingredient.name, line.component]),
+    ).toEqual([
+      [ingredients.rice.name, null],
+      [ingredients.basil.name, 0],
+      [ingredients.oil.name, 0],
+    ]);
+    expect(created).toEqual(recipe);
+  });
+
+  it('a recipe sent without components (an older client) has none, all its lines main', async () => {
+    const rice = await seedIngredient('ориз');
+
+    const created = await createdRecipe(
+      recipeInput({
+        ingredients: [{ ingredientId: rice.id, quantity: 80, unit: 'g' }],
+      }),
+    );
+    const { recipe } = recipeResponseSchema.parse(
+      (await getRecipe(created.id)).json(),
+    );
+
+    expect(recipe.components).toEqual([]);
+    expect(recipe.ingredients.map((line) => line.component)).toEqual([null]);
+  });
+
+  it('renames a component, adds a second one and moves a line into it', async () => {
+    const { ingredients, input } = await risottoInput();
+    const created = await createdRecipe(input);
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}`,
+      headers,
+      payload: {
+        ...input,
+        components: [
+          { name: 'Песто от босилек', servings: 4 },
+          { name: 'Олио', servings: 10 },
+        ],
+        ingredients: [
+          { ingredientId: ingredients.rice.id, quantity: 80, unit: 'g' },
+          {
+            ingredientId: ingredients.basil.id,
+            quantity: 50,
+            unit: 'g',
+            component: 0,
+          },
+          {
+            ingredientId: ingredients.oil.id,
+            quantity: 100,
+            unit: 'ml',
+            component: 1,
+          },
+        ],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { recipe } = recipeResponseSchema.parse(
+      (await getRecipe(created.id)).json(),
+    );
+    expect(recipe.components).toEqual([
+      { name: 'Песто от босилек', servings: 4 },
+      { name: 'Олио', servings: 10 },
+    ]);
+    expect(recipe.ingredients.map((line) => line.component)).toEqual([
+      null,
+      0,
+      1,
+    ]);
+  });
+
+  it('removes a component: its lines are back with the main lines', async () => {
+    const { input } = await risottoInput();
+    const created = await createdRecipe(input);
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${created.id}`,
+      headers,
+      payload: {
+        ...input,
+        components: [],
+        ingredients: input.ingredients.map(
+          ({ component: _component, ...line }) => line,
+        ),
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { recipe } = recipeResponseSchema.parse(
+      (await getRecipe(created.id)).json(),
+    );
+    expect(recipe.components).toEqual([]);
+    expect(recipe.ingredients.map((line) => line.component)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it.each([
+    [
+      'a component without lines',
+      { components: [{ name: 'Песто', servings: 5 }], lines: [null] },
+    ],
+    [
+      'more than 3 components',
+      {
+        components: ['А', 'Б', 'В', 'Г'].map((name) => ({ name, servings: 2 })),
+        lines: [0, 1, 2, 3],
+      },
+    ],
+    [
+      'a component for 0 servings',
+      { components: [{ name: 'Песто', servings: 0 }], lines: [0] },
+    ],
+    [
+      'a component without a name',
+      { components: [{ name: ' ', servings: 5 }], lines: [0] },
+    ],
+    ['a line in a component that is not there', { components: [], lines: [0] }],
+  ])(
+    'answers 400 validation_error for %s and saves nothing',
+    async (_, { components, lines }) => {
+      const rice = await seedIngredient('ориз');
+
+      const response = await createRecipe(
+        recipeInput({
+          components,
+          ingredients: lines.map((component) => ({
+            ingredientId: rice.id,
+            quantity: 80,
+            unit: 'g',
+            component,
+          })),
+        }),
+      );
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ error: 'validation_error' });
+      const list = await app.inject({
+        method: 'GET',
+        url: '/api/recipes',
+        headers,
+      });
+      expect(list.json().recipes).toEqual([]);
+    },
+  );
+});
 
 describe('GET /api/recipes', () => {
   it('lists summaries ordered by title', async () => {
@@ -514,9 +701,16 @@ describe('PUT /api/recipes/:id', () => {
         quantity: 2,
         unit: 'pcs',
         note: 'червен',
+        component: null,
         ingredient: onion,
       },
-      { ingredientId: potato.id, quantity: 500, unit: 'g', ingredient: potato },
+      {
+        ingredientId: potato.id,
+        quantity: 500,
+        unit: 'g',
+        component: null,
+        ingredient: potato,
+      },
     ]);
     expect((await getRecipe(created.id)).json()).toEqual({ recipe });
   });
@@ -527,7 +721,7 @@ describe('PUT /api/recipes/:id', () => {
         preparation: [{ kind: 'oven', degrees: 200, fan: 'fan' }],
       }),
     );
-    const put = async (preparation: RecipeInput['preparation']) => {
+    const put = async (preparation: RecipeInputBody['preparation']) => {
       const response = await app.inject({
         method: 'PUT',
         url: `/api/recipes/${created.id}`,
@@ -538,7 +732,7 @@ describe('PUT /api/recipes/:id', () => {
       return recipeResponseSchema.parse(response.json()).recipe.preparation;
     };
 
-    const changed: RecipeInput['preparation'] = [
+    const changed: RecipeInputBody['preparation'] = [
       { kind: 'fridge', text: 'извади маслото', minutesBefore: 60 },
       { kind: 'oven', degrees: 180, fan: 'conventional', rack: 'low' },
     ];

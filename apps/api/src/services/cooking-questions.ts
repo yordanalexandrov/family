@@ -6,6 +6,8 @@ import {
   COOKING_HISTORY_MAX,
   type CookingAskInput,
   type CookingAskOutput,
+  componentCounter,
+  cookingServings,
   type Recipe,
   recipeCookingLines,
   scaleCookingLine,
@@ -70,7 +72,8 @@ interface Loaded {
 /**
  * The input of `cooking.ask` for a question about `recipe`: its products after the applied cooking changes (`applied`,
  * in their order, the changed and removed lines marked) scaled to the servings on the screen (as Готвене shows them,
- * `scaleCookingLine`), its steps after the same changes numbered from 1 (the ones with new text marked) with the
+ * `scaleCookingLine`: a line of a component to the component's counter in `components`, or the counter Готвене starts
+ * it with when none was sent), its components with those counters (GLOSSARY: Компонент), its steps after the same changes numbered from 1 (the ones with new text marked) with the
  * current one by its number, its preparation, the enabled
  * appliances, the earlier questions of the chain with their answers (`history`, oldest first) and the question. Shared
  * with `ask:smoke`.
@@ -81,12 +84,15 @@ export function cookingAskInput(
     question,
     step,
     servings,
-  }: Pick<AskCookingQuestion, 'question' | 'step' | 'servings'>,
+    components = [],
+  }: Pick<AskCookingQuestion, 'question' | 'step' | 'servings'> &
+    Partial<Pick<AskCookingQuestion, 'components'>>,
   appliances: string[],
   history: AskedBefore[] = [],
   applied: readonly AppliedCookingChange[] = [],
 ): CookingAskInput {
   const lines = applyCookingChanges(recipeCookingLines(recipe), applied);
+  const shown = cookingServings(recipe, servings, components);
   return {
     recipe: {
       title: recipe.title,
@@ -95,10 +101,11 @@ export function cookingAskInput(
       ingredients: lines.map((line, index) => ({
         index,
         name: line.name,
-        ...scaleCookingLine(line, servings),
+        ...scaleCookingLine(line, shown),
         ...(line.note === undefined ? {} : { note: line.note }),
         ...(line.changed ? { changed: true as const } : {}),
         ...(line.removed ? { removed: true as const } : {}),
+        ...(line.component ? { component: line.component.index } : {}),
       })),
       steps: applyStepChanges(recipe.steps, applied).map((current, index) => ({
         number: index + 1,
@@ -106,6 +113,14 @@ export function cookingAskInput(
         ...(current.changed ? { changed: true as const } : {}),
       })),
       preparation: recipe.preparation,
+      components: recipe.components.map((component, index) => ({
+        ...component,
+        shownServings: componentCounter(
+          servings,
+          component,
+          shown.components[index],
+        ),
+      })),
     },
     // The recipe may have lost steps since the question was asked.
     currentStep: Math.min(step, recipe.steps.length - 1) + 1,

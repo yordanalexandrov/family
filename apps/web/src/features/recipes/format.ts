@@ -1,3 +1,6 @@
+import type { RecipeComponent } from '@family/shared';
+import { formatServings } from '../../lib/format';
+
 export const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
 
@@ -55,4 +58,14 @@ export function shorten(text: string, max = 40): string {
 /** „1 продукт“, „3 продукта“. */
 export function productCount(count: number): string {
   return count === 1 ? '1 продукт' : `${count} продукта`;
+}
+
+/** GLOSSARY: Компонент. Заглавието му с порциите, за които е написан: „Песто · за 5 порции“, „Сос · за 1 порция“. */
+export function componentHeading(component: RecipeComponent): string {
+  return `${component.name} · за ${formatServings(component.servings)}`;
+}
+
+/** Името на компонент във формата, докато се пише: празното е „Компонент без име“. */
+export function componentName(name: string): string {
+  return name.trim() || 'Компонент без име';
 }

@@ -1,4 +1,9 @@
-import type { Preparation, RecipeRefinement, RecipeStep } from '@family/shared';
+import type {
+  Preparation,
+  RecipeComponent,
+  RecipeRefinement,
+  RecipeStep,
+} from '@family/shared';
 import { type ReactNode, useCallback, useEffect, useRef } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
@@ -6,7 +11,7 @@ import { Spinner } from '../../components/Spinner';
 import { failureMessage } from '../../lib/ai-requests';
 import { PreparationList } from '../preparation/PreparationList';
 import { StepPhotoThumbnail } from '../step-photos/StepPhotoThumbnail';
-import { formatMinutes } from './format';
+import { componentHeading, formatMinutes } from './format';
 import { useRefinement, useRequestRefinement } from './refinements';
 
 interface RefineSheetProps {
@@ -15,6 +20,8 @@ interface RefineSheetProps {
   steps: readonly RecipeStep[];
   /** Подготовката на записаната рецепта: с нея се сравнява предложената. */
   preparation: Preparation;
+  /** Компонентите на записаната рецепта (GLOSSARY: Компонент): подобрението не ги сменя, а сравнението ги казва. */
+  components: readonly RecipeComponent[];
   /** Заявката, която листът чака: пусната при предишно отваряне и още неизчакана. Без нея листът пуска нова. */
   requestId: string | undefined;
   /** Листът пусна заявка (при отваряне или с „Опитай пак“). */
@@ -85,13 +92,14 @@ export function ComparisonColumn({
 
 /**
  * „✨ Подобри рецептата“ (`recipe.refine`): пуска заявката при отваряне (или продължава чакащата), чака я и показва
- * предложението (стъпки и подготовка) до сегашните. „Приеми“ го слага във формата, „Откажи“ не променя нищо. Рецептата се променя
- * едва при „Запази“.
+ * предложението (стъпки и подготовка) до сегашните, и компонентите на рецептата, които остават. „Приеми“ го слага във
+ * формата, „Откажи“ не променя нищо. Рецептата се променя едва при „Запази“.
  */
 export function RefineSheet({
   recipeId,
   steps,
   preparation,
+  components,
   requestId,
   onRequested,
   onAccept,
@@ -181,6 +189,19 @@ export function RefineSheet({
         )}
         {refinement.prepMinutes !== undefined && (
           <p>Време: {formatMinutes(refinement.prepMinutes)}</p>
+        )}
+        {components.length > 0 && (
+          <div className="refine__kept">
+            <p className="refine__note">
+              Компонентите остават, с продуктите си:
+            </p>
+            <ul className="refine__lines" aria-label="Компонентите остават">
+              {components.map((component, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: компонентите нямат id; индексът е техният.
+                <li key={index}>{componentHeading(component)}</li>
+              ))}
+            </ul>
+          </div>
         )}
         <div className="refine__compare">
           <ComparisonColumn

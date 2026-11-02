@@ -4,7 +4,12 @@
     "servings": 4,
     "shownServings": 2,
     "ingredients": [
-      { "index": 0, "name": "пилешко филе", "quantity": 300, "unit": "g" },
+      {
+        "index": 0,
+        "name": "пилешко филе",
+        "quantity": 300,
+        "unit": "g"
+      },
       {
         "index": 1,
         "name": "домат",
@@ -12,10 +17,30 @@
         "unit": "pcs",
         "note": "зрели"
       },
-      { "index": 2, "name": "кромид лук", "quantity": 1, "unit": "pcs" },
-      { "index": 3, "name": "ориз", "quantity": 100, "unit": "g" },
-      { "index": 4, "name": "олио", "quantity": 1, "unit": "tbsp" },
-      { "index": 5, "name": "сол", "quantity": null, "unit": "pinch" }
+      {
+        "index": 2,
+        "name": "кромид лук",
+        "quantity": 1,
+        "unit": "pcs"
+      },
+      {
+        "index": 3,
+        "name": "ориз",
+        "quantity": 100,
+        "unit": "g"
+      },
+      {
+        "index": 4,
+        "name": "олио",
+        "quantity": 1,
+        "unit": "tbsp"
+      },
+      {
+        "index": 5,
+        "name": "сол",
+        "quantity": null,
+        "unit": "pinch"
+      }
     ],
     "steps": [
       {
@@ -35,7 +60,8 @@
         "text": "Добави пилешкото и ориза, залей с 200 ml гореща вода и вари на слаб огън под капак 20 минути, докато оризът поеме водата."
       }
     ],
-    "preparation": []
+    "preparation": [],
+    "components": []
   },
   "currentStep": 3,
   "appliances": ["Мултикукър (Instant Pot) — готви под налягане"],

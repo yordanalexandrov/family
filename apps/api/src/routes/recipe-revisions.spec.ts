@@ -1,6 +1,6 @@
 import {
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeReviseInput,
   type RecipeRevisionRequest,
   recipeResponseSchema,
@@ -55,11 +55,17 @@ async function seedIngredientId(name: string): Promise<string> {
   return found.id;
 }
 
-/** The moussaka of the contract fixture, with the seed products and a photo of its own on steps 2 and 5. */
-async function createdRecipe() {
+/**
+ * The moussaka of the contract fixture, with the seed products and a photo of its own on steps 2 and 5; with
+ * `components`, its lines whose index is in `lines` are of the first one (GLOSSARY: Компонент).
+ */
+async function createdRecipe(
+  components: RecipeInputBody['components'] = [],
+  lines: readonly number[] = [],
+) {
   const photos = [await storedStepPhoto(app), await storedStepPhoto(app)];
   const { recipe } = fixtureInput;
-  const input: RecipeInput = {
+  const input: RecipeInputBody = {
     title: recipe.title,
     servings: recipe.servings,
     prepMinutes: recipe.prepMinutes,
@@ -70,14 +76,16 @@ async function createdRecipe() {
       ...(step.image === 'e2' ? { photoId: photos[1] } : {}),
     })),
     ingredients: await Promise.all(
-      recipe.ingredients.map(async (line) => ({
+      recipe.ingredients.map(async (line, index) => ({
         ingredientId: await seedIngredientId(line.name),
         quantity: line.quantity,
-        unit: line.unit as RecipeInput['ingredients'][number]['unit'],
+        unit: line.unit as RecipeInputBody['ingredients'][number]['unit'],
         ...(line.note === undefined ? {} : { note: line.note }),
+        ...(lines.includes(index) ? { component: 0 } : {}),
       })),
     ),
     preparation: [{ kind: 'oven', degrees: 200, fan: 'fan' }],
+    components,
   };
   const response = await app.inject({
     method: 'POST',
@@ -199,7 +207,9 @@ describe('POST /api/recipes/:id/revisions', () => {
       },
       quantity: 1,
       unit: 'kg',
+      component: null,
     });
+    expect(revision?.components).toEqual([]);
     expect(revision?.ingredients[5]?.note).toBe('сладък');
     expect(revision?.preparation).toEqual([
       { kind: 'oven', degrees: 200, fan: 'fan' },
@@ -241,6 +251,7 @@ describe('POST /api/recipes/:id/revisions', () => {
         quantity: null,
         unit: 'pinch',
         note: null,
+        component: null,
       });
       answer.recipe.steps = answer.recipe.steps.slice(0, 4);
       return answer;
@@ -252,6 +263,7 @@ describe('POST /api/recipes/:id/revisions', () => {
       newProduct: { name: 'индийско орехче', unit: 'g', aisle: 'spices' },
       quantity: null,
       unit: 'pinch',
+      component: null,
     });
     expect(done.revision?.droppedPhotos).toBe(1);
   });
@@ -400,6 +412,7 @@ describe('PUT /api/recipes/:id with revisionId', () => {
         quantity: null,
         unit: 'pinch',
         note: null,
+        component: null,
       });
       return answer;
     });
@@ -460,6 +473,118 @@ describe('PUT /api/recipes/:id with revisionId', () => {
     expect((await put(first.recipe.id, 'Друга')).statusCode).toBe(409);
     expect((await getRecipe(first.recipe.id)).title).toBe('Мусака');
     expect((await getRecipe(second.recipe.id)).title).toBe('Мусака');
+  });
+});
+
+const BECHAMEL = { name: 'Заливка', servings: 8 };
+
+describe('components of a revision (GLOSSARY: Компонент)', () => {
+  it('sends the agent the components of the recipe and the component of each line', async () => {
+    const { recipe } = await createdRecipe([BECHAMEL], [7, 8, 9]);
+    const inputs = answering(reviseAnswer);
+
+    await finished(await requested(recipe.id));
+
+    expect(inputs[0]?.recipe.components).toEqual([BECHAMEL]);
+    expect(inputs[0]?.recipe.ingredients.map((line) => line.component)).toEqual(
+      [null, null, null, null, null, null, null, 0, 0, 0],
+    );
+  });
+
+  it('holds a revision that makes a component, and PUT with it saves the component', async () => {
+    const { recipe, input } = await createdRecipe();
+    answering((answerInput) => {
+      const answer = reviseAnswer(answerInput);
+      if (!answer.recipe) {
+        throw new Error('no recipe in the fixture');
+      }
+      answer.recipe.components = [BECHAMEL];
+      answer.recipe.ingredients = answer.recipe.ingredients.map(
+        (line, index) => ({ ...line, component: index >= 7 ? 0 : null }),
+      );
+      return answer;
+    });
+    const done = await finished(await requested(recipe.id));
+    const revision = done.revision;
+    if (!revision) {
+      throw new Error('no revision');
+    }
+
+    expect(revision.components).toEqual([BECHAMEL]);
+    expect(revision.ingredients.map((line) => line.component)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      0,
+      0,
+    ]);
+
+    const response = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers,
+      payload: {
+        ...input,
+        components: revision.components,
+        ingredients: input.ingredients.map((line, index) => ({
+          ...line,
+          component: revision.ingredients[index]?.component ?? null,
+        })),
+        revisionId: done.id,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const saved = await getRecipe(recipe.id);
+    expect(saved.components).toEqual([BECHAMEL]);
+    expect(saved.ingredients.at(-1)?.component).toBe(0);
+    expect((await finished(done)).decision).toBe('accepted');
+  });
+
+  it('fails invalid_output for a revision with a component without a line, even after the retry', async () => {
+    const { recipe } = await createdRecipe();
+    answering((answerInput) => {
+      const answer = reviseAnswer(answerInput);
+      answer.recipe?.components.push(BECHAMEL);
+      return answer;
+    });
+
+    const done = await finished(await requested(recipe.id));
+
+    expect(done.status).toBe('failed');
+    expect(done.error).toBe('invalid_output');
+  });
+
+  it('sends the agent the components of a suggestion’s form, and answers 400 for a form whose component has no line', async () => {
+    const suggestionId = await aSuggestion();
+    const { recipe } = await formRecipe();
+    const inputs = answering(reviseAnswer);
+    const withComponent = {
+      ...recipe,
+      components: [BECHAMEL],
+      ingredients: recipe.ingredients.map((line, index) => ({
+        ...line,
+        component: index >= 7 ? 0 : null,
+      })),
+    };
+
+    expect(
+      (
+        await postSuggestionRevision(suggestionId, {
+          ...recipe,
+          components: [BECHAMEL],
+        })
+      ).statusCode,
+    ).toBe(400);
+    await finished(await requestedForSuggestion(suggestionId, withComponent));
+
+    expect(inputs[0]?.recipe.components).toEqual([BECHAMEL]);
+    expect(inputs[0]?.recipe.ingredients.at(-1)?.component).toBe(0);
   });
 });
 

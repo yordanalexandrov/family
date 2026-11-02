@@ -1,4 +1,5 @@
 import {
+  linesByComponent,
   RECIPE_REVISION_INSTRUCTION_MAX,
   type RecipeRevision,
 } from '@family/shared';
@@ -12,7 +13,7 @@ import { Spinner } from '../../components/Spinner';
 import { failureMessage } from '../../lib/ai-requests';
 import { formatQuantity } from '../../lib/format';
 import { useOnline } from '../../lib/use-online';
-import { formatMinutes } from './format';
+import { componentHeading, formatMinutes } from './format';
 import { ComparisonColumn } from './RefineSheet';
 import {
   type ComparedLine,
@@ -67,7 +68,28 @@ function droppedText(count: number): string {
   return count === 1 ? '1 снимка отпада.' : `${count} снимки отпадат.`;
 }
 
-/** Едната колона: порциите и времето, продуктите, подготовката (ако `withPreparation`) и стъпките. */
+/** Редовете на един списък в сравнението. */
+function Lines({
+  label,
+  lines,
+}: {
+  label: string;
+  lines: readonly ComparedLine[];
+}) {
+  return (
+    <ul className="refine__lines" aria-label={label}>
+      {lines.map((line, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: редовете нямат id; редът е идентичността им.
+        <li key={index}>{lineText(line)}</li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Едната колона: порциите и времето, продуктите на ястието, всеки компонент под заглавието си („Песто · за 5 порции“)
+ * с неговите продукти, подготовката (ако `withPreparation`) и стъпките.
+ */
 function RevisionColumn({
   name,
   recipe,
@@ -78,6 +100,11 @@ function RevisionColumn({
   withPreparation: boolean;
 }) {
   const lower = name.toLocaleLowerCase('bg');
+  const lines = linesByComponent(
+    recipe.ingredients,
+    recipe.components.length,
+    (line) => line.component,
+  );
   return (
     <ComparisonColumn
       name={name}
@@ -88,12 +115,19 @@ function RevisionColumn({
       <p className="refine__note">
         {servingsText(recipe.servings, recipe.prepMinutes)}
       </p>
-      <ul className="refine__lines" aria-label={`Продукти: ${lower}`}>
-        {recipe.ingredients.map((line, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: редовете нямат id; редът е идентичността им.
-          <li key={index}>{lineText(line)}</li>
-        ))}
-      </ul>
+      <Lines label={`Продукти: ${lower}`} lines={lines.main} />
+      {recipe.components.map((component, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: компонентите нямат id; индексът е техният.
+        <section key={index} className="refine__component">
+          <h4 className="refine__component-heading">
+            {componentHeading(component)}
+          </h4>
+          <Lines
+            label={`${component.name}: ${lower}`}
+            lines={lines.components[index] ?? []}
+          />
+        </section>
+      ))}
     </ComparisonColumn>
   );
 }

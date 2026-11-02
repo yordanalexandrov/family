@@ -8,6 +8,9 @@
 // the page the way the api does (services/recipe-page) and sends it as the source; its photos go as references and
 // after the answer the photos the agent chose are downloaded and made JPEGs as the api does, without storing them.
 // `--no-source` sends `source: null`, as for a recipe without a link or one whose page did not open.
+// A recipe may have components (GLOSSARY: Компонент, #326: `components` and `component` on its lines); the agent reads
+// them and changes none, so its steps must still make each component as its own batch: the name of every component
+// must be in some step of the refinement (✗ otherwise). `--repeat N` refines every recipe N times.
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -31,11 +34,12 @@ import {
   type StepImages,
 } from '../src/services/recipe-page/index.js';
 
-const USAGE = `Usage: pnpm --filter api refine:smoke -- [--recipe <file.json> ...] [--url <link>] [--no-source] [--save out.json]
+const USAGE = `Usage: pnpm --filter api refine:smoke -- [--recipe <file.json> ...] [--url <link>] [--no-source] [--repeat N] [--save out.json]
   no options         the fixture recipe with the fixture page
   --recipe <file>    a recipe as \`recipe\` of the input (repeatable); replaces the fixture recipe
   --url <link>       the source page: read as the api does and sent with every recipe; replaces the fixture page
   --no-source        no source (a recipe without a link, or its page did not open)
+  --repeat <N>       refine every recipe N times (default 1)
   --save <file>      the validated outputs by case name, as JSON
 `;
 
@@ -46,6 +50,7 @@ const { values } = parseArgs({
     recipe: { type: 'string', multiple: true },
     url: { type: 'string' },
     'no-source': { type: 'boolean' },
+    repeat: { type: 'string' },
     save: { type: 'string' },
     help: { type: 'boolean' },
   },
@@ -61,6 +66,10 @@ if (values.help) {
 }
 if (values.url && values['no-source']) {
   usage('--url and --no-source exclude each other.');
+}
+const repeat = values.repeat === undefined ? 1 : Number(values.repeat);
+if (!Number.isInteger(repeat) || repeat < 1) {
+  usage('--repeat is a whole number from 1.');
 }
 
 /** The source of every case and the URLs of its photos by reference; `null` without one. */
@@ -120,6 +129,36 @@ if (!client) {
   process.exit(2);
 }
 
+/**
+ * The components of the recipe whose name no step of the refinement has (its first 5 letters, so „пестото“ counts for
+ * „Песто“): the steps lost them.
+ */
+function lostComponents(
+  input: RecipeRefineInput,
+  output: RecipeRefineOutput,
+): string[] {
+  const steps = (output.recipe?.steps ?? []).map((step) =>
+    step.text.toLocaleLowerCase('bg'),
+  );
+  return input.recipe.components
+    .map((component) => component.name)
+    .filter((name) => {
+      const stem = name.toLocaleLowerCase('bg').slice(0, 5);
+      return !steps.some((text) => text.includes(stem));
+    });
+}
+
+/** „Песто за 5: босилек пресен, орех“ for each component of the recipe. */
+function componentLines(input: RecipeRefineInput): string[] {
+  return input.recipe.components.map(
+    (component, index) =>
+      `   Компонент ${component.name} за ${component.servings}: ${input.recipe.ingredients
+        .filter((line) => line.component === index)
+        .map((line) => line.name)
+        .join(', ')}`,
+  );
+}
+
 /** „🔥 200° · с вентилатор“, one item a line; „—“ for none. */
 function preparationLines(preparation: Preparation): string[] {
   return preparation.length === 0
@@ -157,6 +196,7 @@ function summary(
   return [
     `${input.recipe.title}: ${input.recipe.steps.length} → ${refined.steps.length} стъпки, време ${input.recipe.prepMinutes ?? '—'} → ${refined.prepMinutes ?? '—'}`,
     `   Промени: ${refined.changes}`,
+    ...componentLines(input),
     '   Сега:',
     ...input.recipe.steps.map(
       (step, index) => `   ${index + 1}. ${step.text}${photo(step.image)}`,
@@ -174,56 +214,60 @@ function summary(
   ].join('\n');
 }
 
-const saved: Record<string, RecipeRefineOutput> = {};
+const saved: Record<string, RecipeRefineOutput[]> = {};
 let failed = false;
-for (const { name, recipe } of recipes) {
-  const parsed = recipeRefine.inputSchema.safeParse({ recipe, source: page });
-  if (!parsed.success) {
-    failed = true;
-    process.stdout.write(
-      `[${name}] ✗ невалиден вход:\n${z.prettifyError(parsed.error)}\n\n`,
+for (const { name: file, recipe } of recipes)
+  for (let run = 1; run <= repeat; run += 1) {
+    const name = repeat > 1 ? `${file} ${run}/${repeat}` : file;
+    const parsed = recipeRefine.inputSchema.safeParse({ recipe, source: page });
+    if (!parsed.success) {
+      failed = true;
+      process.stdout.write(
+        `[${name}] ✗ невалиден вход:\n${z.prettifyError(parsed.error)}\n\n`,
+      );
+      continue;
+    }
+    const input = parsed.data;
+    const leaked = Object.values(stepImages).filter((url) =>
+      JSON.stringify(input).includes(url),
     );
-    continue;
-  }
-  const input = parsed.data;
-  const leaked = Object.values(stepImages).filter((url) =>
-    JSON.stringify(input).includes(url),
-  );
-  if (leaked.length > 0) {
-    failed = true;
-    process.stdout.write(
-      `[${name}] ✗ URL на снимка е във входа на агента: ${leaked.join(', ')}\n\n`,
-    );
-    continue;
-  }
-  process.stderr.write(
-    `→ ${config.url} openclaw/${config.refineAgent}, timeout ${config.timeoutMs} ms, ${name}: ${input.source ? input.source.url : 'без източник'}\n`,
-  );
-  const started = performance.now();
-  try {
-    const output = await client.complete(recipeRefine, input, {
-      agent: config.refineAgent,
-    });
-    const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    const photos = output.recipe
-      ? await prepareStepPhotos(
-          stepImages,
-          output.recipe.steps,
-          AbortSignal.timeout(60_000),
-        )
-      : new Map<string, Buffer | null>();
-    process.stdout.write(
-      `[${name}] ${summary(input, output, seconds, photos)}\n`,
-    );
-    saved[name] = output;
-  } catch (error) {
-    const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    failed = true;
+    if (leaked.length > 0) {
+      failed = true;
+      process.stdout.write(
+        `[${name}] ✗ URL на снимка е във входа на агента: ${leaked.join(', ')}\n\n`,
+      );
+      continue;
+    }
     process.stderr.write(
-      `✗ [${name}] след ${seconds} s: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}\n`,
+      `→ ${config.url} openclaw/${config.refineAgent}, timeout ${config.timeoutMs} ms, ${name}: ${input.source ? input.source.url : 'без източник'}\n`,
     );
+    const started = performance.now();
+    try {
+      const output = await client.complete(recipeRefine, input, {
+        agent: config.refineAgent,
+      });
+      const seconds = ((performance.now() - started) / 1000).toFixed(1);
+      const photos = output.recipe
+        ? await prepareStepPhotos(
+            stepImages,
+            output.recipe.steps,
+            AbortSignal.timeout(60_000),
+          )
+        : new Map<string, Buffer | null>();
+      const lost = lostComponents(input, output);
+      failed ||= lost.length > 0;
+      process.stdout.write(
+        `[${name}] ${summary(input, output, seconds, photos)}${lost.length > 0 ? `   ✗ стъпките изгубиха ${lost.join(', ')}\n` : input.recipe.components.length > 0 && output.recipe ? '   ✓ компонентите са в стъпките\n' : ''}\n`,
+      );
+      saved[file] = [...(saved[file] ?? []), output];
+    } catch (error) {
+      const seconds = ((performance.now() - started) / 1000).toFixed(1);
+      failed = true;
+      process.stderr.write(
+        `✗ [${name}] след ${seconds} s: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}\n`,
+      );
+    }
   }
-}
 
 if (values.save) {
   await writeFile(values.save, `${JSON.stringify(saved, null, 2)}\n`);

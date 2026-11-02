@@ -63,7 +63,9 @@ describe('recipeRevise.outputSchema', () => {
       quantity: 1,
       unit: 'kg',
       note: null,
+      component: null,
     });
+    expect(parsed.recipe?.components).toEqual([]);
     expect(parsed.recipe?.preparation).toEqual([
       { kind: 'oven', degrees: 200, fan: 'fan' },
     ]);
@@ -188,6 +190,116 @@ describe('recipeRevise.outputSchema', () => {
   });
 });
 
+/** The recipe of the input with pesto for 5 as a component (GLOSSARY: Компонент) of its last two lines. */
+function withPesto() {
+  const recipe = JSON.parse(JSON.stringify(fixtureInput.recipe)) as {
+    ingredients: Record<string, unknown>[];
+  } & Record<string, unknown>;
+  recipe.components = [{ name: 'Песто', servings: 5 }];
+  recipe.ingredients = recipe.ingredients.map((line, index) => ({
+    ...line,
+    component: index >= recipe.ingredients.length - 2 ? 0 : null,
+  }));
+  return recipe;
+}
+
+/** The answer with pesto for 5 as a component of its first line. */
+function revisedWithPesto() {
+  const output = validOutput();
+  output.recipe.components = [{ name: 'Песто', servings: 5 }];
+  output.recipe.ingredients = output.recipe.ingredients.map(
+    (line: object, index: number) => ({
+      ...line,
+      component: index === 0 ? 0 : null,
+    }),
+  );
+  return output;
+}
+
+describe('recipeRevise: components (GLOSSARY: Компонент)', () => {
+  it('reads the components of the recipe and the component of each line', () => {
+    const input = recipeRevise.inputSchema.parse({
+      ...fixtureInput,
+      recipe: withPesto(),
+    });
+
+    expect(input.recipe.components).toEqual([{ name: 'Песто', servings: 5 }]);
+    expect(input.recipe.ingredients.map((line) => line.component)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      0,
+    ]);
+  });
+
+  it('reads a recipe without components as one with none', () => {
+    expect(INPUT.recipe.components).toEqual([]);
+    expect(INPUT.recipe.ingredients[0]?.component).toBeNull();
+  });
+
+  it('refuses an input whose line names a component the recipe does not have', () => {
+    const recipe = withPesto();
+    recipe.components = [];
+
+    expect(
+      recipeRevise.inputSchema.safeParse({ ...fixtureInput, recipe }).success,
+    ).toBe(false);
+  });
+
+  it('accepts a revision that makes a component, changes it or leaves the recipe without one', () => {
+    const parsed = outputSchema.parse(revisedWithPesto());
+
+    expect(parsed.recipe?.components).toEqual([{ name: 'Песто', servings: 5 }]);
+    expect(parsed.recipe?.ingredients[0]?.component).toBe(0);
+    expect(parsed.recipe?.ingredients[1]?.component).toBeNull();
+  });
+
+  it('refuses a line whose component is not one of the components', () => {
+    const output = revisedWithPesto();
+    output.recipe.ingredients[1].component = 1;
+
+    expect(messages(output)).toEqual([
+      expect.stringContaining('Няма компонент 1'),
+    ]);
+  });
+
+  it('refuses a component without a line', () => {
+    const output = revisedWithPesto();
+    output.recipe.components.push({ name: 'Сос', servings: 2 });
+
+    expect(messages(output)).toEqual([
+      expect.stringContaining('Компонент 1 е без продукти'),
+    ]);
+  });
+
+  it('refuses more than 3 components', () => {
+    const output = revisedWithPesto();
+    output.recipe.components = ['Песто', 'Сос', 'Тесто', 'Крем'].map(
+      (name) => ({ name, servings: 5 }),
+    );
+    output.recipe.ingredients.forEach(
+      (line: { component: number | null }, index: number) => {
+        line.component = index % 4;
+      },
+    );
+
+    expect(messages(output)).not.toEqual([]);
+  });
+
+  it('refuses a component for less than 1 serving', () => {
+    const output = revisedWithPesto();
+    output.recipe.components[0].servings = 0;
+
+    expect(messages(output)).not.toEqual([]);
+  });
+});
+
 describe('recipeRevise.responseFormat', () => {
   it('is a strict JSON Schema: every object closed, every property required, no oneOf', () => {
     const { schema } = recipeRevise.responseFormat;
@@ -213,5 +325,7 @@ describe('recipeRevise.responseFormat', () => {
 
     check(schema);
     expect(JSON.stringify(schema)).toContain('"newProduct"');
+    expect(JSON.stringify(schema)).toContain('"components"');
+    expect(JSON.stringify(schema)).toContain('"component"');
   });
 });

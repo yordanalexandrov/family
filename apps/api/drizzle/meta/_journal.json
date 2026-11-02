@@ -260,6 +260,20 @@
       "when": 1793570038314,
       "tag": "0036_recipe_revision_applied",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793626020628,
+      "tag": "0037_recipe_component",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793627595048,
+      "tag": "0038_cooking_question_components",
+      "breakpoints": true
     }
   ]
 }

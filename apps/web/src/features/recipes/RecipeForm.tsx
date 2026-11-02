@@ -1,9 +1,11 @@
-import type {
-  Ingredient,
-  Preparation,
-  RecipeInput,
-  RecipeStep,
-  Tag,
+import {
+  COMPONENTS_MAX,
+  type Ingredient,
+  linesByComponent,
+  type Preparation,
+  type RecipeInput,
+  type RecipeStep,
+  type Tag,
 } from '@family/shared';
 import {
   type FormEvent,
@@ -21,14 +23,18 @@ import { applianceShortName, useAppliances } from '../appliances/queries';
 import { PreparationField } from '../preparation/PreparationField';
 import { preparationToValues } from '../preparation/preparation-values';
 import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
+import { ComponentSheet } from './ComponentSheet';
+import { componentHeading, componentName } from './format';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
+  type ComponentValues,
   emptyIngredientRow,
   emptyRecipeFormValues,
   type IngredientRowValues,
   ingredientLineName,
   ingredientLineText,
   ingredientRowErrors,
+  newRowKey,
   type RecipeFormErrors,
   type RecipeFormValues,
   toRecipeInput,
@@ -88,6 +94,8 @@ export interface AiReplacement {
   servings?: number | undefined;
   /** Всички продукти от поправка (новите неразрешени, за свързване); `undefined` не ги пипа. */
   ingredients?: IngredientRowValues[] | undefined;
+  /** Всички компоненти от поправка, с които са редовете ѝ (GLOSSARY: Компонент); `undefined` не ги пипа. */
+  components?: ComponentValues[] | undefined;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -134,7 +142,7 @@ function move<T>(items: readonly T[], from: number, to: number): T[] {
  */
 function reindexErrors(
   errors: RecipeFormErrors,
-  list: 'steps' | 'ingredients' | 'preparation',
+  list: 'steps' | 'ingredients' | 'preparation' | 'components',
   newIndex: (index: number) => number | undefined,
 ): RecipeFormErrors {
   const pattern = new RegExp(`^${list}\\.(\\d+)(\\..+)?$`);
@@ -183,6 +191,15 @@ function preparationErrors(errors: RecipeFormErrors): RecipeFormErrors {
   );
 }
 
+/** Заглавието на компонента във формата: „Песто · за 5 порции“; порциите, както са написани, докато не са число. */
+function componentTitle(component: ComponentValues): string {
+  const name = componentName(component.name);
+  const servings = Number(component.servings.trim());
+  return Number.isInteger(servings) && servings >= 1
+    ? componentHeading({ name, servings })
+    : `${name} · за ${component.servings.trim() || '?'} порции`;
+}
+
 /** Новият индекс на ред след махането на `removed`. */
 function afterRemoving(removed: number) {
   return (index: number) =>
@@ -226,6 +243,9 @@ export function RecipeForm({
       ...(aiReplacement.ingredients === undefined
         ? {}
         : { ingredients: aiReplacement.ingredients }),
+      ...(aiReplacement.components === undefined
+        ? {}
+        : { components: aiReplacement.components }),
     }));
   }
   /**
@@ -251,6 +271,11 @@ export function RecipeForm({
   /** Стъпката в отворения лист; `added` = нова от „Добави стъпка“, която се маха, ако се затвори празна. */
   const [editingStep, setEditingStep] = useState<{
     index: number;
+    added: boolean;
+  } | null>(null);
+  /** Компонентът в отворения лист; `added` = нов от „+ Компонент“, който остава само с „Добави“. */
+  const [editingComponent, setEditingComponent] = useState<{
+    key: string;
     added: boolean;
   } | null>(null);
   /** Хранителната стойност е разгъната отначало, ако рецептата идва с такава. */
@@ -364,6 +389,58 @@ export function RecipeForm({
     setEditing(null);
   }
 
+  function addComponent() {
+    const component: ComponentValues = {
+      key: newRowKey(),
+      name: '',
+      // Компонентът е за други порции от рецептата (GLOSSARY: Компонент): ги пише човекът.
+      servings: '',
+    };
+    set('components', [...values.components, component]);
+    setEditingComponent({ key: component.key, added: true });
+  }
+
+  function updateComponent(
+    key: string,
+    patch: Partial<Omit<ComponentValues, 'key'>>,
+  ) {
+    setValues((current) => ({
+      ...current,
+      components: current.components.map((component) =>
+        component.key === key ? { ...component, ...patch } : component,
+      ),
+    }));
+  }
+
+  /** Махнатият компонент връща редовете си при главните. */
+  function removeComponent(key: string) {
+    const removed = values.components.findIndex(
+      (component) => component.key === key,
+    );
+    setValues((current) => ({
+      ...current,
+      components: current.components.filter(
+        (component) => component.key !== key,
+      ),
+      ingredients: current.ingredients.map((row) =>
+        row.component === key ? { ...row, component: undefined } : row,
+      ),
+    }));
+    setFlagged((current) =>
+      reindexErrors(current, 'components', afterRemoving(removed)),
+    );
+    setEditingComponent(null);
+  }
+
+  /** Затварянето на нов компонент (без „Добави“) е отказ: той се маха. */
+  function closeComponent() {
+    if (editingComponent?.added) {
+      removeComponent(editingComponent.key);
+      return;
+    }
+    setEditingComponent(null);
+  }
+
   function addStep() {
     set('steps', [...values.steps, { text: '' }]);
     setEditingStep({ index: values.steps.length, added: true });
@@ -426,11 +503,19 @@ export function RecipeForm({
     onSubmit(result.input);
   }
 
-  const lines = values.ingredients.map((row, index) => ({ row, index }));
-  // Редовете, които искат действие, са отгоре; записът пази реда на рецептата.
-  const orderedLines = [
-    ...lines.filter(({ row }) => row.ingredient === null),
-    ...lines.filter(({ row }) => row.ingredient !== null),
+  const componentAt = new Map(
+    values.components.map((component, index) => [component.key, index]),
+  );
+  const lines = linesByComponent(
+    values.ingredients.map((row, index) => ({ row, index })),
+    values.components.length,
+    ({ row }) =>
+      row.component === undefined ? null : componentAt.get(row.component),
+  );
+  /** Редовете на групата: тези, които искат действие, са отгоре, а записът пази реда на рецептата. */
+  const ordered = (group: typeof lines.main) => [
+    ...group.filter(({ row }) => row.ingredient === null),
+    ...group.filter(({ row }) => row.ingredient !== null),
   ];
   const waiting = requireResolvedIngredients
     ? values.ingredients.filter((row) => row.ingredient === null)
@@ -443,6 +528,67 @@ export function RecipeForm({
     ? values.ingredients.findIndex((row) => row.key === editing.key)
     : -1;
   const editingRow = values.ingredients[editingIndex];
+  const editingComponentIndex = editingComponent
+    ? values.components.findIndex((c) => c.key === editingComponent.key)
+    : -1;
+  const editingComponentValues = values.components[editingComponentIndex];
+
+  function ingredientLine({
+    row,
+    index,
+  }: {
+    row: IngredientRowValues;
+    index: number;
+  }) {
+    const rowErrors = ingredientRowErrors(errors, index);
+    const error =
+      (row.ingredient === null ? rowErrors.ingredientId : undefined) ??
+      rowErrors.quantity;
+    const errorId = `${errorIdPrefix}-${row.key}-error`;
+    const open = () => setEditing({ key: row.key, added: false });
+    return (
+      <li
+        key={row.key}
+        className={
+          row.ingredient === null
+            ? 'ingredient-line ingredient-line--unresolved'
+            : 'ingredient-line'
+        }
+      >
+        <button
+          type="button"
+          className="ingredient-line__open"
+          aria-describedby={error === undefined ? undefined : errorId}
+          onClick={open}
+        >
+          {ingredientLineText(row)}
+        </button>
+        {row.ingredient ? (
+          <span
+            className="ingredient-line__linked"
+            role="img"
+            aria-label="Свързан"
+          >
+            ✓
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="button ingredient-line__link"
+            aria-label={`Свържи „${ingredientLineName(row)}“`}
+            onClick={open}
+          >
+            Свържи
+          </button>
+        )}
+        {error !== undefined && (
+          <p className="field__error ingredient-line__error" id={errorId}>
+            {error}
+          </p>
+        )}
+      </li>
+    );
+  }
 
   return (
     <>
@@ -541,61 +687,44 @@ export function RecipeForm({
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Продукти</legend>
           <ul className="ingredient-lines" aria-label="Продукти">
-            {orderedLines.map(({ row, index }) => {
-              const rowErrors = ingredientRowErrors(errors, index);
-              const error =
-                (row.ingredient === null
-                  ? rowErrors.ingredientId
-                  : undefined) ?? rowErrors.quantity;
-              const errorId = `${errorIdPrefix}-${row.key}-error`;
-              const open = () => setEditing({ key: row.key, added: false });
-              return (
-                <li
-                  key={row.key}
-                  className={
-                    row.ingredient === null
-                      ? 'ingredient-line ingredient-line--unresolved'
-                      : 'ingredient-line'
+            {ordered(lines.main).map(ingredientLine)}
+          </ul>
+          {values.components.map((component, index) => {
+            const error = errors[`components.${index}`];
+            const errorId = `${errorIdPrefix}-${component.key}-error`;
+            const fieldError =
+              errors[`components.${index}.name`] ??
+              errors[`components.${index}.servings`];
+            return (
+              <div key={component.key} className="recipe-form__component">
+                <button
+                  type="button"
+                  className="recipe-form__component-open"
+                  aria-describedby={
+                    error === undefined && fieldError === undefined
+                      ? undefined
+                      : errorId
+                  }
+                  onClick={() =>
+                    setEditingComponent({ key: component.key, added: false })
                   }
                 >
-                  <button
-                    type="button"
-                    className="ingredient-line__open"
-                    aria-describedby={error === undefined ? undefined : errorId}
-                    onClick={open}
-                  >
-                    {ingredientLineText(row)}
-                  </button>
-                  {row.ingredient ? (
-                    <span
-                      className="ingredient-line__linked"
-                      role="img"
-                      aria-label="Свързан"
-                    >
-                      ✓
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      className="button ingredient-line__link"
-                      aria-label={`Свържи „${ingredientLineName(row)}“`}
-                      onClick={open}
-                    >
-                      Свържи
-                    </button>
-                  )}
-                  {error !== undefined && (
-                    <p
-                      className="field__error ingredient-line__error"
-                      id={errorId}
-                    >
-                      {error}
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                  {componentTitle(component)}
+                </button>
+                {(error ?? fieldError) !== undefined && (
+                  <p className="field__error" id={errorId}>
+                    {fieldError ?? error}
+                  </p>
+                )}
+                <ul
+                  className="ingredient-lines"
+                  aria-label={componentName(component.name)}
+                >
+                  {ordered(lines.components[index] ?? []).map(ingredientLine)}
+                </ul>
+              </div>
+            );
+          })}
           <button
             type="button"
             className="button button--quiet"
@@ -603,6 +732,15 @@ export function RecipeForm({
           >
             Добави продукт
           </button>
+          {values.components.length < COMPONENTS_MAX && (
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={addComponent}
+            >
+              + Компонент
+            </button>
+          )}
         </fieldset>
 
         <fieldset className="recipe-form__section recipe-form__wide">
@@ -713,6 +851,7 @@ export function RecipeForm({
       {editing && editingRow && (
         <IngredientLineSheet
           row={editingRow}
+          components={values.components}
           errors={ingredientRowErrors(errors, editingIndex)}
           onChange={(patch) => updateRowByKey(editingRow.key, patch)}
           onSelect={(ingredient) =>
@@ -723,6 +862,23 @@ export function RecipeForm({
           }
           onRemove={() => removeIngredient(editingRow.key)}
           onClose={closeEditing}
+        />
+      )}
+      {editingComponent && editingComponentValues && (
+        <ComponentSheet
+          component={editingComponentValues}
+          errors={{
+            name: errors[`components.${editingComponentIndex}.name`],
+            servings: errors[`components.${editingComponentIndex}.servings`],
+          }}
+          onChange={(patch) =>
+            updateComponent(editingComponentValues.key, patch)
+          }
+          onRemove={() => removeComponent(editingComponentValues.key)}
+          onAdd={
+            editingComponent.added ? () => setEditingComponent(null) : undefined
+          }
+          onClose={closeComponent}
         />
       )}
       {editingStep && editingStep.index < values.steps.length && (

@@ -1,0 +1,1 @@
+ALTER TABLE "cooking_question_request" ADD COLUMN "components" integer[] DEFAULT '{}'::integer[] NOT NULL;

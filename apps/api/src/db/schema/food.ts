@@ -3,6 +3,7 @@ import {
   aisleSchema,
   type BaseUnit,
   baseUnitSchema,
+  COMPONENT_NAME_MAX,
   type CookingChange,
   contractRequestStatusSchema,
   type ImportPayload,
@@ -102,7 +103,35 @@ export const recipe = pgTable(
   ],
 );
 
-/** One ingredient line of a recipe, in `position` order; `quantity` is null for a pinch. */
+/**
+ * A component of a recipe (GLOSSARY: Компонент, ADR-0012), in `position` order: a part made as its own batch with its
+ * own servings. Its lines are the `recipe_ingredient` rows that point at it.
+ */
+export const recipeComponent = pgTable(
+  'recipe_component',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    recipeId: uuid('recipe_id')
+      .notNull()
+      .references(() => recipe.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    name: text('name').notNull(),
+    servings: integer('servings').notNull(),
+  },
+  (t) => [
+    uniqueIndex('recipe_component_position_key').on(t.recipeId, t.position),
+    check(
+      'recipe_component_name_check',
+      sql`char_length(${t.name}) between 1 and ${sql.raw(String(COMPONENT_NAME_MAX))}`,
+    ),
+    check('recipe_component_servings_check', sql`${t.servings} >= 1`),
+  ],
+);
+
+/**
+ * One ingredient line of a recipe, in `position` order; `quantity` is null for a pinch. `component_id` is its component
+ * (GLOSSARY: Компонент); `null` for a main line.
+ */
 export const recipeIngredient = pgTable(
   'recipe_ingredient',
   {
@@ -118,6 +147,9 @@ export const recipeIngredient = pgTable(
     quantity: numeric('quantity'),
     unit: text('unit').$type<Unit>().notNull(),
     note: text('note'),
+    componentId: uuid('component_id').references(() => recipeComponent.id, {
+      onDelete: 'cascade',
+    }),
   },
   (t) => [
     uniqueIndex('recipe_ingredient_position_key').on(t.recipeId, t.position),
@@ -327,6 +359,11 @@ export const cookingQuestionRequest = pgTable(
     question: text('question').notNull(),
     step: integer('step').notNull(),
     servings: integer('servings').notNull(),
+    // The counters of the recipe's components on the screen, by index (GLOSSARY: Компонент); `{}` when none were sent.
+    components: integer('components')
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
     answer: text('answer'),
     followsId: uuid('follows_id').references(
       (): AnyPgColumn => cookingQuestionRequest.id,

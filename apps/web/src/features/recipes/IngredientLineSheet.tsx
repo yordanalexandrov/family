@@ -1,14 +1,18 @@
 import { type Ingredient, UNIT_LABELS_BG, unitSchema } from '@family/shared';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
+import { componentName } from './format';
 import { IngredientPicker } from './IngredientPicker';
 import type {
+  ComponentValues,
   IngredientRowValues,
   ingredientRowErrors,
 } from './recipe-form-values';
 
 interface IngredientLineSheetProps {
   row: IngredientRowValues;
+  /** Компонентите на рецептата (GLOSSARY: Компонент); без тях редът няма избор „Компонент“. */
+  components: readonly ComponentValues[];
   /** Грешките на реда от последния опит за запис, по поле (`ingredientId`, `quantity`). */
   errors: ReturnType<typeof ingredientRowErrors>;
   onChange: (patch: Partial<IngredientRowValues>) => void;
@@ -21,10 +25,12 @@ interface IngredientLineSheetProps {
 
 /**
  * Лист за един ред продукт в `RecipeForm`: продуктът (свързване със съществуващ или „Нов продукт“) е най-горе, така
- * че съвпаденията под него остават над клавиатурата; после количество, мярка и „Премахни ред“.
+ * че съвпаденията под него остават над клавиатурата; после количество, мярка, компонентът, ако рецептата има такива, и
+ * „Премахни ред“.
  */
 export function IngredientLineSheet({
   row,
+  components,
   errors,
   onChange,
   onSelect,
@@ -84,6 +90,27 @@ export function IngredientLineSheet({
           )}
         </Field>
       </div>
+      {components.length > 0 && (
+        <Field label="Компонент">
+          {(props) => (
+            <select
+              {...props}
+              className="field__input"
+              value={row.component ?? ''}
+              onChange={(event) =>
+                onChange({ component: event.target.value || undefined })
+              }
+            >
+              <option value="">—</option>
+              {components.map((component) => (
+                <option key={component.key} value={component.key}>
+                  {componentName(component.name)}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+      )}
       <div className="recipes__actions">
         <button
           type="button"

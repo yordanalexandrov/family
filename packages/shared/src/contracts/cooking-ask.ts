@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import {
+  COMPONENTS_MAX,
+  checkComponents,
+  componentIndexSchema,
+  recipeComponentSchema,
+} from '../food/component.js';
+import {
   type CookingChange,
   cookingChangeSchema,
 } from '../food/cooking-change.js';
@@ -42,7 +48,9 @@ export const cookingQuestionTextSchema = z
 
 /**
  * An ingredient line as the agent reads it: its index (from 0, what a change names it by), the product's name and the
- * amount for the shown servings; `changed` when an applied change replaced or added it, `removed` when one removed it.
+ * amount for the shown servings (for a line of a component, for the component's counter); `changed` when an applied
+ * change replaced or added it, `removed` when one removed it; `component` the index of its component in `components`,
+ * absent for a main line.
  */
 const askIngredientSchema = z.object({
   index: z.int().min(0),
@@ -52,6 +60,15 @@ const askIngredientSchema = z.object({
   note: z.string().optional(),
   changed: z.literal(true).optional(),
   removed: z.literal(true).optional(),
+  component: componentIndexSchema.optional(),
+});
+
+/**
+ * A component of the recipe (GLOSSARY: Компонент): its name, the servings it is written for and its counter on the
+ * screen (`shownServings`); its lines are already scaled to the counter, not to the recipe's servings.
+ */
+const askComponentSchema = recipeComponentSchema.extend({
+  shownServings: z.int().min(1),
 });
 
 /**
@@ -74,7 +91,10 @@ const askRecipeSchema = z
     ingredients: z.array(askIngredientSchema),
     steps: z.array(askStepSchema).min(1),
     preparation: preparationSchema,
+    /** The components with their counters on the screen; `[]` for a recipe without any. */
+    components: z.array(askComponentSchema).max(COMPONENTS_MAX).default([]),
   })
+  .superRefine(checkComponents)
   .refine(
     (recipe) => recipe.ingredients.every((line, at) => line.index === at),
     { path: ['ingredients'], message: 'Индексите на продуктите не са по ред.' },

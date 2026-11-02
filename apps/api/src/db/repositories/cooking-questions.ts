@@ -23,6 +23,7 @@ function toCookingQuestion(row: QuestionRow): CookingQuestion {
     question: row.question,
     step: row.step,
     servings: row.servings,
+    components: row.components,
     follows: row.followsId ?? undefined,
     status: row.status,
     error: row.error ?? undefined,
@@ -70,6 +71,7 @@ export async function insertCookingQuestion(
       question: asked.question,
       step: asked.step,
       servings: asked.servings,
+      components: asked.components,
       appliedIds: asked.applied,
       requestedBy,
     })
@@ -107,7 +109,8 @@ export async function setCookingAnswer(
 }
 
 /**
- * The changes of the questions `ids` of the recipe, in the order of `ids`, each with the servings it was asked for;
+ * The changes of the questions `ids` of the recipe, in the order of `ids`, each with the servings it was asked for (and
+ * the components' counters, when it was asked with them);
  * `missing` are the ids that are not a question of the recipe with a change.
  */
 export async function findAppliedChanges(
@@ -123,6 +126,7 @@ export async function findAppliedChanges(
       id: cookingQuestionRequest.id,
       change: cookingQuestionRequest.change,
       servings: cookingQuestionRequest.servings,
+      components: cookingQuestionRequest.components,
     })
     .from(cookingQuestionRequest)
     .where(
@@ -140,6 +144,7 @@ export async function findAppliedChanges(
       applied.push({
         change: cookingChangeSchema.parse(row.change),
         servings: row.servings,
+        ...(row.components.length > 0 ? { components: row.components } : {}),
       });
     } else {
       missing.push(id);

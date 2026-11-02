@@ -12,7 +12,7 @@ import {
   findRecipe,
   insertRecipe,
   listRecipes,
-  replaceRecipeIngredients,
+  replaceRecipeLines,
   setRecipeArchivedAt,
   setRecipeRating,
   updateRecipe,
@@ -32,7 +32,7 @@ export function findRecipes(
   return listRecipes(db, query);
 }
 
-/** One recipe with its ingredient lines; an unknown id is a `NotFoundError`. */
+/** One recipe with its components and ingredient lines; an unknown id is a `NotFoundError`. */
 export async function getRecipe(db: DbExecutor, id: string): Promise<Recipe> {
   const found = await findRecipe(db, id);
   if (!found) {
@@ -53,12 +53,12 @@ export async function addRecipe(
 ): Promise<Recipe> {
   await checkReferencesExist(tx, input);
   const id = await insertRecipe(tx, input);
-  await replaceRecipeIngredients(tx, id, input.ingredients);
+  await replaceRecipeLines(tx, id, input);
   return getRecipe(tx, id);
 }
 
 /**
- * Replaces the whole recipe, its ingredient list included. With `revisionId` the form held that revision (GLOSSARY:
+ * Replaces the whole recipe, its components and ingredient list included. With `revisionId` the form held that revision (GLOSSARY:
  * Поправка на рецепта), which the save marks `accepted` by `actingUserId`.
  */
 export function replaceRecipe(
@@ -75,7 +75,7 @@ export function replaceRecipe(
     if (!(await updateRecipe(tx, id, input))) {
       throw new NotFoundError(NO_SUCH_RECIPE);
     }
-    await replaceRecipeIngredients(tx, id, input.ingredients);
+    await replaceRecipeLines(tx, id, input);
     return getRecipe(tx, id);
   });
 }

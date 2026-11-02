@@ -22,8 +22,9 @@ export function photosByRef(recipe: {
 }
 
 /**
- * A recipe of the registry as `recipe.refine` and `recipe.revise` read it: its products by name, its steps' photos by
- * their references in `ownPhotos` ({@link photosByRef}), its preparation.
+ * A recipe of the registry as `recipe.refine` and `recipe.revise` read it: its products by name, each with its
+ * `component`, its steps' photos by their references in `ownPhotos` ({@link photosByRef}), its preparation and its
+ * components (GLOSSARY: Компонент).
  */
 export function contractRecipe(
   recipe: Recipe,
@@ -39,9 +40,11 @@ export function contractRecipe(
         quantity: line.quantity,
         unit: line.unit,
         ...(line.note === undefined ? {} : { note: line.note }),
+        component: line.component,
       })),
       steps: recipe.steps,
       preparation: recipe.preparation,
+      components: recipe.components,
     },
     ownPhotos,
   );

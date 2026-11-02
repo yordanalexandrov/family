@@ -1,11 +1,12 @@
 import type { DateKey } from '../dashboard/time.js';
 import { AISLES, type Aisle } from '../food/aisles.js';
-import { scaleToServings } from '../food/scale.js';
+import { defaultComponentServings } from '../food/component.js';
+import { type Amount, scaleToServings } from '../food/scale.js';
 import { roundMilli, type Unit, unitSchema } from '../food/units.js';
 import { totalServings } from '../menu/meal.js';
 import type { MealPlan } from '../schemas/menu.js';
 import type { PantryItem } from '../schemas/pantry.js';
-import type { Recipe } from '../schemas/recipe.js';
+import type { Recipe, RecipeLine } from '../schemas/recipe.js';
 import type {
   ShoppingAmount,
   ShoppingItem,
@@ -32,7 +33,8 @@ export interface BuildShoppingListInput {
 
 /**
  * The shopping list of a week (GLOSSARY: Списък за пазаруване): every meal in the list (`listedMealIds`, ADR-0011) with a
- * recipe and servings adds the recipe's ingredients scaled to its servings, summed per ingredient over the week: one row per ingredient, one
+ * recipe and servings adds the recipe's ingredients scaled to its servings (a component's lines in whole batches,
+ * ADR-0012), summed per ingredient over the week: one row per ingredient, one
  * amount per unit that does not convert into another (kg → g, l → ml), each rounded up;
  * a pinch has no quantity. The stored records add checks, hidden items and manual items.
  *
@@ -63,11 +65,7 @@ export function buildShoppingList({
       continue;
     }
     for (const line of recipe.ingredients) {
-      const { quantity: scaled, unit } = scaleToServings(
-        line,
-        recipe.servings,
-        servings,
-      );
+      const { quantity: scaled, unit } = scaleLine(recipe, line, servings);
       const key = computedItemKey(line.ingredientId);
       const row = computed.get(key) ?? {
         key,
@@ -169,6 +167,23 @@ export function buildShoppingList({
     total: visible.length,
     remaining: visible.filter((item) => item.checkedBy === null).length,
   };
+}
+
+/**
+ * What a meal for `servings` wants of a recipe line, unrounded: a main line scaled from the recipe's servings, a line of
+ * a component (GLOSSARY: Компонент) as many whole batches of it as make the meal's servings.
+ */
+function scaleLine(recipe: Recipe, line: RecipeLine, servings: number): Amount {
+  const component =
+    line.component === null ? undefined : recipe.components[line.component];
+  if (!component) {
+    return scaleToServings(line, recipe.servings, servings);
+  }
+  return scaleToServings(
+    line,
+    component.servings,
+    defaultComponentServings(servings, component),
+  );
 }
 
 /** A computed row while the week is summed: the quantity per unit over the week and per meal. */

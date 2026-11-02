@@ -34,15 +34,17 @@ const revision: RecipeRevision = {
   servings: 4,
   prepMinutes: 55,
   ingredients: [
-    { ingredient: chicken, quantity: 500, unit: 'g' },
-    { ingredient: onion, quantity: 2, unit: 'pcs' },
-    { ingredient: salt, quantity: null, unit: 'pinch' },
+    { ingredient: chicken, quantity: 500, unit: 'g', component: null },
+    { ingredient: onion, quantity: 2, unit: 'pcs', component: null },
+    { ingredient: salt, quantity: null, unit: 'pinch', component: null },
     {
       newProduct: { name: 'черен пипер', unit: 'g', aisle: 'spices' },
       quantity: null,
       unit: 'pinch',
+      component: null,
     },
   ],
+  components: [],
   steps: [
     { text: 'Нарежи пилето.' },
     {
@@ -369,5 +371,111 @@ describe('„Поправи с AI“ в редакцията', () => {
     } finally {
       reconnect();
     }
+  });
+});
+
+describe('„Поправи с AI“ и компонентите (GLOSSARY: Компонент)', () => {
+  const ONION_JAM = { name: 'Лучено сладко', servings: 8 };
+
+  /** Пилето, в което лукът е компонент „Лучено сладко“ за 8 порции. */
+  const withJam: Recipe = {
+    ...recipe,
+    components: [ONION_JAM],
+    ingredients: recipe.ingredients.map((line) =>
+      line.ingredient.id === onion.id ? { ...line, component: 0 } : line,
+    ),
+  };
+
+  /** Поправката прави лука компонент „Лучено сладко“ за 8 порции. */
+  const makesJam: RecipeRevision = {
+    ...revision,
+    changes: 'Лукът е отделно лучено сладко за 8 порции.',
+    ingredients: revision.ingredients
+      .slice(0, 3)
+      .map((line) =>
+        line.ingredient?.id === onion.id ? { ...line, component: 0 } : line,
+      ),
+    components: [ONION_JAM],
+  };
+
+  it('сравнението показва компонента под заглавието му, а „Приеми“ го слага във формата и „Запази“ го праща', async () => {
+    const user = userEvent.setup();
+    const { saved } = serveRevise({ status: 'done', revision: makesJam });
+    const sheet = await send(user);
+
+    await within(sheet).findByText(makesJam.changes);
+    expect(listTexts('Продукти: сега')).toEqual([
+      'пилешко филе · 500 г',
+      'лук · 2 бр.',
+      'сол · по вкус',
+    ]);
+    expect(listTexts('Продукти: с поправката')).toEqual([
+      'пилешко филе · 500 г',
+      'сол · по вкус',
+    ]);
+    expect(
+      within(sheet).getByRole('heading', {
+        name: 'Лучено сладко · за 8 порции',
+      }),
+    ).toBeInTheDocument();
+    expect(listTexts('Лучено сладко: с поправката')).toEqual(['лук · 2 бр.']);
+
+    await user.click(within(sheet).getByRole('button', { name: 'Приеми' }));
+
+    expect(listTexts('Лучено сладко')).toEqual([
+      expect.stringContaining('лук'),
+    ]);
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]?.components).toEqual([ONION_JAM]);
+    expect(
+      saved[0]?.ingredients.map((line) => [line.ingredientId, line.component]),
+    ).toEqual([
+      [chicken.id, null],
+      [onion.id, 0],
+      [salt.id, null],
+    ]);
+  });
+
+  it('рецепта с компонент: сравнението показва и сегашния, а поправка без него го маха от формата и се записва', async () => {
+    const user = userEvent.setup();
+    const linked = {
+      ...revision,
+      ingredients: revision.ingredients.slice(0, 3),
+    };
+    const { saved } = serveRevise({ status: 'done', revision: linked });
+    server.use(
+      http.get(`/api/recipes/${recipe.id}`, () =>
+        HttpResponse.json({ recipe: withJam }),
+      ),
+    );
+    const sheet = await send(user);
+
+    await within(sheet).findByText(linked.changes);
+    expect(listTexts('Продукти: сега')).toEqual([
+      'пилешко филе · 500 г',
+      'сол · по вкус',
+    ]);
+    expect(listTexts('Лучено сладко: сега')).toEqual(['лук · 2 бр.']);
+    expect(
+      within(sheet).queryByRole('list', {
+        name: 'Лучено сладко: с поправката',
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(sheet).getByRole('button', { name: 'Приеми' }));
+    expect(
+      screen.queryByRole('list', { name: 'Лучено сладко' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]?.components).toEqual([]);
+    expect(saved[0]?.ingredients.map((line) => line.component)).toEqual([
+      null,
+      null,
+      null,
+    ]);
   });
 });

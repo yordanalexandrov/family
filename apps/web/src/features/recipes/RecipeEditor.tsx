@@ -170,6 +170,7 @@ export function EditRecipeScreen() {
           recipeId={id}
           steps={recipe.data.steps}
           preparation={recipe.data.preparation}
+          components={recipe.data.components}
           requestId={refineId}
           onRequested={setRefineId}
           onAccept={(refinement) => {

@@ -1,5 +1,7 @@
 import {
   type BaseUnit,
+  COMPONENT_NAME_MAX,
+  COMPONENTS_MAX,
   displaySourceUrl,
   type Ingredient,
   isSecondOvenIssue,
@@ -11,9 +13,11 @@ import {
   OVEN_DEGREES_MIN,
   PREPARATION_MAX,
   type Recipe,
+  type RecipeComponent,
   type RecipeInput,
   type RecipeStep,
   type RevisableRecipe,
+  recipeComponentSchema,
   recipeInputSchema,
   revisableRecipeSchema,
   type Tag,
@@ -42,6 +46,15 @@ export interface IngredientRowValues {
   isNew?: boolean;
   /** Новият продукт, както го предлага внасянето: попълва формата „Нов продукт“ (име, основна единица, щанд). */
   newProduct?: NewProduct;
+  /** GLOSSARY: Компонент. Ключът на компонента на реда (`ComponentValues.key`); без него редът е от главните. */
+  component?: string | undefined;
+}
+
+/** Един компонент (GLOSSARY: Компонент) във формата; редовете сочат към него с `key`. */
+export interface ComponentValues {
+  key: string;
+  name: string;
+  servings: string;
 }
 
 /** Името на реда: продуктът от регистъра, иначе текстът, с който е дошъл. */
@@ -86,6 +99,8 @@ export interface RecipeFormValues {
   steps: RecipeStep[];
   /** GLOSSARY: Подготовка. Елементите в реда им, като в полетата. */
   preparation: PreparationItemValues[];
+  /** GLOSSARY: Компонент. В реда им; редовете им са в `ingredients` с техния `key`. */
+  components: ComponentValues[];
   ingredients: IngredientRowValues[];
   nutrition: NutritionValues;
 }
@@ -145,6 +160,7 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     appliance: '',
     steps: [],
     preparation: [],
+    components: [],
     ingredients: [],
     nutrition: nutritionToValues(undefined),
   };
@@ -154,7 +170,28 @@ function numberText(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : String(value);
 }
 
+/** Компонентите (GLOSSARY: Компонент) на рецепта или предложение във формата, в реда им, всеки с нов ключ. */
+export function componentsToValues(
+  components: readonly RecipeComponent[],
+): ComponentValues[] {
+  return components.map((component) => ({
+    key: newRowKey(),
+    name: component.name,
+    servings: String(component.servings),
+  }));
+}
+
+/** `component` на реда във формата: ключът на компонента с индекс `index`; за главен ред (`null`) — нищо. */
+export function lineComponent(
+  components: readonly ComponentValues[],
+  index: number | null,
+): { component?: string } {
+  const key = index === null ? undefined : components[index]?.key;
+  return key === undefined ? {} : { component: key };
+}
+
 export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
+  const components = componentsToValues(recipe.components);
   return {
     title: recipe.title,
     servings: String(recipe.servings),
@@ -164,12 +201,14 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     appliance: recipe.appliance ?? '',
     steps: recipe.steps.map((step) => ({ ...step })),
     preparation: preparationToValues(recipe.preparation),
+    components,
     ingredients: recipe.ingredients.map((line) =>
       emptyIngredientRow({
         ingredient: line.ingredient,
         quantity: numberText(line.quantity),
         unit: line.unit,
         ...(line.note === undefined ? {} : { note: line.note }),
+        ...lineComponent(components, line.component),
       }),
     ),
     nutrition: nutritionToValues(recipe.nutritionPer100g),
@@ -217,6 +256,10 @@ const FIELD_MESSAGES: [RegExp, string][] = [
     `Времето е от 1 мин до ${MINUTES_BEFORE_MAX / MINUTES_PER_DAY} дни`,
   ],
   [/^nutritionPer100g\.\w+$/, 'Неотрицателно число'],
+  [/^components$/, `Най-много ${COMPONENTS_MAX} компонента`],
+  [/^components\.\d+$/, 'Компонентът е без продукти'],
+  [/^components\.\d+\.name$/, `Въведи име, до ${COMPONENT_NAME_MAX} знака`],
+  [/^components\.\d+\.servings$/, 'Порциите са цяло число, поне 1'],
 ];
 
 function messageFor(path: string): string {
@@ -226,9 +269,27 @@ function messageFor(path: string): string {
   );
 }
 
+/** Грешките на един компонент по поле (името, порциите), със същите думи като при запис; `{}` за верен. */
+export function componentErrors(component: ComponentValues): {
+  name?: string;
+  servings?: string;
+} {
+  const [values] = valuesToComponents([component]);
+  const result = recipeComponentSchema.safeParse(values);
+  const errors: { name?: string; servings?: string } = {};
+  for (const issue of result.error?.issues ?? []) {
+    const field = issue.path[0];
+    if (field === 'name' || field === 'servings') {
+      errors[field] ??= messageFor(`components.0.${field}`);
+    }
+  }
+  return errors;
+}
+
 /**
  * Полетата като рецептата, която „✏️ Поправи с AI“ праща от прегледа на предложение (формата не е записана): продуктите
- * по име, и несвързаните; ред без продукт и без име отпада. `linked` казва за всеки ред дали е свързан с регистъра.
+ * по име, и несвързаните, всеки с компонента си; ред без продукт и без име отпада, а с него и компонент, който остава без
+ * редове. `linked` казва за всеки ред дали е свързан с регистъра.
  * `undefined`, ако полетата не стават за поправка (напр. без порции или без стъпки).
  */
 export function toRevisableRecipe(
@@ -236,6 +297,9 @@ export function toRevisableRecipe(
 ): { recipe: RevisableRecipe; linked: boolean[] } | undefined {
   const rows = values.ingredients.filter(
     (row) => row.ingredient !== null || row.query.trim() !== '',
+  );
+  const components = values.components.filter((component) =>
+    rows.some((row) => row.component === component.key),
   );
   const result = revisableRecipeSchema.safeParse({
     title: values.title,
@@ -247,9 +311,11 @@ export function toRevisableRecipe(
         row.unit === 'pinch' ? null : (parseNumber(row.quantity) ?? null),
       unit: row.unit,
       ...(row.note === undefined ? {} : { note: row.note }),
+      component: componentIndex(components, row.component),
     })),
     steps: values.steps,
     preparation: valuesToPreparation(values.preparation),
+    components: valuesToComponents(components),
   });
   return result.success
     ? {
@@ -268,6 +334,25 @@ export function ingredientRowErrors(
     ingredientId: errors[`ingredients.${index}.ingredientId`],
     quantity: errors[`ingredients.${index}.quantity`],
   };
+}
+
+/** Компонентите от формата за schema-та: порциите като число (`NaN`, докато не са число, за грешката по поле). */
+function valuesToComponents(
+  components: readonly ComponentValues[],
+): { name: string; servings: number }[] {
+  return components.map((component) => ({
+    name: component.name,
+    servings: parseNumber(component.servings) ?? Number.NaN,
+  }));
+}
+
+/** Индексът на компонента с ключ `key` в `components`; `null` за главен ред (или компонент, който го няма). */
+function componentIndex(
+  components: readonly ComponentValues[],
+  key: string | undefined,
+): number | null {
+  const index = components.findIndex((component) => component.key === key);
+  return index === -1 ? null : index;
 }
 
 /** Полетата → `RecipeInput`, валидиран с `recipeInputSchema`; иначе грешки по поле на български. */
@@ -289,12 +374,14 @@ export function toRecipeInput(
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),
     ...(nutritionPer100g ? { nutritionPer100g } : {}),
     preparation: valuesToPreparation(values.preparation),
+    components: valuesToComponents(values.components),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',
       quantity:
         row.unit === 'pinch' ? null : (parseNumber(row.quantity) ?? null),
       unit: row.unit,
       ...(row.note === undefined ? {} : { note: row.note }),
+      component: componentIndex(values.components, row.component),
     })),
   };
 

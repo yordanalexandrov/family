@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import { aisleSchema } from '../food/aisles.js';
+import {
+  checkRecipeComponents,
+  lineComponentSchema,
+  lineComponentWireSchema,
+  recipeComponentsSchema,
+  recipeComponentsWireSchema,
+} from '../food/component.js';
 import { preparationSchema } from '../food/preparation.js';
 import { tagSchema } from '../food/tags.js';
 import {
@@ -162,6 +169,15 @@ export const normalizedIngredientSchema = z
 export type NormalizedIngredient = z.infer<typeof normalizedIngredientSchema>;
 
 /**
+ * A line of the imported recipe: a {@link normalizedIngredientSchema} line and its `component` (GLOSSARY: Компонент),
+ * the index of its component in `components`, `null` (or absent) for a main line.
+ */
+export const importedIngredientSchema = z
+  .object({ ...normalizedIngredientFields, component: lineComponentSchema })
+  .superRefine(checkPinchQuantity)
+  .superRefine(checkOneProduct);
+
+/**
  * The reference of a step photo of the page (GLOSSARY: Снимка на стъпка): in the input the api writes it in place of a
  * `HowToStep.image` of the JSON-LD or of an `<img>` of the page text, there as `[снимка s1]` (`s1`, `s2`, …; the agent
  * never sees the photo's URL); in the output the agent puts it on the step of its own that shows it, since it may
@@ -188,13 +204,18 @@ const normalizedRecipeFields = {
   tags: z.array(tagSchema),
   /** What the agent assumed (servings of „4–6“, converted units); shown where a suggestion shows "why". May be empty. */
   assumptions: z.string().trim(),
-  ingredients: z.array(normalizedIngredientSchema).min(1),
+  ingredients: z.array(importedIngredientSchema).min(1),
   steps: z.array(normalizedStepSchema).min(1),
   /**
    * GLOSSARY: Подготовка — what the source has done before the first step or alongside it (the oven with its first
    * temperature, soaking, marinating…), without rewriting the steps; empty when there is nothing. Always present.
    */
   preparation: preparationSchema,
+  /**
+   * GLOSSARY: Компонент — a part written for other servings or made as a batch that keeps (pesto, dough for two
+   * pizzas), at most 3; `[]` (or absent) when there is none. Its lines point to it with `component`.
+   */
+  components: recipeComponentsSchema,
 };
 
 /** The one recipe of an import (GLOSSARY: Предложение за рецепта), as stored and shown for review. */
@@ -246,7 +267,13 @@ const recipeNormalizeWireSchema = z.object({
   recipe: z
     .object({
       ...normalizedRecipeFields,
-      ingredients: z.array(z.object(normalizedIngredientFields)),
+      ingredients: z.array(
+        z.object({
+          ...normalizedIngredientFields,
+          component: lineComponentWireSchema,
+        }),
+      ),
+      components: recipeComponentsWireSchema,
       steps: z.array(
         z.object({ text: z.string(), image: z.string().nullable() }),
       ),
@@ -314,7 +341,9 @@ export const recipeNormalize: AiContract<
   outputSchema: (input) =>
     z.preprocess(
       fromStrictMode,
-      recipeNormalizeOutputSchema.superRefine(checkRegistryIds(input)),
+      recipeNormalizeOutputSchema
+        .superRefine(checkRecipeComponents)
+        .superRefine(checkRegistryIds(input)),
     ),
   responseFormat: {
     name: 'recipe_normalize',

@@ -394,6 +394,27 @@
   list-style: none;
 }
 
+/* GLOSSARY: Компонент. Заглавието му отваря листа му, а редовете му са под него. */
+.recipe-form__component {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.recipe-form__component-open {
+  min-block-size: 2.75rem;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-block-end: 2px solid var(--color-line);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
 .ingredient-line {
   display: flex;
   flex-wrap: wrap;
@@ -683,4 +704,11 @@ fieldset.chips {
   gap: var(--space-1);
   margin: 0 0 var(--space-3);
   padding-inline-start: 1.25em;
+}
+
+/* Компонентът в сравнението: заглавието „Песто · за 5 порции“ над неговите продукти. */
+.refine__component-heading {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
 }

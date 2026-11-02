@@ -64,8 +64,9 @@ function serveRefine(
   finished: Partial<RecipeRefineRequest>,
   pendingPolls = 0,
   preparation: Recipe['preparation'] = [],
+  base: Recipe = recipe,
 ) {
-  const stored: Recipe = { ...recipe, preparation };
+  const stored: Recipe = { ...base, preparation };
   const saved: RecipeInput[] = [];
   const posts: string[] = [];
   let polls = 0;
@@ -247,6 +248,62 @@ describe('„Подобри рецептата“ в редакцията', () =
 
     await vi.waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]?.preparation).toEqual([oven]);
+  });
+
+  it('рецепта с компонент: сравнението казва, че компонентите остават, а „Приеми“ и „Запази“ не ги губят', async () => {
+    const user = userEvent.setup();
+    const sauce = { name: 'Лучен сос', servings: 8 };
+    const withSauce: Recipe = {
+      ...recipe,
+      components: [sauce],
+      ingredients: recipe.ingredients.map((line) =>
+        line.ingredient.name === 'лук' ? { ...line, component: 0 } : line,
+      ),
+    };
+    const { saved } = serveRefine(
+      { status: 'done', refinement },
+      0,
+      [],
+      withSauce,
+    );
+    await user.click(await openEdit());
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Подобри рецептата',
+    });
+
+    const kept = await within(sheet).findByRole('list', {
+      name: 'Компонентите остават',
+    });
+    expect(
+      within(kept)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Лучен сос · за 8 порции']);
+
+    await user.click(within(sheet).getByRole('button', { name: 'Приеми' }));
+    await user.click(screen.getByRole('button', { name: 'Запази' }));
+
+    await vi.waitFor(() => expect(saved).toHaveLength(1));
+    expect(saved[0]?.components).toEqual([sauce]);
+    expect(saved[0]?.ingredients.map((line) => line.component)).toEqual([
+      null,
+      0,
+      null,
+    ]);
+  });
+
+  it('рецепта без компоненти не показва раздел за тях', async () => {
+    const user = userEvent.setup();
+    serveRefine({ status: 'done', refinement });
+    await user.click(await openEdit());
+    const sheet = await screen.findByRole('dialog', {
+      name: 'Подобри рецептата',
+    });
+
+    await within(sheet).findByText(refinement.changes);
+    expect(
+      within(sheet).queryByRole('list', { name: 'Компонентите остават' }),
+    ).not.toBeInTheDocument();
   });
 
   it('„Откажи“ в прегледа не променя формата', async () => {

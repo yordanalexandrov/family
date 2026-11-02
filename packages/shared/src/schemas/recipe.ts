@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  checkComponents,
+  lineComponentSchema,
+  recipeComponentsSchema,
+} from '../food/component.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { preparationSchema } from '../food/preparation.js';
 import { tagSchema } from '../food/tags.js';
@@ -25,6 +30,8 @@ const recipeIngredientFields = {
   quantity: quantitySchema,
   unit: unitSchema,
   note: z.string().optional(),
+  /** GLOSSARY: Компонент. The line's component by its index in `components`; `null` for a main line. */
+  component: lineComponentSchema,
 };
 
 /** One ingredient line of a recipe; a pinch has `quantity: null`. */
@@ -60,8 +67,11 @@ export function stepsOfText(steps: readonly string[]): RecipeStep[] {
   return steps.map((text) => ({ text }));
 }
 
-/** What the client sends to create or replace a recipe (GLOSSARY: Рецепта). Titles are not unique. */
-export const recipeInputSchema = z.object({
+/**
+ * The fields of {@link recipeInputSchema} without its object-level rules, for schemas that extend it (a refined Zod
+ * object cannot be extended); refine them again with `checkComponents`.
+ */
+export const recipeInputFieldsSchema = z.object({
   title: z.string().trim().min(1),
   servings: z.int().min(1),
   steps: z.array(recipeStepSchema).min(1),
@@ -76,19 +86,33 @@ export const recipeInputSchema = z.object({
   appliance: z.string().trim().min(1).max(APPLIANCE_NAME_MAX).optional(),
   /** GLOSSARY: Подготовка. A client that does not send it (and a recipe from before it) has none. */
   preparation: preparationSchema.default([]),
+  /**
+   * GLOSSARY: Компонент. Parts with their own servings, in order; their lines are the `ingredients` that point at them.
+   * A client that does not send it (and a recipe from before it) has none.
+   */
+  components: recipeComponentsSchema,
   ingredients: z.array(recipeIngredientSchema),
 });
 
+/** What the client sends to create or replace a recipe (GLOSSARY: Рецепта). Titles are not unique. */
+export const recipeInputSchema =
+  recipeInputFieldsSchema.superRefine(checkComponents);
+
 export type RecipeInput = z.infer<typeof recipeInputSchema>;
+
+/** A body of `POST /api/recipes` as a client may write it: the fields with a default (`components`, `component`) may be left out. */
+export type RecipeInputBody = z.input<typeof recipeInputSchema>;
 
 /**
  * `PUT /api/recipes/:id`: the recipe and, when the form holds an accepted revision (GLOSSARY: Поправка на рецепта),
  * its id; the save marks it `accepted`. 409 `revision_stale` (`revisionStaleSchema`) when the recipe was saved after
  * the revision was asked for: nothing is saved.
  */
-export const replaceRecipeInputSchema = recipeInputSchema.extend({
-  revisionId: z.uuid().optional(),
-});
+export const replaceRecipeInputSchema = recipeInputFieldsSchema
+  .extend({
+    revisionId: z.uuid().optional(),
+  })
+  .superRefine(checkComponents);
 
 export type ReplaceRecipeInput = z.infer<typeof replaceRecipeInputSchema>;
 
@@ -128,7 +152,7 @@ export type OpenRevision = z.infer<typeof openRevisionSchema>;
  * A recipe in the registry; archived ones keep `archivedAt` and are hidden by default. `rating` is `null` while the
  * recipe is unrated; it is not part of `RecipeInput`, so replacing a recipe keeps it.
  */
-export const recipeSchema = recipeInputSchema.extend({
+export const recipeSchema = recipeInputFieldsSchema.extend({
   ingredients: z.array(recipeLineSchema),
   id: z.uuid(),
   archivedAt: z.iso.datetime().nullable(),

@@ -7,6 +7,11 @@ import {
 import { refineRecipeSchema } from '../contracts/recipe-refine.js';
 import { revisionInstructionSchema } from '../contracts/recipe-revise.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
+import {
+  checkComponents,
+  lineComponentSchema,
+  recipeComponentsSchema,
+} from '../food/component.js';
 import { preparationSchema } from '../food/preparation.js';
 import { instantSchema } from './dates.js';
 import { refusalBody } from './error.js';
@@ -23,6 +28,8 @@ export const revisionLineSchema = z.object({
   quantity: normalizedIngredientFields.quantity,
   unit: normalizedIngredientFields.unit,
   note: z.string().optional(),
+  /** GLOSSARY: Компонент — the index of its component in the revision's `components`; `null` for a main line. */
+  component: lineComponentSchema,
 });
 
 export type RevisionLine = z.infer<typeof revisionLineSchema>;
@@ -30,7 +37,8 @@ export type RevisionLine = z.infer<typeof revisionLineSchema>;
 /**
  * The revised recipe as the review shows it and „Приеми“ puts it in the form (GLOSSARY: Поправка на рецепта): the
  * whole recipe but its title, tags and appliance, the photos the recipe had kept by id, and what changed.
- * `droppedPhotos` counts the photos of the recipe no step of the revision keeps.
+ * `droppedPhotos` counts the photos of the recipe no step of the revision keeps. `components` are all the components of
+ * the revised recipe (GLOSSARY: Компонент); a revision from before them has none.
  */
 export const recipeRevisionSchema = z.object({
   changes: z.string(),
@@ -39,6 +47,7 @@ export const recipeRevisionSchema = z.object({
   ingredients: z.array(revisionLineSchema),
   steps: z.array(recipeStepSchema).min(1),
   preparation: preparationSchema,
+  components: recipeComponentsSchema,
   droppedPhotos: z.int().nonnegative(),
 });
 
@@ -97,11 +106,13 @@ export type RequestRevisionBody = z.input<typeof requestRevisionSchema>;
 
 /**
  * The recipe of a suggestion's review form as „✏️ Поправи с AI“ sends it, for the form is not saved: the products by
- * name (a line may be not yet linked), the steps with the photos they have.
+ * name (a line may be not yet linked), the steps with the photos they have, the components and the `component` of each
+ * line (GLOSSARY: Компонент).
  */
 export const revisableRecipeSchema = refineRecipeSchema
   .omit({ steps: true })
-  .extend({ steps: z.array(recipeStepSchema).min(1) });
+  .extend({ steps: z.array(recipeStepSchema).min(1) })
+  .superRefine(checkComponents);
 
 export type RevisableRecipe = z.infer<typeof revisableRecipeSchema>;
 

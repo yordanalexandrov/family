@@ -183,6 +183,7 @@ export function createRecipeRevisionStore(): ContractRequestStore<
         cookingChanges: describeCookingChanges(
           {
             servings: recipe.servings,
+            components: recipe.components,
             lines: recipeCookingLines(recipe),
             steps: recipe.steps,
           },
@@ -235,6 +236,7 @@ export function createRecipeRevisionStore(): ContractRequestStore<
           quantity: line.quantity,
           unit: line.unit,
           ...(line.note === null ? {} : { note: line.note }),
+          component: line.component,
         };
       });
       const kept = new Set(revised.steps.map((step) => step.image));
@@ -251,6 +253,7 @@ export function createRecipeRevisionStore(): ContractRequestStore<
           return photoId ? { text: step.text, photoId } : { text: step.text };
         }),
         preparation: revised.preparation,
+        components: revised.components,
         droppedPhotos: [...loaded.ownPhotos.keys()].filter(
           (ref) => !kept.has(ref),
         ).length,

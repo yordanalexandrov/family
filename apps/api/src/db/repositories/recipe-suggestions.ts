@@ -1,13 +1,14 @@
-import type {
-  AnyRecipeSuggestion,
-  ImportedSuggestion,
-  ImportPayload,
-  Preparation,
-  RecipeSuggestion,
-  RecipeSuggestionStatus,
-  RecipeSuggestParams,
-  SuggestionPayload,
-  SuggestionRequest,
+import {
+  type AnyRecipeSuggestion,
+  type ImportedSuggestion,
+  type ImportPayload,
+  importPayloadSchema,
+  type RecipeSuggestion,
+  type RecipeSuggestionStatus,
+  type RecipeSuggestParams,
+  type SuggestionPayload,
+  type SuggestionRequest,
+  suggestionPayloadSchema,
 } from '@family/shared';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
@@ -43,16 +44,6 @@ function decisionOf(row: SuggestionRow) {
   };
 }
 
-/**
- * The stored payload, with `preparation: []` when it is from before the preparation (GLOSSARY: Подготовка, #283/#284)
- * and has none. Not left to a `.default([])` of the schema: the response serializer encodes, and encoding applies no
- * default.
- */
-function payloadOf(row: SuggestionRow): SuggestionPayload | ImportPayload {
-  const { preparation } = row.payload as { preparation?: Preparation };
-  return { ...row.payload, preparation: preparation ?? [] };
-}
-
 /** A suggestion of a suggestion request; the row must have `request_id` (read by it). */
 function toSuggestion(row: SuggestionRow): RecipeSuggestion {
   if (row.requestId === null) {
@@ -64,7 +55,9 @@ function toSuggestion(row: SuggestionRow): RecipeSuggestion {
     ...decisionOf(row),
     origin: 'suggest',
     requestId: row.requestId,
-    payload: payloadOf(row) as SuggestionPayload,
+    // Parsed, not cast: one stored before the preparation or the components gets them from the schema's defaults,
+    // which the response serializer (it encodes) would not apply.
+    payload: suggestionPayloadSchema.parse(row.payload),
   };
 }
 
@@ -77,7 +70,8 @@ export function toImportedSuggestion(row: SuggestionRow): ImportedSuggestion {
     ...decisionOf(row),
     origin: 'import',
     importRequestId: row.importRequestId,
-    payload: payloadOf(row) as ImportPayload,
+    // As in `toSuggestion`.
+    payload: importPayloadSchema.parse(row.payload),
   };
 }
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { componentCountersSchema } from '../food/component.js';
 import { cookingChangeSchema } from '../food/cooking-change.js';
 
 /**
@@ -27,13 +28,14 @@ export type RememberedQuestion = z.infer<
 
 /**
  * The cooking changes applied on the device, in the order applied (GLOSSARY: Промяна за готвенето): the id of the
- * question whose answer brings it, the servings when it was asked and the change itself, read by its schema (one
- * remembered before the steps has none).
+ * question whose answer brings it, the servings when it was asked (with the components' counters, by index, when they are
+ * known) and the change itself, read by its schema (one remembered before the steps has none).
  */
 export const appliedChangesSchema = z.array(
   z.object({
     id: z.string().min(1),
     servings: z.int().min(1),
+    components: componentCountersSchema.optional(),
     change: cookingChangeSchema,
   }),
 );

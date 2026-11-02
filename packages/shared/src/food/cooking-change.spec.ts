@@ -6,6 +6,7 @@ import {
   type CookingChange,
   type CookingLine,
   cookingChangeSchema,
+  cookingServings,
   recipeCookingLines,
   scaleCookingLine,
   withoutCookingChange,
@@ -372,19 +373,159 @@ describe('withoutCookingChange', () => {
 
 describe('scaleCookingLine', () => {
   const pulp = applyCookingChanges(LINES, [at(2, PULP)]);
+  const six = { recipe: 6, components: [] };
 
   it('scales a changed line from the servings it was asked at, the others from the recipe’s', () => {
-    expect(scaleCookingLine(pulp[1] as CookingLine, 6)).toEqual({
+    expect(scaleCookingLine(pulp[1] as CookingLine, six)).toEqual({
       quantity: 600,
       unit: 'g',
     });
-    expect(scaleCookingLine(pulp[0] as CookingLine, 6)).toEqual({
+    expect(scaleCookingLine(pulp[0] as CookingLine, six)).toEqual({
       quantity: 900,
       unit: 'g',
     });
-    expect(scaleCookingLine(pulp[2] as CookingLine, 6)).toEqual({
+    expect(scaleCookingLine(pulp[2] as CookingLine, six)).toEqual({
       quantity: null,
       unit: 'pinch',
     });
+  });
+});
+
+/** Risotto for 1 with a pesto for 5 (GLOSSARY: Компонент): rice and stock are main lines, basil and oil the pesto’s. */
+const RISOTTO = {
+  servings: 1,
+  components: [{ name: 'Песто', servings: 5 }],
+  ingredients: [
+    {
+      ingredient: { name: 'ориз' },
+      quantity: 80,
+      unit: 'g' as const,
+      component: null,
+    },
+    {
+      ingredient: { name: 'босилек' },
+      quantity: 50,
+      unit: 'g' as const,
+      component: 0,
+    },
+    {
+      ingredient: { name: 'зехтин' },
+      quantity: 100,
+      unit: 'ml' as const,
+      component: 0,
+    },
+  ],
+};
+
+const RISOTTO_LINES = recipeCookingLines(RISOTTO);
+
+/** The amounts Готвене shows for the risotto at `shown` servings, with the pesto counter set by hand or not. */
+function risottoAt(shown: number, manual?: readonly (number | null)[]) {
+  const servings = cookingServings(RISOTTO, shown, manual);
+  return RISOTTO_LINES.map((line) => scaleCookingLine(line, servings));
+}
+
+describe('cooking a recipe with a component', () => {
+  it('makes one whole pesto for 1 risotto: the pesto counter is 5', () => {
+    expect(cookingServings(RISOTTO, 1).components).toEqual([5]);
+    expect(risottoAt(1)).toEqual([
+      { quantity: 80, unit: 'g' },
+      { quantity: 50, unit: 'g' },
+      { quantity: 100, unit: 'ml' },
+    ]);
+  });
+
+  it('still makes one pesto for 2 risotto, while the rice doubles', () => {
+    expect(cookingServings(RISOTTO, 2).components).toEqual([5]);
+    expect(risottoAt(2)).toEqual([
+      { quantity: 160, unit: 'g' },
+      { quantity: 50, unit: 'g' },
+      { quantity: 100, unit: 'ml' },
+    ]);
+  });
+
+  it('makes two whole pestos for 6 risotto: the counter is 10', () => {
+    expect(cookingServings(RISOTTO, 6).components).toEqual([10]);
+    expect(risottoAt(6)).toEqual([
+      { quantity: 480, unit: 'g' },
+      { quantity: 100, unit: 'g' },
+      { quantity: 200, unit: 'ml' },
+    ]);
+  });
+
+  it('scales the pesto by a counter set by hand, whatever the risotto servings', () => {
+    expect(cookingServings(RISOTTO, 1, [7]).components).toEqual([7]);
+    expect(risottoAt(1, [7])).toEqual([
+      { quantity: 80, unit: 'g' },
+      { quantity: 70, unit: 'g' },
+      { quantity: 140, unit: 'ml' },
+    ]);
+  });
+
+  it('leaves a recipe without components as it was', () => {
+    const servings = cookingServings({ ...RECIPE, components: [] }, 6);
+    expect(servings).toEqual({ recipe: 6, components: [] });
+    expect(LINES.map((line) => scaleCookingLine(line, servings))).toEqual([
+      { quantity: 900, unit: 'g' },
+      { quantity: 6, unit: 'pcs' },
+      { quantity: null, unit: 'pinch' },
+    ]);
+  });
+});
+
+describe('a cooking change to a component', () => {
+  /** Walnuts instead of the basil: 40 g for the pesto counter it was asked at. */
+  const WALNUTS = cookingChangeSchema.parse({
+    ingredients: [
+      {
+        kind: 'replace',
+        index: 1,
+        ingredient: { name: 'орехи', quantity: 40, unit: 'g' },
+      },
+    ],
+  });
+
+  it('scales with the component’s counter it was asked at, not the risotto’s servings', () => {
+    const lines = applyCookingChanges(RISOTTO_LINES, [
+      { servings: 1, components: [10], change: WALNUTS },
+    ]);
+    // Asked with the pesto at 10, now at 5: half the walnuts, whatever the risotto.
+    const servings = cookingServings(RISOTTO, 3, [5]);
+    expect(scaleCookingLine(lines[1] as CookingLine, servings)).toEqual({
+      quantity: 20,
+      unit: 'g',
+    });
+    expect(lines[1]?.component).toEqual({ index: 0, servings: 5 });
+  });
+
+  it('without the counters it was asked at, takes the one Готвене starts with for its servings', () => {
+    const lines = applyCookingChanges(RISOTTO_LINES, [
+      { servings: 6, change: WALNUTS },
+    ]);
+    // Asked at 6 risotto: the pesto was at 10.
+    expect(
+      scaleCookingLine(lines[1] as CookingLine, cookingServings(RISOTTO, 1)),
+    ).toEqual({ quantity: 20, unit: 'g' });
+  });
+
+  it('adds a new line to the main lines, scaled with the risotto', () => {
+    const lines = applyCookingChanges(RISOTTO_LINES, [
+      {
+        servings: 1,
+        components: [5],
+        change: cookingChangeSchema.parse({
+          ingredients: [
+            {
+              kind: 'add',
+              ingredient: { name: 'пармезан', quantity: 20, unit: 'g' },
+            },
+          ],
+        }),
+      },
+    ]);
+    expect(lines[3]?.component).toBeUndefined();
+    expect(
+      scaleCookingLine(lines[3] as CookingLine, cookingServings(RISOTTO, 2)),
+    ).toEqual({ quantity: 40, unit: 'g' });
   });
 });
