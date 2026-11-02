@@ -2,6 +2,7 @@ import {
   type CookingLine,
   type CookingServings,
   componentCounter,
+  linesByComponent,
   type RecipeComponent,
   scaleCookingLine,
 } from '@family/shared';
@@ -145,15 +146,19 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
   );
   const usedLines = lines.filter((line) => isUsed(line.index));
 
-  const left = lines.filter((line) => !isUsed(line.index));
+  const left = linesByComponent(
+    lines.filter((line) => !isUsed(line.index)),
+    products.components.length,
+    (line) => line.component,
+  );
 
   return (
     <>
       <ul className="cooking-ingredients__lines" aria-label="Продукти">
-        {left.filter((line) => line.component === null).map(renderLine)}
+        {left.main.map(renderLine)}
       </ul>
       {products.components.map((component, index) => {
-        const own = left.filter((line) => line.component === index);
+        const own = left.components[index] ?? [];
         const headingId = `${id}-component-${index}`;
         return (
           <section

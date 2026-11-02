@@ -1,6 +1,7 @@
 import { type Ingredient, UNIT_LABELS_BG, unitSchema } from '@family/shared';
 import { Field } from '../../components/Field';
 import { Sheet } from '../../components/Sheet';
+import { componentName } from './format';
 import { IngredientPicker } from './IngredientPicker';
 import type {
   ComponentValues,
@@ -103,7 +104,7 @@ export function IngredientLineSheet({
               <option value="">—</option>
               {components.map((component) => (
                 <option key={component.key} value={component.key}>
-                  {component.name.trim() || 'Компонент без име'}
+                  {componentName(component.name)}
                 </option>
               ))}
             </select>

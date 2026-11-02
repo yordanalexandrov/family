@@ -297,10 +297,7 @@ export function toRevisableRecipe(
     })),
     steps: values.steps,
     preparation: valuesToPreparation(values.preparation),
-    components: components.map((component) => ({
-      name: component.name,
-      servings: parseNumber(component.servings) ?? Number.NaN,
-    })),
+    components: valuesToComponents(components),
   });
   return result.success
     ? {
@@ -319,6 +316,16 @@ export function ingredientRowErrors(
     ingredientId: errors[`ingredients.${index}.ingredientId`],
     quantity: errors[`ingredients.${index}.quantity`],
   };
+}
+
+/** Компонентите от формата за schema-та: порциите като число (`NaN`, докато не са число, за грешката по поле). */
+function valuesToComponents(
+  components: readonly ComponentValues[],
+): { name: string; servings: number }[] {
+  return components.map((component) => ({
+    name: component.name,
+    servings: parseNumber(component.servings) ?? Number.NaN,
+  }));
 }
 
 /** Индексът на компонента с ключ `key` в `components`; `null` за главен ред (или компонент, който го няма). */
@@ -349,10 +356,7 @@ export function toRecipeInput(
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),
     ...(nutritionPer100g ? { nutritionPer100g } : {}),
     preparation: valuesToPreparation(values.preparation),
-    components: values.components.map((component) => ({
-      name: component.name,
-      servings: parseNumber(component.servings) ?? Number.NaN,
-    })),
+    components: valuesToComponents(values.components),
     ingredients: values.ingredients.map((row) => ({
       ingredientId: row.ingredient?.id ?? '',
       quantity:

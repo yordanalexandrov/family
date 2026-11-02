@@ -1,6 +1,7 @@
 import {
   COMPONENTS_MAX,
   type Ingredient,
+  linesByComponent,
   type Preparation,
   type RecipeInput,
   type RecipeStep,
@@ -23,7 +24,7 @@ import { PreparationField } from '../preparation/PreparationField';
 import { preparationToValues } from '../preparation/preparation-values';
 import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { ComponentSheet } from './ComponentSheet';
-import { componentHeading } from './format';
+import { componentHeading, componentName } from './format';
 import { IngredientLineSheet } from './IngredientLineSheet';
 import {
   type ComponentValues,
@@ -192,7 +193,7 @@ function preparationErrors(errors: RecipeFormErrors): RecipeFormErrors {
 
 /** Заглавието на компонента във формата: „Песто · за 5 порции“; порциите, както са написани, докато не са число. */
 function componentTitle(component: ComponentValues): string {
-  const name = component.name.trim() || 'Компонент без име';
+  const name = componentName(component.name);
   const servings = Number(component.servings.trim());
   return Number.isInteger(servings) && servings >= 1
     ? componentHeading({ name, servings })
@@ -504,20 +505,20 @@ export function RecipeForm({
     onSubmit(result.input);
   }
 
-  const lines = values.ingredients.map((row, index) => ({ row, index }));
-  const componentKeys = new Set(values.components.map((c) => c.key));
-  /** Редовете на компонента `key` (`undefined` — главните); тези, които искат действие, са отгоре, а записът пази реда на рецептата. */
-  const orderedLines = (key: string | undefined) => {
-    const group = lines.filter(({ row }) =>
-      key === undefined
-        ? row.component === undefined || !componentKeys.has(row.component)
-        : row.component === key,
-    );
-    return [
-      ...group.filter(({ row }) => row.ingredient === null),
-      ...group.filter(({ row }) => row.ingredient !== null),
-    ];
-  };
+  const componentAt = new Map(
+    values.components.map((component, index) => [component.key, index]),
+  );
+  const lines = linesByComponent(
+    values.ingredients.map((row, index) => ({ row, index })),
+    values.components.length,
+    ({ row }) =>
+      row.component === undefined ? null : componentAt.get(row.component),
+  );
+  /** Редовете на групата: тези, които искат действие, са отгоре, а записът пази реда на рецептата. */
+  const ordered = (group: typeof lines.main) => [
+    ...group.filter(({ row }) => row.ingredient === null),
+    ...group.filter(({ row }) => row.ingredient !== null),
+  ];
   const waiting = requireResolvedIngredients
     ? values.ingredients.filter((row) => row.ingredient === null)
     : [];
@@ -688,7 +689,7 @@ export function RecipeForm({
         <fieldset className="recipe-form__section recipe-form__wide">
           <legend>Продукти</legend>
           <ul className="ingredient-lines" aria-label="Продукти">
-            {orderedLines(undefined).map(ingredientLine)}
+            {ordered(lines.main).map(ingredientLine)}
           </ul>
           {values.components.map((component, index) => {
             const error = errors[`components.${index}`];
@@ -719,9 +720,9 @@ export function RecipeForm({
                 )}
                 <ul
                   className="ingredient-lines"
-                  aria-label={component.name.trim() || 'Компонент без име'}
+                  aria-label={componentName(component.name)}
                 >
-                  {orderedLines(component.key).map(ingredientLine)}
+                  {ordered(lines.components[index] ?? []).map(ingredientLine)}
                 </ul>
               </div>
             );

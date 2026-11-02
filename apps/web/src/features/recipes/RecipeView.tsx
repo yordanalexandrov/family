@@ -1,4 +1,9 @@
-import { AISLES, type Recipe, TAG_LABELS_BG } from '@family/shared';
+import {
+  AISLES,
+  linesByComponent,
+  type Recipe,
+  TAG_LABELS_BG,
+} from '@family/shared';
 import { Link, useParams } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useWritingUserId } from '../../app/acting-user';
@@ -34,11 +39,6 @@ export function RecipeView() {
       )}
     </main>
   );
-}
-
-/** Редовете на компонента с индекс `component` (`null` — главните), в реда на рецептата. */
-function linesOf(lines: Recipe['ingredients'], component: number | null) {
-  return lines.filter((line) => line.component === component);
 }
 
 /** Продуктите по щандове, в реда на обхождане на магазина. */
@@ -81,6 +81,11 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const canCook = interactive;
   // „Как мина?“ (GLOSSARY: Обратна връзка след готвене) и по-късно, след като е опитал.
   const [feedback, setFeedback] = useState(false);
+  const lines = linesByComponent(
+    recipe.ingredients,
+    recipe.components.length,
+    (line) => line.component,
+  );
 
   return (
     <article className="recipe-view">
@@ -178,7 +183,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         {recipe.ingredients.length === 0 && (
           <p className="recipe-view__meta">Няма въведени продукти.</p>
         )}
-        {groupByAisle(linesOf(recipe.ingredients, null)).map((group) => (
+        {groupByAisle(lines.main).map((group) => (
           <div key={group.key}>
             <h3 id={`aisle-${group.key}`}>{group.labelBg}</h3>
             <IngredientLines
@@ -192,7 +197,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
           <div key={index}>
             <h3 id={`component-${index}`}>{componentHeading(component)}</h3>
             <IngredientLines
-              lines={linesOf(recipe.ingredients, index)}
+              lines={lines.components[index] ?? []}
               labelledBy={`component-${index}`}
             />
           </div>

@@ -1,4 +1,5 @@
 import {
+  linesByComponent,
   RECIPE_REVISION_INSTRUCTION_MAX,
   type RecipeRevision,
 } from '@family/shared';
@@ -99,6 +100,11 @@ function RevisionColumn({
   withPreparation: boolean;
 }) {
   const lower = name.toLocaleLowerCase('bg');
+  const lines = linesByComponent(
+    recipe.ingredients,
+    recipe.components.length,
+    (line) => line.component,
+  );
   return (
     <ComparisonColumn
       name={name}
@@ -109,10 +115,7 @@ function RevisionColumn({
       <p className="refine__note">
         {servingsText(recipe.servings, recipe.prepMinutes)}
       </p>
-      <Lines
-        label={`Продукти: ${lower}`}
-        lines={recipe.ingredients.filter((line) => line.component === null)}
-      />
+      <Lines label={`Продукти: ${lower}`} lines={lines.main} />
       {recipe.components.map((component, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: компонентите нямат id; индексът е техният.
         <section key={index} className="refine__component">
@@ -121,9 +124,7 @@ function RevisionColumn({
           </h4>
           <Lines
             label={`${component.name}: ${lower}`}
-            lines={recipe.ingredients.filter(
-              (line) => line.component === index,
-            )}
+            lines={lines.components[index] ?? []}
           />
         </section>
       ))}
