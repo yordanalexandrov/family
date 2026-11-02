@@ -4,7 +4,7 @@ import {
   type ImportedSuggestion,
   type RecipeImportDetail,
   type RecipeImportRequest,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeNormalizeInput,
   recipeImportDetailSchema,
   recipeImportRequestSchema,
@@ -1252,7 +1252,7 @@ describe('deciding an imported suggestion', () => {
   }
 
   /** What the review sends: the linked lines as they are, the new product left out (as if unlinked by the person). */
-  function editedInput(suggestion: ImportedSuggestion): RecipeInput {
+  function editedInput(suggestion: ImportedSuggestion): RecipeInputBody {
     const { title, servings, steps, tags, ingredients } = suggestion.payload;
     return {
       title,

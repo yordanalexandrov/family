@@ -1,6 +1,6 @@
 import {
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeReviseInput,
   type RecipeRevisionRequest,
   recipeResponseSchema,
@@ -59,7 +59,7 @@ async function seedIngredientId(name: string): Promise<string> {
 async function createdRecipe() {
   const photos = [await storedStepPhoto(app), await storedStepPhoto(app)];
   const { recipe } = fixtureInput;
-  const input: RecipeInput = {
+  const input: RecipeInputBody = {
     title: recipe.title,
     servings: recipe.servings,
     prepMinutes: recipe.prepMinutes,
@@ -73,7 +73,7 @@ async function createdRecipe() {
       recipe.ingredients.map(async (line) => ({
         ingredientId: await seedIngredientId(line.name),
         quantity: line.quantity,
-        unit: line.unit as RecipeInput['ingredients'][number]['unit'],
+        unit: line.unit as RecipeInputBody['ingredients'][number]['unit'],
         ...(line.note === undefined ? {} : { note: line.note }),
       })),
     ),

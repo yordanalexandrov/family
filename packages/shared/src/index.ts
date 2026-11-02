@@ -15,6 +15,7 @@ export * from './dashboard/freshness.js';
 export * from './dashboard/time.js';
 export * from './events.js';
 export * from './food/aisles.js';
+export * from './food/component.js';
 export * from './food/cooking-change.js';
 export * from './food/import-photo.js';
 export * from './food/prep-time.js';

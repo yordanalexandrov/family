@@ -36,14 +36,16 @@ const potatoes = {
 };
 
 describe('recipeSchema', () => {
-  it('accepts a stored recipe with its id, dates, archive mark and joined ingredients', () => {
+  it('accepts a stored recipe with its id, dates, archive mark, components and joined ingredients', () => {
     const stored = {
       ...potatoes,
+      components: [{ name: 'Песто', servings: 5 }],
       ingredients: [
         {
           ingredientId: POTATO,
           quantity: 1,
           unit: 'kg',
+          component: 0,
           ingredient: {
             id: POTATO,
             name: 'картоф',
@@ -132,12 +134,106 @@ describe('recipeInputSchema', () => {
     expect(recipeInputSchema.parse(minimal)).toEqual({
       ...minimal,
       preparation: [],
+      components: [],
     });
   });
 
-  it('accepts a full recipe', () => {
-    expect(recipeInputSchema.parse(potatoes)).toEqual(potatoes);
+  it('accepts a full recipe; lines without a component are main lines', () => {
+    expect(recipeInputSchema.parse(potatoes)).toEqual({
+      ...potatoes,
+      components: [],
+      ingredients: potatoes.ingredients.map((line) => ({
+        ...line,
+        component: null,
+      })),
+    });
   });
+
+  it('accepts a recipe with components and lines in them', () => {
+    const risotto = {
+      ...potatoes,
+      servings: 1,
+      components: [{ name: 'Песто', servings: 5 }],
+      ingredients: [
+        { ingredientId: POTATO, quantity: 100, unit: 'g', component: null },
+        { ingredientId: SALT, quantity: null, unit: 'pinch', component: 0 },
+      ],
+    };
+
+    expect(recipeInputSchema.parse(risotto)).toEqual(risotto);
+  });
+
+  it.each([
+    ['components.0.name', [{ name: '  ', servings: 5 }]],
+    ['components.0.name', [{ name: 'п'.repeat(41), servings: 5 }]],
+    ['components.0.servings', [{ name: 'Песто', servings: 0 }]],
+    ['components.0.servings', [{ name: 'Песто', servings: 2.5 }]],
+  ])('rejects an invalid %s', (path, components) => {
+    const result = recipeInputSchema.safeParse({
+      ...potatoes,
+      components,
+      ingredients: [
+        { ingredientId: SALT, quantity: null, unit: 'pinch', component: 0 },
+      ],
+    });
+
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      path,
+    ]);
+  });
+
+  it('rejects more than 3 components', () => {
+    const result = recipeInputSchema.safeParse({
+      ...potatoes,
+      components: ['Песто', 'Сос', 'Тесто', 'Крем'].map((name) => ({
+        name,
+        servings: 4,
+      })),
+      ingredients: [0, 1, 2, 3].map((component) => ({
+        ingredientId: POTATO,
+        quantity: 1,
+        unit: 'kg',
+        component,
+      })),
+    });
+
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      'components',
+    ]);
+  });
+
+  it('rejects a component without lines', () => {
+    const result = recipeInputSchema.safeParse({
+      ...potatoes,
+      components: [
+        { name: 'Песто', servings: 5 },
+        { name: 'Сос', servings: 2 },
+      ],
+      ingredients: [
+        { ingredientId: POTATO, quantity: 1, unit: 'kg', component: 0 },
+      ],
+    });
+
+    expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual([
+      'components.1',
+    ]);
+  });
+
+  it.each([1, -1, 0.5])(
+    'rejects a line in component %j that is not there',
+    (component) => {
+      const result = recipeInputSchema.safeParse({
+        ...potatoes,
+        ingredients: [
+          { ingredientId: POTATO, quantity: 1, unit: 'kg', component },
+        ],
+      });
+
+      expect(result.error?.issues.map((issue) => issue.path.join('.'))).toEqual(
+        ['ingredients.0.component'],
+      );
+    },
+  );
 
   it.each([
     ['servings', { servings: 0 }],

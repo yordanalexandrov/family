@@ -1,6 +1,6 @@
 import {
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeRefineInput,
   type RecipeRefineRequest,
   recipeRefineRequestSchema,
@@ -82,9 +82,9 @@ async function seedIngredientId(name: string): Promise<string> {
 }
 
 /** A recipe with terse steps, the second one with a photo of its own. */
-async function createdRecipe(overrides: Partial<RecipeInput> = {}) {
+async function createdRecipe(overrides: Partial<RecipeInputBody> = {}) {
   const photoId = await storedStepPhoto(app);
-  const input: RecipeInput = {
+  const input: RecipeInputBody = {
     title: 'Пиле с картофи на фурна',
     servings: 4,
     sourceUrl: SOURCE_URL,

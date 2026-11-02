@@ -3,7 +3,7 @@ import {
   type CookingQuestion,
   cookingQuestionSchema,
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   recipeResponseSchema,
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
@@ -54,7 +54,7 @@ async function seedIngredientId(name: string): Promise<string> {
 
 /** A recipe for 4 with grated tomatoes on step 2 and the oven in its preparation. */
 async function createdRecipe(target = app) {
-  const input: RecipeInput = {
+  const input: RecipeInputBody = {
     title: 'Пиле с домати',
     servings: 4,
     tags: ['dinner'],

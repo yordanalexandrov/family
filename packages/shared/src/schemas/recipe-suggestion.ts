@@ -3,9 +3,14 @@ import { contractFailureSchema } from '../contracts/failure.js';
 import { normalizedRecipeSchema } from '../contracts/recipe-normalize.js';
 import { suggestionSchema } from '../contracts/recipe-suggest.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
+import { checkComponents } from '../food/component.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
-import { recipeInputSchema, recipeSchema, recipeStepSchema } from './recipe.js';
+import {
+  recipeInputFieldsSchema,
+  recipeSchema,
+  recipeStepSchema,
+} from './recipe.js';
 
 /** One run of `recipe.suggest` by a user (GLOSSARY: Заявка за предложения). */
 export const suggestionRequestSchema = z.object({
@@ -158,11 +163,16 @@ export type RecipeSuggestionResponse = z.infer<
  * `POST /api/recipe-suggestions/:id/approve`: the (edited) recipe. Without `appliance` the recipe takes the suggestion's,
  * `null` is none (the user chose „Без уред“).
  */
-export const approveSuggestionInputSchema = recipeInputSchema.extend({
-  appliance: recipeInputSchema.shape.appliance.unwrap().nullable().optional(),
-  /** The revision the review form holds (GLOSSARY: Поправка на рецепта); the approval marks it `accepted`. */
-  revisionId: z.uuid().optional(),
-});
+export const approveSuggestionInputSchema = recipeInputFieldsSchema
+  .extend({
+    appliance: recipeInputFieldsSchema.shape.appliance
+      .unwrap()
+      .nullable()
+      .optional(),
+    /** The revision the review form holds (GLOSSARY: Поправка на рецепта); the approval marks it `accepted`. */
+    revisionId: z.uuid().optional(),
+  })
+  .superRefine(checkComponents);
 
 export type ApproveSuggestionInput = z.infer<
   typeof approveSuggestionInputSchema

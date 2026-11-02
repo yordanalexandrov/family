@@ -76,10 +76,12 @@ function recipe(
     steps: [{ text: 'готви' }],
     tags: [],
     preparation: [],
+    components: [],
     ingredients: lines.map(([ingredient, quantity, unit]) => ({
       ingredientId: ingredient.id,
       quantity,
       unit,
+      component: null,
       ingredient: { ...ingredient },
     })),
     archivedAt: null,

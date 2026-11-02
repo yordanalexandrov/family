@@ -1,7 +1,7 @@
 import {
   approvedSuggestionResponseSchema,
   ingredientsResponseSchema,
-  type RecipeInput,
+  type RecipeInputBody,
   type RecipeSuggestion,
   recipeSuggestionSchema,
   type SuggestionRequest,
@@ -409,7 +409,9 @@ async function aSuggestion(): Promise<RecipeSuggestion> {
 }
 
 /** The edited suggestion the client sends on approval: its ingredients matched to real (seed) ingredients. */
-async function editedInput(suggestion: RecipeSuggestion): Promise<RecipeInput> {
+async function editedInput(
+  suggestion: RecipeSuggestion,
+): Promise<RecipeInputBody> {
   const lines = [];
   for (const line of suggestion.payload.ingredients.filter((i) => !i.isNew)) {
     const response = await app.inject({
