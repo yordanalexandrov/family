@@ -1,4 +1,4 @@
-import type { Recipe } from '@family/shared';
+import { cookingServings, type Recipe } from '@family/shared';
 import { useState } from 'react';
 import { Sheet } from '../../components/Sheet';
 import { SHEET_WINDOW_QUERY } from '../../components/sheet-drag';
@@ -43,7 +43,8 @@ interface CookingViewProps {
  * Готвене (GLOSSARY). На широк екран колоната „Продукти“ е вляво, една стъпка вдясно; на тесен (телефон изправен)
  * стъпката е на целия екран, а продуктите са в лист отдолу зад бутона „Продукти (N)“. Границата е тази на листа:
  * от нея нагоре той е прозорец, не лист отдолу. Нищо не стига до сървъра: порциите и дали листът е отворен живеят
- * само на екрана, стъпката, отметките, въпросите и приложените промени за готвенето се помнят на устройството до края
+ * само на екрана, стъпката, отметките, броячите на компонентите, сменени на ръка, въпросите и приложените промени
+ * за готвенето се помнят на устройството до края
  * на деня или до „Готово“, а дали колоната е отворена — на устройството. „Питай“ отваря листа „Въпрос“ (GLOSSARY:
  * Въпрос в Готвене); зададените въпроси и заявките им живеят тук, над листа: отговорът на чакащия се вижда при следващото
  * отваряне, а при „Чети стъпките“ се чете сам и при затворен лист.
@@ -60,8 +61,16 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     forgetUsed,
     prepared,
     togglePrepared,
+    componentServings,
+    setComponentServings,
     finish,
   } = useCookingProgress(recipe);
+  // Броячите на компонентите: сменените на ръка, а непипнатите — цели партиди за порциите на екрана.
+  const servingsOnScreen = cookingServings(
+    recipe,
+    shownServings,
+    componentServings,
+  );
   const changes = useCookingChanges(recipe, forgetUsed);
   const reading = useCookingReading(changes.steps, step);
   const listening = useCookingListening({
@@ -82,8 +91,10 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
   const wide = useMediaQuery(SHEET_WINDOW_QUERY, true);
   const products: CookingProducts = {
     lines: changes.lines,
-    servings: shownServings,
+    servings: servingsOnScreen,
     onServingsChange: setShownServings,
+    components: recipe.components,
+    onComponentServingsChange: setComponentServings,
     step,
     // Върху показаното: текстът на стъпката и редовете с приложените промени.
     stepLines: findStepLines(changes.steps[step]?.text ?? '', changes.lines),
@@ -124,7 +135,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
       questions={questions}
       step={step}
       changes={changes}
-      servings={shownServings}
+      servings={servingsOnScreen}
       reading={reading}
       onAsk={(question, replaces) =>
         questions.ask(

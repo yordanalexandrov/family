@@ -78,3 +78,14 @@ export function batches(
 ): number {
   return Math.ceil(servings / component.servings);
 }
+
+/**
+ * The servings of `component` for `servings` of the recipe when nobody set them by hand: whole batches
+ * (`batches`) times the component's servings. Готвене's component counter starts there.
+ */
+export function defaultComponentServings(
+  servings: number,
+  component: { servings: number },
+): number {
+  return batches(servings, component) * component.servings;
+}

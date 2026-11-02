@@ -183,6 +183,7 @@ export function createRecipeRevisionStore(): ContractRequestStore<
         cookingChanges: describeCookingChanges(
           {
             servings: recipe.servings,
+            components: recipe.components,
             lines: recipeCookingLines(recipe),
             steps: recipe.steps,
           },

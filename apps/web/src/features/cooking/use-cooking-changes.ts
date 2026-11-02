@@ -52,11 +52,25 @@ export function useCookingChanges(
     /** Редовете, към които сочи промяната на въпроса `id`: без нея самата, както при въпроса. */
     linesBefore: (id: string) =>
       linesOf(appliedChanges.filter((other) => other.id !== id)),
-    apply(question: { id: string; servings: number; change: CookingChange }) {
-      const { id, servings } = question;
+    /**
+     * Прилага промяната на въпроса `id`: количествата ѝ са за порциите при питането, а на ред от компонент — за
+     * брояча му при питането (`components`; без тях — за брояча, с който Готвене започва за `servings`).
+     */
+    apply(question: {
+      id: string;
+      servings: number;
+      components?: readonly number[];
+      change: CookingChange;
+    }) {
+      const { id, servings, components } = question;
       change((current) => [
         ...current.filter((other) => other.id !== id),
-        { id, servings, change: question.change },
+        {
+          id,
+          servings,
+          ...(components ? { components: [...components] } : {}),
+          change: question.change,
+        },
       ]);
     },
     /** Връща промяната `id` и по-късните, които сочат ред, добавен само от нея (`withoutCookingChange`). */

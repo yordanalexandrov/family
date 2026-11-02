@@ -19,25 +19,28 @@ export const COOKING_TEXT_SIZE_KEY = 'family.cooking.textSize';
 export const COOKING_READ_STEPS_KEY = 'family.cooking.readSteps';
 
 /**
- * Докъдето е стигнало Готвене за една рецепта: индексът на стъпката, на отметнатите редове продукти и кои елементи от
- * подготовката са направени (по един на елемент, в реда на рецептата).
+ * Докъдето е стигнало Готвене за една рецепта: индексът на стъпката, на отметнатите редове продукти, кои елементи от
+ * подготовката са направени (по един на елемент, в реда на рецептата) и броячите на компонентите, сменени на ръка (по
+ * един на компонент, в реда на рецептата; `null` за непипнат брояч, който следва порциите на екрана).
  */
 export interface CookingProgress {
   step: number;
   used: readonly number[];
   prepared: readonly boolean[];
+  components: readonly (number | null)[];
 }
 
 export type { AppliedChange, RememberedQuestion } from '@family/shared';
 
 /**
  * Записът на една рецепта на устройството: напредъкът (отметките на подготовката важат само за подготовката
- * `preparedFor`), въпросите в Готвене по реда на задаване, приложените промени за готвенето по реда на прилагане и
+ * `preparedFor`, а броячите на компонентите — само за компонентите `componentsFor`), въпросите в Готвене по реда на задаване, приложените промени за готвенето по реда на прилагане и
  * „последното готвене“ (`lastApplied`: id-тата на въпросите с приложени промени при „Готово“). Полетата се пишат
  * поотделно и всяко може да липсва.
  */
 interface StoredRecipeProgress extends CookingProgress {
   preparedFor: string;
+  componentsFor: string;
   questions: readonly RememberedQuestion[];
   /** Приложените промени (не само id-тата им, както `applied` на поправка); името остава заради записите по устройствата. */
   applied: readonly AppliedChange[];
@@ -49,8 +52,23 @@ function preparationKey(recipe: Recipe): string {
   return JSON.stringify(recipe.preparation);
 }
 
+/** Отпечатъкът на компонентите: други компоненти (рецептата е променена) правят старите броячи невалидни. */
+function componentsKey(recipe: Recipe): string {
+  return JSON.stringify(recipe.components);
+}
+
 function start(recipe: Recipe): CookingProgress {
-  return { step: 0, used: [], prepared: recipe.preparation.map(() => false) };
+  return {
+    step: 0,
+    used: [],
+    prepared: recipe.preparation.map(() => false),
+    components: recipe.components.map(() => null),
+  };
+}
+
+/** Брояч на компонент, сменен на ръка: цели порции от 1 нагоре, или `null` за непипнат. */
+function isCounter(value: unknown): value is number | null {
+  return value === null || (Number.isInteger(value) && (value as number) >= 1);
 }
 
 /** Днешният запис на рецептата с `recipeId`; липсващ — празен. */
@@ -96,7 +114,8 @@ function readProgress(recipe: Recipe): CookingProgress {
     recipeCookingLines(recipe),
     listOf(saved, 'applied', LISTS.applied),
   ).length;
-  const { step, used, prepared, preparedFor } = saved;
+  const { step, used, prepared, preparedFor, components, componentsFor } =
+    saved;
   const isIndex = (value: unknown, length: number): value is number =>
     Number.isInteger(value) &&
     (value as number) >= 0 &&
@@ -114,6 +133,14 @@ function readProgress(recipe: Recipe): CookingProgress {
       prepared.every((done) => typeof done === 'boolean')
         ? prepared
         : start(recipe).prepared,
+    // Броячи на други компоненти (рецептата е променена) започват отначало.
+    components:
+      componentsFor === componentsKey(recipe) &&
+      Array.isArray(components) &&
+      components.length === recipe.components.length &&
+      components.every(isCounter)
+        ? components
+        : start(recipe).components,
   };
 }
 
@@ -136,12 +163,14 @@ function writeProgress(recipe: Recipe, progress?: CookingProgress): void {
         ...current,
         ...progress,
         preparedFor: preparationKey(recipe),
+        componentsFor: componentsKey(recipe),
       })),
   );
 }
 
 /**
- * Стъпката, отметките на продуктите и на подготовката в Готвене за `recipe`, запомнени на устройството до края на деня (по софийско време).
+ * Стъпката, отметките на продуктите и на подготовката и броячите на компонентите, сменени на ръка, в Готвене за
+ * `recipe`, запомнени на устройството до края на деня (по софийско време).
  * `finish` („Готово“) ги забравя заедно с въпросите и приложените промени, така че ново влизане същия ден започва
  * отначало; остава само последното готвене (`rememberLastCooking`). Нищо не стига до сървъра; без localStorage
  * Готвене работи без памет.
@@ -164,6 +193,16 @@ export function useCookingProgress(recipe: Recipe) {
           : [...progress.used, index],
       }),
     prepared: progress.prepared,
+    /** Броячите на компонентите, сменени на ръка (`null` за непипнат), по реда на компонентите. */
+    componentServings: progress.components,
+    /** Брояч на компонента `index`, сменен на ръка: оттук нататък не следва порциите на екрана. */
+    setComponentServings: (index: number, servings: number) =>
+      update({
+        ...progress,
+        components: progress.components.map((other, at) =>
+          at === index ? servings : other,
+        ),
+      }),
     /** Махат се отметките на тези редове (промяна за готвенето ги е сменила). */
     forgetUsed: (indices: readonly number[]) =>
       update({

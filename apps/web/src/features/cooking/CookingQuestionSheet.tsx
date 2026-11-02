@@ -1,10 +1,13 @@
 import {
+  type AppliedCookingChange,
   COOKING_QUESTION_MAX,
   type CookingChange,
   type CookingLine,
   type CookingQuestion,
+  type CookingServings,
+  changedCookingLine,
   type Recipe,
-  scaleQuantity,
+  scaleCookingLine,
 } from '@family/shared';
 import { type FormEvent, useRef, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -32,8 +35,8 @@ interface CookingQuestionSheetProps {
   step: number;
   /** Приложените промени за готвенето: „Промени“ и „Върни“ под отговор с промяна. */
   changes: CookingChanges;
-  /** Порциите на екрана: количествата на промяната се показват за тях. */
-  servings: number;
+  /** Порциите на екрана (с броячите на компонентите): количествата на промяната се показват за тях. */
+  servings: CookingServings;
   /**
    * Четенето на глас на Готвене (`useCookingReading`): 🔊 до отговора чете през него, за да прекъсват отговорът и
    * стъпката едно друго.
@@ -75,19 +78,27 @@ function Failed({
   );
 }
 
-/** Един запис на промяната, както се чете: „вместо домат: консерва pulp 200 г“, „без сол“, „добави захар 1 ч.л.“. */
+/**
+ * Един запис на промяната, както се чете: „вместо домат: консерва pulp 200 г“, „без сол“, „добави захар 1 ч.л.“.
+ * Количеството е за порциите на екрана, а на ред от компонент — за брояча на компонента.
+ */
 function changeText(
   entry: CookingChange['ingredients'][number],
   lines: readonly CookingLine[],
-  from: number,
-  to: number,
+  asked: Omit<AppliedCookingChange, 'change'>,
+  servings: CookingServings,
 ): string {
   if (entry.kind === 'remove') {
     return `без ${lines[entry.index]?.name ?? `ред ${entry.index + 1}`}`;
   }
+  const line = changedCookingLine(
+    entry.ingredient,
+    entry.kind === 'replace' ? lines[entry.index] : undefined,
+    asked,
+  );
   const product = [
     entry.ingredient.name,
-    formatQuantity(scaleQuantity(entry.ingredient, from, to)),
+    formatQuantity(scaleCookingLine(line, servings)),
   ]
     .filter((part) => part !== '')
     .join(' ');
@@ -111,7 +122,7 @@ function ChangeBlock({
   question: CookingQuestion;
   change: CookingChange;
   changes: CookingChanges;
-  servings: number;
+  servings: CookingServings;
 }) {
   const applied = changes.isApplied(question.id);
   const lines = changes.linesBefore(question.id);
@@ -120,9 +131,7 @@ function ChangeBlock({
       <ul className="cooking-question__change-list" aria-label="Промяна">
         {change.ingredients.map((entry, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: записите на промяната не се местят
-          <li key={index}>
-            {changeText(entry, lines, question.servings, servings)}
-          </li>
+          <li key={index}>{changeText(entry, lines, question, servings)}</li>
         ))}
         {change.steps.map((entry) => (
           <li key={`step-${entry.number}`}>
@@ -173,7 +182,7 @@ function QuestionItem({
 }: {
   recipe: Pick<Recipe, 'id' | 'title'>;
   changes: CookingChanges;
-  servings: number;
+  servings: CookingServings;
   reading: CookingReading;
   /** Текстът на въпроса, както е запомнен на устройството. */
   asked: string;

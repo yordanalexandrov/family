@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defaultComponentServings } from './component.js';
 import { type Amount, scaleQuantity } from './scale.js';
 import {
   checkPinchQuantity,
@@ -109,52 +110,128 @@ export const cookingChangeSchema = z
 
 export type CookingChange = z.infer<typeof cookingChangeSchema>;
 
+/** The component (GLOSSARY: Компонент) a line in Готвене belongs to: its index in `components` and its servings. */
+export interface CookingLineComponent {
+  index: number;
+  servings: number;
+}
+
 /**
- * A product line in Готвене: its name and the amount for `servings` (the recipe's for its own lines, the servings on
- * the screen when the question was asked for a line from a change). `changed` for a line a change replaced or added,
+ * A product line in Готвене: its name and the amount for `servings` (the recipe's, or its component's, for its own
+ * lines, the servings on the screen when the question was asked for a line from a change). `component` for a line of a
+ * component: it scales with the component's counter, not the recipe's. `changed` for a line a change replaced or added,
  * `removed` for one it removed (it stays in its place, so the indices of the lines do not move).
  */
 export interface CookingLine extends Amount {
   name: string;
   note?: string;
   servings: number;
+  component?: CookingLineComponent;
   changed?: true;
   removed?: true;
 }
 
-/** A change applied in Готвене, with the servings on the screen when its question was asked. */
+/**
+ * The servings on the screen in Готвене: the recipe's counter and one counter per component, in the order of
+ * `components` (GLOSSARY: Компонент).
+ */
+export interface CookingServings {
+  recipe: number;
+  components: readonly number[];
+}
+
+/**
+ * The servings on the screen for `shown` servings of the recipe: a component's counter is the one set by hand
+ * (`manual`, by the component's index; `null` or missing when it was not touched), otherwise whole batches enough for
+ * `shown` (`defaultComponentServings`).
+ */
+export function cookingServings(
+  recipe: { components?: readonly { servings: number }[] },
+  shown: number,
+  manual: readonly (number | null)[] = [],
+): CookingServings {
+  return {
+    recipe: shown,
+    components: (recipe.components ?? []).map(
+      (component, index) =>
+        manual[index] ?? defaultComponentServings(shown, component),
+    ),
+  };
+}
+
+/**
+ * A change applied in Готвене, with the servings on the screen when its question was asked: the recipe's and, when
+ * known, the components' counters (`components`, by index). Without them a component's counter is taken as the one
+ * Готвене starts with for `servings`.
+ */
 export interface AppliedCookingChange {
   change: CookingChange;
   servings: number;
+  components?: readonly number[];
 }
 
-/** The recipe's lines as Готвене starts with them: by the product's name, for the recipe's servings. */
+/**
+ * The recipe's lines as Готвене starts with them: by the product's name, for the recipe's servings, a component's lines
+ * for the component's servings.
+ */
 export function recipeCookingLines(recipe: {
   servings: number;
+  components?: readonly { servings: number }[];
   ingredients: readonly {
     ingredient: { name: string };
     quantity: number | null;
     unit: Unit;
     note?: string;
+    component?: number | null;
   }[];
 }): CookingLine[] {
-  return recipe.ingredients.map((line) => ({
-    name: line.ingredient.name,
-    quantity: line.quantity,
-    unit: line.unit,
-    ...(line.note === undefined ? {} : { note: line.note }),
-    servings: recipe.servings,
-  }));
+  return recipe.ingredients.map((line) => {
+    const index = line.component ?? null;
+    const component = index === null ? undefined : recipe.components?.[index];
+    return {
+      name: line.ingredient.name,
+      quantity: line.quantity,
+      unit: line.unit,
+      ...(line.note === undefined ? {} : { note: line.note }),
+      servings: component?.servings ?? recipe.servings,
+      ...(component && index !== null
+        ? { component: { index, servings: component.servings } }
+        : {}),
+    };
+  });
+}
+
+/**
+ * The line a change puts in the place of `line` (or adds, without `line`): the product it brings, for the servings
+ * its question was asked at. In a component's place it stays the component's, for the component's counter then.
+ */
+export function changedCookingLine(
+  ingredient: ChangedIngredient,
+  line: CookingLine | undefined,
+  { servings, components }: Omit<AppliedCookingChange, 'change'>,
+): CookingLine {
+  const component = line?.component;
+  if (!component) {
+    return { ...ingredient, servings, changed: true };
+  }
+  return {
+    ...ingredient,
+    servings:
+      components?.[component.index] ??
+      defaultComponentServings(servings, component),
+    component,
+    changed: true,
+  };
 }
 
 function applyOne(
   lines: readonly CookingLine[],
-  { change, servings }: AppliedCookingChange,
+  { change, ...asked }: AppliedCookingChange,
 ): CookingLine[] {
   const next = [...lines];
   for (const entry of change.ingredients) {
     if (entry.kind === 'add') {
-      next.push({ ...entry.ingredient, servings, changed: true });
+      next.push(changedCookingLine(entry.ingredient, undefined, asked));
       continue;
     }
     const line = next[entry.index];
@@ -164,7 +241,7 @@ function applyOne(
     }
     next[entry.index] =
       entry.kind === 'replace'
-        ? { ...entry.ingredient, servings, changed: true }
+        ? changedCookingLine(entry.ingredient, line, asked)
         : { ...line, removed: true };
   }
   return next;
@@ -237,9 +314,19 @@ export function applyStepChanges<Step extends { text: string }>(
   return next;
 }
 
-/** The line's amount for `servings` on the screen, as Готвене reads it (`scaleQuantity`). */
-export function scaleCookingLine(line: CookingLine, servings: number): Amount {
-  return scaleQuantity(line, line.servings, servings);
+/**
+ * The line's amount for the servings on the screen, as Готвене reads it (`scaleQuantity`): a component's line by its
+ * component's counter, the others by the recipe's.
+ */
+export function scaleCookingLine(
+  line: CookingLine,
+  servings: CookingServings,
+): Amount {
+  const to = line.component
+    ? (servings.components[line.component.index] ??
+      defaultComponentServings(servings.recipe, line.component))
+    : servings.recipe;
+  return scaleQuantity(line, line.servings, to);
 }
 
 function amountText(amount: Amount): string {
@@ -250,23 +337,29 @@ function amountText(amount: Amount): string {
 
 /**
  * The applied changes as `recipe.revise` reads them (`cookingChanges`), one readable line each, with the amounts for the
- * recipe's servings: „вместо домат: консерва pulp 400 g“ for a replaced line, „без черен пипер“ for a removed one,
+ * recipe's servings (a component's lines for its own): „вместо домат: консерва pulp 400 g“ for a replaced line, „без черен пипер“ for a removed one,
  * „добавен: магданоз 20 g“ for a new one, then „стъпка 3: …“ for each step with new text. The changes are applied in
  * their order first, so a line or step changed twice is described once, as it ended up.
  */
 export function describeCookingChanges<Step extends { text: string }>(
   recipe: {
     servings: number;
+    components?: readonly { servings: number }[];
     lines: readonly CookingLine[];
     steps: readonly Step[];
   },
   applied: readonly AppliedCookingChange[],
 ): string[] {
   const lines = applyCookingChanges(recipe.lines, applied);
+  // As the recipe is written: each component for its own servings.
+  const written: CookingServings = {
+    recipe: recipe.servings,
+    components: (recipe.components ?? []).map(({ servings }) => servings),
+  };
   const described = lines.flatMap((line, index): string[] => {
     const original = recipe.lines[index];
     const product = () =>
-      `${line.name} ${amountText(scaleCookingLine(line, recipe.servings))}`;
+      `${line.name} ${amountText(scaleCookingLine(line, written))}`;
     if (!original) {
       return line.removed ? [] : [`добавен: ${product()}`];
     }

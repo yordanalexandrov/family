@@ -6,6 +6,7 @@ import {
   COOKING_HISTORY_MAX,
   type CookingAskInput,
   type CookingAskOutput,
+  cookingServings,
   type Recipe,
   recipeCookingLines,
   scaleCookingLine,
@@ -87,6 +88,8 @@ export function cookingAskInput(
   applied: readonly AppliedCookingChange[] = [],
 ): CookingAskInput {
   const lines = applyCookingChanges(recipeCookingLines(recipe), applied);
+  // The components' counters as Готвене starts them for `servings`: what the cook sees until Готвене sends its own.
+  const shown = cookingServings(recipe, servings);
   return {
     recipe: {
       title: recipe.title,
@@ -95,7 +98,7 @@ export function cookingAskInput(
       ingredients: lines.map((line, index) => ({
         index,
         name: line.name,
-        ...scaleCookingLine(line, servings),
+        ...scaleCookingLine(line, shown),
         ...(line.note === undefined ? {} : { note: line.note }),
         ...(line.changed ? { changed: true as const } : {}),
         ...(line.removed ? { removed: true as const } : {}),

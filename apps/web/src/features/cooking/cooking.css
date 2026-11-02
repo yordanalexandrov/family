@@ -71,6 +71,37 @@
   font-weight: 600;
 }
 
+/*
+ * Компонент (GLOSSARY): заглавието и броячът му на един ред под главните продукти („Песто · − за 5 порции +“), после
+ * редовете му. На тясна колона броячът минава под заглавието.
+ */
+.cooking-ingredients__component {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+}
+
+.cooking-ingredients__component-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.cooking-ingredients__component-head h3 {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: var(--font-size-lg);
+  overflow-wrap: break-word;
+}
+
+.cooking-ingredients__component-head .cooking-ingredients__servings {
+  flex: none;
+  gap: var(--space-2);
+}
+
 .cooking-ingredients__lines {
   margin: 0;
   padding: 0;

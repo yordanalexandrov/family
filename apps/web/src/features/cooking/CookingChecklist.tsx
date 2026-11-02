@@ -1,14 +1,27 @@
-import { type CookingLine, scaleCookingLine } from '@family/shared';
+import {
+  type CookingLine,
+  type CookingServings,
+  type RecipeComponent,
+  scaleCookingLine,
+} from '@family/shared';
 import { useEffect, useId, useRef, useState } from 'react';
 import { formatQuantity } from '../../lib/format';
+import { ServingsStepper } from './ServingsStepper';
 
 /** Продуктите на Готвене с порциите и отметките: едно и също в колоната на широк екран и в листа на тесен. */
 export interface CookingProducts {
   /** Редовете на рецептата с приложените промени за готвенето; всеки носи порциите, за които е количеството му. */
   lines: readonly CookingLine[];
-  /** Порциите на екрана; количествата са мащабирани към тях. */
-  servings: number;
+  /**
+   * Порциите на екрана: на рецептата и броячите на компонентите; количествата са мащабирани към тях (редовете на
+   * компонента — към неговия брояч).
+   */
+  servings: CookingServings;
   onServingsChange: (servings: number) => void;
+  /** Компонентите на рецептата (GLOSSARY: Компонент), по реда им: всеки е под свое заглавие със свой брояч. */
+  components: readonly RecipeComponent[];
+  /** Броячът на компонента `index` е сменен на ръка. */
+  onComponentServingsChange: (index: number, servings: number) => void;
   /** Текущата стъпка: при смяната ѝ списъкът превърта до продуктите ѝ. */
   step: number;
   /**
@@ -67,7 +80,8 @@ export function productsLabel(products: CookingProducts): string {
 }
 
 /**
- * Продуктите на Готвене с отметки: неотметнатите в реда на рецептата, а отметнатите в група „Използвани (N)“ в
+ * Продуктите на Готвене с отметки: неотметнатите в реда на рецептата (главните, после всеки компонент под заглавието си
+ * с брояч −/+ на порциите му), а отметнатите в група „Използвани (N)“ в
  * дъното, прибрана по подразбиране. Махането на отметката връща реда на мястото му. Ред от промяна за готвенето има
  * знак „променено“, а махнатият остава задраскан с „не се ползва“ и не се отмята. Продуктите на текущата стъпка са
  * подчертани на мястото си (и в „Използвани“), с „в тази стъпка“ за екранен четец.
@@ -81,6 +95,7 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
   useScrollToStep(products, lineId);
   const lines = source.map((line, index) => ({
     index,
+    component: line.component?.index ?? null,
     name: line.name,
     amount: formatQuantity(scaleCookingLine(line, servings)),
     changed: line.changed === true && line.removed !== true,
@@ -129,11 +144,44 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
   );
   const usedLines = lines.filter((line) => isUsed(line.index));
 
+  const left = lines.filter((line) => !isUsed(line.index));
+
   return (
     <>
       <ul className="cooking-ingredients__lines" aria-label="Продукти">
-        {lines.filter((line) => !isUsed(line.index)).map(renderLine)}
+        {left.filter((line) => line.component === null).map(renderLine)}
       </ul>
+      {products.components.map((component, index) => {
+        const own = left.filter((line) => line.component === index);
+        const headingId = `${id}-component-${index}`;
+        return (
+          <section
+            // biome-ignore lint/suspicious/noArrayIndexKey: компонентите не се местят в Готвене
+            key={index}
+            className="cooking-ingredients__component"
+            aria-labelledby={headingId}
+          >
+            <div className="cooking-ingredients__component-head">
+              <h3 id={headingId}>{component.name}</h3>
+              <ServingsStepper
+                of={component.name}
+                servings={servings.components[index] ?? component.servings}
+                onChange={(next) =>
+                  products.onComponentServingsChange(index, next)
+                }
+              />
+            </div>
+            {own.length > 0 && (
+              <ul
+                className="cooking-ingredients__lines"
+                aria-label={component.name}
+              >
+                {own.map(renderLine)}
+              </ul>
+            )}
+          </section>
+        );
+      })}
       {usedLines.length > 0 && (
         <div className="cooking-ingredients__used">
           <button
