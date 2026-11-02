@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { componentCountersSchema } from '../food/component.js';
 import { cookingChangeSchema } from '../food/cooking-change.js';
 
 /**
@@ -34,7 +35,7 @@ export const appliedChangesSchema = z.array(
   z.object({
     id: z.string().min(1),
     servings: z.int().min(1),
-    components: z.array(z.int().min(1)).optional(),
+    components: componentCountersSchema.optional(),
     change: cookingChangeSchema,
   }),
 );

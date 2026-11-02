@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  checkComponents,
+  checkRecipeComponents,
   lineComponentSchema,
   recipeComponentsSchema,
 } from '../food/component.js';
@@ -59,14 +59,6 @@ export const refineRecipeSchema = z.object({
    */
   components: recipeComponentsSchema,
 });
-
-/** The components of the input's recipe and the `component` of its lines, at `recipe`. */
-export function checkRecipeComponents(
-  input: { recipe: Pick<ContractRecipe, 'components' | 'ingredients'> },
-  ctx: z.RefinementCtx,
-): void {
-  checkComponents(input.recipe, ctx, ['recipe']);
-}
 
 /**
  * The page of the recipe's source as the api read it again (never the agent): its final URL, the JSON-LD Recipe (its

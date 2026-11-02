@@ -24,10 +24,33 @@ export const recipeComponentsSchema = z
   .default([]);
 
 /**
+ * `components` as the agent writes it under strict structured outputs: every property required, no default. Only for
+ * a contract's JSON Schema.
+ */
+export const recipeComponentsWireSchema = z.array(recipeComponentSchema);
+
+/** The index of a component in `components` (from 0), as an ingredient line points to it. */
+export const componentIndexSchema = z.int().min(0);
+
+/**
+ * `component` of an ingredient line as the agent writes it under strict structured outputs: the index, `null` for a
+ * main line. Only for a contract's JSON Schema.
+ */
+export const lineComponentWireSchema = componentIndexSchema.nullable();
+
+/**
  * The `component` of an ingredient line: the index of its component in `components`, `null` (or absent) for a main
  * line.
  */
-export const lineComponentSchema = z.int().min(0).nullable().default(null);
+export const lineComponentSchema = lineComponentWireSchema.default(null);
+
+/**
+ * The counters of a recipe's components in Готвене (GLOSSARY: Компонент), by index: whole servings, at most
+ * {@link COMPONENTS_MAX}.
+ */
+export const componentCountersSchema = z
+  .array(z.int().min(1))
+  .max(COMPONENTS_MAX);
 
 /**
  * Object-level rules for a recipe-shaped object with components: every line's `component` is an index of
@@ -72,6 +95,21 @@ export function checkComponents(
 }
 
 /**
+ * {@link checkComponents} for the recipe of a contract's input or answer, at `recipe`; nothing when there is no recipe
+ * (an answer with `noResults`).
+ */
+export function checkRecipeComponents(
+  value: {
+    recipe: Parameters<typeof checkComponents>[0] | null;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.recipe) {
+    checkComponents(value.recipe, ctx, ['recipe']);
+  }
+}
+
+/**
  * Whole batches of `component` that make at least `servings` (ADR-0012): pesto for 5 is 1 batch for a meal for 4
  * and 2 for a meal for 7.
  */
@@ -91,4 +129,16 @@ export function defaultComponentServings(
   component: { servings: number },
 ): number {
   return batches(servings, component) * component.servings;
+}
+
+/**
+ * A component's counter in Готвене for `servings` of the recipe: `set` when someone set it (by hand, or the one a
+ * question was asked at), otherwise the one it starts with ({@link defaultComponentServings}).
+ */
+export function componentCounter(
+  servings: number,
+  component: { servings: number },
+  set?: number | null,
+): number {
+  return set ?? defaultComponentServings(servings, component);
 }

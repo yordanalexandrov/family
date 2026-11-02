@@ -6,6 +6,7 @@ import {
   COOKING_HISTORY_MAX,
   type CookingAskInput,
   type CookingAskOutput,
+  componentCounter,
   cookingServings,
   type Recipe,
   recipeCookingLines,
@@ -114,7 +115,11 @@ export function cookingAskInput(
       preparation: recipe.preparation,
       components: recipe.components.map((component, index) => ({
         ...component,
-        shownServings: shown.components[index] ?? component.servings,
+        shownServings: componentCounter(
+          servings,
+          component,
+          shown.components[index],
+        ),
       })),
     },
     // The recipe may have lost steps since the question was asked.

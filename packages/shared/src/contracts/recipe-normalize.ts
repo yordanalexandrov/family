@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { aisleSchema } from '../food/aisles.js';
 import {
-  checkComponents,
+  checkRecipeComponents,
   lineComponentSchema,
-  recipeComponentSchema,
+  lineComponentWireSchema,
   recipeComponentsSchema,
+  recipeComponentsWireSchema,
 } from '../food/component.js';
 import { preparationSchema } from '../food/preparation.js';
 import { tagSchema } from '../food/tags.js';
@@ -269,10 +270,10 @@ const recipeNormalizeWireSchema = z.object({
       ingredients: z.array(
         z.object({
           ...normalizedIngredientFields,
-          component: z.int().min(0).nullable(),
+          component: lineComponentWireSchema,
         }),
       ),
-      components: z.array(recipeComponentSchema),
+      components: recipeComponentsWireSchema,
       steps: z.array(
         z.object({ text: z.string(), image: z.string().nullable() }),
       ),
@@ -308,16 +309,6 @@ function fromStrictMode(value: unknown): unknown {
       preparation: preparationFromStrict(value.recipe.preparation),
     },
   };
-}
-
-/** The recipe's components and the `component` of its lines (index, a line for each component), at `recipe`. */
-function checkRecipeComponents(
-  output: RecipeNormalizeOutput,
-  ctx: z.RefinementCtx,
-): void {
-  if (output.recipe) {
-    checkComponents(output.recipe, ctx, ['recipe']);
-  }
 }
 
 /** Every `ingredientId` is one of the registry ingredients of the input. */

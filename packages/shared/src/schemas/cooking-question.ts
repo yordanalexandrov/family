@@ -2,15 +2,10 @@ import { z } from 'zod';
 import { cookingQuestionTextSchema } from '../contracts/cooking-ask.js';
 import { contractFailureSchema } from '../contracts/failure.js';
 import { contractRequestStatusSchema } from '../contracts/request.js';
-import { COMPONENTS_MAX } from '../food/component.js';
+import { componentCountersSchema } from '../food/component.js';
 import { cookingChangeSchema } from '../food/cooking-change.js';
 import { instantSchema } from './dates.js';
 import { refusalBody } from './error.js';
-
-/** The counters of a recipe's components in Готвене, by index; `[]` when there are none. */
-function componentCountersSchema() {
-  return z.array(z.int().min(1)).max(COMPONENTS_MAX).default([]);
-}
 
 /**
  * `POST /api/recipes/:id/questions` (GLOSSARY: Въпрос в Готвене): the question, the step on the screen (its index, from
@@ -24,7 +19,7 @@ export const askCookingQuestionSchema = z.object({
   question: cookingQuestionTextSchema,
   step: z.int().min(0),
   servings: z.int().min(1),
-  components: componentCountersSchema(),
+  components: componentCountersSchema.default([]),
   follows: z.uuid().optional(),
   applied: z.array(z.uuid()).default([]),
 });
@@ -46,7 +41,7 @@ export const cookingQuestionSchema = z.object({
   step: z.int().min(0),
   servings: z.int().min(1),
   /** The components' counters it was asked at, by index; `[]` for a recipe without components (or none sent). */
-  components: componentCountersSchema(),
+  components: componentCountersSchema.default([]),
   /** The earlier question this one goes on from; none for the first of a chain. */
   follows: z.uuid().optional(),
   status: contractRequestStatusSchema,

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import {
-  checkComponents,
-  recipeComponentSchema,
+  checkRecipeComponents,
+  lineComponentWireSchema,
   recipeComponentsSchema,
+  recipeComponentsWireSchema,
 } from '../food/component.js';
 import { preparationSchema } from '../food/preparation.js';
 import type { AiContract } from './contract.js';
@@ -16,7 +17,6 @@ import {
   registryIngredientSchema,
 } from './recipe-normalize.js';
 import {
-  checkRecipeComponents,
   recipePhotoRefs,
   refineRecipeSchema,
   refineStepSchema,
@@ -103,11 +103,7 @@ const recipeReviseOutputSchema = z
     noResults: z.string().trim().min(1).nullable(),
   })
   .superRefine(checkAnswerShape)
-  .superRefine((output, ctx) => {
-    if (output.recipe) {
-      checkComponents(output.recipe, ctx, ['recipe']);
-    }
-  });
+  .superRefine(checkRecipeComponents);
 
 export type RecipeReviseOutput = z.infer<typeof recipeReviseOutputSchema>;
 
@@ -120,10 +116,10 @@ const RECIPE_REVISE_RESPONSE_JSON_SCHEMA = z.toJSONSchema(
         ingredients: z.array(
           z.object({
             ...normalizedIngredientFields,
-            component: z.int().min(0).nullable(),
+            component: lineComponentWireSchema,
           }),
         ),
-        components: z.array(recipeComponentSchema),
+        components: recipeComponentsWireSchema,
         steps: z.array(
           z.object({ text: z.string(), image: z.string().nullable() }),
         ),

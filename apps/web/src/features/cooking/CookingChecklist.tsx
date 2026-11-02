@@ -1,6 +1,7 @@
 import {
   type CookingLine,
   type CookingServings,
+  componentCounter,
   type RecipeComponent,
   scaleCookingLine,
 } from '@family/shared';
@@ -165,7 +166,11 @@ export function CookingChecklist({ products }: { products: CookingProducts }) {
               <h3 id={headingId}>{component.name}</h3>
               <ServingsStepper
                 of={component.name}
-                servings={servings.components[index] ?? component.servings}
+                servings={componentCounter(
+                  servings.recipe,
+                  component,
+                  servings.components[index],
+                )}
                 onChange={(next) =>
                   products.onComponentServingsChange(index, next)
                 }

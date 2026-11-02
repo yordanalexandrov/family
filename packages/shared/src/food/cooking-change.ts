@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defaultComponentServings } from './component.js';
+import { componentCounter } from './component.js';
 import { type Amount, scaleQuantity } from './scale.js';
 import {
   checkPinchQuantity,
@@ -143,7 +143,7 @@ export interface CookingServings {
 /**
  * The servings on the screen for `shown` servings of the recipe: a component's counter is the one set by hand
  * (`manual`, by the component's index; `null` or missing when it was not touched), otherwise whole batches enough for
- * `shown` (`defaultComponentServings`).
+ * `shown` (`componentCounter`).
  */
 export function cookingServings(
   recipe: { components?: readonly { servings: number }[] },
@@ -152,9 +152,8 @@ export function cookingServings(
 ): CookingServings {
   return {
     recipe: shown,
-    components: (recipe.components ?? []).map(
-      (component, index) =>
-        manual[index] ?? defaultComponentServings(shown, component),
+    components: (recipe.components ?? []).map((component, index) =>
+      componentCounter(shown, component, manual[index]),
     ),
   };
 }
@@ -216,9 +215,11 @@ export function changedCookingLine(
   }
   return {
     ...ingredient,
-    servings:
-      components?.[component.index] ??
-      defaultComponentServings(servings, component),
+    servings: componentCounter(
+      servings,
+      component,
+      components?.[component.index],
+    ),
     component,
     changed: true,
   };
@@ -323,8 +324,11 @@ export function scaleCookingLine(
   servings: CookingServings,
 ): Amount {
   const to = line.component
-    ? (servings.components[line.component.index] ??
-      defaultComponentServings(servings.recipe, line.component))
+    ? componentCounter(
+        servings.recipe,
+        line.component,
+        servings.components[line.component.index],
+      )
     : servings.recipe;
   return scaleQuantity(line, line.servings, to);
 }

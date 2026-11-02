@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   COMPONENTS_MAX,
   checkComponents,
+  componentIndexSchema,
   recipeComponentSchema,
 } from '../food/component.js';
 import {
@@ -59,7 +60,7 @@ const askIngredientSchema = z.object({
   note: z.string().optional(),
   changed: z.literal(true).optional(),
   removed: z.literal(true).optional(),
-  component: z.int().min(0).optional(),
+  component: componentIndexSchema.optional(),
 });
 
 /**

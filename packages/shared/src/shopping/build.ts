@@ -1,6 +1,6 @@
 import type { DateKey } from '../dashboard/time.js';
 import { AISLES, type Aisle } from '../food/aisles.js';
-import { batches } from '../food/component.js';
+import { defaultComponentServings } from '../food/component.js';
 import { type Amount, scaleToServings } from '../food/scale.js';
 import { roundMilli, type Unit, unitSchema } from '../food/units.js';
 import { totalServings } from '../menu/meal.js';
@@ -182,7 +182,7 @@ function scaleLine(recipe: Recipe, line: RecipeLine, servings: number): Amount {
   return scaleToServings(
     line,
     component.servings,
-    batches(servings, component) * component.servings,
+    defaultComponentServings(servings, component),
   );
 }
 
