@@ -270,7 +270,8 @@ function messageFor(path: string): string {
 
 /**
  * Полетата като рецептата, която „✏️ Поправи с AI“ праща от прегледа на предложение (формата не е записана): продуктите
- * по име, и несвързаните; ред без продукт и без име отпада. `linked` казва за всеки ред дали е свързан с регистъра.
+ * по име, и несвързаните, всеки с компонента си; ред без продукт и без име отпада, а с него и компонент, който остава без
+ * редове. `linked` казва за всеки ред дали е свързан с регистъра.
  * `undefined`, ако полетата не стават за поправка (напр. без порции или без стъпки).
  */
 export function toRevisableRecipe(
@@ -278,6 +279,9 @@ export function toRevisableRecipe(
 ): { recipe: RevisableRecipe; linked: boolean[] } | undefined {
   const rows = values.ingredients.filter(
     (row) => row.ingredient !== null || row.query.trim() !== '',
+  );
+  const components = values.components.filter((component) =>
+    rows.some((row) => row.component === component.key),
   );
   const result = revisableRecipeSchema.safeParse({
     title: values.title,
@@ -289,9 +293,14 @@ export function toRevisableRecipe(
         row.unit === 'pinch' ? null : (parseNumber(row.quantity) ?? null),
       unit: row.unit,
       ...(row.note === undefined ? {} : { note: row.note }),
+      component: componentIndex(components, row.component),
     })),
     steps: values.steps,
     preparation: valuesToPreparation(values.preparation),
+    components: components.map((component) => ({
+      name: component.name,
+      servings: parseNumber(component.servings) ?? Number.NaN,
+    })),
   });
   return result.success
     ? {

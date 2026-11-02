@@ -45,15 +45,15 @@ export const revisionInstructionSchema = z
 
 const recipeReviseInputSchema = z
   .object({
-  recipe: refineRecipeSchema,
-  instruction: revisionInstructionSchema,
-  /**
-   * The cooking changes applied in the last cooking of the recipe, one readable line each („вместо домат: консерва
-   * pulp 400 g“, „стъпка 3: …“); `[]` when there are none.
-   */
-  cookingChanges: z.array(z.string().trim().min(1)),
-  /** The whole registry, to link the lines to. */
-  ingredients: z.array(registryIngredientSchema),
+    recipe: refineRecipeSchema,
+    instruction: revisionInstructionSchema,
+    /**
+     * The cooking changes applied in the last cooking of the recipe, one readable line each („вместо домат: консерва
+     * pulp 400 g“, „стъпка 3: …“); `[]` when there are none.
+     */
+    cookingChanges: z.array(z.string().trim().min(1)),
+    /** The whole registry, to link the lines to. */
+    ingredients: z.array(registryIngredientSchema),
   })
   .superRefine(checkRecipeComponents);
 

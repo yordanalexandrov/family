@@ -705,3 +705,10 @@ fieldset.chips {
   margin: 0 0 var(--space-3);
   padding-inline-start: 1.25em;
 }
+
+/* Компонентът в сравнението: заглавието „Песто · за 5 порции“ над неговите продукти. */
+.refine__component-heading {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}

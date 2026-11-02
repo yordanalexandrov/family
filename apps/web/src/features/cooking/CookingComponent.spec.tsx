@@ -181,6 +181,50 @@ describe('Готвене с компонент', () => {
     ]);
   });
 
+  it('„Питай“ праща броячите на компонентите, а промяната е за брояча при въпроса', async () => {
+    const user = userEvent.setup();
+    setUpDevice('kiosk');
+    serveRisotto();
+    const bodies = serveAnswer({
+      ingredients: [
+        {
+          kind: 'replace',
+          index: 1,
+          ingredient: { name: 'орехи', quantity: 80, unit: 'g' },
+        },
+      ],
+      steps: [],
+    });
+
+    renderApp(`/recipes/${risotto.id}/cook`);
+    await screen.findByText('за 1 порция');
+    await click(user, 'Песто: една порция повече', 5);
+    await user.click(screen.getByRole('button', { name: 'Питай' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Въпрос' });
+    await user.type(
+      within(sheet).getByLabelText(/^Твоят въпрос/),
+      'Може ли с орехи вместо босилек?',
+    );
+    await user.click(within(sheet).getByRole('button', { name: 'Изпрати' }));
+    await within(sheet).findByText('вместо босилек: орехи 80 г');
+    await user.click(within(sheet).getByRole('button', { name: 'Промени' }));
+    await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
+
+    expect(bodies).toEqual([
+      expect.objectContaining({ servings: 1, components: [10] }),
+    ]);
+    // 80 g за песто за 10, т.е. 40 g за 5.
+    expect(names(screen.getByRole('list', { name: 'Песто' }))).toEqual([
+      'орехипроменено80 г',
+      'зехтин200 мл',
+    ]);
+    await click(user, 'Песто: една порция по-малко', 5);
+    expect(names(screen.getByRole('list', { name: 'Песто' }))).toEqual([
+      'орехипроменено40 г',
+      'зехтин100 мл',
+    ]);
+  });
+
   it('промяна за готвенето на ред от компонента остава под него и се мащабира с брояча му', async () => {
     const user = userEvent.setup();
     setUpDevice('kiosk');
@@ -224,9 +268,10 @@ describe('Готвене с компонент', () => {
   });
 });
 
-/** Въпросите за ризотото: всеки е готов веднага, с отговор и `change`. */
+/** Въпросите за ризотото: всеки е готов веднага, с отговор и `change`; връща телата на заявките. */
 function serveAnswer(change: CookingQuestion['change']) {
   const asked = new Map<string, CookingQuestion>();
+  const bodies: unknown[] = [];
   server.use(
     http.post(`/api/recipes/${risotto.id}/questions`, async ({ request }) => {
       const body = (await request.json()) as {
@@ -234,9 +279,11 @@ function serveAnswer(change: CookingQuestion['change']) {
         step: number;
         servings: number;
       };
+      bodies.push(body);
       const question: CookingQuestion = {
         id: `dddddddd-0000-4000-8000-00000000003${asked.size}`,
         recipeId: risotto.id,
+        components: [],
         ...body,
         status: 'pending',
         requestedBy: dani.id,
@@ -258,4 +305,5 @@ function serveAnswer(change: CookingQuestion['change']) {
       });
     }),
   );
+  return bodies;
 }

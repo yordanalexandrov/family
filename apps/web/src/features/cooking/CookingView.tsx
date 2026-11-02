@@ -127,7 +127,7 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
     />
   );
 
-  // Въпросът е за стъпката, порциите и приложените промени в момента на питането; „Опитай пак“ е за стъпката на
+  // Въпросът е за стъпката, порциите (и броячите на компонентите) и приложените промени в момента на питането; „Опитай пак“ е за стъпката на
   // неуспешния (`useCookingQuestions`), с порциите и промените в момента.
   const questionSheet = askOpen && (
     <CookingQuestionSheet
@@ -143,6 +143,10 @@ export function CookingView({ recipe, servings, onExit }: CookingViewProps) {
             question,
             step,
             servings: shownServings,
+            // Броячите на компонентите на екрана: агентът вижда пестото за тях, и промяната е за тях.
+            ...(recipe.components.length > 0
+              ? { components: [...servingsOnScreen.components] }
+              : {}),
             applied: changes.applied,
           },
           replaces,

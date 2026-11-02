@@ -47,6 +47,7 @@ function pendingQuestion(body: Posted['body']): CookingQuestion {
   return {
     id,
     recipeId: stew.id,
+    components: [],
     ...body,
     status: 'pending',
     requestedBy: dani.id,

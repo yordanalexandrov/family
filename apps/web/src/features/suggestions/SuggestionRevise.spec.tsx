@@ -26,11 +26,12 @@ const revision: RecipeRevision = {
   servings: 2,
   prepMinutes: 25,
   ingredients: [
-    { ingredient: chicken, quantity: 0.3, unit: 'kg' },
-    { ingredient: salt, quantity: null, unit: 'pinch' },
+    { ingredient: chicken, quantity: 0.3, unit: 'kg', component: null },
+    { ingredient: salt, quantity: null, unit: 'pinch', component: null },
   ],
   steps: [{ text: 'Нарежи пилето на кубчета.' }, { text: 'Нанижи и изпечи.' }],
   preparation: [],
+  components: [],
   droppedPhotos: 0,
 };
 
@@ -49,12 +50,20 @@ const pending: RecipeRevisionRequest = {
  * The request with the suggestion, the product search, the revision of the suggestion (done at once) and the approval;
  * returns the bodies of `POST …/revisions` and of the approval.
  */
-function serveSuggestionRevise() {
+function serveSuggestionRevise(
+  suggestion = skewersSuggestion,
+  revised: RecipeRevision = revision,
+) {
   const posts: RequestSuggestionRevision[] = [];
   const approved: ApproveSuggestionInput[] = [];
   server.use(
     http.get(`/api/recipe-suggestions/requests/${requestId}`, () =>
-      HttpResponse.json({ request: doneRequest, suggestions }),
+      HttpResponse.json({
+        request: doneRequest,
+        suggestions: suggestions.map((each) =>
+          each.id === suggestion.id ? suggestion : each,
+        ),
+      }),
     ),
     http.get('/api/recipes', () => HttpResponse.json({ recipes: [] })),
     http.get('/api/ingredients', ({ request }) => {
@@ -75,7 +84,7 @@ function serveSuggestionRevise() {
         request: {
           ...pending,
           status: 'done',
-          revision,
+          revision: revised,
           finishedAt: '2026-11-01T10:00:40.000Z',
         },
       }),
@@ -150,12 +159,18 @@ describe('„Поправи с AI“ в прегледа на предложен
           servings: 5,
           prepMinutes: 25,
           ingredients: [
-            { name: 'пилешко филе', quantity: 0.6, unit: 'kg' },
-            { name: 'сумак', quantity: 1, unit: 'tsp' },
-            { name: 'сол', quantity: null, unit: 'pinch' },
+            {
+              name: 'пилешко филе',
+              quantity: 0.6,
+              unit: 'kg',
+              component: null,
+            },
+            { name: 'сумак', quantity: 1, unit: 'tsp', component: null },
+            { name: 'сол', quantity: null, unit: 'pinch', component: null },
           ],
           steps: [{ text: 'Нарежи пилето.' }, { text: 'Нанижи и изпечи.' }],
           preparation: [],
+          components: [],
         },
       },
     ]);
@@ -198,6 +213,73 @@ describe('„Поправи с AI“ в прегледа на предложен
       ingredients: [
         { ingredientId: chicken.id, quantity: 0.3, unit: 'kg' },
         { ingredientId: salt.id, quantity: null, unit: 'pinch' },
+      ],
+    });
+  });
+});
+
+describe('„Поправи с AI“ в прегледа и компонентите (GLOSSARY: Компонент)', () => {
+  const SPICE = { name: 'Подправка', servings: 12 };
+
+  /** Шишчетата със сумака като компонент „Подправка“ за 12 порции. */
+  const withSpice = {
+    ...skewersSuggestion,
+    payload: {
+      ...skewersSuggestion.payload,
+      components: [SPICE],
+      ingredients: skewersSuggestion.payload.ingredients.map((line) =>
+        line.name === 'сумак' ? { ...line, component: 0 } : line,
+      ),
+    },
+  };
+
+  it('праща компонентите на формата и показва сегашния под заглавието му', async () => {
+    const user = userEvent.setup();
+    const { posts } = serveSuggestionRevise(withSpice);
+
+    const sheet = await send(user);
+
+    await within(sheet).findByText(revision.changes);
+    expect(posts[0]?.recipe.components).toEqual([SPICE]);
+    expect(posts[0]?.recipe.ingredients.map((line) => line.component)).toEqual([
+      null,
+      0,
+      null,
+    ]);
+    expect(listTexts('Продукти: сега')).toEqual([
+      'пилешко филе · 0,6 кг',
+      'сол · по вкус',
+    ]);
+    expect(
+      within(sheet).getByRole('heading', { name: 'Подправка · за 12 порции' }),
+    ).toBeInTheDocument();
+    expect(listTexts('Подправка: сега')).toEqual([
+      'сумак · 1 ч.л. (нов продукт)',
+    ]);
+  });
+
+  it('„Приеми“ на поправка с компонент го слага във формата, а „Одобри“ го праща', async () => {
+    const user = userEvent.setup();
+    const { approved } = serveSuggestionRevise(skewersSuggestion, {
+      ...revision,
+      components: [SPICE],
+      ingredients: revision.ingredients.map((line) =>
+        line.ingredient?.id === salt.id ? { ...line, component: 0 } : line,
+      ),
+    });
+    await send(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Приеми' }));
+    expect(listTexts('Подправка')).toEqual(['сол · по вкус✓']);
+    await user.click(screen.getByRole('button', { name: 'Одобри' }));
+
+    await vi.waitFor(() => expect(approved).toHaveLength(1));
+    expect(approved[0]).toMatchObject({
+      revisionId: pending.id,
+      components: [SPICE],
+      ingredients: [
+        { ingredientId: chicken.id, component: null },
+        { ingredientId: salt.id, component: 0 },
       ],
     });
   });

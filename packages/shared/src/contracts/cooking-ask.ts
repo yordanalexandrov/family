@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import {
-  type CookingChange,
-  cookingChangeSchema,
-} from '../food/cooking-change.js';
-import {
   COMPONENTS_MAX,
   checkComponents,
   recipeComponentSchema,
 } from '../food/component.js';
+import {
+  type CookingChange,
+  cookingChangeSchema,
+} from '../food/cooking-change.js';
 import { preparationSchema } from '../food/preparation.js';
 import { quantitySchema, unitSchema } from '../food/units.js';
 import type { AiContract } from './contract.js';

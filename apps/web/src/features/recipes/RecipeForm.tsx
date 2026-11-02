@@ -93,6 +93,8 @@ export interface AiReplacement {
   servings?: number | undefined;
   /** Всички продукти от поправка (новите неразрешени, за свързване); `undefined` не ги пипа. */
   ingredients?: IngredientRowValues[] | undefined;
+  /** Всички компоненти от поправка, с които са редовете ѝ (GLOSSARY: Компонент); `undefined` не ги пипа. */
+  components?: ComponentValues[] | undefined;
 }
 
 function isNutritionPath(path: string): boolean {
@@ -240,6 +242,9 @@ export function RecipeForm({
       ...(aiReplacement.ingredients === undefined
         ? {}
         : { ingredients: aiReplacement.ingredients }),
+      ...(aiReplacement.components === undefined
+        ? {}
+        : { components: aiReplacement.components }),
     }));
   }
   /**
