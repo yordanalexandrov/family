@@ -1,0 +1,74 @@
+# services
+
+## Overview
+
+Бизнес логиката на API-то, без HTTP. Услугите проверяват правилата, отварят транзакциите, викат `src/db/repositories`, OpenClaw, външните клиенти и Web Push. Сигналите за промяна към `app.events` се пращат след commit. Долгоживеещите услуги се създават веднъж в `src/app.ts:buildApp` и са декорации на `app`: `app.users`, `app.events`, `app.push`, `app.menu`, `app.menuSchedule`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.calendarSync`, `app.budgetSync`. Отказите са типизирани в `errors.ts` и се мапват към HTTP в `src/plugins/error-handler.ts`.
+
+## Interface
+
+- `errors.ts:ServiceRefusal, NotFoundError, ConflictError, AlreadyImportedError, ForbiddenError, InvalidReferenceError, InvalidActionError, OpenClawUnavailableError, UnsupportedPhotoError, refuse` – типизираните откази. `refuse(code, message, details)` избира класа по под-кода от `refusalSchemas` в `packages/shared`.
+- `contract-requests.ts:createContractRequests, ContractRequests, ContractRequestStore, ContractRequestHandle, StoredContractRequest, ContractRequestFailure` – общият жизнен цикъл на AI заявка (`register`, `failStale`, `close`).
+- `recipe-suggestions.ts:createRecipeSuggestionsService, suggestionRequestStore, withDuplicateOf, SuggestionRequests, RecipeSuggestionsService` – `recipe.suggest`, одобряване, отхвърляне и връщане на предложения (и на предложението от внасяне).
+- `recipe-imports.ts:createRecipeImportsService, createRecipeImportStore, RecipeImportRequests, ImportParams` – `recipe.normalize` (Внасяне на рецепта от текст, линк или снимка).
+- `recipe-refinements.ts:createRecipeRefineStore, RecipeRefinements` – `recipe.refine` (Подобряване на рецепта).
+- `recipe-revisions.ts:createRecipeRevisionStore, rejectRevision, acceptRevision, acceptSuggestionRevision, RecipeRevisions, RevisionParams, NO_SUCH_REVISION` – `recipe.revise` (Поправка на рецепта) и решенията по нея.
+- `cooking-questions.ts:createCookingQuestionStore, cookingAskInput, CookingQuestions, CookingQuestionParams, AskedBefore` – `cooking.ask` (Въпрос в Готвене); входът се споделя с `ask:smoke`.
+- `contract-recipe.ts:photosByRef, contractRecipe, revisableContractRecipe` – рецептата, както я четат `recipe.refine` и `recipe.revise` (снимките като препратки `e1`, `e2`, …).
+- `imported-step-photos.ts:prepareStepPhotos, stepsWithPhotos, withDroppedPhotos, PreparedStepPhotos` – изтегля избраните от агента снимки на стъпки и ги записва.
+- `recipes.ts:findRecipes, getRecipe, createRecipe, addRecipe, replaceRecipe, setRecipeArchived, rateRecipe` – Регистър рецепти, Архивиране, Оценка.
+- `ingredients.ts:findIngredients, createIngredient, changeIngredient` – Продукти.
+- `appliances.ts:getAppliances, addAppliance, switchAppliance, removeAppliance` – Уреди.
+- `step-photos.ts:storeStepPhoto, stepPhotoJpeg, stepPhotoImage, stepPhotoIds, removeOrphanStepPhotos, STEP_PHOTO_MAX_INPUT_PIXELS` – Снимка на стъпка (ADR-0008).
+- `recipe-photo.ts:photoType` – типът на снимка по първите ѝ байтове (JPEG, PNG, WebP, HEIC/HEIF).
+- `menu.ts:createMenuService, MenuService, createMenuProposalStore, MenuProposals, readCooking, refusePastMeal, writeSystemLine, recordContentChange, NO_SUCH_MEAL` – Седмично меню, Ястие, Глас, Разговор, Предложение за меню, „Днес се готви“.
+- `meal-replacements.ts:createMealReplaceStore, getLatestReplacement, MealReplacements` – `meal.replace` („Предложи друго“).
+- `menu-schedule.ts:createMenuSchedule, scheduledProposalDue, scheduledWeekOf, MenuSchedule, SCHEDULED_PROPOSAL_WEEKDAY, SCHEDULED_PROPOSAL_HOUR` – Предложението за меню от cron-а.
+- `menu-notifications.ts:createMenuNotifications, MenuNotifications, MENU_ACTIVITY_QUIET_MS` – Известие от Съгласуването: `sendQuietActivity` праща на всеки действията на другите по седмица, след `MENU_ACTIVITY_QUIET_MS` (10 мин) тишина, по едно известие на седмица; `proposed` праща „Ново предложение за меню“ на всички без поискалия (никога не отхвърля).
+- `shopping.ts:getShoppingList, setItemChecked, setItemHidden, addManualItem, deleteItem, setMealListed` – Списък за пазаруване (Отметка, Скрит ред, Ръчен ред, Ястие в списъка).
+- `pantry.ts:getPantry, addPantryItem, changePantryItem, removePantryItem, markPantryRanOut` – Килер.
+- `reminders.ts:createReminders, dueReminders, Reminders, COOK_HOUR, REMINDER_GRACE_MS` – Напомняния („Извади месото“, „Кой готви довечера“). `Reminders.run` (cron на 5 мин) праща дължимите напомняния и натрупаната активност по менюто; `Reminders.cookClaimed` след „Аз“ праща на всички, получили въпроса, „Довечера готвиш ти“ или „Довечера готви <име>“ със същия tag.
+- `thaw.ts:thawCandidates, thawDates, THAW_EVENING_HOUR, THAW_MORNING_HOUR` – „Извади месото“ за дашборда и напомнянията.
+- `push.ts:createPushService, PushService, WebPushDelivery, PushMessage` – Web Push абонаменти, настройки и изпращане.
+- `notification-links.ts:notificationTag, menuWeekUrl, mealUrl` – tag и адрес на Известие.
+- `events.ts:createEventBus, EventBus, menuAndShoppingChanged` – шината за сигнали в паметта (`GET /api/events`).
+- `calendar-sync.ts:createCalendarSync, syncCalendars, syncWindow, toCalendarEventRow` и `budget-sync.ts:createBudgetSync, syncBudget` – Синхронизация с Google Calendar и Wallet.
+- `sync-mutex.ts:oneAtATime, Sync`, `sync-run.ts:recordRun, messageOf`, `sync-status.ts:readSyncStatuses, configuredSources` – едно изпълнение наведнъж, запис в `sync_run` и Остарели данни.
+- `calendar-events.ts:readCalendarEvents`, `dashboard.ts:readDashboard`, `health.ts:checkHealth`, `users.ts:createUsersService` – четенето за календара, дашборда, Здрав статус и потребителите.
+- [recipe-page](./recipe-page/README.md) – изтегляне и извличане на страница с рецепта (защита срещу SSRF, JSON-LD или текст).
+
+## Invariants
+
+- `contract-requests.ts:createContractRequests` – `POST` записва `pending` заявка и отговаря 202. Изпълнението върви във фона на процеса на API-то: вика OpenClaw и записва `done`/`failed`, а клиентът проверява състоянието с poll. Без OpenClaw клиент (`null`, само в dev) всяка заявка се отказва с `OpenClawUnavailableError`.
+- `contract-requests.ts:STALE_AFTER_MS` и `failStale` – при старт `pending` заявки, по-стари от 10 минути, стават `failed`/`stale`. `close` прекъсва текущите изпълнения (`failed`/`aborted`) преди пулът да се затвори.
+- `contract-requests.ts:ContractRequestStore` – резултатът на валиден отговор се записва в транзакцията, която маркира заявката `done`. Бавната работа (`prepare`: изтегляне и декодиране на снимки) е извън транзакцията.
+- `events.ts:EventBus` (коментар) – API-то е единственият процес и единственият писач (без `LISTEN/NOTIFY`). Сигналите се пращат само след commit.
+- `menu.ts:createMenuService` (коментар) – всяка промяна на план или ястие праща `menu.changed` и `shopping.changed` за седмицата си; глас, ред в разговора и „Извадих“ (`markThawed`) пращат само `menu.changed`. `menu.ts:createMenuProposalStore` праща `menu.proposal.changed` при заявка, провал и край на предложението.
+- `menu.ts:createMenuService` – откази: 409 за седмица с план или чакащо предложение (`refuseTakenWeek`); `deletePlan` само преди началото на седмицата; `cook_taken`, `empty_meal` (глас за празно ястие), `system_line` и `ForbiddenError` при триене на чужд коментар, `no_plan`/`no_proposal`. `createMenuProposalStore` отказва с `not_enough_recipes` под `MENU_PROPOSE_MIN_RECIPES` вечерни рецепти. Смяната на съдържанието на ястие се брои в `menu_activity` (`addMenuActivity`); нова рецепта маха ястието от списъка за пазаруване (`deleteShoppingMealsOf`), а махнатата рецепта се пази за „Върни“ (`keepRemoval`, `restoreMeal`).
+- `menu.ts:refusePastMeal` – 409 `past_meal` за ястие преди днешния ден в София; споделено с `meal.replace`.
+- `menu.ts:recordContentChange` – нова рецепта (или нова бележка на ястие без рецепта) маха гласовете на другите, действащият потребител гласува „за“ (за станало празно ястие и неговият глас се трие), а в разговора се записва ред `replaced`. Бележка на ястие с рецепта не пипа гласовете и разговора.
+- `recipe-revisions.ts:acceptRevision` – 409 `revision_stale`, когато рецептата е записана след заявката за поправка. `rejectRevision` дава 404 за непозната и 409 за вече решена поправка.
+- `recipe-refinements.ts:createRecipeRefineStore`, `meal-replacements.ts:createMealReplaceStore`, `cooking-questions.ts:createCookingQuestionStore` – най-много една чакаща заявка на рецепта, ястие или верига (409). Подобрението и поправката не променят рецептата, докато човекът не запише формата.
+- AI заявки, други откази: `recipe-revisions.ts:createRecipeRevisionStore` – `revision_open`, когато рецептата или предложението вече има отворена поправка; той и `cooking-questions.ts:createCookingQuestionStore` – `no_applied_change`; въпросът – и `no_earlier_question`, и `InvalidActionError` за непозната стъпка. `meal-replacements.ts:createMealReplaceStore` – `not_enough_recipes` под `MEAL_REPLACE_MIN_RECIPES`; `getLatestReplacement` – `no_replacement`.
+- `recipe-imports.ts:createRecipeImportStore` – линк, който вече е в регистъра, се отказва с 409 `already_imported` (освен с `force`). Снимката от `POST` остава само в паметта на изпълнението и никога не стига до базата. Страница, която не се отваря, завършва с `fetch_blocked`/`fetch_failed`, без да пита агента.
+- `menu-schedule.ts:scheduledProposalDue` – cron-ът предлага меню за следващата седмица от сряда 09:00 в София, докато тя няма план, чакащо предложение или предложение от cron-а (провалено не се повтаря).
+- `reminders.ts:dueReminders` – напомнянето е дължимо от часа си до `REMINDER_GRACE_MS` (2 ч) след него. „Извади месото“ идва в 20:00 предния ден и (без „Извадих“) в 08:00. „Кой готви довечера“ идва в 16:00. Чиста функция: само отсява вече записаните в `notification_log`. Записът е в `createReminders` (`claimNotification` преди `push.send`), за да не се прати два пъти дори от две изпълнения; провален push не се повтаря.
+- `shopping.ts:getShoppingList` – списъкът се изчислява от ястията в списъка (ADR-0011) при всяко четене. Четенето не записва нищо: списъкът се създава при първата промяна. `setItemChecked` пази първата отметка; отметка на свършил постоянен продукт го „купува“ (чисти `ran_out_at`) и сигнализира всички списъци. `setMealListed` отказва с `meal_without_recipe`; `setItemHidden`/`deleteItem` – `InvalidActionError` за ръчен, съответно изчислен ред.
+- `pantry.ts` – откази `already_in_pantry`, `not_staple`; всяка промяна сигнализира `shopping.changed` без седмица (Килерът важи за всички списъци). `appliances.ts:addAppliance` – `appliance_exists`.
+- `step-photos.ts:stepPhotoJpeg` – типът се чете от байтовете; снимката се изправя по EXIF и се записва като JPEG без EXIF (без GPS). Над `STEP_PHOTO_MAX_INPUT_PIXELS` (50 MP) е `UnsupportedPhotoError`. Бавно е, затова никога в транзакция.
+- `step-photos.ts:removeOrphanStepPhotos` – трие само през нощните часове в София (`ORPHAN_CLEANUP_HOURS`) снимки сираци, по-стари от ден; денем връща `null`.
+- `sync-mutex.ts:oneAtATime` – извикване, докато предишното още тече, връща `running`. `calendar-sync.ts:syncCalendars` – източник с грешка пази старите си събития, другите се синхронизират, а изпълнението е `failed` с имената на провалените.
+- `push.ts:PushService.send` – устройство, за което push услугата отговаря 404/410, се изтрива; другите грешки се логват. Отхвърля само при грешка на базата.
+- `users.ts:createUsersService` – потребителите се кешират за минута (променят се само с миграции).
+
+## Side Effects
+
+- Postgres: всички записи минават през `src/db/repositories`. Многостъпковите записи са в транзакции, отворени тук (`db.transaction`: `menu.ts`, `shopping.ts`, `recipes.ts`, `recipe-suggestions.ts`, `recipe-revisions.ts`, `contract-requests.ts`); единичните записи (`pantry.ts`, `appliances.ts`, `ingredients.ts`, `push.ts`, `sync-run.ts`, `step-photos.ts`, `reminders.ts:claimNotification`, `menu.ts:deletePlan/markThawed` и др.) са без транзакция.
+- OpenClaw: `contract-requests.ts:createContractRequests` вика `OpenClawClient.complete` във фонови изпълнения.
+- Мрежа: `calendar-sync.ts` (Google Calendar), `budget-sync.ts` (Wallet), `push.ts` (Web Push), `recipe-imports.ts`/`recipe-refinements.ts`/`imported-step-photos.ts` (страници и снимки през `recipe-page`).
+- CPU и памет: `step-photos.ts` декодира и преоразмерява снимки (`sharp`, `heic-decode`).
+- Сигнали в паметта: `events.ts:createEventBus` към абонатите на `GET /api/events`.
+- Логване: провалите на фоновите изпълнения (`contract-requests.ts`, `warn` и за очаквани откази като `no_results`), на push (`push.ts`), на известието за предложение (`menu-notifications.ts`) и на `health.ts:checkHealth`; `info` за пратено напомняне (`reminders.ts`) и непредложено от cron-а меню (`menu-schedule.ts`).
+
+## Verification
+
+- Run: `pnpm --filter api test src/services` (нужна е тестовата база: `docker compose -p family-test --profile test up -d postgres-test`); повечето поведение се покрива и от `pnpm --filter api test src/routes`.

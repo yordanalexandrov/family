@@ -19,7 +19,7 @@
 | `caddy` | host | `127.0.0.1:18090` | статиката на PWA-то; `/api/*` и `/healthz` → api. cloudflared сочи тук |
 | `api` | host | `127.0.0.1:18091` | прилага миграциите при старт, после приема заявки |
 | `postgres` | bridge | `127.0.0.1:5432` | данните, във volume `pgdata` (оцелява `down`/`up`) |
-| `backup` | bridge | — | `pg_dump` всяка нощ в 03:00 (`TZ`) в `/srv/family/backups`, пази 14 дни |
+| `backup` | bridge | — | `pg_dump` всяка нощ в 03:00 (`TZ`) в `/srv/family/backups`, трие dump-овете на 15 и повече дни (остават ~15) |
 | `postgres-test` | bridge, профил `test` | `127.0.0.1:5433` | тестовата база за `pnpm test`, tmpfs |
 
 `api` и `caddy` вървят на host мрежата на Docker и слушат само на loopback ([ADR-0005](adr/0005-api-and-caddy-on-host-network.md)): от LAN не се вижда нищо, cloudflared стига Caddy по loopback, а api може да вика OpenClaw на `127.0.0.1:18789`. Помежду си говорят по фиксираните портове, не по имена от compose мрежата. TLS терминира Cloudflare. OpenClaw е външен и говори само с api; n8n отсъства във Фаза 1 ([ADR-0001](adr/0001-no-n8n-in-phase-1.md)).
