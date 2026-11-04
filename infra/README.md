@@ -1,5 +1,7 @@
 # Инфраструктура
 
+## Overview
+
 Стекът на `homesrv` е [docker-compose.yml](../docker-compose.yml) с образи от [Dockerfile](../Dockerfile): `docker compose -p family up -d --build` от корена, с `.env` до него. Мрежата е по [ADR-0005](../docs/adr/0005-api-and-caddy-on-host-network.md), общата картина е в [architecture.md](../docs/architecture.md#инфраструктура).
 
 | Порт | Service | Бележка |
@@ -24,7 +26,7 @@ Override-ът е в `.gitignore`. Без него api тръгва с `AUTH_MODE
 
 ## Backup и възстановяване
 
-`backup` прави `pg_dump -Fc` всяка нощ в 03:00 (`TZ`) във `/srv/family/backups/family-YYYY-MM-DD.dump` и трие dump-овете по-стари от 14 дни. Файловете са достъпни само за root.
+`backup` прави `pg_dump -Fc` всяка нощ в 03:00 (`TZ`) във `/srv/family/backups/family-YYYY-MM-DD.dump` и трие dump-овете на 15 и повече дни (`find -mtime +14`), така че остават около 15. Файловете са достъпни само за root.
 
 ```bash
 docker compose -p family run --rm -e BACKUP_RUN_NOW=1 backup    # dump веднага, без да чака 03:00
@@ -48,3 +50,8 @@ docker compose -p family start api
 Одобрението на PR от fork е истинската защита: такъв PR може да смени всеки workflow, вкл. `runs-on`, и без одобрение job-ът му би пуснал чужд код на `homesrv` с правата на групата `docker` (на практика root). Стъпката в `ci.yml` ([check-workflows.sh](../.github/scripts/check-workflows.sh)) хваща само грешка в repo-то, защото PR може да промени и нея.
 
 Checkout-ът на сървъра, с `.env` до него, е workspace-ът на runner-а `~/actions-runner-family/_work/family/family`; командите за backup и restore по-горе се пускат оттам. `.env` се пише наново при всеки deploy. `POSTGRES_PASSWORD` важи само при първото създаване на volume `pgdata`: смяна на secret-а иска и `ALTER USER family PASSWORD '…'` в базата, преди deploy.
+
+## Subdirectories & Boundaries
+
+- backup: [backup/README.md](backup/README.md) — `backup.sh`, entrypoint на service `backup`: нощен `pg_dump -Fc` в `/backups`, трие dump-овете на 15+ дни (`find -mtime +14`); `BACKUP_RUN_NOW=1` за dump веднага.
+- caddy: `caddy/Caddyfile` (без contract файл) — копира се в образа `web` от [Dockerfile](../Dockerfile); статиката на PWA-то, `/api/*` и `/healthz` към api.

@@ -26,7 +26,8 @@ jobs:
       - name: Smoke коментар при сменен prompt или контракт
         run: |
           changed=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' \
-            | grep -E '^docs/openclaw/family-[^/]+\.md$|^packages/shared/src/contracts/' || true)
+            | grep -E '^docs/openclaw/family-[^/]+\.md$|^packages/shared/src/contracts/' \
+            | grep -v '/README\.md$' || true)
           if [ -z "$changed" ]; then
             echo "Няма сменен prompt или контракт."
             exit 0
