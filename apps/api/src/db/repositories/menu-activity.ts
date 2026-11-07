@@ -1,5 +1,5 @@
 import type { DateKey } from '@family/shared';
-import { lte, ne, sql } from 'drizzle-orm';
+import { and, lte, ne, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { menuActivity } from '../schema/notifications.js';
 import { user } from '../schema/user.js';
@@ -17,8 +17,8 @@ export interface MenuActivity {
 }
 
 /**
- * Counts one action of `actorUserId` on the menu of `weekStart` for every other person, and makes `at` the last one;
- * in the transaction of the action. The menu service (`services/menu.ts`) calls it for a vote put, a comment written
+ * Counts one action of `actorUserId` on the menu of `weekStart` for every other person (never Рецептурко, ADR-0014),
+ * and makes `at` the last one; in the transaction of the action. The menu service (`services/menu.ts`) calls it for a vote put, a comment written
  * and a changed meal: its recipe, or the note of a meal without one (by hand or from „Предложи друго“) or its day (a swap).
  */
 export async function addMenuActivity(
@@ -31,7 +31,7 @@ export async function addMenuActivity(
   const others = await db
     .select({ id: user.id })
     .from(user)
-    .where(ne(user.id, actorUserId));
+    .where(and(ne(user.id, actorUserId), ne(user.role, 'app')));
   if (others.length === 0) {
     return;
   }

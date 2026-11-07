@@ -10,10 +10,13 @@ import {
 import fixtureInput from '@family/shared/fixtures/recipe-revise.input.json' with {
   type: 'json',
 };
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { recipeRevisionRequest } from '../db/schema/food.js';
 import { buildTestApp } from '../test/app.js';
+import { testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -21,7 +24,7 @@ import {
   reviseAnswer,
 } from '../test/openclaw.js';
 import { storedStepPhoto } from '../test/photos.js';
-import { DANI } from '../test/users.js';
+import { DANI, RECEPTURKO } from '../test/users.js';
 
 let app: FastifyInstance;
 
@@ -376,6 +379,36 @@ describe('POST /api/recipes/revisions/:id/reject', () => {
 });
 
 describe('PUT /api/recipes/:id with revisionId', () => {
+  it('lets Рецептурко ask for a revision and save it: requestedBy and decidedBy are his (ADR-0014)', async () => {
+    const as = { 'x-acting-user': RECEPTURKO.id };
+    const { recipe, input } = await createdRecipe();
+    answering(reviseAnswer);
+    const response = await postRevision(recipe.id, INSTRUCTION, as);
+    expect(response.statusCode).toBe(202);
+    const done = await finished(
+      recipeRevisionRequestSchema.parse(response.json().request),
+    );
+    expect(done.requestedBy).toBe(RECEPTURKO.id);
+    const revision = done.revision;
+    if (!revision) {
+      throw new Error('no revision');
+    }
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${recipe.id}`,
+      headers: as,
+      payload: { ...input, steps: revision.steps, revisionId: done.id },
+    });
+
+    expect(saved.statusCode).toBe(200);
+    const [row] = await testDb()
+      .select({ decidedBy: recipeRevisionRequest.decidedBy })
+      .from(recipeRevisionRequest)
+      .where(eq(recipeRevisionRequest.id, done.id));
+    expect(row?.decidedBy).toBe(RECEPTURKO.id);
+  });
+
   it('saves the recipe and marks the revision accepted', async () => {
     const { recipe, input } = await createdRecipe();
     answering(reviseAnswer);

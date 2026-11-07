@@ -7,7 +7,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 ## Interface
 
 - `health.ts:healthRoutes` – `GET /healthz` (извън `/api`: 200 при `ok`, 503 при `degraded`).
-- `users.ts:usersRoutes` – `GET /api/users`. `me.ts:meRoutes` – `GET /api/me`.
+- `users.ts:usersRoutes` – `GET /api/users` (само хората, без служебния Рецептурко, ADR-0014). `me.ts:meRoutes` – `GET /api/me`.
 - `sync.ts:syncRoutes` – `POST /api/sync/calendar`, `POST /api/sync/budget` („Обнови сега“; 202 докато тече, `unconfigured` без конфигурация).
 - `calendar-events.ts:calendarEventsRoutes` – `GET /api/calendar/events?from&to` (по подразбиране от днес в София до `from + CALENDAR_MAX_DAYS`). `dashboard.ts:dashboardRoutes` – `GET /api/dashboard`.
 - `events.ts:eventsRoutes` – `GET /api/events` (Server-Sent Events със сигнали за промяна).
@@ -24,7 +24,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `shopping.ts:shoppingRoutes` – `GET /api/shopping-lists/:weekStart`, `PUT /api/shopping-lists/:weekStart/items/:key/checked|hidden`, `POST /api/shopping-lists/:weekStart/items`, `DELETE /api/shopping-lists/:weekStart/items/:key`, `PUT|DELETE /api/shopping-lists/:weekStart/meals/:mealId`.
 - `pantry.ts:pantryRoutes` – `GET|POST /api/pantry`, `PATCH|DELETE /api/pantry/:id`, `POST /api/pantry/:id/ran-out`.
 - `appliances.ts:appliancesRoutes` – `GET|POST /api/appliances`, `PUT|DELETE /api/appliances/:id`.
-- `notifications.ts:notificationsRoutes` – `GET /api/notifications/vapid-key`, `PUT|DELETE /api/notifications/subscription`, `GET|PUT /api/notifications/settings`, `POST /api/notifications/test` (`vapid-key` и `test` отговарят 404 `push_disabled`, когато сървърът няма VAPID ключове – `requirePublicKey`).
+- `notifications.ts:notificationsRoutes` – `GET /api/notifications/vapid-key`, `PUT|DELETE /api/notifications/subscription`, `GET|PUT /api/notifications/settings`, `POST /api/notifications/test` (`vapid-key` и `test` отговарят 404 `push_disabled`, когато сървърът няма VAPID ключове – `requirePublicKey`). Служебният Рецептурко (роля `app`) получава 403 `forbidden` на всички освен `vapid-key` (ADR-0014).
 - `params.ts:idParamsSchema` – `{ id: uuid }` за `:id` параметрите.
 - `photo-form.ts:PHOTO_FIELD, missingPhoto, megabytes, photoTooLarge` – общите помощни функции за multipart полето `photo` и грешките му.
 

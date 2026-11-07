@@ -7,9 +7,9 @@ const USERS_TTL_MS = 60_000;
 
 /** The family's users (GLOSSARY: Потребител), read from the database at most once a minute. */
 export interface UsersService {
-  /** Everyone, ordered by name. */
+  /** The people to pick on a device, ordered by name: without service users (role `app`, ADR-0014). */
   list(): Promise<User[]>;
-  /** The user with this id (a lowercase UUID), or `undefined`. */
+  /** The user with this id (a lowercase UUID), a service user too, or `undefined`. */
   find(id: string): Promise<User | undefined>;
 }
 
@@ -33,7 +33,7 @@ export function createUsersService(db: Db): UsersService {
 
   return {
     async list() {
-      return (await load()).users;
+      return (await load()).users.filter((user) => user.role !== 'app');
     },
     async find(id) {
       return (await load()).byId.get(id);

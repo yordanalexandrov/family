@@ -28,7 +28,7 @@ import {
   openclaw,
 } from '../test/openclaw.js';
 import { stockPantry } from '../test/pantry.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the week of 2 November has not begun. */
 const NOW = new Date('2026-10-28T08:00:00Z');
@@ -303,6 +303,22 @@ describe('POST /api/menu/meals/:id/replacements', () => {
     expect({ ...input, recipes: input.recipes.sort(byId) }).toEqual({
       ...replaceInput,
       recipes: [...replaceInput.recipes].sort(byId),
+    });
+  });
+
+  it('takes a request of Рецептурко and names him in the thread (ADR-0014)', async () => {
+    const bodies = answerInTurn(JSON.stringify(replaceFixture));
+    const meal = await fixtureWeek();
+    await comment(meal.id, 'Може ли нещо по-бързо?', RECEPTURKO.id);
+
+    const replacement = await replace(meal.id, RECEPTURKO.id);
+
+    expect(replacement.requestedBy).toBe(RECEPTURKO.id);
+    expect((await finished(replacement.id)).status).toBe('done');
+    const input = JSON.parse(bodies[0]?.messages[0]?.content ?? '');
+    expect(input.thread.at(-1)).toMatchObject({
+      author: 'Рецептурко',
+      body: 'Може ли нещо по-бързо?',
     });
   });
 

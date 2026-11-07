@@ -10,7 +10,7 @@ import {
   type MenuActivity,
   takeQuietMenuActivity,
 } from '../db/repositories/menu-activity.js';
-import { listUsers } from '../db/repositories/users.js';
+import { listPeople, listUsers } from '../db/repositories/users.js';
 import { menuWeekUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
 
@@ -100,7 +100,7 @@ export function createMenuNotifications({
       if (quiet.length === 0) {
         return;
       }
-      const users = await listUsers(db);
+      const users = await listPeople(db);
       for (const activity of quiet) {
         // The others are the ones who acted; with two users, the one other.
         const actors = users
@@ -117,8 +117,10 @@ export function createMenuNotifications({
 
     async proposed({ weekStart, requestedBy, hint }) {
       try {
-        const users = await listUsers(db);
-        const requester = users.find((user) => user.id === requestedBy);
+        // The requester may be Рецептурко; only people are told (ADR-0014).
+        const requester = (await listUsers(db)).find(
+          (user) => user.id === requestedBy,
+        );
         const what = requester
           ? `${requester.name} предложи меню за ${weekRange(weekStart)}`
           : `Ново меню за ${weekRange(weekStart)}`;
@@ -127,7 +129,7 @@ export function createMenuNotifications({
           body: withHint(what, hint),
           ...ofWeek(weekStart),
         };
-        for (const user of users) {
+        for (const user of await listPeople(db)) {
           if (user.id !== requestedBy) {
             await push.send(user.id, 'menu', message);
           }

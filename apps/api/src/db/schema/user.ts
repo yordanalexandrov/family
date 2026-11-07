@@ -7,7 +7,8 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-export const userRole = pgEnum('user_role', ['parent']);
+/** `parent`: a person of the family. `app`: a service user that acts through the API (Рецептурко), never a person. */
+export const userRole = pgEnum('user_role', ['parent', 'app']);
 
 /** A member of the family (GLOSSARY: Потребител). `color` names a design token (e.g. `person-1`), not a CSS value. */
 export const user = pgTable('user', {

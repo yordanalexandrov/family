@@ -20,7 +20,7 @@ import {
   listReminderDinners,
   type ReminderMeal,
 } from '../db/repositories/reminders.js';
-import { listUsers } from '../db/repositories/users.js';
+import { listPeople, listUsers } from '../db/repositories/users.js';
 import type { MenuNotifications } from './menu-notifications.js';
 import { mealUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
@@ -225,7 +225,8 @@ export function createReminders({
   async function sendDue() {
     const at = now();
     const today = dateKeyInSofia(at);
-    const users = await listUsers(db);
+    // Reminders are for people only, never for Рецептурко (ADR-0014).
+    const users = await listPeople(db);
     const due = dueReminders(at, {
       // Today's dinner for the morning one, tomorrow's for the evening one.
       meals: await listReminderDinners(db, [today, addDays(today, 1)]),

@@ -5,13 +5,15 @@ import {
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { pushSubscription } from '../db/schema/notifications.js';
 import { buildTestApp } from '../test/app.js';
+import { testDb } from '../test/db.js';
 import {
   createTestPushService,
   deviceSubscription,
   TEST_VAPID_PUBLIC_KEY,
 } from '../test/push.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 /** Thursday 5 November 2026, 12:00 in Sofia. */
 const NOON = new Date('2026-11-05T10:00:00Z');
@@ -181,6 +183,23 @@ describe('„Кой готви довечера“ through the reminders cron', 
     });
   });
 
+  it('never asks Рецептурко, even with a subscription in the database (ADR-0014)', async () => {
+    // The API refuses him a subscription; this one is written past it.
+    await testDb()
+      .insert(pushSubscription)
+      .values({
+        userId: RECEPTURKO.id,
+        ...deviceSubscription('recepturko').keys,
+        endpoint: deviceSubscription('recepturko').endpoint,
+      });
+
+    const delivered = await runAt(AFTERNOON);
+
+    expect(delivered.map((d) => d.payload.userId).sort()).toEqual(
+      [DANI.id, POLI.id].sort(),
+    );
+  });
+
   it('sends nothing to a person who turned `cook` off', async () => {
     const response = await app.inject({
       method: 'PUT',
@@ -197,6 +216,14 @@ describe('„Кой готви довечера“ through the reminders cron', 
 });
 
 describe('POST /api/menu/meals/:id/cook-claim', () => {
+  it('answers 400 invalid_reference to Рецептурко, who does not cook (ADR-0014)', async () => {
+    const response = await claim(mealId, RECEPTURKO.id);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'invalid_reference' });
+    expect(await cookOf(mealId)).toBeNull();
+  });
+
   it('makes the first to answer „Аз“ the cook and signals menu.changed for the week', async () => {
     await runAt(AFTERNOON);
     const signals: ServerEvent[] = [];

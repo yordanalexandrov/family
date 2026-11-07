@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
 import { storedStepPhoto } from '../test/photos.js';
-import { DANI } from '../test/users.js';
+import { DANI, RECEPTURKO } from '../test/users.js';
 
 let app: FastifyInstance;
 
@@ -956,6 +956,51 @@ describe('PUT and DELETE /api/recipes/:id/rating', () => {
     });
 
     expect(signals).toEqual([]);
+  });
+});
+
+describe('Рецептурко (ADR-0014)', () => {
+  it('creates, replaces, rates and archives a recipe', async () => {
+    const as = { 'x-acting-user': RECEPTURKO.id };
+    const potato = await seedIngredient('картоф');
+    const input = recipeInput({
+      ingredients: [{ ingredientId: potato.id, quantity: 1, unit: 'kg' }],
+    });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/recipes',
+      headers: as,
+      payload: input,
+    });
+    expect(created.statusCode).toBe(201);
+    const { id } = recipeResponseSchema.parse(created.json()).recipe;
+
+    const replaced = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${id}`,
+      headers: as,
+      payload: { ...input, title: 'Картофи на фурна' },
+    });
+    const rated = await app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${id}/rating`,
+      headers: as,
+      payload: { rating: 4 },
+    });
+    const archived = await app.inject({
+      method: 'POST',
+      url: `/api/recipes/${id}/archive`,
+      headers: as,
+    });
+
+    expect(replaced.statusCode).toBe(200);
+    expect(rated.statusCode).toBe(200);
+    expect(archived.statusCode).toBe(200);
+    expect(recipeResponseSchema.parse(archived.json()).recipe).toMatchObject({
+      title: 'Картофи на фурна',
+      rating: 4,
+      archivedAt: expect.any(String),
+    });
   });
 });
 
