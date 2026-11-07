@@ -29,7 +29,7 @@ import {
   openclaw,
 } from '../test/openclaw.js';
 import { stockPantry } from '../test/pantry.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the week of 2 November has not begun. */
 const NOW = new Date('2026-10-28T08:00:00Z');
@@ -178,7 +178,7 @@ function recipeId(n: number) {
 }
 
 describe('POST /api/menu/plans', () => {
-  it('creates an empty plan: 7 dinners without a recipe, one serving for each user', async () => {
+  it('creates an empty plan: 7 dinners without a recipe, one serving for each person and none for Рецептурко', async () => {
     const created = await inject('POST', '/api/menu/plans', {
       weekStart: WEEK,
     });
@@ -530,6 +530,21 @@ describe('PATCH /api/menu/meals/:id', () => {
     const cook = await patchMeal(plan.meals[0].id, { cookUserId: stranger });
     const servings = await patchMeal(plan.meals[0].id, {
       servings: { [stranger]: 1 },
+    });
+
+    expect(cook.statusCode).toBe(400);
+    expect(cook.json()).toMatchObject({ error: 'invalid_reference' });
+    expect(servings.statusCode).toBe(400);
+  });
+
+  it('answers 400 for Рецептурко as a cook or with servings (ADR-0014)', async () => {
+    const plan = await createPlan(WEEK);
+
+    const cook = await patchMeal(plan.meals[0].id, {
+      cookUserId: RECEPTURKO.id,
+    });
+    const servings = await patchMeal(plan.meals[0].id, {
+      servings: { [DANI.id]: 1, [RECEPTURKO.id]: 1 },
     });
 
     expect(cook.statusCode).toBe(400);

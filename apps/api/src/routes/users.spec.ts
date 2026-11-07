@@ -14,7 +14,7 @@ beforeAll(async () => {
 afterAll(() => app.close());
 
 describe('GET /api/users', () => {
-  it('lists both users ordered by name without an acting user header', async () => {
+  it('lists both people ordered by name without an acting user header, not Рецептурко', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/users' });
 
     expect(response.statusCode).toBe(200);

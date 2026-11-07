@@ -22,7 +22,7 @@ import {
   TEST_OPENCLAW,
 } from '../test/openclaw.js';
 import { storedStepPhoto } from '../test/photos.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 let app: FastifyInstance;
 
@@ -851,6 +851,36 @@ describe('POST /api/recipe-suggestions/:id/approve', () => {
     );
 
     expect(response.statusCode).toBe(404);
+  });
+});
+
+describe('Рецептурко (ADR-0014)', () => {
+  it('asks for suggestions and approves one: requestedBy and decidedBy are his', async () => {
+    const as = { 'x-acting-user': RECEPTURKO.id };
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/recipe-suggestions/requests',
+      headers: as,
+      payload: { slots: ['dinner'] },
+    });
+    expect(response.statusCode).toBe(202);
+    const request = suggestionRequestSchema.parse(response.json().request);
+    expect(request.requestedBy).toBe(RECEPTURKO.id);
+    const body = await finished(request);
+    const suggestion = recipeSuggestionSchema.parse(body.suggestions[0]);
+
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/api/recipe-suggestions/${suggestion.id}/approve`,
+      headers: as,
+      payload: await editedInput(suggestion),
+    });
+
+    expect(approved.statusCode).toBe(201);
+    expect(approved.json().suggestion).toMatchObject({
+      status: 'approved',
+      decidedBy: RECEPTURKO.id,
+    });
   });
 });
 

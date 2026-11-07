@@ -15,6 +15,7 @@ import {
   vi,
 } from 'vitest';
 import { meal } from '../db/schema/menu.js';
+import { pushSubscription } from '../db/schema/notifications.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
 import { seedFixtureRecipes } from '../test/menu.js';
@@ -29,7 +30,7 @@ import {
   TEST_VAPID_PUBLIC_KEY,
   type TestPushService,
 } from '../test/push.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia. */
 const NOW = new Date('2026-10-28T08:00:00Z');
@@ -143,7 +144,31 @@ function received() {
   }));
 }
 
+/** A device of Рецептурко written past the API, which refuses him one (ADR-0014): nothing may reach it. */
+async function subscribeRecepturko() {
+  const { endpoint, keys } = deviceSubscription(RECEPTURKO.name);
+  await testDb()
+    .insert(pushSubscription)
+    .values({ userId: RECEPTURKO.id, endpoint, ...keys });
+}
+
 describe('menu activity (GLOSSARY: Известие от Съгласуването)', () => {
+  it('tells only the other person, never Рецептурко, nor names him (ADR-0014)', async () => {
+    await subscribeRecepturko();
+    const [monday = ''] = await notedPlan();
+    await vote(DANI, monday);
+
+    later(10);
+    await runReminders();
+
+    expect(received()).toEqual([
+      {
+        to: POLI.name,
+        payload: expect.objectContaining({ title: 'Дани по менюто' }),
+      },
+    ]);
+  });
+
   it('gathers the other’s actions into one notification, 10 minutes after the last one', async () => {
     const [monday = '', tuesday = '', wednesday = ''] = await notedPlan();
     await vote(POLI, monday);
@@ -288,6 +313,19 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
   });
 });
 
+describe('menu activity of Рецептурко (ADR-0014)', () => {
+  it('is not counted: the notification would name the other person', async () => {
+    const [monday = ''] = await notedPlan();
+    await vote(RECEPTURKO, monday);
+    await comment(RECEPTURKO, monday);
+
+    later(10);
+    await runReminders();
+
+    expect(received()).toEqual([]);
+  });
+});
+
 describe('new menu proposal', () => {
   beforeEach(async () => {
     await seedFixtureRecipes();
@@ -360,6 +398,25 @@ describe('new menu proposal', () => {
         },
       },
     ]);
+  });
+
+  it('tells both people of a proposal Рецептурко asked for, and none to him (ADR-0014)', async () => {
+    await subscribeRecepturko();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/menu/proposals',
+      headers: as(RECEPTURKO),
+      payload: { weekStart: WEEK },
+    });
+    expect(response.statusCode).toBe(202);
+
+    await vi.waitFor(() => expect(received()).toHaveLength(2));
+    expect(received().map(({ to, payload }) => [to, payload.body])).toEqual(
+      expect.arrayContaining([
+        [DANI.name, 'Рецептурко предложи меню за 2–8 ноември'],
+        [POLI.name, 'Рецептурко предложи меню за 2–8 ноември'],
+      ]),
+    );
   });
 
   it('carries the hint the proposal was asked with', async () => {

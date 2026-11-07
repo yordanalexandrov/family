@@ -19,7 +19,7 @@ import {
   openclaw,
 } from '../test/openclaw.js';
 import { storedStepPhoto } from '../test/photos.js';
-import { DANI } from '../test/users.js';
+import { DANI, RECEPTURKO } from '../test/users.js';
 
 let app: FastifyInstance;
 
@@ -269,6 +269,23 @@ function refined(
 }
 
 describe('POST /api/recipes/:id/refinements', () => {
+  it('is asked for by Рецептурко on his name (ADR-0014)', async () => {
+    const { recipe } = await createdRecipe();
+    serveSource();
+    answerInTurn(refined());
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/recipes/${recipe.id}/refinements`,
+      headers: { 'x-acting-user': RECEPTURKO.id },
+    });
+
+    expect(response.statusCode).toBe(202);
+    const request = recipeRefineRequestSchema.parse(response.json().request);
+    expect(request.requestedBy).toBe(RECEPTURKO.id);
+    expect((await finished(request)).status).toBe('done');
+  });
+
   it('refines from the page read again: keeps the photo the recipe had, stores the chosen photos of the page, fills the time', async () => {
     const { recipe, photoId } = await createdRecipe();
     const fetched = serveSource();

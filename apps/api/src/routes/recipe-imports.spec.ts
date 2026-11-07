@@ -26,7 +26,7 @@ import {
   openclaw,
 } from '../test/openclaw.js';
 import { hugePng } from '../test/photos.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 let app: FastifyInstance;
 
@@ -272,6 +272,24 @@ describe('POST /api/recipe-imports', () => {
 });
 
 /** A saved page from `src/test/fixtures/recipe-pages/`. */
+describe('an import by Рецептурко (ADR-0014)', () => {
+  it('is asked for on his name and runs to done', async () => {
+    answerInTurn(normalizeAnswer);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/recipe-imports',
+      headers: { 'x-acting-user': RECEPTURKO.id },
+      payload: { kind: 'text', text: BLOG_TEXT },
+    });
+
+    expect(response.statusCode).toBe(202);
+    const request = recipeImportRequestSchema.parse(response.json().request);
+    expect(request.requestedBy).toBe(RECEPTURKO.id);
+    expect((await finished(request)).request.status).toBe('done');
+  });
+});
+
 function savedPage(name: string): string {
   return readFileSync(
     new URL(`../test/fixtures/recipe-pages/${name}`, import.meta.url),

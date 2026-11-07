@@ -31,7 +31,7 @@
 - `shopping.ts:ensureShoppingList, findShoppingListId, listShoppingItems, setComputedItemOverlay, insertManualItem, setManualItemCheck, deleteManualItem, listShoppingMealIds, insertShoppingMeal, deleteShoppingMeal, deleteShoppingMealsOf` – Списък за пазаруване.
 - `step-photos.ts:insertStepPhoto, findStepPhotoData, existingStepPhotoIds, deleteOrphanStepPhotos` – Снимка на стъпка.
 - `sync-runs.ts:startRun, finishRun, lastRuns, pruneRuns` – Синхронизация (`sync_run`).
-- `users.ts:listUsers, findUser` – Потребители.
+- `users.ts:listUsers, listPeople, findUser` – Потребители; `listPeople` е без служебните (роля `app`, ADR-0014).
 - Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuActivity`, `menu.ts:NewMeal, MealRemoval`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
 
 ## Invariants

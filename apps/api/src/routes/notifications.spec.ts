@@ -12,13 +12,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { pushSubscription } from '../db/schema/notifications.js';
 import type { PushMessage } from '../services/push.js';
 import { buildTestApp } from '../test/app.js';
+import { testDb } from '../test/db.js';
 import {
   createTestPushService,
   deviceSubscription,
   TEST_VAPID_PUBLIC_KEY,
   type TestPushService,
 } from '../test/push.js';
-import { DANI, POLI } from '../test/users.js';
+import { DANI, POLI, RECEPTURKO } from '../test/users.js';
 
 let app: FastifyInstance;
 let push: TestPushService;
@@ -256,6 +257,49 @@ describe('app.push.send', () => {
     expect(left.map((row) => row.endpoint).sort()).toEqual(
       [busy.endpoint, fine.endpoint].sort(),
     );
+  });
+});
+
+describe('Рецептурко (ADR-0014)', () => {
+  it('is refused a subscription, the settings and a test notification: 403', async () => {
+    const as = { 'x-acting-user': RECEPTURKO.id };
+    const subscription = deviceSubscription('recepturko');
+    const responses = [
+      await app.inject({
+        method: 'PUT',
+        url: '/api/notifications/subscription',
+        headers: as,
+        payload: subscription,
+      }),
+      await app.inject({
+        method: 'DELETE',
+        url: '/api/notifications/subscription',
+        headers: as,
+        payload: { endpoint: subscription.endpoint },
+      }),
+      await app.inject({
+        method: 'GET',
+        url: '/api/notifications/settings',
+        headers: as,
+      }),
+      await app.inject({
+        method: 'PUT',
+        url: '/api/notifications/settings',
+        headers: as,
+        payload: { settings: { thaw: true, cook: true, menu: true } },
+      }),
+      await app.inject({
+        method: 'POST',
+        url: '/api/notifications/test',
+        headers: as,
+      }),
+    ];
+
+    expect(responses.map((response) => response.statusCode)).toEqual([
+      403, 403, 403, 403, 403,
+    ]);
+    expect(responses[0]?.json()).toMatchObject({ error: 'forbidden' });
+    expect(await testDb().select().from(pushSubscription)).toEqual([]);
   });
 });
 

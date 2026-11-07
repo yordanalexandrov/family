@@ -8,7 +8,7 @@ export type PersonColor = z.infer<typeof personColorSchema>;
 export const userSchema = z.object({
   id: z.uuid(),
   name: z.string(),
-  role: z.enum(['parent']),
+  role: z.enum(['parent', 'app']),
   initial: z.string().length(1),
   color: personColorSchema,
 });

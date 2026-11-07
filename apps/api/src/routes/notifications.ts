@@ -7,8 +7,11 @@ import {
   vapidKeyResponseSchema,
 } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { actorOf } from '../plugins/acting-user.js';
+import { HttpError } from '../plugins/error-handler.js';
 import { refuse } from '../services/errors.js';
 import type { PushService } from '../services/push.js';
+import { isPerson } from '../services/users.js';
 
 /** The VAPID public key; 404 `push_disabled` when the server has no VAPID keys and sends nothing. */
 function requirePublicKey(push: PushService): string {
@@ -20,6 +23,19 @@ function requirePublicKey(push: PushService): string {
 
 /** Notifications (GLOSSARY: Известие): the acting user's devices and the kinds they want. */
 export const notificationsRoutes: FastifyPluginAsyncZod = async (app) => {
+  // Рецептурко has no devices and gets no notifications (ADR-0014): no subscription, no settings. Runs after the
+  // acting-user hook, which is the app's own.
+  app.addHook('preHandler', async (request) => {
+    const actor = actorOf(request);
+    if (actor && !isPerson(actor)) {
+      throw new HttpError(
+        403,
+        'forbidden',
+        'Служебният потребител няма известия',
+      );
+    }
+  });
+
   app.get(
     '/api/notifications/vapid-key',
     {

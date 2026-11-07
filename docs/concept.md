@@ -129,7 +129,7 @@ MVP-то е с минимален AI: OpenClaw предлага меню и ре
 
 | Таблица | Ключови полета | Бележка |
 |---|---|---|
-| `user` | id, name, role | двама за сега |
+| `user` | id, name, role | двама души (`parent`) и служебният Рецептурко (`app`, id `33333333-3333-4333-8333-333333333333`, ADR-0014) |
 | `calendar_event` | external_id, title, start, end, all_day, calendar_name | кеш от Google Calendar, презаписва се при синхронизация |
 | `budget_snapshot` | month, limit, spent, remaining, synced_at | кеш от Wallet; по категории по-късно |
 | `ingredient` | id, name, unit, category, aisle | нормализирани продукти (напр. „пилешко филе“, г) |

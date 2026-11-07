@@ -63,7 +63,7 @@ import {
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
 import { deleteShoppingMealsOf } from '../db/repositories/shopping.js';
-import { findUser, listUsers } from '../db/repositories/users.js';
+import { findUser, listPeople } from '../db/repositories/users.js';
 import { menuProposalRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
@@ -79,6 +79,7 @@ import {
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
 import type { MenuNotifications } from './menu-notifications.js';
+import { isPerson } from './users.js';
 
 /** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
 const DINNER: MenuSlot = 'dinner';
@@ -107,6 +108,8 @@ const NOT_MENU_RECIPE =
   'Рецептата не е в регистъра, архивирана е или не е за това хранене';
 /** The 409 of „Аз“ when someone else answered first or the cook was picked in the menu. */
 const COOK_TAKEN = 'Някой вече готви';
+/** „Аз“ from a service user (ADR-0014): Рецептурко does not cook. */
+const APP_USER_COOK = 'Служебният потребител не готви';
 
 export interface MenuService {
   /** The plan of the week with its meals. */
@@ -553,6 +556,10 @@ export function createMenuService({
     },
 
     async claimCook(id, actingUserId) {
+      const actor = await findUser(db, actingUserId);
+      if (actor && !isPerson(actor)) {
+        throw new InvalidReferenceError(APP_USER_COOK);
+      }
       const { meal, weekStart } = await db.transaction(async (tx) => {
         const claimed = await claimMealCook(tx, id, actingUserId);
         if (!claimed) {
@@ -799,12 +806,12 @@ async function reread(
   return { meal, weekStart: plan.weekStart };
 }
 
-/** Default servings of a new meal: 1 for each user. */
+/** Default servings of a new meal: 1 for each person (not Рецептурко, ADR-0014). */
 async function defaultServings(db: DbExecutor): Promise<Servings> {
-  return oneServingEach((await listUsers(db)).map((user) => user.id));
+  return oneServingEach((await listPeople(db)).map((user) => user.id));
 }
 
-/** The cook and the servings must name users; a 400 instead of a foreign key error. */
+/** The cook and the servings must name people, not a service user (ADR-0014); a 400 instead of a foreign key error. */
 async function refuseUnknownUsers(
   db: DbExecutor,
   patch: UpdateMeal,
@@ -816,7 +823,7 @@ async function refuseUnknownUsers(
   if (named.length === 0) {
     return;
   }
-  const known = new Set((await listUsers(db)).map((user) => user.id));
+  const known = new Set((await listPeople(db)).map((user) => user.id));
   if (named.some((id) => !known.has(id))) {
     throw new InvalidReferenceError('Няма такъв потребител');
   }

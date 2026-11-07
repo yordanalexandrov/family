@@ -274,6 +274,20 @@
       "when": 1793627595048,
       "tag": "0038_cooking_question_components",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794074974685,
+      "tag": "0039_user_role_app",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794074975304,
+      "tag": "0040_seed_app_user",
+      "breakpoints": true
     }
   ]
 }
