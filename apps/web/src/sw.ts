@@ -10,6 +10,7 @@ import {
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkOnly } from 'workbox-strategies';
+import { NAVIGATION_DENYLIST } from './app/navigation-route';
 import {
   type AppWindow,
   onNotificationClick,
@@ -35,10 +36,10 @@ self.addEventListener('fetch', (event) => {
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
-// Навигация към api/healthz не е страница на приложението.
+// Навигация към api/healthz и към Cloudflare Access (/cdn-cgi/) не е страница на приложението.
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-    denylist: [/^\/api\//, /^\/healthz/],
+    denylist: NAVIGATION_DENYLIST,
   }),
 );
 
