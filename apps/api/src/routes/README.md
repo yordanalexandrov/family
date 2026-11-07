@@ -24,7 +24,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `shopping.ts:shoppingRoutes` – `GET /api/shopping-lists/:weekStart`, `PUT /api/shopping-lists/:weekStart/items/:key/checked|hidden`, `POST /api/shopping-lists/:weekStart/items`, `DELETE /api/shopping-lists/:weekStart/items/:key`, `PUT|DELETE /api/shopping-lists/:weekStart/meals/:mealId`.
 - `pantry.ts:pantryRoutes` – `GET|POST /api/pantry`, `PATCH|DELETE /api/pantry/:id`, `POST /api/pantry/:id/ran-out`.
 - `appliances.ts:appliancesRoutes` – `GET|POST /api/appliances`, `PUT|DELETE /api/appliances/:id`.
-- `notifications.ts:notificationsRoutes` – `GET /api/notifications/vapid-key`, `PUT|DELETE /api/notifications/subscription`, `GET|PUT /api/notifications/settings`, `POST /api/notifications/test` (`vapid-key` и `test` отговарят 404 `push_disabled`, когато сървърът няма VAPID ключове – `requirePublicKey`). Служебният Рецептурко (роля `app`) получава 403 `forbidden` на всички освен `vapid-key` (ADR-0014).
+- `notifications.ts:notificationsRoutes` – `GET /api/notifications/vapid-key`, `PUT|DELETE /api/notifications/subscription`, `GET|PUT /api/notifications/settings`, `POST /api/notifications/test` (`vapid-key` и `test` отговарят 404 `push_disabled`, когато сървърът няма VAPID ключове – `requirePublicKey`). Служебният Рецептурко (роля `app`) получава 403 `forbidden` на всички тях (ADR-0014).
 - `params.ts:idParamsSchema` – `{ id: uuid }` за `:id` параметрите.
 - `photo-form.ts:PHOTO_FIELD, missingPhoto, megabytes, photoTooLarge` – общите помощни функции за multipart полето `photo` и грешките му.
 

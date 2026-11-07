@@ -1,5 +1,5 @@
 import type { DateKey } from '@family/shared';
-import { and, lte, ne, sql } from 'drizzle-orm';
+import { and, eq, lte, ne, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { menuActivity } from '../schema/notifications.js';
 import { user } from '../schema/user.js';
@@ -28,6 +28,15 @@ export async function addMenuActivity(
   kind: MenuActivityKind,
   at: Date,
 ): Promise<void> {
+  // The activity row keeps no actor, and its notification names the other person: an action of Рецептурко would be
+  // put on someone else, so it is not counted (ADR-0014).
+  const [actor] = await db
+    .select({ role: user.role })
+    .from(user)
+    .where(eq(user.id, actorUserId));
+  if (actor?.role === 'app') {
+    return;
+  }
   const others = await db
     .select({ id: user.id })
     .from(user)

@@ -13,6 +13,7 @@ import {
 import { listPeople, listUsers } from '../db/repositories/users.js';
 import { menuWeekUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
+import { isPerson } from './users.js';
 
 /** How long the other has to be quiet on the menu before the gathered notification goes. */
 export const MENU_ACTIVITY_QUIET_MS = 10 * 60_000;
@@ -118,9 +119,8 @@ export function createMenuNotifications({
     async proposed({ weekStart, requestedBy, hint }) {
       try {
         // The requester may be Рецептурко; only people are told (ADR-0014).
-        const requester = (await listUsers(db)).find(
-          (user) => user.id === requestedBy,
-        );
+        const users = await listUsers(db);
+        const requester = users.find((user) => user.id === requestedBy);
         const what = requester
           ? `${requester.name} предложи меню за ${weekRange(weekStart)}`
           : `Ново меню за ${weekRange(weekStart)}`;
@@ -129,7 +129,7 @@ export function createMenuNotifications({
           body: withHint(what, hint),
           ...ofWeek(weekStart),
         };
-        for (const user of await listPeople(db)) {
+        for (const user of users.filter(isPerson)) {
           if (user.id !== requestedBy) {
             await push.send(user.id, 'menu', message);
           }

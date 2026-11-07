@@ -11,9 +11,9 @@ SQL миграциите на базата (41 файла, `0000_users.sql` … 
 - Уникални индекси: `appliance_name_unique`, `ingredient_name_key`, `meal_plan_date_slot_key`, `recipe_component_position_key`, `recipe_ingredient_position_key`, `recipe_suggestion_position_key`, `recipe_suggestion_import_request_key`, `shopping_item_list_key`. Частични за чакащи заявки: `cooking_question_request_pending_chain_key`, `meal_replace_request_pending_meal_key`, `menu_proposal_request_pending_week_key`, `recipe_refine_request_pending_recipe_key`. UNIQUE constraint-и: `calendar_source_google_calendar_id_unique`, `calendar_event_source_external_id_unique` (`0004`), `meal_plan_week_start_unique` (`0005`), `shopping_list_plan_id_unique` (`0006`), `shopping_list_week_start_unique` (`0021`), `pantry_item_ingredient_id_unique` (`0013`), `push_subscription_endpoint_unique` (`0015`).
 - Data миграции:
   - `0001_seed_users.sql` – двамата членове на семейството с фиксирани UUID.
-  - `0040_seed_app_user.sql` – служебният потребител Рецептурко (роля `app`, ADR-0014) с фиксиран UUID.
   - `0003_seed_ingredients.sql` – Продуктите от `src/db/seed/ingredients.json`, генерирани с `db:seed-ingredients`.
   - `0023_seed_appliances.sql` – Уредите, които преди #176 бяха константата `APPLIANCES` в `packages/shared`.
+  - `0040_seed_app_user.sql` – служебният потребител Рецептурко (роля `app`, ADR-0014) с фиксиран UUID.
 - Преобразуващи миграции:
   - `0007_suggestion_slots_times.sql` – един слот става списък.
   - `0020_shopping_item_per_ingredient.sql` – по един изчислен ред на продукт.

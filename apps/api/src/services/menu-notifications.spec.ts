@@ -313,6 +313,19 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
   });
 });
 
+describe('menu activity of Рецептурко (ADR-0014)', () => {
+  it('is not counted: the notification would name the other person', async () => {
+    const [monday = ''] = await notedPlan();
+    await vote(RECEPTURKO, monday);
+    await comment(RECEPTURKO, monday);
+
+    later(10);
+    await runReminders();
+
+    expect(received()).toEqual([]);
+  });
+});
+
 describe('new menu proposal', () => {
   beforeEach(async () => {
     await seedFixtureRecipes();

@@ -2,6 +2,11 @@ import type { User } from '@family/shared';
 import type { Db } from '../db/client.js';
 import { listUsers } from '../db/repositories/users.js';
 
+/** A person of the family, not a service user (role `app`, ADR-0014): eats, cooks, gets notified. */
+export function isPerson(user: Pick<User, 'role'>): boolean {
+  return user.role !== 'app';
+}
+
 /** Users change only through migrations, so a minute of staleness is harmless and spares a query per request. */
 const USERS_TTL_MS = 60_000;
 
@@ -33,7 +38,7 @@ export function createUsersService(db: Db): UsersService {
 
   return {
     async list() {
-      return (await load()).users.filter((user) => user.role !== 'app');
+      return (await load()).users.filter(isPerson);
     },
     async find(id) {
       return (await load()).byId.get(id);

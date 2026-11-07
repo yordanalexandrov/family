@@ -79,6 +79,7 @@ import {
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
 import type { MenuNotifications } from './menu-notifications.js';
+import { isPerson } from './users.js';
 
 /** The slot phase 1 plans, and the one „Днес се готви“ shows; typed so it cannot leave `MENU_SLOTS` unnoticed. */
 const DINNER: MenuSlot = 'dinner';
@@ -555,7 +556,8 @@ export function createMenuService({
     },
 
     async claimCook(id, actingUserId) {
-      if ((await findUser(db, actingUserId))?.role === 'app') {
+      const actor = await findUser(db, actingUserId);
+      if (actor && !isPerson(actor)) {
         throw new InvalidReferenceError(APP_USER_COOK);
       }
       const { meal, weekStart } = await db.transaction(async (tx) => {
