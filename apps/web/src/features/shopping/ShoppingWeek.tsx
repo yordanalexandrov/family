@@ -1,6 +1,4 @@
 import {
-  AISLES,
-  type Aisle,
   addDays,
   type CreateManualItem,
   type DateKey,
@@ -15,17 +13,11 @@ import {
 } from '@family/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import {
-  type CSSProperties,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { queryKeys, useUsers } from '../../api/queries';
 import { useActingUser } from '../../app/acting-user';
 import { ScreenHeader } from '../../app/ScreenHeader';
+import { AisleGroup, AisleGroups } from '../../components/AisleGroup';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
@@ -56,10 +48,6 @@ import '../recipes/recipes.css';
 import '../menu/menu.css';
 import './shopping.css';
 import { errorMessage } from '../../lib/error-message';
-
-const AISLE_LABELS = Object.fromEntries(
-  AISLES.map(({ key, labelBg }) => [key, labelBg]),
-) as Record<Aisle, string>;
 
 /** Колко стои отметнатият ред на мястото си след последното докосване в списъка. */
 const SETTLE_MS = 1500;
@@ -621,23 +609,11 @@ function AisleList({
   headingLevel = 2,
   addedKey = null,
 }: AisleListProps) {
-  const Heading = headingLevel === 2 ? 'h2' : 'h3';
   // Един непрекъснат списък (#307): щандовете са редици в обща кутия, с линия помежду си.
   return (
-    <div className="shopping__aisles">
+    <AisleGroups>
       {aisles.map(({ aisle, items }) => (
-        <section
-          key={aisle}
-          className="shopping__aisle"
-          aria-label={AISLE_LABELS[aisle]}
-          style={aisleColor(aisle)}
-        >
-          {/* Лентата вляво (#308): цветът на щанда и етикетът отдолу нагоре, залепен в щанда. */}
-          <div className="shopping__aisle-band">
-            <Heading className="shopping__aisle-title">
-              {AISLE_LABELS[aisle]}
-            </Heading>
-          </div>
+        <AisleGroup key={aisle} aisle={aisle} headingLevel={headingLevel}>
           <ul className="shopping__items">
             {items.map((item) => (
               <ItemRow
@@ -652,15 +628,10 @@ function AisleList({
               />
             ))}
           </ul>
-        </section>
+        </AisleGroup>
       ))}
-    </div>
+    </AisleGroups>
   );
-}
-
-/** Цветът на щанда (`--color-aisle-<щанд>` в tokens.css) за лентата му. */
-function aisleColor(aisle: Aisle): CSSProperties {
-  return { '--aisle-color': `var(--color-aisle-${aisle})` } as CSSProperties;
 }
 
 function position(keys: string[], key: string): number {

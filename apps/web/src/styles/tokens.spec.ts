@@ -130,7 +130,7 @@ describe('tokens.css', () => {
     ['светла', light],
     ['тъмна', dark],
   ])('лентите на щандовете (#308), %s тема', (_name, theme) => {
-    // Фонът на лентата е плътен: цветът на щанда, смесен в --color-surface (виж .shopping__aisle-band).
+    // Фонът на лентата е плътен: цветът на щанда, смесен в --color-surface (виж .aisle-group__band).
     const share = Number.parseFloat(token(theme, '--aisle-band-mix')) / 100;
     const surface = parseColor(token(theme, '--color-surface'));
 

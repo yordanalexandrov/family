@@ -1,0 +1,60 @@
+/* Щандът (#308): общ за списъка за пазаруване и продуктите на рецептата. */
+.aisle-groups {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  /* Тъмна тема: основата под стъклото пази приглушения текст (количества, ⓘ, „покажи“) над 4.5:1 и над светла аурора (#138). */
+  background:
+    linear-gradient(var(--glass-bg), var(--glass-bg)), var(--glass-tint);
+}
+
+/* Щандът е редица (#308): тънка цветна лента вляво, редовете вдясно. Височината ѝ я дават само редовете. */
+.aisle-group {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+}
+
+.aisle-group + .aisle-group {
+  border-block-start: 1px solid var(--color-line);
+}
+
+/* Тон и ляв ръб в цвета на щанда (`--aisle-color` от реда); фонът е плътен, за да държи контраста (tokens.spec.ts).
+   `contain: size`: дългото име не разтяга къс щанд, а лентата е висока колкото редовете. */
+.aisle-group__band {
+  contain: size;
+  border-inline-start: 3px solid var(--aisle-color);
+  background: color-mix(
+    in srgb,
+    var(--aisle-color) var(--aisle-band-mix),
+    var(--color-surface)
+  );
+}
+
+/* Лентата следва закръглените ъгли на общата кутия. */
+.aisle-group:first-child .aisle-group__band {
+  border-start-start-radius: calc(var(--radius-lg) - 1px);
+}
+
+.aisle-group:last-child .aisle-group__band {
+  border-end-start-radius: calc(var(--radius-lg) - 1px);
+}
+
+/* Етикетът: малък и тънък, отдолу нагоре, залепен горе, докато щандът се превърта; при къс щанд — с многоточие. */
+.aisle-group__title {
+  /* Физически размери и отстъпи: при `vertical-rl` логическите се завъртат с текста. */
+  position: sticky;
+  top: calc(var(--top-nav-space, 0px) + var(--space-2));
+  box-sizing: border-box;
+  max-height: 100%;
+  margin: 0 auto;
+  padding: var(--space-2) 0;
+  overflow: hidden;
+  color: var(--aisle-color);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  line-height: 1.5rem;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
