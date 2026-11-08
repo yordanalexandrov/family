@@ -241,12 +241,13 @@
   background: var(--color-surface);
 }
 
+/* Етикетът на щанда (`.aisle-group__title`) пази своя вид от списъка за пазаруване. */
 .recipe-view__section h2,
-.recipe-view__section h3 {
+.recipe-view__section h3:not(.aisle-group__title) {
   font-size: var(--font-size-lg);
 }
 
-.recipe-view__section h3 {
+.recipe-view__section h3:not(.aisle-group__title) {
   font-size: var(--font-size-md);
   color: var(--color-text-muted);
 }
@@ -255,6 +256,15 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* В лентата на щанда (`AisleGroup`) редовете са с вътрешен отстъп, а последният е без линия. */
+.aisle-group .recipe-view__lines {
+  padding-inline: var(--space-3);
+}
+
+.aisle-group .recipe-view__line:last-child {
+  border-block-end: 0;
 }
 
 .recipe-view__line {

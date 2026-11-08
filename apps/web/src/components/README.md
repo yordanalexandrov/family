@@ -5,6 +5,7 @@
 
 ## Interface
 - `ActionBar.tsx:ActionBar`, `ActionBar.tsx:Action` — лента с основно и второстепенни действия (`onClick` или `form`)
+- `AisleGroup.tsx:AisleGroups`, `AisleGroup.tsx:AisleGroup` — щандове като редици в обща кутия: цветна лента вляво с етикета отдолу нагоре, редовете вдясно (списък за пазаруване, продуктите на рецептата)
 - `Aurora.tsx:Aurora` — декоративен фон, спира при скрит таб
 - `Avatar.tsx:Avatar`, `Avatar.tsx:FAMILY_AVATAR` — кръгъл аватар с инициал и цвят; семейният е „С“ с `person-family`
 - `BackLink.tsx:BackLink` — бутон „Назад“ към `/` (kiosk)

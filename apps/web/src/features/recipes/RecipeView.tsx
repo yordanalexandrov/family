@@ -8,6 +8,7 @@ import { Link, useParams } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useWritingUserId } from '../../app/acting-user';
 import { isInteractiveDevice, useDeviceMode } from '../../app/device-mode';
+import { AisleGroup, AisleGroups } from '../../components/AisleGroup';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { formatNumber, formatQuantity } from '../../lib/format';
@@ -183,15 +184,23 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         {recipe.ingredients.length === 0 && (
           <p className="recipe-view__meta">Няма въведени продукти.</p>
         )}
-        {groupByAisle(lines.main).map((group) => (
-          <div key={group.key}>
-            <h3 id={`aisle-${group.key}`}>{group.labelBg}</h3>
-            <IngredientLines
-              lines={group.lines}
-              labelledBy={`aisle-${group.key}`}
-            />
-          </div>
-        ))}
+        {lines.main.length > 0 && (
+          <AisleGroups>
+            {groupByAisle(lines.main).map((group) => (
+              <AisleGroup
+                key={group.key}
+                aisle={group.key}
+                headingLevel={3}
+                headingId={`aisle-${group.key}`}
+              >
+                <IngredientLines
+                  lines={group.lines}
+                  labelledBy={`aisle-${group.key}`}
+                />
+              </AisleGroup>
+            ))}
+          </AisleGroups>
+        )}
         {recipe.components.map((component, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: компонентите нямат id; редът им е идентичността им.
           <div key={index}>
