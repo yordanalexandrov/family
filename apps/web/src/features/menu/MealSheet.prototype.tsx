@@ -12,7 +12,7 @@ import {
   type User,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
-import { type ReactNode, useCallback, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import {
@@ -130,9 +130,19 @@ export function MealSheetPrototype({
 
 /* ───────────── общи парчета ───────────── */
 
-function Hero({ m, summary = true }: { m: Model; summary?: boolean }) {
+function Hero({
+  m,
+  summary = true,
+  changed = false,
+  children,
+}: {
+  m: Model;
+  summary?: boolean;
+  changed?: boolean;
+  children?: ReactNode;
+}) {
   return (
-    <div className="proto-hero">
+    <div className={`proto-hero${changed ? ' proto-hero--changed' : ''}`}>
       {m.title ? (
         m.meal.recipeId !== null ? (
           <Link
@@ -154,6 +164,7 @@ function Hero({ m, summary = true }: { m: Model; summary?: boolean }) {
         </h3>
       )}
       {m.meal.why && <p className="proto-hero__why">{m.meal.why}</p>}
+      {children}
       {summary && !m.empty && <Summary m={m} />}
     </div>
   );
@@ -294,18 +305,83 @@ function SwapChips({ m, onDone }: { m: Model; onDone: () => void }) {
 
 type ChangeTool = 'replace' | 'pick' | 'swap' | 'note';
 
+/** Току-що направената смяна: какво е било и как се връща (`null`, ако няма „Върни“). */
+interface Change {
+  from: string | null;
+  undo: UpdateMeal | null;
+}
+
+/** „✓ Сменено“ под заглавието: потвърждава избора и дава „Върни“; изчезва след 8 s. */
+function ChangedBanner({
+  m,
+  change,
+  onDone,
+}: {
+  m: Model;
+  change: Change | null;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    if (!change) {
+      return;
+    }
+    const id = setTimeout(onDone, 8000);
+    return () => clearTimeout(id);
+  }, [change, onDone]);
+  if (!change) {
+    return null;
+  }
+  return (
+    <p className="proto-changed" role="status">
+      <span>
+        ✓ Сменено{change.from ? ` (беше „${change.from}“)` : ''}
+      </span>
+      {change.undo && (
+        <button
+          type="button"
+          className="proto-link"
+          onClick={() => {
+            if (change.undo) {
+              m.patch(change.undo);
+            }
+            onDone();
+          }}
+        >
+          Върни
+        </button>
+      )}
+    </p>
+  );
+}
+
 /** Инструментите за смяна на ястието; `tool` е избраният, `onTool` го сменя. */
 function ChangeTools({
   m,
   tool,
   onTool,
   omitReplace = false,
+  onChanged,
 }: {
   m: Model;
   tool: ChangeTool | null;
   onTool: (t: ChangeTool | null) => void;
   omitReplace?: boolean;
+  /** Ястието е сменено: листът затваря инструмента и показва „✓ Сменено“ (с „Върни“, ако има какво да се върне). */
+  onChanged?: (change: Change) => void;
 }) {
+  const before: Change = {
+    from: m.title,
+    // Без рецепта „Върни“ пак маха рецептата: денят остава празен или с бележката си.
+    undo:
+      m.meal.recipeId !== null
+        ? { recipeId: m.meal.recipeId, ...(m.meal.why ? { why: m.meal.why } : {}) }
+        : { recipeId: null },
+  };
+  function changeTo(patch: UpdateMeal, undoable = true) {
+    m.patch(patch);
+    onTool(null);
+    onChanged?.(undoable ? before : { ...before, undo: null });
+  }
   const tools: { key: ChangeTool; label: string }[] = [
     ...(omitReplace ? [] : [{ key: 'replace' as const, label: '✨ Предложи друго' }]),
     { key: 'pick', label: '🔍 Избери от рецептите' },
@@ -330,22 +406,32 @@ function ChangeTools({
                 key={m.meal.id}
                 meal={m.meal}
                 weekStart={m.plan.weekStart}
-                onPick={({ recipeId, why }) => m.patch({ recipeId, why })}
+                onPick={({ recipeId, why }) => changeTo({ recipeId, why })}
               />
             )}
             {t.key === 'pick' && (
               <RecipePicker
                 meal={m.meal}
                 plan={m.plan}
-                onPick={m.patch}
+                onPick={(patch) => changeTo(patch)}
                 onRemove={m.removeRecipe}
               />
             )}
             {t.key === 'swap' && (
-              <SwapChips m={m} onDone={() => onTool(null)} />
+              <SwapChips
+                m={m}
+                onDone={() => {
+                  onTool(null);
+                  onChanged?.({ ...before, undo: null });
+                }}
+              />
             )}
             {t.key === 'note' && (
-              <NoteField key={m.meal.note} meal={m.meal} onSave={m.patch} />
+              <NoteField
+                key={m.meal.note}
+                meal={m.meal}
+                onSave={(patch) => changeTo(patch, false)}
+              />
             )}
           </div>
         ) : (
@@ -390,7 +476,13 @@ function PastNote({ m }: { m: Model }) {
 }
 
 /** Празен ден: единствената задача е да се избере ястие, затова то е главното действие. */
-function EmptyDayPrimary({ m }: { m: Model }) {
+function EmptyDayPrimary({
+  m,
+  onChanged,
+}: {
+  m: Model;
+  onChanged?: (change: Change) => void;
+}) {
   const [tool, setTool] = useState<ChangeTool | null>(null);
   return (
     <section className="proto-group proto-group--primary">
@@ -399,9 +491,18 @@ function EmptyDayPrimary({ m }: { m: Model }) {
         key={m.meal.id}
         meal={m.meal}
         weekStart={m.plan.weekStart}
-        onPick={({ recipeId, why }) => m.patch({ recipeId, why })}
+        onPick={({ recipeId, why }) => {
+          m.patch({ recipeId, why });
+          onChanged?.({ from: null, undo: { recipeId: null } });
+        }}
       />
-      <ChangeTools m={m} tool={tool} onTool={setTool} omitReplace />
+      <ChangeTools
+        m={m}
+        tool={tool}
+        onTool={setTool}
+        omitReplace
+        {...(onChanged ? { onChanged } : {})}
+      />
     </section>
   );
 }
@@ -483,6 +584,12 @@ type RowView = 'thread' | 'cook' | 'servings' | 'change' | null;
 function VariantRows({ m }: { m: Model }) {
   const [view, setView] = useState<RowView>(null);
   const [tool, setTool] = useState<ChangeTool | null>(null);
+  const [changed, setChanged] = useState<Change | null>(null);
+  const clearChanged = useCallback(() => setChanged(null), []);
+  function onChanged(change: Change) {
+    setChanged(change);
+    setView(null);
+  }
 
   if (view) {
     const titles: Record<Exclude<RowView, null>, string> = {
@@ -524,7 +631,12 @@ function VariantRows({ m }: { m: Model }) {
           <ServingsEditor meal={m.meal} users={m.users} onChange={m.patch} />
         )}
         {view === 'change' && (
-          <ChangeTools m={m} tool={tool} onTool={setTool} />
+          <ChangeTools
+            m={m}
+            tool={tool}
+            onTool={setTool}
+            onChanged={onChanged}
+          />
         )}
       </div>
     );
@@ -533,7 +645,9 @@ function VariantRows({ m }: { m: Model }) {
   const needsMyVote = !m.past && !m.empty && m.voterId && !m.myVote;
   return (
     <>
-      <Hero m={m} summary={false} />
+      <Hero m={m} summary={false} changed={changed !== null}>
+        <ChangedBanner m={m} change={changed} onDone={clearChanged} />
+      </Hero>
       {needsMyVote && m.onVote && m.voterId && (
         <div className="proto-ask">
           <p className="proto-ask__q">Става ли за теб?</p>
@@ -546,7 +660,7 @@ function VariantRows({ m }: { m: Model }) {
           />
         </div>
       )}
-      {m.empty && m.canChange && <EmptyDayPrimary m={m} />}
+      {m.empty && m.canChange && <EmptyDayPrimary m={m} onChanged={onChanged} />}
       <div className="proto-list">
         {m.voterId && !m.empty && !needsMyVote && (
           <div className="proto-row proto-row--static">
