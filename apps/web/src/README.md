@@ -29,7 +29,7 @@
 - `main.tsx` — DOM атрибути на темата/ефектите, слушатели за инсталиране, регистрация на service worker в production
 - `sw.ts:precacheAndRoute`, `sw.ts:cleanupOutdatedCaches` — Cache API (Workbox прекеш)
 - `sw.ts:fetch listener` — `receiveShare` пази споделена снимка в кеша и пренасочва към `/recipes/import`
-- `sw.ts:push listener`, `sw.ts:notificationclick listener` — `showNotification`, `openWindow`, `fetch` към бутоните на известието (през `app/push-handlers.ts`)
+- `sw.ts:push listener`, `sw.ts:notificationclick listener` — `showNotification`, `openWindow`, `fetch` към бутоните на известието и към прочитането в кутията, `navigator.setAppBadge` (през `app/push-handlers.ts`)
 
 ## Verification
 - Run: `pnpm --filter web test`

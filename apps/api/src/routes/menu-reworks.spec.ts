@@ -474,6 +474,8 @@ describe('POST /api/menu/reworks', () => {
       { type: 'menu.rework.changed', weekStart: WEEK },
       { type: 'menu.changed', weekStart: WEEK },
       { type: 'shopping.changed', weekStart: WEEK },
+      // „Преработено меню“ in the other's inbox.
+      { type: 'inbox.changed', userId: POLI.id },
     ]);
   });
 
@@ -792,6 +794,8 @@ describe('reworked menu notification', () => {
         payload: {
           kind: 'menu',
           userId: POLI.id,
+          inboxId: expect.any(String),
+          unread: 1,
           title: 'Преработено меню',
           body: 'Дани преработи менюто за 2–8 ноември · сменени 3 · „по-леко“',
           tag: `menu-${WEEK}`,

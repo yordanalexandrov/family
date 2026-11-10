@@ -156,6 +156,8 @@ describe('„Кой готви довечера“ through the reminders cron', 
     expect(delivered[0]?.payload).toEqual({
       kind: 'cook',
       userId: POLI.id,
+      inboxId: expect.any(String),
+      unread: expect.any(Number),
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${mealId}`,
@@ -256,6 +258,8 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     expect(delivered[0]?.payload).toEqual({
       kind: 'cook',
       userId: POLI.id,
+      inboxId: expect.any(String),
+      unread: expect.any(Number),
       title: 'Довечера готви Дани',
       body: 'Мусака',
       tag: `cook-${mealId}`,
@@ -282,6 +286,8 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     expect(toDani[0]?.payload).toEqual({
       kind: 'cook',
       userId: DANI.id,
+      inboxId: expect.any(String),
+      unread: expect.any(Number),
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${mealId}`,
@@ -389,6 +395,22 @@ describe('„Аз“ in GET /api/inbox', () => {
     const atDani = await cookItem(DANI.id);
     expect(atDani?.actions).toBeUndefined();
     expect(atDani?.answered).toEqual({ text: 'Поли вече готви' });
+  });
+
+  it('signals inbox.changed to each who was asked when the cook is picked in the menu', async () => {
+    await runAt(AFTERNOON);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await patchMeal(mealId, { cookUserId: POLI.id });
+    unsubscribe();
+
+    expect(
+      signals
+        .filter((event) => event.type === 'inbox.changed')
+        .map((event) => event.userId)
+        .sort(),
+    ).toEqual([DANI.id, POLI.id].sort());
   });
 
   it('gives no button and no answer to the cook told „Довечера готвиш ти“', async () => {

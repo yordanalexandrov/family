@@ -427,6 +427,22 @@ describe('„Извадих“ in GET /api/inbox', () => {
     expect(item?.answered).toBeUndefined();
   });
 
+  it('signals inbox.changed to each who has the reminder after „Извадих“, so their row drops the button at once', async () => {
+    await runAt(EVENING);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await thawed(musakaMealId, POLI.id);
+    unsubscribe();
+
+    expect(
+      signals
+        .filter((event) => event.type === 'inbox.changed')
+        .map((event) => event.userId)
+        .sort(),
+    ).toEqual([DANI.id, POLI.id].sort());
+  });
+
   it('gives nothing after the dinner’s day, answered or not', async () => {
     await runAt(EVENING);
     await thawed(musakaMealId, POLI.id);

@@ -1,5 +1,15 @@
 import type { InboxItem, NotificationKind, PushAction } from '@family/shared';
-import { and, count, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  sql,
+} from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { meal } from '../schema/menu.js';
 import { inboxItem } from '../schema/notifications.js';
@@ -79,6 +89,18 @@ export async function listInboxItems(
     actions: row.actions,
     actionUntil: row.actionUntil,
   }));
+}
+
+/** The people with a notification of one of `tags` that has buttons. */
+export async function listUsersWithButtons(
+  db: DbExecutor,
+  tags: string[],
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ userId: inboxItem.userId })
+    .from(inboxItem)
+    .where(and(inArray(inboxItem.tag, tags), isNotNull(inboxItem.actions)));
+  return rows.map((row) => row.userId);
 }
 
 /** How the buttons of a reminder about a meal were answered: who cooks, who took the meat out. */

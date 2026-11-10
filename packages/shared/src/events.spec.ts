@@ -31,6 +31,17 @@ describe('serverEventSchema', () => {
     }
   });
 
+  it('accepts inbox.changed only with the person whose inbox changed', () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+    expect(serverEventSchema.parse({ type: 'inbox.changed', userId })).toEqual({
+      type: 'inbox.changed',
+      userId,
+    });
+    expect(serverEventSchema.safeParse({ type: 'inbox.changed' }).success).toBe(
+      false,
+    );
+  });
+
   it('rejects a weekStart that is not a Monday', () => {
     expect(
       serverEventSchema.safeParse({
@@ -57,6 +68,7 @@ describe('SERVER_EVENT_TYPES', () => {
       'menu.proposal.changed',
       'menu.rework.changed',
       'shopping.changed',
+      'inbox.changed',
     ]);
   });
 });

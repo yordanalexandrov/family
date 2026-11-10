@@ -5,6 +5,7 @@ import {
   deleteInboxItemsBefore,
   listInboxItems,
   listMealAnswers,
+  listUsersWithButtons,
   type MealAnswers,
   markAllInboxItemsRead,
   markInboxItemRead,
@@ -13,7 +14,8 @@ import {
 } from '../db/repositories/inbox.js';
 import { listUsers } from '../db/repositories/users.js';
 import { NotFoundError } from './errors.js';
-import { mealOfTag } from './notification-links.js';
+import type { EventBus } from './events.js';
+import { mealOfTag, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
 
 /** How long a notification stays in the inbox after its last update; the cron deletes it then. Changed by PR. */
@@ -58,6 +60,11 @@ export interface InboxService {
   /** Marks the person's notification read; {@link NotFoundError} when it is not theirs or does not exist. */
   read(userId: string, id: string): Promise<void>;
   readAll(userId: string): Promise<void>;
+  /**
+   * After the buttons of a meal's reminders may have been answered or undone („Извадих“, a cook picked, a new
+   * recipe): `inbox.changed` to each who has such a reminder with buttons, so their row follows at once.
+   */
+  answered(mealId: string): Promise<void>;
   /** The cron's `prune-inbox` job: deletes what was not updated for {@link INBOX_KEEP_DAYS}; answers how many. */
   prune(): Promise<number>;
 }
@@ -65,12 +72,17 @@ export interface InboxService {
 export function createInboxService({
   db,
   push,
+  events,
   now,
 }: {
   db: Db;
   push: PushService;
+  /** `inbox.changed` to the person's streams after every write: their bell and icon badge follow. */
+  events: EventBus;
   now: () => Date;
 }): InboxService {
+  const changed = (userId: string) =>
+    events.publish({ type: 'inbox.changed', userId });
   return {
     async notify(userId, kind, { actionUntil, ...message }) {
       const inboxId = await upsertInboxItem(
@@ -87,8 +99,20 @@ export function createInboxService({
         },
         now(),
       );
-      const devices = await push.send(userId, kind, message);
+      changed(userId);
+      const unread = await countUnreadInboxItems(db, userId);
+      const devices = await push.send(userId, kind, {
+        ...message,
+        inboxId,
+        unread,
+      });
       return { inboxId, devices };
+    },
+    async answered(mealId) {
+      const tags = [notificationTag.thaw(mealId), notificationTag.cook(mealId)];
+      for (const userId of await listUsersWithButtons(db, tags)) {
+        changed(userId);
+      }
     },
     async list(userId) {
       const at = now();
@@ -133,8 +157,12 @@ export function createInboxService({
       if (!(await markInboxItemRead(db, userId, id, now()))) {
         throw new NotFoundError('Няма такова известие');
       }
+      changed(userId);
     },
-    readAll: (userId) => markAllInboxItemsRead(db, userId, now()),
+    async readAll(userId) {
+      await markAllInboxItemsRead(db, userId, now());
+      changed(userId);
+    },
     prune: () =>
       deleteInboxItemsBefore(
         db,

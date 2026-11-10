@@ -15,6 +15,7 @@
 - `app-update.ts:registerAppUpdate`, `startAppUpdate`, `useAppUpdate`, `HIDDEN_RELOAD_MS` — следене и прилагане на нова версия; `UpdateBar.tsx:UpdateBar` — лентата „Има нова версия · Обнови“
 - `install-prompt.ts:listenForInstallPrompt`, `useInstallPrompt` — пази `beforeinstallprompt` и дава `{standalone, accepted, install}`
 - `keyboard.ts:useKeyboardInset`, `wake-lock.ts:useWakeLock` — височина на екранната клавиатура и screen wake lock
+- `app-badge.ts:AppBadge`, `canBadge`, `showAppBadge` — Badging API върху `navigator` на приложението и на service worker-а; без поддръжка или при отказ нищо
 - `push-handlers.ts:onPush`, `onNotificationClick`, `PushWorker`, `PushData`, `AppWindow`, `NotificationShowOptions`, `ShownNotification` — чисти решения за `push` и `notificationclick` и типовете им, ползвани от `../sw.ts`
 - `theme.ts:THEME_KEY`, `THEME_BACKGROUNDS`, `device-mode.ts:DEVICE_MODE_KEY`, `acting-user.ts:ACTING_USER_KEY`, `effects.ts:EFFECTS_KEY` — ключовете в localStorage; `THEME_BACKGROUNDS` са цветовете за `theme-color` по тема
 - `MainNav.tsx:MainNav`, `ScreenHeader.tsx:ScreenHeader`, `ActingUserAvatar.tsx:ActingUserAvatar`, `ActingUserAvatar.tsx:ActingUserToast` — навигация, заглавна част (с камбанката `InboxBell` от `features/inbox`) и аватар на действащия потребител
@@ -33,7 +34,8 @@
 - `theme.ts:defaultTheme` — без режим или на личен режим подразбирането е `system`, на kiosk/TV `auto`; `auto` ползва `themeForHour` от `@family/shared`
 - `effects.ts:resolveLevel` — без `backdrop-filter` нивото е винаги `lite`; `auto` дава `lite` при `prefers-reduced-motion`
 - `app-update.ts:startAppUpdate` — новата версия е налична само при чакащ worker и съществуващ `controller`; презарежда само след поискано прилагане; сама се прилага при връщане на екрана след >= 5 мин скрит и без незаписана работа (`hasUnsavedWork`)
-- `push-handlers.ts:onPush` — невалиден payload не показва нищо; `menu` не се показва при видим и фокусиран прозорец; `thaw`, `cook` и `test` винаги се показват
+- `push-handlers.ts:onPush` — бройката `unread` от payload-а отива върху иконата и когато известието не се показва; невалиден payload не показва нищо; `menu` не се показва при видим и фокусиран прозорец; `thaw`, `cook` и `test` винаги се показват
+- `push-handlers.ts:readInboxItem` — с `inboxId` и тялото, и бутонът правят записа прочетен (`POST /api/inbox/:id/read` с `x-acting-user`) успоредно с отговора, после бройката от `GET /api/inbox/unread-count` отива върху иконата (само с Badging API); грешка само се логва
 - `push-handlers.ts:confirmCook` — отговорът на `cook` известие винаги показва резултат (записано, `cook_taken` или грешка) със същия `tag`
 - `IdleReturn.tsx:IDLE_RETURN_MS` — 60 s извън дашборда, 2 часа (`COOKING_IDLE_RETURN_MS`) в Готвене; в Готвене спира, докато има активен таймер (`isActiveTimer`); извън Готвене таймерите не го задържат
 - `MainNav.tsx:MainNav` — при невидяно предложение (`useUnseenProposalWeek`) „Меню“ има точка и води към седмицата му (`search: { week }`)

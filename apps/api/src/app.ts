@@ -227,7 +227,10 @@ export function buildApp({
       log: app.log.child({ module: 'push' }),
     }),
   );
-  app.decorate('inbox', createInboxService({ db, push: app.push, now }));
+  app.decorate(
+    'inbox',
+    createInboxService({ db, push: app.push, events, now }),
+  );
   const menuNotifications = createMenuNotifications({
     db,
     inbox: app.inbox,

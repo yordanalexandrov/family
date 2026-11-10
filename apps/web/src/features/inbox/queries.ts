@@ -10,9 +10,11 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { apiFetch } from '../../api/client';
 import { queryKeys } from '../../api/queries';
 import { useWritingUserId } from '../../app/acting-user';
+import { showAppBadge } from '../../app/app-badge';
 import { menuKeys } from '../menu/queries';
 
 /**
@@ -47,6 +49,19 @@ export function useInboxUnreadCount() {
       ),
     enabled: userId !== null,
   });
+}
+
+/**
+ * Бройката на непрочетените и върху иконата на приложението (Badging API) при всяка промяна: SSE, прочитане, смяна на
+ * човека. Без действащ човек (kiosk, TV) иконата не се пипа. Монтира се веднъж, в корена на приложението.
+ */
+export function useAppBadge() {
+  const unread = useInboxUnreadCount().data;
+  useEffect(() => {
+    if (unread !== undefined) {
+      void showAppBadge(navigator, unread);
+    }
+  }, [unread]);
 }
 
 /** `POST` с 204 без тяло. */
