@@ -339,6 +339,32 @@ describe('POST /api/menu/reworks', () => {
     });
   });
 
+  it('sends the days as they were when the rework was asked for, also when it starts after midnight', async () => {
+    const bodies = answerInTurn(JSON.stringify(reworkFixture));
+    await fixtureWeek();
+    // Wednesday 23:30 in Sofia; the run starts at 00:30 on Thursday.
+    clock = new Date('2026-11-04T21:30:00Z');
+    const unsubscribe = app.events.subscribe(() => {
+      clock = new Date('2026-11-04T22:30:00Z');
+    });
+
+    try {
+      await finished((await rework()).id);
+    } finally {
+      unsubscribe();
+    }
+
+    const input = JSON.parse(bodies[0]?.messages[0]?.content ?? '');
+    expect(
+      input.days.map(({ date, status }: { date: string; status: string }) => [
+        date,
+        status,
+      ]),
+    ).toEqual(
+      reworkInput.days.map(({ date, status }) => [date, status]),
+    );
+  });
+
   it('keeps the cook and the servings of a changed day, and takes it off the shopping list', async () => {
     answerInTurn(JSON.stringify(reworkFixture));
     const meals = await fixtureWeek();

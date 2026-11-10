@@ -119,9 +119,9 @@ function fixedDay(meal: Meal) {
  * without a menu, 409 `menu_reworking` while a rework of it is pending, 409 `replacement_pending` while „Предложи
  * друго“ is pending for one of its meals, 409 `nothing_to_rework` without a day to replace or fill from today on, 409
  * `not_enough_recipes` with fewer free dinner recipes than days to fill. The input is built when the run starts, by
- * `classifyRework`; a valid answer is written into the plan (see `onDone`). Every change of the rework's status signals
- * `menu.rework.changed`; a written answer also `menu.changed` and `shopping.changed`, and „Преработено меню“ goes to
- * the others.
+ * `classifyRework` on the day the rework was asked for; a valid answer is written into the plan (see `onDone`). Every
+ * change of the rework's status signals `menu.rework.changed`; a written answer also `menu.changed` and
+ * `shopping.changed`, and „Преработено меню“ goes to the others when a dish changed.
  */
 export function createMenuReworkStore(
   events: EventBus,
@@ -152,7 +152,8 @@ export function createMenuReworkStore(
       if (await hasPendingReplacementInPlan(tx, plan.id)) {
         throw refuse('replacement_pending', REPLACEMENT_PENDING);
       }
-      const days = classify(plan, now());
+      const at = now();
+      const days = classify(plan, at);
       const need = days.filter((day) => day.status === 'fill').length;
       if (need === 0) {
         throw refuse('nothing_to_rework', NOTHING_TO_REWORK);
@@ -170,6 +171,7 @@ export function createMenuReworkStore(
         weekStart: params.weekStart,
         hint: params.hint,
         requestedBy,
+        createdAt: at,
       });
     },
 
@@ -180,7 +182,8 @@ export function createMenuReworkStore(
       if (!plan) {
         throw new Error('plan of a rework vanished');
       }
-      const days = classify(plan, now());
+      // As the request saw them, even when the run starts after midnight: the input is what was asked for.
+      const days = classify(plan, new Date(rework.createdAt));
       const names = new Map(
         (await listUsers(db)).map((user) => [user.id, user.name]),
       );

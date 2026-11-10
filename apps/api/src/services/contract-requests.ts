@@ -319,7 +319,8 @@ export function createContractRequests({
     },
 
     async failStale() {
-      // `created_at` is the database's real time, so this is not the app's clock (which specs fix).
+      // `created_at` is real time (the database's, or the app's clock for `menu.rework`), so this is not the app's
+      // clock (which specs fix).
       const cutoff = new Date(Date.now() - STALE_AFTER_MS);
       for (const { id, table, failed } of registered) {
         try {

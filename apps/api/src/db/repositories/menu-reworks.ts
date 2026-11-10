@@ -21,7 +21,10 @@ function toRework(row: ReworkRow): MenuReworkRequest {
   };
 }
 
-/** A new `pending` rework of the plan. Refused by `menu_rework_request_pending_plan_key` when the plan has one. */
+/**
+ * A new `pending` rework of the plan, asked for `createdAt` (the app's clock: its days are classified by that date).
+ * Refused by `menu_rework_request_pending_plan_key` when the plan has one.
+ */
 export async function insertRework(
   db: DbExecutor,
   values: {
@@ -29,6 +32,7 @@ export async function insertRework(
     weekStart: string;
     hint?: string;
     requestedBy: string;
+    createdAt: Date;
   },
 ): Promise<MenuReworkRequest> {
   const [row] = await db
