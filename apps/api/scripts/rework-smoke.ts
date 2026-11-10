@@ -255,6 +255,7 @@ async function inputs(): Promise<[string, unknown][]> {
         createEventBus(),
         { reworked: async () => {} },
         () => today,
+        { answered: async () => {} },
       );
       const request: MenuReworkRequest = {
         id: '00000000-0000-4000-8000-000000000000',

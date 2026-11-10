@@ -15,11 +15,12 @@
 - `ingredients.ts:searchIngredients, findIngredientByName, findIngredient, findIngredientsByIds, existingIngredientIds, insertIngredient, updateIngredient, listIngredientNames, listRegistryIngredients, ingredientColumns` – Продукти (регистърът на продуктите).
 - `meal-replacements.ts:lockMeal, hasPendingReplacement, hasPendingReplacementInPlan, insertReplacement, findReplacement, findLatestReplacement, setReplacementCandidates, deleteReplacementsOf` – заявки `meal.replace`.
 - `menu-reworks.ts:insertRework, findRework, findLatestRework, hasPendingRework, setReworkChanged` – заявки `menu.rework`.
-- `menu-activity.ts:addMenuActivity, takeQuietMenuActivity, MenuActivityKind` – броячи за Известие от Съгласуването.
+- `menu-activity.ts:addMenuActivity, takeQuietMenuActivity, MenuActivityKind` – отделните действия (кой, вид, ястие и ден, текст) за Известие от Съгласуването.
 - `menu.ts:lockWeek, findPlanByWeek, findPlanSummary, listPlans, insertPlan, deletePlan, findMeal, findMealOn, updateMeal, swapMealDates` – Седмично меню и ястия.
 - `menu.ts:upsertVote, deleteVote, deleteOtherVotes, listComments, findComment, insertComment, deleteComment` – Гласове и Разговор на ястие.
-- `menu.ts:insertProposal, findProposal, listProposalsOfWeek, hasPendingProposal, setProposalPlan, markMealThawed, claimMealCook, saveRemoval, findRemoval, deleteRemoval` – Предложение за меню, „Извадих“, „Аз“ и „Върни“.
+- `menu.ts:insertProposal, findProposal, listProposalsOfWeek, hasPendingProposal, setProposalPlan, markMealThawed, listMealAnswers, claimMealCook, saveRemoval, findRemoval, deleteRemoval` – Предложение за меню, „Извадих“, „Аз“ (и кой е отговорил на ястията, `listMealAnswers` за бутоните в кутията) и „Върни“.
 - `notification-log.ts:listNotificationLog, listNotifiedUsers, claimNotification` – дневник на изпратените напомняния.
+- `inbox.ts:upsertInboxItem, listInboxItems, listUsersWithButtons, countUnreadInboxItems, markInboxItemRead, markAllInboxItemsRead, deleteInboxItemsBefore` – Входящата кутия (`inbox_item`): запис или обновяване по (човек, `tag`; бутоните остават, ако новото е без), четене (`StoredInboxItem` с бутоните и `action_until`), кои хора имат бутони за дадени `tag`-ове (`listUsersWithButtons`), прочитане и триене на старите.
 - `notifications.ts:upsertPushSubscription, deleteUserPushSubscription, deletePushSubscription, listPushSubscriptions, markPushSubscriptionSucceeded, listNotificationSettings, upsertNotificationSettings` – устройства за Web Push и настройките за известия.
 - `pantry.ts:listPantryItems, findPantryItem, insertPantryItem, updatePantryItem, deletePantryItem, setPantryRanOut, listUseUp, PANTRY_INGREDIENT_UNIQUE` – Килер.
 - `recipe-imports.ts:insertImportRequest, findImportRequest, listImportRequests, setImportNoResults, findImportSource, setImportUrl, findSourceUrlMatches, insertImportedSuggestion, findImportedSuggestion` – Внасяне на рецепта.
@@ -33,7 +34,7 @@
 - `step-photos.ts:insertStepPhoto, findStepPhotoData, existingStepPhotoIds, deleteOrphanStepPhotos` – Снимка на стъпка.
 - `sync-runs.ts:startRun, finishRun, lastRuns, pruneRuns` – Синхронизация (`sync_run`).
 - `users.ts:listUsers, listPeople, findUser` – Потребители; `listPeople` е без служебните (роля `app`, ADR-0014).
-- Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuActivity`, `menu.ts:NewMeal, MealRemoval`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
+- Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuAction, MenuActivity, MenuActivityAction`, `menu.ts:NewMeal, MealRemoval, MealAnswers`, `inbox.ts:InboxWrite`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
 
 ## Invariants
 
@@ -44,7 +45,7 @@
 - `calendar-events.ts:replaceSourceEvents` – изтриването в прозореца и вмъкването са в една транзакция; при конфликт по `(calendar_source_id, external_id)` редът се обновява.
 - `calendar-sources.ts:upsertCalendarSources` – източник, който го няма в списъка, се изключва, а не се изтрива (кешът му остава). `kind` е `family`, когато `ownerUserId` е `null`.
 - `notification-log.ts:claimNotification` – `onConflictDoNothing` по ключа на дневника. От две едновременни изпълнения напомнянето изпраща само едното.
-- `menu-activity.ts:takeQuietMenuActivity` – един `DELETE … RETURNING`, за да не се загуби действие, дошло междувременно.
+- `menu-activity.ts:takeQuietMenuActivity` – един `DELETE … RETURNING` по групите (седмица, човек) с `max(at)` преди тишината, за да не се загуби действие, дошло междувременно.
 - `shopping.ts:setComputedItemOverlay` – записът на изчислен ред се изтрива, когато не му остане нито отметка, нито `hidden`. `ensureShoppingList` е безопасна при паралелни извиквания (`onConflictDoNothing`).
 - `recipes.ts:setRecipeArchivedAt` пази по-ранна `archived_at`; `setRecipeRating` не мести `updated_at`; `replaceRecipeLines` трябва да се вика в транзакция.
 - `recipe-revisions.ts:isOpen` – отворена е поправка `pending` или `done` с поправена рецепта и без решение. `recipe-revisions.ts:stale` – поправката е остаряла, когато рецептата е записана след `base_updated_at` (сравнение до милисекунда); връща се като поле `stale` на всяка поправка.

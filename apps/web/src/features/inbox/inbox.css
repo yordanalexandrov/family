@@ -1,0 +1,254 @@
+/* Входящата кутия (`/inbox`) и камбанката: само телефонът и браузърът. Докосване ≥ 48 px (`--touch-target`). */
+.screen.inbox {
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--space-4);
+  inline-size: 100%;
+  max-inline-size: 48rem;
+  margin-inline: auto;
+  padding-block-end: calc(var(--bottom-nav-space) + var(--space-4));
+  text-align: start;
+}
+
+.inbox__read-all {
+  margin-inline-start: auto;
+}
+
+.inbox__empty {
+  margin: var(--space-6) 0 0;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.inbox__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.inbox__group-title {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.inbox__items {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  list-style: none;
+}
+
+.inbox-row + .inbox-row {
+  border-block-start: 1px solid var(--color-line);
+}
+
+/* Главата на реда: точка, заглавие и текст, часът вдясно. */
+.inbox-row__head {
+  display: grid;
+  grid-template-columns: 0.625rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-block-size: var(--touch-target);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  text-decoration: none;
+}
+
+.inbox-row__head:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.inbox-row__dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  transform: translateY(-0.1em);
+}
+
+.inbox-row[data-unread="true"] .inbox-row__dot {
+  background: var(--color-accent);
+}
+
+.inbox-row__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+
+.inbox-row__title {
+  color: var(--color-text);
+  font-weight: 500;
+  overflow-wrap: break-word;
+}
+
+.inbox-row[data-unread="true"] .inbox-row__title {
+  font-weight: 700;
+}
+
+.inbox-row__body {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  overflow-wrap: break-word;
+}
+
+.inbox-row__time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Бутоните на известието и кой е отговорил: под главата, подравнени със заглавието. */
+.inbox-row__actions,
+.inbox-row__answered {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3) calc(var(--space-3) * 2 + 0.625rem);
+}
+
+.inbox-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.inbox-row__answered {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* „Още“ и подробностите: под главата, подравнени с текста (след колоната на точката). Всеки ред от подробностите е
+   висок колкото докосване, с линия между редовете; ред с линк има „›“ вдясно. */
+.inbox-row__more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-block-start: calc(-1 * var(--space-3));
+  padding-inline: calc(0.625rem + 2 * var(--space-3)) var(--space-3);
+  padding-block-end: var(--space-2);
+}
+
+.inbox-row__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--touch-target);
+  margin-inline-start: calc(-1 * var(--space-2));
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inbox-row__toggle::after {
+  content: "";
+  inline-size: 0.45em;
+  block-size: 0.45em;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+
+.inbox-row__toggle[aria-expanded="true"]::after {
+  transform: translateY(0.1em) rotate(225deg);
+}
+
+.inbox-row__details {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  list-style: none;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.inbox-row__detail {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--touch-target);
+  overflow-wrap: anywhere;
+}
+
+.inbox-row__detail + .inbox-row__detail {
+  border-block-start: 1px solid var(--color-line);
+}
+
+.inbox-row__detail a {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: stretch;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.inbox-row__detail a::after {
+  content: "›";
+  margin-inline-start: auto;
+  font-size: 1.25em;
+  line-height: 1;
+}
+
+.inbox-row__detail a:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Камбанката: преди аватара, със същото докосване; бройката е в горния десен ъгъл. */
+.inbox-bell {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-inline-size: var(--touch-target);
+  min-block-size: var(--touch-target);
+  border-radius: 50%;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.inbox-bell__icon {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.inbox-bell__count {
+  position: absolute;
+  inset-block-start: 0.35rem;
+  inset-inline-end: 0.2rem;
+  min-inline-size: 1.15rem;
+  block-size: 1.15rem;
+  padding-inline: 0.25rem;
+  border: 2px solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: calc(1.15rem - 4px);
+  text-align: center;
+}

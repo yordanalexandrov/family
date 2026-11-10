@@ -11,7 +11,7 @@ import {
   vi,
 } from 'vitest';
 import { buildTestApp } from '../test/app.js';
-import { DANI } from '../test/users.js';
+import { DANI, POLI } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the weeks below have not begun. */
 const NOW = new Date('2026-10-28T08:00:00Z');
@@ -40,11 +40,15 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-/** An SSE client (without `X-Acting-User`, as `EventSource` sends none) that reads the stream message by message. */
-async function connect() {
+/**
+ * An SSE client (without `X-Acting-User`, as `EventSource` sends none) that reads the stream message by message; `user`
+ * is the person whose inbox signals it wants (`?user=`).
+ */
+async function connect(user?: string) {
   const abort = new AbortController();
   streams.push(abort);
-  const response = await fetch(`${baseUrl}/api/events`, {
+  const query = user ? `?user=${user}` : '';
+  const response = await fetch(`${baseUrl}/api/events${query}`, {
     signal: abort.signal,
   });
   if (!response.body) {
@@ -242,5 +246,67 @@ describe('GET /api/events', () => {
     client.abort();
 
     await vi.waitFor(() => expect(app.events.subscribers).toBe(0));
+  });
+});
+
+describe('GET /api/events: inbox.changed', () => {
+  const THAW = {
+    title: 'Извади месото за утре',
+    body: 'Мусака: смесена кайма',
+    tag: 'thaw-meal-1',
+    url: '/menu',
+  };
+  const INBOX_CHANGED = {
+    event: 'inbox.changed',
+    data: { type: 'inbox.changed', userId: DANI.id },
+  };
+
+  it('signals a new and an updated notification only to the stream of the person it is for', async () => {
+    const dani = await connect(DANI.id);
+    const poli = await connect(POLI.id);
+    const anyone = await connect();
+
+    await app.inbox.notify(DANI.id, 'thaw', THAW);
+    await app.inbox.notify(DANI.id, 'thaw', { ...THAW, body: 'Мусака: кайма' });
+    // A signal for every stream: the first one Poli's and the anonymous stream get.
+    await createPlan(WEEK);
+
+    expect(await dani.nextEvent()).toEqual(INBOX_CHANGED);
+    expect(await dani.nextEvent()).toEqual(INBOX_CHANGED);
+    for (const other of [poli, anyone]) {
+      expect((await other.nextEvent()).event).toBe('menu.changed');
+    }
+  });
+
+  it('signals reading one notification and reading all', async () => {
+    const { inboxId } = await app.inbox.notify(DANI.id, 'thaw', THAW);
+    const dani = await connect(DANI.id);
+
+    const read = await inject('POST', `/api/inbox/${inboxId}/read`);
+    const readAll = await inject('POST', '/api/inbox/read-all');
+
+    expect([read.statusCode, readAll.statusCode]).toEqual([204, 204]);
+    expect(await dani.nextEvent()).toEqual(INBOX_CHANGED);
+    expect(await dani.nextEvent()).toEqual(INBOX_CHANGED);
+  });
+
+  it('signals nothing for a notification that is not the person’s', async () => {
+    const { inboxId } = await app.inbox.notify(POLI.id, 'thaw', THAW);
+    const dani = await connect(DANI.id);
+
+    const refused = await inject('POST', `/api/inbox/${inboxId}/read`);
+    await createPlan(WEEK);
+
+    expect(refused.statusCode).toBe(404);
+    expect((await dani.nextEvent()).event).toBe('menu.changed');
+  });
+
+  it('refuses a user that is not an id', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/events?user=dani',
+    });
+
+    expect(response.statusCode).toBe(400);
   });
 });

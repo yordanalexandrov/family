@@ -467,14 +467,52 @@ describe('POST /api/menu/reworks', () => {
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
 
     await finished((await rework()).id);
-    unsubscribe();
 
-    expect(signals).toEqual([
-      { type: 'menu.rework.changed', weekStart: WEEK },
-      { type: 'menu.rework.changed', weekStart: WEEK },
-      { type: 'menu.changed', weekStart: WEEK },
-      { type: 'shopping.changed', weekStart: WEEK },
-    ]);
+    // `afterDone` runs once the request is marked done, and „Преработено меню“ lands in the other's inbox after it.
+    await vi.waitFor(() =>
+      expect(signals).toEqual([
+        { type: 'menu.rework.changed', weekStart: WEEK },
+        { type: 'menu.rework.changed', weekStart: WEEK },
+        { type: 'menu.changed', weekStart: WEEK },
+        { type: 'shopping.changed', weekStart: WEEK },
+        { type: 'inbox.changed', userId: POLI.id },
+      ]),
+    );
+    unsubscribe();
+  });
+
+  it('signals inbox.changed to each who has a reminder with buttons for a changed day: „Извадих“ no longer holds', async () => {
+    answerInTurn(JSON.stringify(reworkFixture));
+    const meals = await fixtureWeek();
+    const fri = meals[4]?.id ?? '';
+    // Дани asks for the rework, so „Преработено меню“ goes only to Поли: Дани's signal is the reminder's.
+    await app.inbox.notify(DANI.id, 'thaw', {
+      title: 'Извади месото',
+      body: 'Мусака',
+      tag: `thaw-${fri}`,
+      url: '/menu',
+      actions: [
+        {
+          action: 'thawed',
+          title: 'Извадих',
+          post: `/api/menu/meals/${fri}/thawed`,
+        },
+      ],
+      actionUntil: new Date(clock.getTime() + 7 * 24 * 3_600_000),
+    });
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await finished((await rework()).id);
+
+    // Told after the commit, without the run waiting for it.
+    await vi.waitFor(() =>
+      expect(signals).toContainEqual({
+        type: 'inbox.changed',
+        userId: DANI.id,
+      }),
+    );
+    unsubscribe();
   });
 
   it('signals only the rework when it fails: the menu is as it was', async () => {
@@ -792,6 +830,8 @@ describe('reworked menu notification', () => {
         payload: {
           kind: 'menu',
           userId: POLI.id,
+          inboxId: expect.any(String),
+          unread: 1,
           title: 'Преработено меню',
           body: 'Дани преработи менюто за 2–8 ноември · сменени 3 · „по-леко“',
           tag: `menu-${WEEK}`,

@@ -46,18 +46,38 @@ function fakeWindow(
   return win;
 }
 
-/** Service worker-ът, както го вижда `push-handlers`: какво е показал, отворил и поискал от api-то. */
+/**
+ * Service worker-ът, както го вижда `push-handlers`: какво е показал, отворил, поискал от api-то и сложил върху иконата.
+ * `/api/inbox/*` отговаря като api-то (прочитане 204, бройка `unread`); всичко друго — `answer`. Без `badging` няма
+ * Badging API.
+ */
 function fakeWorker({
   windows = [],
   answer = () => new Response(null, { status: 204 }),
+  unread = 0,
+  badging = true,
 }: {
   windows?: FakeWindow[];
   answer?: () => Response | Promise<Response>;
+  unread?: number;
+  badging?: boolean;
 } = {}) {
   const shown: { title: string; options: NotificationShowOptions }[] = [];
   const opened: string[] = [];
   const requests: { url: string; init: RequestInit }[] = [];
+  /** Бройките върху иконата; `0` е `clearAppBadge()`. */
+  const badges: number[] = [];
   const worker: PushWorker = {
+    badge: badging
+      ? {
+          setAppBadge: async (count) => {
+            badges.push(count);
+          },
+          clearAppBadge: async () => {
+            badges.push(0);
+          },
+        }
+      : {},
     origin: ORIGIN,
     showNotification: async (title, options) => {
       shown.push({ title, options });
@@ -68,10 +88,16 @@ function fakeWorker({
     },
     fetch: async (url, init) => {
       requests.push({ url, init });
+      if (url === `${ORIGIN}/api/inbox/unread-count`) {
+        return Response.json({ unread });
+      }
+      if (url.startsWith(`${ORIGIN}/api/inbox/`)) {
+        return new Response(null, { status: 204 });
+      }
       return answer();
     },
   };
-  return { worker, shown, opened, requests };
+  return { worker, shown, opened, requests, badges };
 }
 
 function message(data: unknown) {
@@ -357,4 +383,78 @@ describe('onNotificationClick on „Аз“ (Кой готви довечера)
       expect(opened).toEqual(['https://family.test/menu?week=2026-11-02']);
     },
   );
+});
+
+describe('the inbox (Входяща кутия) and the icon badge', () => {
+  const INBOX_ID = 'eeeeeeee-0000-4000-8000-000000000001';
+  const inThaw: PushPayload = { ...thaw, inboxId: INBOX_ID, unread: 2 };
+  const asDani = { 'x-acting-user': DANI };
+
+  it('puts the unread count of the push on the icon', async () => {
+    const { worker, badges } = fakeWorker();
+
+    await onPush(worker, message(inThaw));
+
+    expect(badges).toEqual([2]);
+  });
+
+  it('puts the count on the icon even for a menu notification it does not show', async () => {
+    const { worker, shown, badges } = fakeWorker({ windows: [fakeWindow()] });
+
+    await onPush(worker, message({ ...inThaw, kind: 'menu', actions: [] }));
+
+    expect(shown).toEqual([]);
+    expect(badges).toEqual([2]);
+  });
+
+  it('shows the push as before without the Badging API', async () => {
+    const { worker, shown } = fakeWorker({ badging: false });
+
+    await onPush(worker, message(inThaw));
+
+    expect(shown.map(({ title }) => title)).toEqual([thaw.title]);
+  });
+
+  it('reads the notification as its person on a tap of the body, opens it and puts the new count on the icon', async () => {
+    const { worker, opened, requests, badges } = fakeWorker({ unread: 1 });
+
+    await onNotificationClick(worker, notification(inThaw), '');
+
+    expect(opened).toEqual(['https://family.test/menu']);
+    expect(requests).toEqual([
+      {
+        url: `https://family.test/api/inbox/${INBOX_ID}/read`,
+        init: expect.objectContaining({ method: 'POST', headers: asDani }),
+      },
+      {
+        url: 'https://family.test/api/inbox/unread-count',
+        init: expect.objectContaining({ headers: asDani }),
+      },
+    ]);
+    expect(badges).toEqual([1]);
+  });
+
+  it('reads the notification on a button too, and clears the icon when nothing is left unread', async () => {
+    const { worker, requests, badges } = fakeWorker({ unread: 0 });
+
+    await onNotificationClick(worker, notification(inThaw), 'thawed');
+
+    expect(requests.map(({ url }) => url)).toEqual(
+      expect.arrayContaining([
+        'https://family.test/api/reminders/thaw/meal-1',
+        `https://family.test/api/inbox/${INBOX_ID}/read`,
+      ]),
+    );
+    expect(badges).toEqual([0]);
+  });
+
+  it('reads it without the Badging API', async () => {
+    const { worker, requests } = fakeWorker({ badging: false });
+
+    await onNotificationClick(worker, notification(inThaw), '');
+
+    expect(requests.map(({ url }) => url)).toEqual([
+      `https://family.test/api/inbox/${INBOX_ID}/read`,
+    ]);
+  });
 });

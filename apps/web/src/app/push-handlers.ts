@@ -1,9 +1,11 @@
 import {
   cookTakenSchema,
+  inboxUnreadCountSchema,
   type PushPayload,
   pushPayloadSchema,
 } from '@family/shared';
 import { logger } from '../logger';
+import { type AppBadge, canBadge, showAppBadge } from './app-badge';
 
 /** Какво `showNotification` получава; `actions` го няма в DOM типовете на TypeScript. */
 export interface NotificationShowOptions {
@@ -32,6 +34,8 @@ export interface AppWindow {
 export interface PushWorker {
   /** `self.location.origin`: пътищата от payload-а стават адреси на приложението. */
   origin: string;
+  /** `self.navigator`: бройката на непрочетените върху иконата (Badging API, ако го има). */
+  badge: AppBadge;
   showNotification(
     title: string,
     options: NotificationShowOptions,
@@ -70,7 +74,10 @@ async function appInFront(worker: PushWorker): Promise<boolean> {
   );
 }
 
-/** `push`: показва известието от валиден payload; невалиден не показва нищо. */
+/**
+ * `push`: слага бройката на непрочетените от payload-а върху иконата и показва известието от валиден payload;
+ * невалиден не показва нищо.
+ */
 export async function onPush(
   worker: PushWorker,
   data: PushData | null,
@@ -78,6 +85,9 @@ export async function onPush(
   const payload = readPayload(data);
   if (!payload) {
     return;
+  }
+  if (payload.unread !== undefined) {
+    await showAppBadge(worker.badge, payload.unread);
   }
   // Видим екран (епик #110): SSE вече е показал Съгласуването на отворения екран. `thaw`, `cook` и `test` — винаги.
   if (payload.kind === 'menu' && (await appInFront(worker))) {
@@ -199,17 +209,72 @@ async function confirmCook(
   });
 }
 
-/** `notificationclick`: бутон отговаря през api-то; докосване на тялото отваря екрана от `url`. */
+/**
+ * Записът на известието в кутията (`inboxId`) става прочетен като човека, за когото е, и бройката от api-то отива
+ * върху иконата. Грешка само се записва: известието е натиснато, отговорът на бутона не чака това.
+ */
+async function readInboxItem(
+  worker: PushWorker,
+  payload: PushPayload,
+): Promise<void> {
+  if (!payload.inboxId) {
+    return;
+  }
+  const headers = { 'x-acting-user': payload.userId };
+  const at = (path: string) => new URL(path, worker.origin).href;
+  try {
+    const read = await worker.fetch(at(`/api/inbox/${payload.inboxId}/read`), {
+      method: 'POST',
+      headers,
+      redirect: 'manual',
+    });
+    if (!read.ok) {
+      logger.warn('push: известието не стана прочетено', read.status);
+      return;
+    }
+    if (!canBadge(worker.badge)) {
+      return;
+    }
+    const response = await worker.fetch(at('/api/inbox/unread-count'), {
+      headers,
+      redirect: 'manual',
+    });
+    const parsed = inboxUnreadCountSchema.safeParse(
+      response.ok ? await response.json() : null,
+    );
+    if (parsed.success) {
+      await showAppBadge(worker.badge, parsed.data.unread);
+    }
+  } catch (error) {
+    logger.warn('push: известието не стана прочетено', error);
+  }
+}
+
+/**
+ * `notificationclick`: и тялото, и бутонът правят записа в кутията прочетен; бутон отговаря през api-то, докосване на
+ * тялото отваря екрана от `url`.
+ */
 export async function onNotificationClick(
   worker: PushWorker,
   notification: ShownNotification,
   action: string,
 ): Promise<void> {
   const payload = pushPayloadSchema.parse(notification.data);
+  notification.close();
+  await Promise.all([
+    readInboxItem(worker, payload),
+    respond(worker, payload, action),
+  ]);
+}
+
+async function respond(
+  worker: PushWorker,
+  payload: PushPayload,
+  action: string,
+): Promise<void> {
   const button = payload.actions?.find(
     (candidate) => candidate.action === action,
   );
-  notification.close();
   if (!button) {
     await openApp(worker, payload.url);
     return;

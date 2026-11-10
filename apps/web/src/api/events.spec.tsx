@@ -3,6 +3,7 @@ import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '../logger';
 import { MockEventSource, source } from '../test/events';
+import { inboxItem, serveInbox } from '../test/inbox';
 import {
   nextWeek,
   noProposal,
@@ -41,7 +42,31 @@ describe('useServerEvents', () => {
     renderApp('/menu');
 
     await screen.findByRole('tab', { name: 'Тази седмица' });
+    expect(source().url).toBe(`/api/events?user=${dani.id}`);
+  });
+
+  it('на kiosk слуша без човек: сигналите на нечия кутия не идват', async () => {
+    setUpDevice('kiosk');
+
+    renderApp('/');
+
+    await screen.findByText('Днес се готви');
     expect(source().url).toBe('/api/events');
+  });
+
+  it('inbox.changed обновява камбанката, без да се презарежда', async () => {
+    renderApp('/');
+    await screen.findByRole('link', { name: 'Входяща кутия' });
+    source().open();
+    serveInbox([inboxItem(), inboxItem({ unread: false })]);
+
+    act(() => source().send({ type: 'inbox.changed', userId: dani.id }));
+
+    expect(
+      await screen.findByRole('link', {
+        name: 'Входяща кутия · 1 непрочетени',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('menu.changed презарежда менюто на своята седмица, не на друга', async () => {

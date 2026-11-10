@@ -34,6 +34,7 @@ import { cookingQuestionsRoutes } from './routes/cooking-questions.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { eventsRoutes } from './routes/events.js';
 import { healthRoutes } from './routes/health.js';
+import { inboxRoutes } from './routes/inbox.js';
 import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
 import { mealReplacementsRoutes } from './routes/meal-replacements.js';
@@ -58,6 +59,7 @@ import {
   createCookingQuestionStore,
 } from './services/cooking-questions.js';
 import { createEventBus, type EventBus } from './services/events.js';
+import { createInboxService, type InboxService } from './services/inbox.js';
 import {
   createMealReplaceStore,
   type MealReplacements,
@@ -136,6 +138,8 @@ declare module 'fastify' {
     events: EventBus;
     /** Web Push to the people's devices; without VAPID keys every send is a no-op. */
     push: PushService;
+    /** The inbox, where every notification is kept; `notify` is the one way to tell a person something. */
+    inbox: InboxService;
     /** The reminders: the cron's `reminders` job (every 5 minutes) and the answer that replaces „Кой готви довечера?“. */
     reminders: Reminders;
     /** Resolves once no AI request is running in the background, without aborting any; specs await it. */
@@ -223,9 +227,13 @@ export function buildApp({
       log: app.log.child({ module: 'push' }),
     }),
   );
+  app.decorate(
+    'inbox',
+    createInboxService({ db, push: app.push, events, now }),
+  );
   const menuNotifications = createMenuNotifications({
     db,
-    push: app.push,
+    inbox: app.inbox,
     now,
     log: app.log.child({ module: 'menu-notifications' }),
   });
@@ -233,7 +241,7 @@ export function buildApp({
     'reminders',
     createReminders({
       db,
-      push: app.push,
+      inbox: app.inbox,
       now,
       log: app.log.child({ module: 'reminders' }),
       menuNotifications,
@@ -308,7 +316,13 @@ export function buildApp({
   );
   app.decorate(
     'menu',
-    createMenuService({ db, proposals: menuProposals, now, events }),
+    createMenuService({
+      db,
+      proposals: menuProposals,
+      now,
+      events,
+      inbox: app.inbox,
+    }),
   );
   // Without OpenClaw every proposal is refused, so the cron has nothing to run.
   app.decorate(
@@ -329,7 +343,7 @@ export function buildApp({
     'menuReworks',
     contractRequests.register(
       menuRework,
-      createMenuReworkStore(events, menuNotifications, now),
+      createMenuReworkStore(events, menuNotifications, now, app.inbox),
       agents.menuReworkAgent,
     ),
   );
@@ -395,6 +409,7 @@ export function buildApp({
   app.register(appliancesRoutes);
   app.register(eventsRoutes);
   app.register(notificationsRoutes);
+  app.register(inboxRoutes);
 
   return app;
 }

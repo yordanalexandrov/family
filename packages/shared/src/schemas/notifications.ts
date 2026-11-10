@@ -84,29 +84,39 @@ export const pushKindSchema = z.enum([
 export type PushKind = z.infer<typeof pushKindSchema>;
 
 /** A path inside the app (`/menu`), never another origin. */
-const appPath = z.string().regex(/^\/(?!\/)/, 'must be a path of the app');
+export const appPathSchema = z
+  .string()
+  .regex(/^\/(?!\/)/, 'must be a path of the app');
+
+/**
+ * A button of a notification („Извадих“, „Аз“): `post` is the api path it calls as the person the notification is for,
+ * from the push (the service worker) or from the inbox row (the app).
+ */
+export const pushActionSchema = z.object({
+  action: z.string().min(1),
+  title: z.string().min(1),
+  post: z.string().regex(/^\/api\//, 'must be an api path'),
+});
+
+export type PushAction = z.infer<typeof pushActionSchema>;
 
 /**
  * What the service worker gets in a push message. `tag` replaces the earlier notification with the same tag; `url` is
  * opened on a tap (and when a button fails). A button's `post` is an api path the service worker calls with
- * `x-acting-user: <userId>`, the person the notification is for.
+ * `x-acting-user: <userId>`, the person the notification is for. `inboxId` is the notification's row in the inbox
+ * (GLOSSARY: Входяща кутия), which a tap reads, and `unread` the person's unread count with it, for the icon badge; the
+ * „Пробно известие“ is not in the inbox and has neither.
  */
 export const pushPayloadSchema = z.object({
   kind: pushKindSchema,
   title: z.string().min(1),
   body: z.string(),
   tag: z.string().min(1),
-  url: appPath,
+  url: appPathSchema,
   userId: z.uuid(),
-  actions: z
-    .array(
-      z.object({
-        action: z.string().min(1),
-        title: z.string().min(1),
-        post: z.string().regex(/^\/api\//, 'must be an api path'),
-      }),
-    )
-    .optional(),
+  inboxId: z.uuid().optional(),
+  unread: z.number().int().nonnegative().optional(),
+  actions: z.array(pushActionSchema).optional(),
 });
 
 export type PushPayload = z.infer<typeof pushPayloadSchema>;

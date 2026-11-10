@@ -1,0 +1,450 @@
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { inboxItem, serveInbox } from '../../test/inbox';
+import { servePlans } from '../../test/menu';
+import { dani, poli, server } from '../../test/msw';
+import { servePantry } from '../../test/pantry';
+import { renderApp, setUpDevice } from '../../test/render';
+import { serveShopping } from '../../test/shopping';
+
+/** Четвъртък, 5 ноември 2026, 09:00 в София. */
+const NOW = new Date('2026-11-05T07:00:00Z');
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+const cook = inboxItem({
+  kind: 'cook',
+  title: 'Кой готви довечера?',
+  body: 'Мусака',
+  url: '/menu?week=2026-11-02&meal=aaaaaaaa-0000-4000-8000-000000000001',
+  // 08:15 в София днес.
+  updatedAt: '2026-11-05T06:15:00.000Z',
+});
+const thaw = inboxItem({
+  updatedAt: '2026-11-04T18:00:00.000Z',
+  unread: false,
+});
+const menu = inboxItem({
+  kind: 'menu',
+  title: 'Поли по менюто',
+  body: '2 гласа, 1 коментар',
+  url: '/menu?week=2026-11-02',
+  createdAt: '2026-11-02T17:30:00.000Z',
+  updatedAt: '2026-11-02T17:30:00.000Z',
+});
+
+function group(name: string) {
+  return screen.findByRole('region', { name });
+}
+
+describe('Входящата кутия', () => {
+  it('подрежда известията в „Днес“, „Вчера“ и „По-рано“, с часа, заглавието и текста', async () => {
+    serveInbox([cook, thaw, menu]);
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Входяща кутия', level: 1 }),
+    ).toBeInTheDocument();
+    const today = await group('Днес');
+    expect(within(today).getByRole('link')).toHaveAccessibleName(
+      /Кой готви довечера\?/,
+    );
+    expect(today).toHaveTextContent('08:15');
+    expect(today).toHaveTextContent('Мусака');
+    expect(await group('Вчера')).toHaveTextContent('Извади месото за утре');
+    expect(await group('Вчера')).toHaveTextContent('20:00');
+    const earlier = await group('По-рано');
+    expect(earlier).toHaveTextContent('Поли по менюто');
+    expect(earlier).toHaveTextContent('2.11');
+    expect(earlier).toHaveTextContent('19:30');
+  });
+
+  it('казва кое е непрочетено', async () => {
+    serveInbox([cook, thaw]);
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    const unread = await screen.findByRole('link', {
+      name: /Кой готви довечера\?/,
+    });
+    expect(unread).toHaveAccessibleName(/непрочетено/);
+    expect(unread.closest('[data-unread]')).toHaveAttribute(
+      'data-unread',
+      'true',
+    );
+    const read = screen.getByRole('link', { name: /Извади месото за утре/ });
+    expect(read).not.toHaveAccessibleName(/непрочетено/);
+  });
+
+  it('натискането на известие го прочита и води към линка му', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([menu]);
+    servePlans();
+    setUpDevice('phone', dani.id);
+    const { router } = renderApp('/inbox');
+
+    await user.click(
+      await screen.findByRole('link', { name: /Поли по менюто/ }),
+    );
+
+    await waitFor(() => expect(inbox.reads).toEqual([menu.id]));
+    await waitFor(() =>
+      expect(router.state.location.href).toBe('/menu?week=2026-11-02'),
+    );
+  });
+
+  it('натискането на прочетено известие само води към линка', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([thaw]);
+    servePlans();
+    setUpDevice('phone', dani.id);
+    const { router } = renderApp('/inbox');
+
+    await user.click(
+      await screen.findByRole('link', { name: /Извади месото за утре/ }),
+    );
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/menu'));
+    expect(inbox.reads).toEqual([]);
+  });
+
+  it('„Всички прочетени“ прочита всички', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([cook, menu]);
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Всички прочетени' }),
+    );
+
+    await waitFor(() => expect(inbox.readAll).toBe(1));
+    await waitFor(() =>
+      expect(
+        screen.queryAllByRole('link', { name: /непрочетено/ }),
+      ).toHaveLength(0),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Всички прочетени' }),
+    ).toBeDisabled();
+  });
+
+  it('празната кутия казва „Няма известия“', async () => {
+    serveInbox([]);
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    expect(await screen.findByText('Няма известия')).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Всички прочетени' }),
+    ).toBeDisabled();
+  });
+
+  describe('подробностите', () => {
+    const detailed = inboxItem({
+      details: [
+        { text: 'Във фризера: смесена кайма', url: '/pantry' },
+        {
+          text: 'Вечеря: Мусака, четвъртък',
+          url: '/menu?week=2026-11-02&meal=aaaaaaaa-0000-4000-8000-000000000001',
+        },
+        { text: 'Готви: Поли' },
+      ],
+    });
+
+    it('„Още“ ги разгъва на място и прочита известието', async () => {
+      const user = userEvent.setup();
+      const inbox = serveInbox([detailed]);
+      setUpDevice('phone', dani.id);
+      renderApp('/inbox');
+
+      const more = await screen.findByRole('button', { name: 'Още' });
+      expect(more).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByText('Готви: Поли')).toBeNull();
+
+      await user.click(more);
+
+      expect(more).toHaveAttribute('aria-expanded', 'true');
+      const details = screen.getByRole('list', {
+        name: 'Подробности: Извади месото за утре',
+      });
+      expect(
+        within(details)
+          .getAllByRole('listitem')
+          .map((line) => line.textContent),
+      ).toEqual([
+        'Във фризера: смесена кайма',
+        'Вечеря: Мусака, четвъртък',
+        'Готви: Поли',
+      ]);
+      expect(
+        within(details).queryByRole('link', { name: 'Готви: Поли' }),
+      ).toBeNull();
+      await waitFor(() => expect(inbox.reads).toEqual([detailed.id]));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('link', { name: /Извади месото за утре/ }),
+        ).not.toHaveAccessibleName(/непрочетено/),
+      );
+      expect(screen.getByRole('list', { name: /^Подробности/ })).toBeVisible();
+    });
+
+    it('ред с линк води натам', async () => {
+      const user = userEvent.setup();
+      serveInbox([detailed]);
+      servePantry();
+      setUpDevice('phone', dani.id);
+      const { router } = renderApp('/inbox');
+
+      await user.click(await screen.findByRole('button', { name: 'Още' }));
+      await user.click(
+        screen.getByRole('link', { name: 'Във фризера: смесена кайма' }),
+      );
+
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/pantry'),
+      );
+    });
+
+    it('известие без подробности е без „Още“', async () => {
+      serveInbox([detailed, menu]);
+      setUpDevice('phone', dani.id);
+      renderApp('/inbox');
+
+      expect(
+        await screen.findByRole('link', { name: /Поли по менюто/ }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Още' })).toHaveLength(1);
+    });
+  });
+
+  it('е на действащия потребител', async () => {
+    serveInbox([cook], dani.id);
+    setUpDevice('browser', poli.id);
+    renderApp('/inbox');
+
+    expect(await screen.findByText('Няма известия')).toBeVisible();
+  });
+});
+
+describe('камбанката', () => {
+  it.each(['/', '/calendar', '/recipes', '/menu', '/shopping', '/pantry'])(
+    'на %s е преди аватара, с броя на непрочетените, и води към кутията',
+    async (path) => {
+      serveInbox([cook, thaw, menu]);
+      setUpDevice('phone', dani.id);
+      servePlans();
+      serveShopping();
+      servePantry();
+      renderApp(path);
+
+      const bell = await screen.findByRole('link', {
+        name: 'Входяща кутия · 2 непрочетени',
+      });
+      expect(bell).toHaveAttribute('href', '/inbox');
+      expect(bell).toHaveTextContent('2');
+      const avatar = screen.getByRole('link', { name: 'Ти си Дани · смени' });
+      expect(
+        bell.compareDocumentPosition(avatar) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+
+  it('без непрочетени е без бройка', async () => {
+    serveInbox([thaw]);
+    setUpDevice('browser', dani.id);
+    renderApp('/calendar');
+
+    const bell = await screen.findByRole('link', { name: 'Входяща кутия' });
+    expect(bell).not.toHaveTextContent(/\d/);
+  });
+
+  it('брои непрочетените на действащия потребител', async () => {
+    serveInbox([cook, menu], dani.id);
+    setUpDevice('phone', poli.id);
+    renderApp('/calendar');
+
+    expect(
+      await screen.findByRole('link', { name: 'Входяща кутия' }),
+    ).toBeInTheDocument();
+  });
+
+  it('намалява, когато известие стане прочетено', async () => {
+    const user = userEvent.setup();
+    serveInbox([cook, menu]);
+    setUpDevice('browser', dani.id);
+    renderApp('/inbox');
+
+    await screen.findByRole('link', {
+      name: 'Входяща кутия · 2 непрочетени',
+    });
+    await user.click(
+      await screen.findByRole('button', { name: 'Всички прочетени' }),
+    );
+
+    expect(
+      await screen.findByRole('link', { name: 'Входяща кутия' }),
+    ).toBeInTheDocument();
+  });
+
+  it.each(['kiosk', 'tv'] as const)('я няма на %s', async (mode) => {
+    serveInbox([cook]);
+    setUpDevice(mode);
+    renderApp('/calendar');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Календар' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Входяща кутия/ })).toBeNull();
+  });
+
+  it('я няма и на дашборда на kiosk', async () => {
+    serveInbox([cook]);
+    setUpDevice('kiosk');
+    renderApp('/');
+
+    expect(
+      await screen.findByRole('list', { name: 'Синхронизация' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Входяща кутия/ })).toBeNull();
+  });
+});
+
+describe('Бутоните на реда', () => {
+  const mealId = 'aaaaaaaa-0000-4000-8000-000000000001';
+  const thawing = inboxItem({
+    actions: [
+      {
+        action: 'thawed',
+        title: 'Извадих',
+        post: `/api/menu/meals/${mealId}/thawed`,
+      },
+    ],
+  });
+  const asking = inboxItem({
+    kind: 'cook',
+    title: 'Кой готви довечера?',
+    body: 'Мусака',
+    updatedAt: '2026-11-05T06:15:00.000Z',
+    actions: [
+      {
+        action: 'cook-claim',
+        title: 'Аз',
+        post: `/api/menu/meals/${mealId}/cook-claim`,
+      },
+    ],
+  });
+
+  function row(title: RegExp) {
+    return screen
+      .findByRole('link', { name: title })
+      .then((link) => within(link.closest('li') as HTMLElement));
+  }
+
+  it('„Извадих“ вика пътя на бутона като действащия потребител и казва кой е отговорил', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([thawing]);
+    const posted: (string | null)[] = [];
+    server.use(
+      http.post(`/api/menu/meals/${mealId}/thawed`, ({ request }) => {
+        posted.push(request.headers.get('x-acting-user'));
+        inbox.update(thawing.id, {
+          actions: undefined,
+          answered: { text: 'Ти извади месото' },
+        });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    await user.click(
+      (await row(/Извади месото за утре/)).getByRole('button', {
+        name: 'Извадих',
+      }),
+    );
+
+    expect(posted).toEqual([dani.id]);
+    const answered = await row(/Извади месото за утре/);
+    expect(await answered.findByText('Ти извади месото')).toBeInTheDocument();
+    expect(answered.queryByRole('button')).not.toBeInTheDocument();
+    await waitFor(() => expect(inbox.reads).toEqual([thawing.id]));
+  });
+
+  it('„Аз“ вика пътя на бутона като действащия потребител', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([asking], poli.id);
+    const posted: (string | null)[] = [];
+    server.use(
+      http.post(`/api/menu/meals/${mealId}/cook-claim`, ({ request }) => {
+        posted.push(request.headers.get('x-acting-user'));
+        inbox.update(asking.id, {
+          title: 'Довечера готвиш ти',
+          actions: undefined,
+          answered: { text: 'Ти готвиш' },
+        });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    setUpDevice('phone', poli.id);
+    renderApp('/inbox');
+
+    await user.click(
+      (await row(/Кой готви довечера\?/)).getByRole('button', { name: 'Аз' }),
+    );
+
+    expect(posted).toEqual([poli.id]);
+    expect(
+      await (await row(/Довечера готвиш ти/)).findByText('Ти готвиш'),
+    ).toBeInTheDocument();
+  });
+
+  it('при отказ `cook_taken` казва кой готви вместо „Аз“', async () => {
+    const user = userEvent.setup();
+    serveInbox([asking]);
+    server.use(
+      http.post(`/api/menu/meals/${mealId}/cook-claim`, () =>
+        HttpResponse.json(
+          {
+            error: 'conflict',
+            code: 'cook_taken',
+            message: 'Някой вече готви',
+            cookUserId: poli.id,
+            cookName: 'Поли',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    const question = await row(/Кой готви довечера\?/);
+    await user.click(question.getByRole('button', { name: 'Аз' }));
+
+    expect(await question.findByText('Поли вече готви')).toBeInTheDocument();
+    expect(question.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('отговореният ред казва кой е отговорил, без бутон', async () => {
+    serveInbox([
+      { ...asking, actions: undefined, answered: { text: 'Поли вече готви' } },
+    ]);
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    const answered = await row(/Кой готви довечера\?/);
+    expect(answered.getByText('Поли вече готви')).toBeInTheDocument();
+    expect(answered.queryByRole('button')).not.toBeInTheDocument();
+  });
+});

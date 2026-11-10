@@ -8,13 +8,15 @@ import {
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
 import {
-  type MenuActivity,
+  type MenuActivityAction,
   takeQuietMenuActivity,
 } from '../db/repositories/menu-activity.js';
 import { findRework } from '../db/repositories/menu-reworks.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
+import type { InboxService } from './inbox.js';
+import { activityDetails, activityTitle } from './menu-activity-text.js';
 import { menuWeekUrl, notificationTag } from './notification-links.js';
-import type { PushMessage, PushService } from './push.js';
+import type { PushMessage } from './push.js';
 import { isPerson } from './users.js';
 
 /** How long the other has to be quiet on the menu before the gathered notification goes. */
@@ -28,14 +30,14 @@ const ACTIVITY_NOUNS = {
 } as const;
 
 /** „2 гласа, 1 коментар, 1 смяна“: only the kinds that happened. */
-function activitySummary(
-  activity: Pick<MenuActivity, keyof typeof ACTIVITY_NOUNS>,
-): string {
+function activitySummary(actions: readonly MenuActivityAction[]): string {
   return (Object.keys(ACTIVITY_NOUNS) as (keyof typeof ACTIVITY_NOUNS)[])
-    .filter((kind) => activity[kind] > 0)
-    .map((kind) => {
+    .map(
+      (kind) => [kind, actions.filter((a) => a.kind === kind).length] as const,
+    )
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => {
       const [one, many] = ACTIVITY_NOUNS[kind];
-      const count = activity[kind];
       return `${count} ${count === 1 ? one : many}`;
     })
     .join(', ');
@@ -91,12 +93,12 @@ export interface MenuNotifications {
 
 export function createMenuNotifications({
   db,
-  push,
+  inbox,
   now,
   log,
 }: {
   db: Db;
-  push: PushService;
+  inbox: InboxService;
   now: () => Date;
   log: FastifyBaseLogger;
 }): MenuNotifications {
@@ -110,16 +112,13 @@ export function createMenuNotifications({
         return;
       }
       const users = await listPeople(db);
-      for (const activity of quiet) {
-        // The others are the ones who acted; with two users, the one other.
-        const actors = users
-          .filter((other) => other.id !== activity.recipientUserId)
-          .map((other) => other.name)
-          .join(' и ');
-        await push.send(activity.recipientUserId, 'menu', {
-          title: `${actors} по менюто`,
-          body: activitySummary(activity),
-          ...ofWeek(activity.weekStart),
+      const names = new Map(users.map((user) => [user.id, user.name]));
+      for (const { recipientUserId, weekStart, actions } of quiet) {
+        await inbox.notify(recipientUserId, 'menu', {
+          title: activityTitle(actions, users),
+          body: activitySummary(actions),
+          details: activityDetails(actions, names),
+          ...ofWeek(weekStart),
         });
       }
     },
@@ -139,7 +138,7 @@ export function createMenuNotifications({
         };
         for (const user of users.filter(isPerson)) {
           if (user.id !== requestedBy) {
-            await push.send(user.id, 'menu', message);
+            await inbox.notify(user.id, 'menu', message);
           }
         }
       } catch (error) {
@@ -165,7 +164,7 @@ export function createMenuNotifications({
         };
         for (const user of users.filter(isPerson)) {
           if (user.id !== rework.requestedBy) {
-            await push.send(user.id, 'menu', message);
+            await inbox.notify(user.id, 'menu', message);
           }
         }
       } catch (error) {

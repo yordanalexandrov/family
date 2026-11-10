@@ -29,7 +29,14 @@ export interface WebPushDelivery {
 }
 
 /** What a notification says; `send` adds its kind and the person it is for. */
-export type PushMessage = Omit<PushPayload, 'kind' | 'userId'>;
+export type PushMessage = Omit<
+  PushPayload,
+  'kind' | 'userId' | 'inboxId' | 'unread'
+>;
+
+/** What `send` delivers: the message and its inbox row with the unread count, which only the inbox knows. */
+export type InboxPushMessage = PushMessage &
+  Pick<PushPayload, 'inboxId' | 'unread'>;
 
 /** „Пробно известие“ from „Настройки“. */
 const TEST_MESSAGE: PushMessage = {
@@ -58,7 +65,7 @@ export interface PushService {
   send(
     userId: string,
     kind: NotificationKind,
-    message: PushMessage,
+    message: InboxPushMessage,
   ): Promise<number>;
   /** „Пробно известие“ to every device of `userId`, whatever the settings. */
   sendTest(userId: string): Promise<number>;
@@ -89,7 +96,7 @@ export function createPushService({
   async function deliver(
     userId: string,
     kind: PushKind,
-    message: PushMessage,
+    message: InboxPushMessage,
   ): Promise<number> {
     if (!delivery) {
       log.debug({ kind, userId }, 'push: no VAPID keys, nothing sent');

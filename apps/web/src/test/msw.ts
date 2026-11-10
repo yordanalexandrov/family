@@ -86,6 +86,9 @@ export const handlers = [
     return HttpResponse.json({ user, accessEmail });
   }),
   http.get('/api/dashboard', () => HttpResponse.json(dashboard)),
+  // Входящата кутия без `serveInbox` е празна (камбанката е на всеки основен екран).
+  http.get('/api/inbox', () => HttpResponse.json({ items: [] })),
+  http.get('/api/inbox/unread-count', () => HttpResponse.json({ unread: 0 })),
   // Уредите по seed-а; `serveAppliances` ги прави променливи.
   http.get('/api/appliances', () =>
     HttpResponse.json({ appliances: seedAppliances }),

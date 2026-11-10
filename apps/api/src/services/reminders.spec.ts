@@ -15,6 +15,7 @@ const ONION = { id: 'ing-onion', name: 'лук' };
 const MUSAKA: ReminderMeal = {
   id: 'meal-thu',
   date: '2026-11-05',
+  recipeId: 'recipe-musaka',
   title: 'Мусака',
   ingredients: [ONION, KAIMA, PORK],
   note: null,
@@ -22,16 +23,11 @@ const MUSAKA: ReminderMeal = {
   thawedAt: null,
 };
 
-const ALL_ON = { thaw: true, cook: true, menu: true };
-
 function state(overrides: Partial<ReminderState> = {}): ReminderState {
   return {
     meals: [MUSAKA],
     frozen: [KAIMA.id, PORK.id],
-    users: [
-      { id: DANI.id, settings: ALL_ON },
-      { id: POLI.id, settings: ALL_ON },
-    ],
+    users: [DANI, POLI],
     log: [],
     ...overrides,
   };
@@ -41,6 +37,8 @@ function state(overrides: Partial<ReminderState> = {}): ReminderState {
 const EVENING = new Date('2026-11-04T18:00:00Z');
 /** 08:00 in Sofia on Thursday 5 November. */
 const MORNING = new Date('2026-11-05T06:00:00Z');
+/** Friday 00:00 in Sofia. */
+const END_OF_THURSDAY = new Date('2026-11-05T22:00:00Z');
 
 function evening(userId: string): DueReminder {
   return {
@@ -53,6 +51,14 @@ function evening(userId: string): DueReminder {
       body: 'Мусака: кайма, свинско',
       tag: `thaw-${MUSAKA.id}`,
       url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+      details: [
+        { text: 'Във фризера: кайма', url: '/pantry' },
+        { text: 'Във фризера: свинско', url: '/pantry' },
+        {
+          text: 'Вечеря: Мусака, четвъртък',
+          url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+        },
+      ],
       actions: [
         {
           action: 'thawed',
@@ -60,6 +66,8 @@ function evening(userId: string): DueReminder {
           post: `/api/menu/meals/${MUSAKA.id}/thawed`,
         },
       ],
+      // The buttons stay in the inbox until the end of Thursday in Sofia.
+      actionUntil: END_OF_THURSDAY,
     },
   };
 }
@@ -145,14 +153,6 @@ describe('dueReminders: „Извади месото“', () => {
     ]);
   });
 
-  it('sends only to the other when one has `thaw` off', () => {
-    const users = [
-      { id: DANI.id, settings: { ...ALL_ON, thaw: false } },
-      { id: POLI.id, settings: ALL_ON },
-    ];
-    expect(dueReminders(EVENING, state({ users }))).toEqual([evening(POLI.id)]);
-  });
-
   it('reads the recipe of the morning after it changed since the evening', () => {
     const changed: ReminderMeal = {
       ...MUSAKA,
@@ -184,11 +184,20 @@ function youCook(userId: string): DueReminder {
       body: 'Мусака',
       tag: `cook-${MUSAKA.id}`,
       url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+      details: [{ text: 'Рецепта: Мусака', url: '/recipes/recipe-musaka' }],
     },
   };
 }
 
-function whoCooks(userId: string, body = 'Мусака'): DueReminder {
+const MUSAKA_RECIPE = [
+  { text: 'Рецепта: Мусака', url: '/recipes/recipe-musaka' },
+];
+
+function whoCooks(
+  userId: string,
+  body = 'Мусака',
+  details = MUSAKA_RECIPE,
+): DueReminder {
   return {
     userId,
     kind: 'cook',
@@ -199,6 +208,7 @@ function whoCooks(userId: string, body = 'Мусака'): DueReminder {
       body,
       tag: `cook-${MUSAKA.id}`,
       url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+      details,
       actions: [
         {
           action: 'cook-claim',
@@ -206,6 +216,8 @@ function whoCooks(userId: string, body = 'Мусака'): DueReminder {
           post: `/api/menu/meals/${MUSAKA.id}/cook-claim`,
         },
       ],
+      // The buttons stay in the inbox until the end of Thursday in Sofia.
+      actionUntil: END_OF_THURSDAY,
     },
   };
 }
@@ -226,13 +238,14 @@ describe('dueReminders: „Кой готви довечера“', () => {
   it('names the note of a dinner without a recipe', () => {
     const note: ReminderMeal = {
       ...MUSAKA,
+      recipeId: null,
       title: null,
       ingredients: [],
       note: 'Пица от Мама Миа',
     };
     expect(cookReminders(AFTERNOON, { meals: [note] })).toEqual([
-      whoCooks(DANI.id, 'Пица от Мама Миа'),
-      whoCooks(POLI.id, 'Пица от Мама Миа'),
+      whoCooks(DANI.id, 'Пица от Мама Миа', []),
+      whoCooks(POLI.id, 'Пица от Мама Миа', []),
     ]);
   });
 
@@ -244,16 +257,6 @@ describe('dueReminders: „Кой готви довечера“', () => {
       cookUserId: POLI.id,
     };
     expect(cookReminders(AFTERNOON, { meals: [empty] })).toEqual([]);
-  });
-
-  it('sends nothing to a person with `cook` off', () => {
-    const users = [
-      { id: DANI.id, settings: ALL_ON },
-      { id: POLI.id, settings: { ...ALL_ON, cook: false } },
-    ];
-    expect(cookReminders(AFTERNOON, { users })).toEqual([whoCooks(DANI.id)]);
-    const meals = [{ ...MUSAKA, cookUserId: POLI.id }];
-    expect(cookReminders(AFTERNOON, { users, meals })).toEqual([]);
   });
 
   it('is due from 16:00 for 2 hours, only for today’s dinner, and once', () => {

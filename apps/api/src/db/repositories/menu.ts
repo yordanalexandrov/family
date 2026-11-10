@@ -324,7 +324,13 @@ export async function updateMeal(
   values: Partial<
     Pick<
       typeof meal.$inferInsert,
-      'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why' | 'thawedAt'
+      | 'recipeId'
+      | 'note'
+      | 'cookUserId'
+      | 'servings'
+      | 'why'
+      | 'thawedAt'
+      | 'thawedByUserId'
     >
   >,
   at: Date,
@@ -535,20 +541,52 @@ export async function setProposalPlan(
     .where(eq(menuProposalRequest.id, id));
 }
 
-/** „Извадих“ for the meal at `at`, unless it is already; answers the plan of the meal, `null` when there is no such meal. */
+/**
+ * „Извадих“ of `userId` for the meal at `at`, unless it is already (then who and when stay); answers the plan of the
+ * meal, `null` when there is no such meal.
+ */
 export async function markMealThawed(
   db: DbExecutor,
   id: string,
+  userId: string,
   at: Date,
 ): Promise<{ planId: string } | null> {
   const [row] = await db
     .update(meal)
     .set({
       thawedAt: sql`coalesce(${meal.thawedAt}, ${at.toISOString()}::timestamptz)`,
+      thawedByUserId: sql`case when ${meal.thawedAt} is null then ${userId}::uuid else ${meal.thawedByUserId} end`,
     })
     .where(eq(meal.id, id))
     .returning({ planId: meal.planId });
   return row ?? null;
+}
+
+/** How the buttons of a reminder about a meal were answered: who cooks, who took the meat out. */
+export interface MealAnswers {
+  id: string;
+  cookUserId: string | null;
+  thawedAt: Date | null;
+  thawedByUserId: string | null;
+}
+
+/** The answers of the meals `ids`; a meal that is gone is left out. */
+export async function listMealAnswers(
+  db: DbExecutor,
+  ids: string[],
+): Promise<MealAnswers[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      id: meal.id,
+      cookUserId: meal.cookUserId,
+      thawedAt: meal.thawedAt,
+      thawedByUserId: meal.thawedByUserId,
+    })
+    .from(meal)
+    .where(inArray(meal.id, ids));
 }
 
 /**

@@ -8,6 +8,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
+import { inboxOf } from '../test/inbox.js';
 import { stockPantry } from '../test/pantry.js';
 import {
   createTestPushService,
@@ -213,7 +214,7 @@ describe('„Извади месото“ through the reminders cron', () => {
     expect(await runAt(MORNING)).toHaveLength(2);
   });
 
-  it('sends no reminder to a person who turned `thaw` off', async () => {
+  it('rings no phone of a person who turned `thaw` off, but keeps the reminder in their inbox', async () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/api/notifications/settings',
@@ -225,6 +226,84 @@ describe('„Извади месото“ through the reminders cron', () => {
     const delivered = await runAt(EVENING);
 
     expect(delivered.map((d) => d.payload.userId)).toEqual([POLI.id]);
+    for (const userId of [DANI.id, POLI.id]) {
+      // Poli also has Dani's changes of the menu in the setup.
+      const thaw = (await inboxOf(app, userId)).filter(
+        (item) => item.kind === 'thaw',
+      );
+      expect(thaw).toMatchObject([
+        {
+          kind: 'thaw',
+          title: 'Извади месото за утре',
+          body: 'Мусака: смесена кайма, свински врат',
+          url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
+          unread: true,
+        },
+      ]);
+    }
+  });
+
+  it('details in the inbox each frozen product, with the pantry, and the dinner, with its day in the menu', async () => {
+    await runAt(EVENING);
+
+    const [thaw] = await inboxOf(app, DANI.id);
+    expect(thaw?.details).toEqual([
+      { text: 'Във фризера: смесена кайма', url: '/pantry' },
+      { text: 'Във фризера: свински врат', url: '/pantry' },
+      {
+        text: 'Вечеря: Мусака, четвъртък',
+        url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
+      },
+    ]);
+    expect(push.delivered[0]?.payload).not.toHaveProperty('details');
+  });
+
+  it('details the cook of the dinner, when it has one, opening the dinner in the menu like every row', async () => {
+    await patchMeal(musakaMealId, { cookUserId: POLI.id });
+
+    await runAt(EVENING);
+
+    const [thaw] = (await inboxOf(app, DANI.id)).filter(
+      (item) => item.kind === 'thaw',
+    );
+    expect(thaw?.details.at(-1)).toEqual({
+      text: 'Готви: Поли',
+      url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
+    });
+  });
+
+  it('updates the details with the morning one, as the dinner is then', async () => {
+    await runAt(EVENING);
+    await patchMeal(musakaMealId, { cookUserId: POLI.id });
+
+    await runAt(MORNING);
+
+    const thaw = (await inboxOf(app, DANI.id)).filter(
+      (item) => item.kind === 'thaw',
+    );
+    expect(thaw).toHaveLength(1);
+    expect(thaw[0]?.details.map((detail) => detail.text)).toEqual([
+      'Във фризера: смесена кайма',
+      'Във фризера: свински врат',
+      'Вечеря: Мусака, четвъртък',
+      'Готви: Поли',
+    ]);
+  });
+
+  it('updates the evening one in the inbox with the morning one, unread again', async () => {
+    await runAt(EVENING);
+    const [evening] = await inboxOf(app, DANI.id);
+    await app.inject({
+      method: 'POST',
+      url: `/api/inbox/${evening?.id}/read`,
+      headers: as(DANI.id),
+    });
+
+    await runAt(MORNING);
+
+    expect(await inboxOf(app, DANI.id)).toMatchObject([
+      { id: evening?.id, title: 'Извади месото за довечера', unread: true },
+    ]);
   });
 });
 
@@ -334,5 +413,112 @@ describe('thaw in GET /api/dashboard', () => {
     await patchMeal(musakaMealId, { recipeId: salad });
 
     expect(await thaw(MORNING)).toEqual([]);
+  });
+});
+
+describe('„Извадих“ in GET /api/inbox', () => {
+  /** Thursday 23:59 in Sofia, the last minute of the dinner's day. */
+  const LAST_MINUTE = new Date('2026-11-05T21:59:00Z');
+  /** Friday 00:00 in Sofia: the dinner's day is over. */
+  const NEXT_DAY = new Date('2026-11-05T22:00:00Z');
+
+  async function thawItem(userId: string) {
+    const items = await inboxOf(app, userId);
+    return items.find((item) => item.kind === 'thaw');
+  }
+
+  it('gives „Извадих“ until the end of the dinner’s day while no one answered, then only the text', async () => {
+    await runAt(EVENING);
+    const button = {
+      action: 'thawed',
+      title: 'Извадих',
+      post: `/api/menu/meals/${musakaMealId}/thawed`,
+    };
+
+    clock = LAST_MINUTE;
+    const before = await thawItem(DANI.id);
+    expect(before?.actions).toEqual([button]);
+    expect(before?.answered).toBeUndefined();
+
+    clock = NEXT_DAY;
+    const after = await thawItem(DANI.id);
+    expect(after).toMatchObject({ title: 'Извади месото за утре' });
+    expect(after?.actions).toBeUndefined();
+    expect(after?.answered).toBeUndefined();
+  });
+
+  it('says who took the meat out after „Извадих“, instead of the button', async () => {
+    await runAt(EVENING);
+
+    expect((await thawed(musakaMealId, POLI.id)).statusCode).toBe(204);
+
+    const atDani = await thawItem(DANI.id);
+    expect(atDani?.actions).toBeUndefined();
+    expect(atDani?.answered).toEqual({ text: 'Поли извади месото' });
+    expect((await thawItem(POLI.id))?.answered).toEqual({
+      text: 'Ти извади месото',
+    });
+  });
+
+  it('gives „Извадих“ again after a new recipe undid it', async () => {
+    await runAt(EVENING);
+    await thawed(musakaMealId, POLI.id);
+    const peppers = await createRecipe('Пълнени чушки', [
+      'чушка',
+      'смесена кайма',
+    ]);
+    await patchMeal(musakaMealId, { recipeId: peppers });
+
+    const item = await thawItem(DANI.id);
+    expect(item?.actions).toHaveLength(1);
+    expect(item?.answered).toBeUndefined();
+  });
+
+  it('signals inbox.changed to each who has the reminder after „Извадих“, so their row drops the button at once', async () => {
+    await runAt(EVENING);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await thawed(musakaMealId, POLI.id);
+    unsubscribe();
+
+    expect(
+      signals
+        .filter((event) => event.type === 'inbox.changed')
+        .map((event) => event.userId)
+        .sort(),
+    ).toEqual([DANI.id, POLI.id].sort());
+  });
+
+  it('signals inbox.changed to each who has the reminder after „Върни“ brings the recipe back', async () => {
+    await runAt(EVENING);
+    await patchMeal(musakaMealId, { recipeId: null });
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const restored = await app.inject({
+      method: 'POST',
+      url: `/api/menu/meals/${musakaMealId}/restore`,
+      headers: as(DANI.id),
+    });
+    unsubscribe();
+
+    expect(restored.statusCode).toBe(200);
+    expect(
+      signals
+        .filter((event) => event.type === 'inbox.changed')
+        .map((event) => event.userId)
+        .sort(),
+    ).toEqual([DANI.id, POLI.id].sort());
+  });
+
+  it('gives nothing after the dinner’s day, answered or not', async () => {
+    await runAt(EVENING);
+    await thawed(musakaMealId, POLI.id);
+
+    clock = NEXT_DAY;
+    const item = await thawItem(DANI.id);
+    expect(item?.actions).toBeUndefined();
+    expect(item?.answered).toBeUndefined();
   });
 });

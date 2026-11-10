@@ -36,6 +36,7 @@ import type {
 } from './contract-requests.js';
 import { refuse } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
+import type { InboxService } from './inbox.js';
 import { agentThread, changeRecipe, refuseReworkingWeek } from './menu.js';
 import type { MenuNotifications } from './menu-notifications.js';
 
@@ -113,12 +114,14 @@ function fixedDay(meal: Meal) {
  * `not_enough_recipes` with fewer free dinner recipes than days to fill. The input is built when the run starts, by
  * `classifyRework` on the day the rework was asked for; a valid answer is written into the plan (see `onDone`). Every
  * change of the rework's status signals `menu.rework.changed`; a written answer also `menu.changed` and
- * `shopping.changed`, and „Преработено меню“ goes to the others when a dish changed.
+ * `shopping.changed`, and „Преработено меню“ goes to the others when a dish changed; the changed days go to
+ * `inbox.answered` („Извадих“ no longer holds for them).
  */
 export function createMenuReworkStore(
   events: EventBus,
   notifications: Pick<MenuNotifications, 'reworked'>,
   now: () => Date,
+  inbox: Pick<InboxService, 'answered'>,
 ): ContractRequestStore<
   CreateMenuRework,
   MenuReworkRequest,
@@ -130,6 +133,8 @@ export function createMenuReworkStore(
       type: 'menu.rework.changed',
       weekStart: rework.weekStart,
     });
+  /** The meals each rework's `onDone` changed, for its `afterDone` to tell `inbox` once they have committed. */
+  const changedMeals = new Map<string, string[]>();
 
   return {
     table: menuReworkRequest,
@@ -215,6 +220,7 @@ export function createMenuReworkStore(
       }
       const at = now();
       let changed = 0;
+      const mealIds: string[] = [];
       for (const day of output.days) {
         const meal = plan.meals.find(
           (m) => m.date === day.date && m.slot === day.slot,
@@ -234,21 +240,30 @@ export function createMenuReworkStore(
         );
         await deleteReplacementsOf(tx, meal.id);
         changed += 1;
+        mealIds.push(meal.id);
       }
+      changedMeals.set(rework.id, mealIds);
       await setPlanSummary(tx, plan.id, output.summary, at);
       await setReworkChanged(tx, rework.id, changed);
     },
 
     afterRequest: signalRework,
 
-    afterFailed: signalRework,
+    afterFailed(rework) {
+      // `onDone` ran, but the transaction that marks the rework done did not commit.
+      changedMeals.delete(rework.id);
+      signalRework(rework);
+    },
 
-    afterDone(rework) {
+    async afterDone(rework) {
       signalRework(rework);
       for (const event of menuAndShoppingChanged(rework.weekStart)) {
         events.publish(event);
       }
       void notifications.reworked(rework);
+      const mealIds = changedMeals.get(rework.id) ?? [];
+      changedMeals.delete(rework.id);
+      await inbox.answered(mealIds);
     },
   };
 }

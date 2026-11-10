@@ -10,6 +10,7 @@ import { SessionExpired } from '../../components/SessionExpired';
 import { Spinner } from '../../components/Spinner';
 import { TopBar } from '../../components/TopBar';
 import { useNow } from '../../lib/use-now';
+import { InboxBell } from '../inbox/InboxBell';
 import { BudgetPanel } from './BudgetPanel';
 import { Core } from './Core';
 import { splitDays } from './days';
@@ -92,7 +93,15 @@ function PhoneLayout({ state, now }: { state: Loaded; now: Date }) {
   const { today, nextDays } = splitDays(data.days, dateKeyInSofia(now));
   return (
     <main className="dashboard">
-      <TopBar now={now} avatar={<ActingUserAvatar />} />
+      <TopBar
+        now={now}
+        avatar={
+          <>
+            <InboxBell />
+            <ActingUserAvatar />
+          </>
+        }
+      />
       {state.status === 'offline' && (
         <p className="dashboard__offline" role="status">
           Няма връзка със сървъра · данни {formatDataAge(state.fetchedAt, now)}

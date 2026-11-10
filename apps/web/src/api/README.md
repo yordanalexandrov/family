@@ -23,7 +23,7 @@
 - `client.ts:apiFetch` — тяло на грешка извън `apiErrorSchema` дава код `http_error`; 2xx тяло извън схемата дава код `invalid_response`
 - `client.ts:ApiError.isSessionExpired` — статус 401, 403 или код `session_expired`; `isServerError` — статус >= 500
 - `events.ts:useServerEvents` — без `EventSource` не прави нищо; `invalidateAll` само при повторно свързване и при връщане на видим екран
-- `events.ts:invalidate` — `menu.changed` инвалидира `menuKeys.plan(weekStart)` и `queryKeys.dashboard`; `menu.proposal.changed` инвалидира `menuKeys.weekProposal(weekStart)` и вика `noteProposalChange`; `menu.rework.changed` инвалидира `menuKeys.weekRework(weekStart)`; другите събития със `weekStart` инвалидират `shoppingKeys.list(weekStart)`, а без него `shoppingKeys.all` и `pantryKeys.all`
+- `events.ts:invalidate` — `menu.changed` инвалидира `menuKeys.plan(weekStart)` и `queryKeys.dashboard`; `menu.proposal.changed` инвалидира `menuKeys.weekProposal(weekStart)` и вика `noteProposalChange`; `menu.rework.changed` инвалидира `menuKeys.weekRework(weekStart)`; другите събития със `weekStart` инвалидират `shoppingKeys.list(weekStart)`, а без него `shoppingKeys.all` и `pantryKeys.all`; `inbox.changed` инвалидира `inboxKeys.all`. Потокът е `/api/events?user=<пишещия човек>` (без човек — само `/api/events`) и се отваря наново при смяна на човека
 - `events.ts:onSignal` — съобщение, което не минава `serverEventSchema`, се пренебрегва с `logger.warn`
 - `queries.ts:fetchUsers` — при успех пише в офлайн кеша; кешът се чете само при `isConnectionError(error)`; `useUsers` е с `networkMode: 'always'`
 - `queries.ts:useMe` — `enabled` само при `actingUserId !== null`

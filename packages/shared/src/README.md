@@ -7,7 +7,7 @@
 ## Interface
 
 - `index.ts` — `export *` от модулите на поддиректориите и `events.ts`; не изнася `contracts/preparation.ts`, `contracts/step-images.ts` и `contracts/strict-mode.ts`.
-- `events.ts:serverEventSchema`, `ServerEvent`, `ServerEventType`, `SERVER_EVENT_TYPES` — сигналите на `GET /api/events` (Server-Sent Events): `menu.changed`, `menu.proposal.changed`, `menu.rework.changed`, `shopping.changed`.
+- `events.ts:serverEventSchema`, `ServerEvent`, `ServerEventType`, `SERVER_EVENT_TYPES` — сигналите на `GET /api/events` (Server-Sent Events): `menu.changed`, `menu.proposal.changed`, `menu.rework.changed`, `shopping.changed`, `inbox.changed`; `serverEventsQuerySchema` — `?user=` на потока.
 - [contracts](./contracts/README.md) — AI контрактите с OpenClaw агентите.
 - [schemas](./schemas/README.md) — схемите на HTTP API-то и на състоянието на устройството.
 - [food](./food/README.md) — единици, мащабиране, компоненти, подготовка, промени в Готвене, импорт на снимки, линк към източник.
@@ -15,10 +15,11 @@
 - [shopping](./shopping/README.md) — сглобяване на Списъка за пазаруване и ключовете на редовете.
 - [dashboard](./dashboard/README.md) — софийско време, календарни събития, свежест, бюджет.
 - [text](./text/README.md) — малки помощни функции за текст.
+- [inbox](./inbox/README.md) — групите на Входящата кутия („Днес“, „Вчера“, „По-рано“).
 
 ## Invariants
 
-- `events.ts:serverEventSchema` — събитието носи само „това се промени“, никога данните; клиентът инвалидира заявките си и чете през REST; `weekStart` е понеделник (`weekStartSchema`), а `shopping.changed` без `weekStart` значи, че всички списъци са се променили (Килерът важи за всички седмици).
+- `events.ts:serverEventSchema` — събитието носи само „това се промени“, никога данните; клиентът инвалидира заявките си и чете през REST; `weekStart` е понеделник (`weekStartSchema`), а `shopping.changed` без `weekStart` значи, че всички списъци са се променили (Килерът важи за всички седмици). `inbox.changed { userId }` отива само до потоците на този човек.
 - `events.ts:SERVER_EVENT_TYPES` — изчислява се от опциите на `serverEventSchema`, затова нов вид събитие влиза в абонамента на клиента сам.
 
 ## Side Effects

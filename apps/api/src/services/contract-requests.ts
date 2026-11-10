@@ -88,8 +88,11 @@ export interface ContractRequestStore<
     output: O,
     prepared: D | undefined,
   ): Promise<void>;
-  /** After that transaction has committed, e.g. to signal the change (`app.events`). One that throws is logged. */
-  afterDone?(request: R): void;
+  /**
+   * After that transaction has committed, e.g. to signal the change (`app.events`). One that throws or rejects is
+   * logged; the run does not wait for it.
+   */
+  afterDone?(request: R): void | Promise<void>;
   /** After the `pending` request has committed, e.g. to signal that it waits. Must not throw. */
   afterRequest?(request: R): void;
   /**
@@ -207,13 +210,15 @@ export function createContractRequests({
        * of the failure is, and never changes how the request ended.
        */
       function after(hook: 'afterDone' | 'afterFailed', request: R): void {
-        try {
-          store[hook]?.(request);
-        } catch (error) {
+        const failed = (error: unknown) =>
           log.error(
             { err: error, requestId: request.id },
             `${contract.id} ${hook} failed`,
           );
+        try {
+          void Promise.resolve(store[hook]?.(request)).catch(failed);
+        } catch (error) {
+          failed(error);
         }
       }
 

@@ -10,6 +10,7 @@
 - dashboard: [./dashboard/README.md](./dashboard/README.md) - Дашбордът: ядро с пръстен на деня, бюджет, следващи дни, „Днес се готви“; kiosk/TV решетка с фокус от дистанционно.
 - dev: [./dev/README.md](./dev/README.md) - Витрина на дизайн системата, само в dev (`/dev/glass`).
 - device: [./device/README.md](./device/README.md) - Изборът на режим на устройството (`/device`).
+- inbox: [./inbox/README.md](./inbox/README.md) - Входящата кутия (`/inbox`) и камбанката с бройката на непрочетените.
 - menu: [./menu/README.md](./menu/README.md) - Менюто на седмицата: план, предложение на AI, гласове, разговор, замяна, размяна (`/api/menu/*`).
 - pantry: [./pantry/README.md](./pantry/README.md) - Килерът: постоянни и временни продукти, оптимистични промени, отложено изтриване.
 - preparation: [./preparation/README.md](./preparation/README.md) - „Подготовка“ на рецептата: поле във формата, изглед и преобразуване към `preparationSchema`.
