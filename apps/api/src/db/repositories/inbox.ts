@@ -9,6 +9,7 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -71,15 +72,16 @@ export async function upsertInboxItem(
   return row.id;
 }
 
-/** The person's notifications, the last updated first. */
+/** The person's notifications updated at or after `since`, the last updated first. */
 export async function listInboxItems(
   db: DbExecutor,
   userId: string,
+  since: Date,
 ): Promise<StoredInboxItem[]> {
   const rows = await db
     .select()
     .from(inboxItem)
-    .where(eq(inboxItem.userId, userId))
+    .where(and(eq(inboxItem.userId, userId), gte(inboxItem.updatedAt, since)))
     .orderBy(desc(inboxItem.updatedAt), desc(inboxItem.createdAt));
   return rows.map((row) => ({
     id: row.id,
@@ -109,14 +111,22 @@ export async function listUsersWithButtons(
   return rows.map((row) => row.userId);
 }
 
+/** How many of the person's notifications updated at or after `since` are unread. */
 export async function countUnreadInboxItems(
   db: DbExecutor,
   userId: string,
+  since: Date,
 ): Promise<number> {
   const [row] = await db
     .select({ unread: count() })
     .from(inboxItem)
-    .where(and(eq(inboxItem.userId, userId), isNull(inboxItem.readAt)));
+    .where(
+      and(
+        eq(inboxItem.userId, userId),
+        isNull(inboxItem.readAt),
+        gte(inboxItem.updatedAt, since),
+      ),
+    );
   return row?.unread ?? 0;
 }
 

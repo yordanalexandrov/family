@@ -55,10 +55,11 @@ export interface InboxService {
     message: InboxMessage,
   ): Promise<Notified>;
   /**
-   * The person's notifications, the last updated first. The buttons come only until `actionUntil` and while no one
+   * The person's notifications of the last {@link INBOX_KEEP_DAYS} (by `updated_at`), the last updated first. The buttons come only until `actionUntil` and while no one
    * answered; after an answer, who answered instead (from the dinner as it is now); after `actionUntil`, neither.
    */
   list(userId: string): Promise<InboxItem[]>;
+  /** How many of what {@link InboxService.list} shows are unread. */
   unreadCount(userId: string): Promise<number>;
   /** Marks the person's notification read; {@link NotFoundError} when it is not theirs or does not exist. */
   read(userId: string, id: string): Promise<void>;
@@ -87,6 +88,8 @@ export function createInboxService({
 }): InboxService {
   const changed = (userId: string) =>
     events.publish({ type: 'inbox.changed', userId });
+  /** The start of what the inbox keeps: older is not shown or counted, even before the cron deletes it. */
+  const keptSince = () => new Date(now().getTime() - INBOX_KEEP_DAYS * DAY_MS);
   return {
     async notify(userId, kind, { details = [], actionUntil, ...message }) {
       const inboxId = await upsertInboxItem(
@@ -105,7 +108,7 @@ export function createInboxService({
         now(),
       );
       changed(userId);
-      const unread = await countUnreadInboxItems(db, userId);
+      const unread = await countUnreadInboxItems(db, userId, keptSince());
       const devices = await push.send(userId, kind, {
         ...message,
         inboxId,
@@ -127,7 +130,7 @@ export function createInboxService({
     },
     async list(userId) {
       const at = now();
-      const items = await listInboxItems(db, userId);
+      const items = await listInboxItems(db, userId, keptSince());
       const asking = new Map<StoredInboxItem, string>();
       for (const item of items) {
         const mealId = mealOfTag(item.tag);
@@ -163,7 +166,7 @@ export function createInboxService({
         );
       });
     },
-    unreadCount: (userId) => countUnreadInboxItems(db, userId),
+    unreadCount: (userId) => countUnreadInboxItems(db, userId, keptSince()),
     async read(userId, id) {
       if (!(await markInboxItemRead(db, userId, id, now()))) {
         throw new NotFoundError('Няма такова известие');
@@ -174,11 +177,7 @@ export function createInboxService({
       await markAllInboxItemsRead(db, userId, now());
       changed(userId);
     },
-    prune: () =>
-      deleteInboxItemsBefore(
-        db,
-        new Date(now().getTime() - INBOX_KEEP_DAYS * DAY_MS),
-      ),
+    prune: () => deleteInboxItemsBefore(db, keptSince()),
   };
 }
 

@@ -267,6 +267,18 @@ describe('GET /api/inbox and /api/inbox/unread-count', () => {
     ]);
   });
 
+  it('shows and counts only what was updated in the last 30 days, also before the cron deletes the rest', async () => {
+    clock = new Date('2026-10-05T17:59:00Z');
+    await app.inbox.notify(DANI.id, 'thaw', THAW);
+    clock = new Date('2026-10-05T18:01:00Z');
+    await app.inbox.notify(DANI.id, 'menu', MENU);
+
+    clock = EVENING;
+
+    expect((await inbox(DANI)).map((item) => item.title)).toEqual([MENU.title]);
+    expect(await unread(DANI)).toBe(1);
+  });
+
   it('is empty for a person without notifications', async () => {
     expect(await inbox(POLI)).toEqual([]);
     expect(await unread(POLI)).toBe(0);
