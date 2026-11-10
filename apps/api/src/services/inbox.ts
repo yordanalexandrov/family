@@ -9,6 +9,7 @@ import {
   upsertInboxItem,
 } from '../db/repositories/inbox.js';
 import { NotFoundError } from './errors.js';
+import type { EventBus } from './events.js';
 import type { PushMessage, PushService } from './push.js';
 
 /** How long a notification stays in the inbox after its last update; the cron deletes it then. Changed by PR. */
@@ -50,12 +51,17 @@ export interface InboxService {
 export function createInboxService({
   db,
   push,
+  events,
   now,
 }: {
   db: Db;
   push: PushService;
+  /** `inbox.changed` to the person's streams after every write: their bell and icon badge follow. */
+  events: EventBus;
   now: () => Date;
 }): InboxService {
+  const changed = (userId: string) =>
+    events.publish({ type: 'inbox.changed', userId });
   return {
     async notify(userId, kind, message) {
       const inboxId = await upsertInboxItem(
@@ -70,7 +76,13 @@ export function createInboxService({
         },
         now(),
       );
-      const devices = await push.send(userId, kind, message);
+      changed(userId);
+      const unread = await countUnreadInboxItems(db, userId);
+      const devices = await push.send(userId, kind, {
+        ...message,
+        inboxId,
+        unread,
+      });
       return { inboxId, devices };
     },
     list: (userId) => listInboxItems(db, userId),
@@ -79,8 +91,12 @@ export function createInboxService({
       if (!(await markInboxItemRead(db, userId, id, now()))) {
         throw new NotFoundError('Няма такова известие');
       }
+      changed(userId);
     },
-    readAll: (userId) => markAllInboxItemsRead(db, userId, now()),
+    async readAll(userId) {
+      await markAllInboxItemsRead(db, userId, now());
+      changed(userId);
+    },
     prune: () =>
       deleteInboxItemsBefore(
         db,
