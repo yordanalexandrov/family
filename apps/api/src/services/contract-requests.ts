@@ -144,6 +144,11 @@ export interface ContractRequests {
    * become `failed`/`stale`, each with its `afterFailed`. Logs and never rejects: the api serves without it.
    */
   failStale(): Promise<void>;
+  /**
+   * Waits, without aborting, until no run is going, also runs started meanwhile; the specs drain it before the database
+   * is reset (`src/test/setup.ts`).
+   */
+  settled(): Promise<void>;
   /** Aborts the runs still going (they end `failed`/`aborted`) and waits for them, before the pool closes. */
   close(): Promise<void>;
 }
@@ -342,6 +347,12 @@ export function createContractRequests({
         } catch (error) {
           log.error({ err: error }, `could not fail stale ${id} requests`);
         }
+      }
+    },
+
+    async settled() {
+      while (running.size > 0) {
+        await Promise.all(running);
       }
     },
 

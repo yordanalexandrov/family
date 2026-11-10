@@ -505,6 +505,32 @@ describe('AI requests (contract-requests)', () => {
     ]);
   });
 
+  it('waits for the runs in flight on settled without aborting them: they end as they would', async () => {
+    let answer = () => {};
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    openclaw.use(
+      http.post(CHAT_COMPLETIONS_URL, async () => {
+        await answered;
+        return HttpResponse.json(completion(JSON.stringify({ word: 'супа' })));
+      }),
+    );
+    const handle = create();
+    const request = await handle.request({ word: 'супа' }, DANI.id);
+
+    let settled = false;
+    const settling = requests.settled().then(() => {
+      settled = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(settled).toBe(false);
+    answer();
+    await settling;
+
+    expect(await handle.get(request.id)).toMatchObject({ status: 'done' });
+  });
+
   it('aborts the runs in flight on close and waits for them: they end failed/aborted', async () => {
     let reached = () => {};
     const atGateway = new Promise<void>((resolve) => {

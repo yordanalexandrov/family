@@ -7,7 +7,7 @@
 ## Interface
 
 - `app.ts:buildApp, BuildAppOptions` – Fastify инстанцията. Притежава пула към базата (`app.db`) и го затваря при `app.close()`.
-- `app.ts` (`declare module 'fastify'`) – декорациите на `app`: `db`, `users`, `now`, `events`, `push`, `reminders`, `menu`, `menuSchedule`, `mealReplacements`, `menuReworks`, `recipeSuggestions`, `recipeImports`, `recipeRefinements`, `recipeRevisions`, `cookingQuestions`, `calendarSync`, `budgetSync`.
+- `app.ts` (`declare module 'fastify'`) – декорациите на `app`: `db`, `users`, `now`, `events`, `push`, `reminders`, `menu`, `menuSchedule`, `mealReplacements`, `menuReworks`, `recipeSuggestions`, `recipeImports`, `recipeRefinements`, `recipeRevisions`, `cookingQuestions`, `calendarSync`, `budgetSync`, `aiRunsSettled`.
 - `config.ts:loadConfig, Config` – парсва `process.env` и хвърля четима грешка, която изрежда всяка невалидна променлива.
 - `config.ts:loadOpenClawConfig, OpenClawConfig` – само променливите `OPENCLAW_*` (за smoke скриптовете).
 - `config.ts:AuthConfig, VapidConfig, CalendarSourceConfig` – типовете на auth режима, VAPID ключовете и елемент от `GOOGLE_CALENDARS`.

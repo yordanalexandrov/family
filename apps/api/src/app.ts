@@ -138,6 +138,8 @@ declare module 'fastify' {
     push: PushService;
     /** The reminders: the cron's `reminders` job (every 5 minutes) and the answer that replaces „Кой готви довечера?“. */
     reminders: Reminders;
+    /** Resolves once no AI request is running in the background, without aborting any; specs await it. */
+    aiRunsSettled: () => Promise<void>;
   }
 }
 
@@ -356,6 +358,7 @@ export function buildApp({
       { timeoutMs: agents.cookTimeoutMs },
     ),
   );
+  app.decorate('aiRunsSettled', () => contractRequests.settled());
   app.addHook('onClose', async () => {
     await contractRequests.close();
     await closeDb(db);

@@ -7,7 +7,7 @@
 ## Interface
 
 - `errors.ts:ServiceRefusal, NotFoundError, ConflictError, AlreadyImportedError, ForbiddenError, InvalidReferenceError, InvalidActionError, OpenClawUnavailableError, UnsupportedPhotoError, refuse` – типизираните откази. `refuse(code, message, details)` избира класа по под-кода от `refusalSchemas` в `packages/shared`.
-- `contract-requests.ts:createContractRequests, ContractRequests, ContractRequestStore, ContractRequestHandle, StoredContractRequest, ContractRequestFailure` – общият жизнен цикъл на AI заявка (`register`, `failStale`, `close`).
+- `contract-requests.ts:createContractRequests, ContractRequests, ContractRequestStore, ContractRequestHandle, StoredContractRequest, ContractRequestFailure` – общият жизнен цикъл на AI заявка (`register`, `failStale`, `settled`, `close`).
 - `recipe-suggestions.ts:createRecipeSuggestionsService, suggestionRequestStore, withDuplicateOf, SuggestionRequests, RecipeSuggestionsService` – `recipe.suggest`, одобряване, отхвърляне и връщане на предложения (и на предложението от внасяне).
 - `recipe-imports.ts:createRecipeImportsService, createRecipeImportStore, RecipeImportRequests, ImportParams` – `recipe.normalize` (Внасяне на рецепта от текст, линк или снимка).
 - `recipe-refinements.ts:createRecipeRefineStore, RecipeRefinements` – `recipe.refine` (Подобряване на рецепта).
@@ -40,7 +40,7 @@
 ## Invariants
 
 - `contract-requests.ts:createContractRequests` – `POST` записва `pending` заявка и отговаря 202. Изпълнението върви във фона на процеса на API-то: вика OpenClaw и записва `done`/`failed`, а клиентът проверява състоянието с poll. Без OpenClaw клиент (`null`, само в dev) всяка заявка се отказва с `OpenClawUnavailableError`.
-- `contract-requests.ts:STALE_AFTER_MS` и `failStale` – при старт `pending` заявки, по-стари от 10 минути, стават `failed`/`stale`. `close` прекъсва текущите изпълнения (`failed`/`aborted`) преди пулът да се затвори.
+- `contract-requests.ts:STALE_AFTER_MS` и `failStale` – при старт `pending` заявки, по-стари от 10 минути, стават `failed`/`stale`. `close` прекъсва текущите изпълнения (`failed`/`aborted`) преди пулът да се затвори; `settled` само ги изчаква, без да ги прекъсва (`app.aiRunsSettled`, за specs преди нулирането на базата).
 - `contract-requests.ts:ContractRequestStore` – резултатът на валиден отговор се записва в транзакцията, която маркира заявката `done`. Бавната работа (`prepare`: изтегляне и декодиране на снимки) е извън транзакцията.
 - `events.ts:EventBus` (коментар) – API-то е единственият процес и единственият писач (без `LISTEN/NOTIFY`). Сигналите се пращат само след commit.
 - `menu.ts:createMenuService` (коментар) – всяка промяна на план или ястие праща `menu.changed` и `shopping.changed` за седмицата си; глас, ред в разговора и „Извадих“ (`markThawed`) пращат само `menu.changed`. `menu.ts:createMenuProposalStore` праща `menu.proposal.changed` при заявка, провал и край на предложението.

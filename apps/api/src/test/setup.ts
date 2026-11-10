@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import { runMigrations } from '../db/migrate.js';
+import { settleTestApps } from './app.js';
 import {
   closeTestDb,
   ensureTestDatabase,
@@ -22,6 +23,10 @@ beforeAll(async () => {
   await resetDatabase(testDb());
 });
 
-afterEach(() => resetDatabase(testDb()));
+// Background AI runs of the test first (they write after its 202), then the truncate: one hook, so the order holds.
+afterEach(async () => {
+  await settleTestApps();
+  await resetDatabase(testDb());
+});
 
 afterAll(closeTestDb);
