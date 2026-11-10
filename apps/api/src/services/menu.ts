@@ -8,6 +8,7 @@ import {
   isEmptyMeal,
   isPastMeal,
   MENU_PROPOSE_MIN_RECIPES,
+  MENU_REWORKING_MESSAGE,
   MENU_SLOTS,
   type Meal,
   type MealComment,
@@ -97,7 +98,6 @@ const WEEK_HAS_PENDING = 'За седмицата вече се подготвя
 const PAST_MEAL = 'Денят е минал: ястието вече не се гласува и не се сменя';
 const NO_SUCH_COMMENT = 'Няма такъв коментар';
 const EMPTY_MEAL = 'Денят е празен: първо избери ястие, после се гласува';
-const REWORKING = 'AI преработва менюто: изчакай да свърши';
 
 const PAST_MEAL_THREAD = 'Денят е минал: в разговора вече не се пише';
 const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
@@ -719,7 +719,7 @@ export async function refuseReworkingWeek(
 ): Promise<void> {
   await lockWeek(tx, await weekOf(tx, planId));
   if (await hasPendingRework(tx, planId)) {
-    throw refuse('menu_reworking', REWORKING);
+    throw refuse('menu_reworking', MENU_REWORKING_MESSAGE);
   }
 }
 

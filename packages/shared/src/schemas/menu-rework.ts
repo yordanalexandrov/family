@@ -50,6 +50,9 @@ export const menuReworkResponseSchema = z.object({
  */
 export const menuReworkingSchema = refusalBody('conflict', 'menu_reworking');
 
+/** The message of `menu_reworking`, and what the web shows in place of what it locks. */
+export const MENU_REWORKING_MESSAGE = 'AI преработва менюто: изчакай да свърши';
+
 export type MenuReworking = z.infer<typeof menuReworkingSchema>;
 
 /** 409 of `POST /api/menu/reworks` while „✨ Предложи друго“ is pending for a meal of the week. */

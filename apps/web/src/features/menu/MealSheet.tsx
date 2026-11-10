@@ -4,6 +4,7 @@ import {
   isEmptyMeal,
   isPastMeal,
   MEAL_NOTE_MAX,
+  MENU_REWORKING_MESSAGE,
   type Meal,
   type MealPlan,
   mealOutcome,
@@ -31,9 +32,6 @@ import { Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 const SEARCH_DEBOUNCE_MS = 300;
-
-/** Същото като отказа 409 `menu_reworking` на api-то. */
-const REWORKING = 'AI преработва менюто: изчакай да свърши';
 
 interface MealSheetProps {
   meal: Meal;
@@ -165,7 +163,9 @@ export function MealSheet({
             : 'Денят е минал: ястието и бележката не се сменят.'}
         </p>
       ) : locked ? (
-        <p className="sheet__section meal-votes__past">{REWORKING}</p>
+        <p className="sheet__section meal-votes__past">
+          {MENU_REWORKING_MESSAGE}
+        </p>
       ) : (
         <>
           {picking ? (
