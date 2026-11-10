@@ -18,6 +18,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from 'vitest';
 import { buildTestApp } from '../test/app.js';
 import { seedFixtureRecipes } from '../test/menu.js';
@@ -27,6 +28,12 @@ import {
   openclaw,
 } from '../test/openclaw.js';
 import { stockPantry } from '../test/pantry.js';
+import {
+  createTestPushService,
+  deviceSubscription,
+  TEST_VAPID_PUBLIC_KEY,
+  type TestPushService,
+} from '../test/push.js';
 import { DANI, POLI } from '../test/users.js';
 
 /** Wednesday 28 October 2026, 10:00 in Sofia: the week of 2 November is planned before it begins. */
@@ -38,10 +45,15 @@ const WEEK = '2026-11-02';
 
 let clock = NOW;
 let app: FastifyInstance;
+let push: TestPushService;
 
 beforeAll(async () => {
   openclaw.listen({ onUnhandledFrame: 'error' });
-  app = buildTestApp({ now: () => clock });
+  push = createTestPushService();
+  app = buildTestApp({
+    now: () => clock,
+    push: { publicKey: TEST_VAPID_PUBLIC_KEY, sender: push.sender },
+  });
   await app.ready();
 });
 
@@ -509,6 +521,86 @@ describe('POST /api/menu/reworks', () => {
     expect(await thread(meals[2]?.id ?? '')).toEqual(lines);
     answerInTurn(JSON.stringify(reworkFixture));
     expect((await finished((await rework()).id)).status).toBe('done');
+  });
+});
+
+describe('reworked menu notification', () => {
+  beforeEach(async () => {
+    push.delivered.length = 0;
+    for (const user of [DANI, POLI]) {
+      const response = await inject(
+        'PUT',
+        '/api/notifications/subscription',
+        deviceSubscription(user.name),
+        user.id,
+      );
+      expect(response.statusCode).toBe(204);
+    }
+  });
+
+  /** What each device got: the endpoint's owner and the notification. */
+  function received() {
+    return push.delivered.map(({ endpoint, payload }) => ({
+      to: endpoint.split('/').at(-1),
+      payload,
+    }));
+  }
+
+  it('tells only the other who reworked the menu, how many dishes changed and the hint', async () => {
+    answerInTurn(JSON.stringify(reworkFixture));
+    await fixtureWeek();
+
+    await finished((await rework({ weekStart: WEEK, hint: 'по-леко' })).id);
+
+    await vi.waitFor(() => expect(received()).toHaveLength(1));
+    expect(received()).toEqual([
+      {
+        to: POLI.name,
+        payload: {
+          kind: 'menu',
+          userId: POLI.id,
+          title: 'Преработено меню',
+          body: 'Дани преработи менюто за 2–8 ноември · сменени 3 · „по-леко“',
+          tag: `menu-${WEEK}`,
+          url: `/menu?week=${WEEK}`,
+        },
+      },
+    ]);
+  });
+
+  it('leaves the rework done and written when the notification cannot be sent', async () => {
+    answerInTurn(JSON.stringify(reworkFixture));
+    await fixtureWeek();
+    const send = vi
+      .spyOn(app.push, 'send')
+      .mockRejectedValue(new Error('push service down'));
+
+    try {
+      const done = await finished((await rework()).id);
+
+      expect(done).toMatchObject({ status: 'done', changed: 3 });
+      await vi.waitFor(() => expect(send).toHaveBeenCalled());
+      expect((await plan()).summary).toBe(reworkFixture.summary);
+    } finally {
+      send.mockRestore();
+    }
+  });
+
+  it('does not count the AI’s changes in the „… по менюто“ digest', async () => {
+    answerInTurn(JSON.stringify(reworkFixture));
+    await fixtureWeek();
+    // The family's own actions before the rework are quiet by now: the digest of them goes first.
+    await app.reminders.run();
+    push.delivered.length = 0;
+
+    await finished((await rework()).id);
+    await vi.waitFor(() => expect(received()).toHaveLength(1));
+    clock = new Date(NOW.getTime() + 10 * 60_000);
+    await app.reminders.run();
+
+    expect(received().map(({ payload }) => payload.title)).toEqual([
+      'Преработено меню',
+    ]);
   });
 });
 

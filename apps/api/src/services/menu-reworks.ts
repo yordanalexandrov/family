@@ -46,6 +46,7 @@ import type {
 import { refuse } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
 import { writeSystemLine } from './menu.js';
+import type { MenuNotifications } from './menu-notifications.js';
 
 /** Phase 1 plans dinner only (`MENU_SLOTS`). */
 const [DINNER] = MENU_SLOTS;
@@ -121,10 +122,12 @@ function fixedDay(meal: Meal) {
  * друго“ is pending for one of its meals, 409 `nothing_to_rework` without a day to replace or fill from today on, 409
  * `not_enough_recipes` with fewer free dinner recipes than days to fill. The input is built when the run starts, by
  * `classifyRework`; a valid answer is written into the plan (see `onDone`). Every change of the rework's status signals
- * `menu.rework.changed`; a written answer also `menu.changed` and `shopping.changed`.
+ * `menu.rework.changed`; a written answer also `menu.changed` and `shopping.changed`, and „Преработено меню“ goes to
+ * the others.
  */
 export function createMenuReworkStore(
   events: EventBus,
+  notifications: Pick<MenuNotifications, 'reworked'>,
   now: () => Date,
 ): ContractRequestStore<
   CreateMenuRework,
@@ -276,6 +279,7 @@ export function createMenuReworkStore(
       for (const event of menuAndShoppingChanged(rework.weekStart)) {
         events.publish(event);
       }
+      void notifications.reworked(rework);
     },
   };
 }
