@@ -48,10 +48,7 @@ export function Thread({
   const byId = new Map(users.map((user) => [user.id, user]));
 
   return (
-    <section className="sheet__section thread" aria-labelledby="thread-title">
-      <h3 id="thread-title" className="field__label">
-        Разговор
-      </h3>
+    <div className="thread">
       {remove.isError && <ErrorBox error={remove.error} />}
       {thread.isPending ? (
         <Spinner />
@@ -77,7 +74,7 @@ export function Thread({
         </ol>
       )}
       {!readOnly && <CommentField meal={meal} weekStart={weekStart} />}
-    </section>
+    </div>
   );
 }
 

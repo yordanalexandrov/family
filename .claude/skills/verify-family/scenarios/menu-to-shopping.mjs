@@ -1,6 +1,6 @@
 // Features menu (`menu-empty`, `menu-meal`) and shopping (`shopping-computed`, `shopping-check`, `shopping-add`):
 // next week's empty plan, Monday = the newest „Леща verify …“ recipe cooked by Дани and added to the list from its
-// sheet („🛒 Добави в списъка“, ADR-0011: a meal joins the list only by hand), then its list.
+// sheet (switch „В списъка за пазаруване“, ADR-0011: a meal joins the list only by hand), then its list.
 // Needs setup-phone.mjs and recipe-create.mjs first in the same run. Uses next week so it never meets a plan
 // another scenario made for this week; a run is disposable, so rerunning in the same run fails at „Започни празно“.
 export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
@@ -31,9 +31,15 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
   step(`Monday: ${title}, cook Дани`);
   await tap(dinners.getByRole('button').first(), 'Monday row');
   const sheet = page.getByRole('dialog');
-  await aria('meal-sheet');
-  // The registry picker opens behind „Избери сам“ (next to „✨ Предложи друго“).
-  await tap(sheet.getByRole('button', { name: 'Избери сам' }), 'Избери сам');
+  // An empty day asks „Какво ще ядем?“: „✨ Предложи ястие“ and below it the other ways, each unfolds in place.
+  const empty = sheet.getByRole('region', { name: 'Какво ще ядем?' });
+  await see(empty, 'Какво ще ядем?');
+  await aria('meal-sheet-empty');
+  await shot('meal-sheet-empty');
+  await tap(
+    empty.getByRole('button', { name: 'Избери от рецептите' }),
+    'Избери от рецептите',
+  );
   await sheet.getByRole('searchbox', { name: 'Търси рецепта' }).fill(title);
   await tap(
     sheet
@@ -41,22 +47,48 @@ export default async ({ go, see, tap, step, aria, shot, psql, page }) => {
       .getByRole('button', { name: title }),
     title,
   );
+  // The pick returns to the overview: the title links to the recipe.
+  await see(
+    sheet.getByRole('link', { name: title }),
+    'overview with the recipe',
+  );
+  await tap(sheet.getByRole('button', { name: /^Готвач/ }), 'Готвач ›');
   await tap(
     sheet
       .getByRole('group', { name: 'Готвач' })
       .getByRole('button', { name: 'Дани' }),
     'cook Дани',
   );
-  // Without this the list has no rows from the menu: only „Добави ястия от менюто“.
-  await tap(
-    sheet.getByRole('button', { name: '🛒 Добави в списъка' }),
-    '🛒 Добави в списъка',
-  );
+  // Choosing the cook returns to the overview too.
   await see(
-    sheet.getByRole('button', { name: '🛒 В списъка ✓', pressed: true }),
+    sheet.getByRole('button', { name: /^Готвач.*Дани/ }),
+    'row Готвач: Дани',
+  );
+  // Without this the list has no rows from the menu: only „Добави ястия от менюто“.
+  const listed = sheet.getByRole('switch', {
+    name: 'В списъка за пазаруване',
+  });
+  await tap(listed, 'В списъка за пазаруване');
+  await see(
+    sheet.getByRole('switch', {
+      name: 'В списъка за пазаруване',
+      checked: true,
+    }),
     'meal in the list',
   );
+  await aria('meal-sheet');
   await shot('meal-sheet-listed');
+  await tap(
+    sheet.getByRole('button', { name: '↻ Смени ястието' }),
+    'Смени ястието',
+  );
+  await see(
+    sheet.getByRole('region', { name: 'Смени ястието' }),
+    'Смени ястието',
+  );
+  await aria('meal-sheet-change');
+  await shot('meal-sheet-change');
+  await tap(sheet.getByRole('button', { name: 'Назад' }), '‹ Назад');
   await tap(sheet.getByRole('button', { name: 'Готово' }), 'Готово');
   await see(
     dinners.getByRole('button', {

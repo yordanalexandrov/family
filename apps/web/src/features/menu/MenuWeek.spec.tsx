@@ -336,7 +336,12 @@ describe('MenuWeek', () => {
     await showPastDays(user);
     await user.click(screen.getByRole('button', { name: /Пиле с ориз/ }));
     const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
-    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    await user.click(
+      within(sheet).getByRole('button', { name: '↻ Смени ястието' }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Избери от рецептите' }),
+    );
     expect(
       await within(sheet).findByRole('button', { name: /Мусака/ }),
     ).toHaveTextContent('в тази седмица');
@@ -357,6 +362,9 @@ describe('MenuWeek', () => {
     await expect
       .poll(() => patches)
       .toEqual([{ id: plan.meals[3]?.id, body: { recipeId: lentils.id } }]);
+    expect(
+      await within(sheet).findByRole('link', { name: lentils.title }),
+    ).toBeInTheDocument();
     await user.click(within(sheet).getByRole('button', { name: 'Готово' }));
     const row = screen.getByRole('button', { name: /Леща чорба/ });
     expect(row).toHaveTextContent('чт');
@@ -383,7 +391,7 @@ describe('MenuWeek', () => {
     expect(
       within(
         screen.getByRole('dialog', { name: 'понеделник, 2 ноември' }),
-      ).getByRole('link', { name: 'Към рецептата' }),
+      ).getByRole('link', { name: chicken.title }),
     ).toHaveAttribute('href', `/recipes/${chicken.id}`);
     await user.click(screen.getByRole('button', { name: 'Готово' }));
 
@@ -391,7 +399,7 @@ describe('MenuWeek', () => {
     expect(
       within(
         screen.getByRole('dialog', { name: 'вторник, 3 ноември' }),
-      ).queryByRole('link', { name: 'Към рецептата' }),
+      ).queryByRole('link'),
     ).not.toBeInTheDocument();
   });
 
@@ -423,6 +431,12 @@ describe('MenuWeek', () => {
     await user.click(screen.getByRole('link', { name: 'Меню' }));
     await user.click(await screen.findByRole('button', { name: /остатъци/ }));
     const sheet = screen.getByRole('dialog', { name: 'сряда, 4 ноември' });
+    await user.click(
+      within(sheet).getByRole('button', { name: '↻ Смени ястието' }),
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Бележка вместо ястие' }),
+    );
     const note = within(sheet).getByRole('textbox', { name: 'Бележка' });
     await user.clear(note);
     await user.type(note, 'ядем навън');
@@ -449,12 +463,12 @@ describe('MenuWeek', () => {
     await user.click(rows[1] as HTMLElement);
     const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
 
+    await user.click(within(sheet).getByRole('button', { name: /^Готвач/ }));
     await user.click(within(sheet).getByRole('button', { name: 'Поли' }));
-    await expect
-      .poll(
-        () => within(sheet).getByRole('button', { name: 'Поли' }).ariaPressed,
-      )
-      .toBe('true');
+    expect(
+      await within(sheet).findByRole('button', { name: /^Готвач/ }),
+    ).toHaveTextContent('Поли');
+    await user.click(within(sheet).getByRole('button', { name: /^Порции/ }));
     await user.click(
       within(sheet).getByRole('button', { name: 'Повече порции за Дани' }),
     );
@@ -475,11 +489,19 @@ describe('MenuWeek', () => {
           .hasAttribute('disabled'),
       )
       .toBe(true);
+    await user.click(within(sheet).getByRole('button', { name: 'Назад' }));
+    // Празен ден: начините за ястие са в „Какво ще ядем?“.
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Бележка вместо ястие' }),
+    );
     await user.type(
       within(sheet).getByRole('textbox', { name: 'Бележка' }),
       'ядем навън',
     );
     await user.click(within(sheet).getByRole('button', { name: 'Запази' }));
+    await user.click(
+      await within(sheet).findByRole('button', { name: /^Готвач/ }),
+    );
     await user.click(within(sheet).getByRole('button', { name: 'никой' }));
 
     await expect.poll(() => patches.length).toBe(5);
