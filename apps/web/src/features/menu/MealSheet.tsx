@@ -15,7 +15,13 @@ import {
   weekdayName,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
-import { type FormEvent, type ReactNode, useCallback, useState } from 'react';
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
@@ -33,6 +39,8 @@ import { systemLineText, Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote, voteOf } from './Votes';
 
 const SEARCH_DEBOUNCE_MS = 300;
+/** Колко стои „✓ Сменено“ под заглавието: колкото toast-а с „Върни“. */
+const CHANGED_MS = 8000;
 
 interface MealSheetProps {
   meal: Meal;
@@ -55,6 +63,16 @@ interface MealSheetProps {
 
 /** Под-изгледите на листа: всеки се отваря от своя ред в прегледа и се връща с „‹ Назад“. */
 type MealView = 'thread' | 'cook' | 'servings' | 'change';
+
+/**
+ * Потвърждението след смяна на ястието: какво е било (`null` на празен ден) и дали може да се върне („Върни“ има само
+ * след смяна на рецептата, не след бележка или размяна). `at` различава две поредни смени, за да светне пак заглавието.
+ */
+interface MealChanged {
+  before: string | null;
+  undo: boolean;
+  at: number;
+}
 
 const VIEW_TITLES: Record<MealView, string> = {
   thread: 'Разговор',
@@ -84,7 +102,9 @@ export function MealSheet({
   onClose,
 }: MealSheetProps) {
   const update = useUpdateMeal(plan.weekStart);
+  const restore = useRestoreMeal(plan.weekStart);
   const [view, setView] = useState<MealView | null>(null);
+  const [changed, setChanged] = useState<MealChanged | null>(null);
   const day = formatDayLong(meal.date);
   const title = mealTitle(meal);
   const past = readOnly || isPastMeal(meal, today);
@@ -94,6 +114,7 @@ export function MealSheet({
   const mine = voterId ? voteOf(meal, voterId) : undefined;
   const askVote = voterId !== undefined && onVote && !past && !empty && !mine;
   const showOverview = useCallback(() => setView(null), []);
+  const clearChanged = useCallback(() => setChanged(null), []);
   // `readOnly` е и седмица, която само устройството не сменя (kiosk): тогава без бележка.
   const note = readOnly
     ? addDays(plan.weekStart, 6) < today
@@ -110,18 +131,27 @@ export function MealSheet({
   }
 
   /**
-   * Смяна на ястието (рецепта, бележка): след успеха листът се връща към прегледа. Тук е мястото за потвърждението
-   * „✓ Сменено“ (#371).
+   * Смяна на ястието (рецепта, бележка): след успеха листът се връща към прегледа с „✓ Сменено“. „Върни“ има само след
+   * смяна на рецептата: api-то пази снимка само за нея.
    */
   function changeMeal(change: UpdateMeal) {
+    const undo = change.recipeId !== undefined;
     update.mutate(
       { id: meal.id, patch: change },
-      { onSuccess: () => mealChanged() },
+      { onSuccess: () => mealChanged(undo) },
     );
   }
 
-  function mealChanged() {
+  /** Тук `title` още е на ястието отпреди смяната: то е „беше“. */
+  function mealChanged(undo = false) {
+    restore.reset();
+    setChanged({ before: title, undo, at: Date.now() });
     showOverview();
+  }
+
+  function undoChange() {
+    setChanged(null);
+    restore.mutate(meal.id);
   }
 
   function removeRecipe() {
@@ -152,7 +182,7 @@ export function MealSheet({
       swap={voterId !== undefined}
       replace={!empty}
       onChange={changeMeal}
-      onSwapped={mealChanged}
+      onSwapped={() => mealChanged()}
       {...(empty ? {} : { onRemove: removeRecipe })}
     />
   );
@@ -160,6 +190,7 @@ export function MealSheet({
   return (
     <Sheet title={day} onClose={onClose}>
       {update.isError && <ErrorBox error={update.error} />}
+      {restore.isError && <ErrorBox error={restore.error} />}
       {view ? (
         <SubView title={VIEW_TITLES[view]} onBack={showOverview}>
           {view === 'thread' && voterId && (
@@ -192,7 +223,8 @@ export function MealSheet({
         <>
           <div className="sheet__section meal-sheet__head">
             <h3
-              className={`meal-sheet__title${title ? '' : ' meal-sheet__title--empty'}`}
+              key={changed?.at}
+              className={`meal-sheet__title${title ? '' : ' meal-sheet__title--empty'}${changed ? ' meal-sheet__title--changed' : ''}`}
             >
               {meal.recipeId !== null ? (
                 <Link
@@ -209,6 +241,12 @@ export function MealSheet({
                 (title ?? 'Още няма ястие')
               )}
             </h3>
+            <ChangedStatus
+              changed={changed}
+              title={title}
+              onUndo={undoChange}
+              onDone={clearChanged}
+            />
             {meal.why && <p className="meal-sheet__why">{meal.why}</p>}
           </div>
           {askVote && (
@@ -338,6 +376,51 @@ function SubView({
       <h3 className="meal-sheet__view-title">{title}</h3>
       {children}
     </section>
+  );
+}
+
+/**
+ * „✓ Сменено (беше „Мусака“)“ под заглавието за `CHANGED_MS`, с „Върни“ след смяна на рецептата. Живата област стои
+ * винаги, за да прочете екранният четец новия текст.
+ */
+function ChangedStatus({
+  changed,
+  title,
+  onUndo,
+  onDone,
+}: {
+  changed: MealChanged | null;
+  /** Сегашното заглавие: бележка към ястие с рецепта не го сменя и тогава „беше“ няма. */
+  title: string | null;
+  onUndo: () => void;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    if (!changed) {
+      return;
+    }
+    const timer = setTimeout(onDone, CHANGED_MS);
+    return () => clearTimeout(timer);
+  }, [changed, onDone]);
+
+  return (
+    <div className="meal-sheet__changed" role="status" aria-live="polite">
+      {changed && (
+        <>
+          <span>
+            ✓ Сменено
+            {changed.before && changed.before !== title
+              ? ` (беше „${changed.before}“)`
+              : ''}
+          </span>
+          {changed.undo && (
+            <button type="button" className="meal-sheet__undo" onClick={onUndo}>
+              Върни
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 

@@ -590,6 +590,62 @@ button.meal-row__content:hover {
   color: var(--color-text-muted);
 }
 
+/* „✓ Сменено (беше …)“ с „Върни“ под заглавието (#371). Празната жива област стои в DOM-а, но не заема място. */
+.meal-sheet__changed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-success);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.meal-sheet__changed:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.meal-sheet__undo {
+  min-block-size: var(--touch-target);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.meal-sheet__undo:hover {
+  background: var(--color-surface-2);
+}
+
+/* Новото заглавие светва веднъж; `key` на заглавието пуска анимацията пак при следваща смяна. */
+@media (prefers-reduced-motion: no-preference) {
+  .meal-sheet__title--changed {
+    animation: meal-sheet-changed var(--motion-slow) ease-out;
+    border-radius: var(--radius-sm);
+  }
+}
+
+@keyframes meal-sheet-changed {
+  from {
+    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+    box-shadow: 0 0 0 var(--space-1)
+      color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+
+  to {
+    background: transparent;
+    box-shadow: 0 0 0 var(--space-1) transparent;
+  }
+}
+
 .meal-sheet__ask {
   display: flex;
   flex-direction: column;

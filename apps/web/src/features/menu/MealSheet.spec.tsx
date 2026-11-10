@@ -1,11 +1,13 @@
 import type { MealPlan } from '@family/shared';
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   dinnerRecipes,
   planFor,
   serveDinnerRecipes,
+  serveMealRestores,
   serveMealUpdates,
   servePlans,
   serveThreads,
@@ -14,7 +16,7 @@ import {
   threadLine,
   votesOf,
 } from '../../test/menu';
-import { dani, fixtureNow, poli } from '../../test/msw';
+import { dani, fixtureNow, poli, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 
 const [chicken, , moussaka] = dinnerRecipes;
@@ -519,5 +521,213 @@ describe('MealSheet без действащ потребител', () => {
     expect(within(sheet).queryByRole('switch')).toBeNull();
     // Седмицата не е минала: само устройството не сменя менюто.
     expect(sheet).not.toHaveTextContent('Седмицата е минала');
+  });
+});
+
+/** „↻ Смени ястието ›“ → „Избери от рецептите“ → рецептата `name` от търсенето. */
+async function pickFromSearch(
+  user: ReturnType<typeof userEvent.setup>,
+  sheet: HTMLElement,
+  name: RegExp,
+) {
+  const change = within(sheet).queryByRole('button', {
+    name: '↻ Смени ястието',
+  });
+  if (change) await user.click(change);
+  await user.click(
+    within(sheet).getByRole('button', { name: 'Избери от рецептите' }),
+  );
+  await user.click(await within(sheet).findByRole('button', { name }));
+}
+
+/** „↻ Смени ястието ›“ (ако го има) → „Бележка вместо ястие“ → `text` → „Запази“. */
+async function saveNote(
+  user: ReturnType<typeof userEvent.setup>,
+  sheet: HTMLElement,
+  text: string,
+) {
+  const change = within(sheet).queryByRole('button', {
+    name: '↻ Смени ястието',
+  });
+  if (change) await user.click(change);
+  await user.click(
+    within(sheet).getByRole('button', { name: 'Бележка вместо ястие' }),
+  );
+  const field = within(sheet).getByRole('textbox', { name: 'Бележка' });
+  await user.clear(field);
+  await user.type(field, text);
+  await user.click(within(sheet).getByRole('button', { name: 'Запази' }));
+}
+
+describe('MealSheet: „✓ Сменено“', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('изборът от търсенето показва под заглавието „✓ Сменено (беше „…“)“ с „Върни“', async () => {
+    const plan = planFor(thisWeek, { 3: withRecipe(moussaka) });
+    serveMealUpdates(plan);
+    const { user, sheet } = await openSheet(
+      plan,
+      /Мусака/,
+      'четвъртък, 5 ноември',
+    );
+
+    await pickFromSearch(user, sheet, /^Пиле с ориз/);
+
+    const status = await within(sheet).findByRole('status');
+    expect(status).toHaveTextContent('✓ Сменено (беше „Мусака“)');
+    expect(
+      within(status).getByRole('button', { name: 'Върни' }),
+    ).toBeInTheDocument();
+  });
+
+  it('на празен ден изборът показва само „✓ Сменено“ с „Върни“', async () => {
+    const plan = planFor(thisWeek);
+    serveMealUpdates(plan);
+    const { user, sheet } = await openSheet(
+      plan,
+      /^чт/,
+      'четвъртък, 5 ноември',
+    );
+
+    await pickFromSearch(user, sheet, /^Мусака/);
+
+    await within(sheet).findByRole('link', { name: 'Мусака' });
+    const status = within(sheet).getByRole('status');
+    expect(status).toHaveTextContent(/^✓ СмененоВърни$/);
+  });
+
+  it('„Върни“ връща ястието с гласа на другия, без нова смяна, и потвърждението изчезва', async () => {
+    const plan = planFor(thisWeek, {
+      3: {
+        ...withRecipe(moussaka, 'Мусака за четвъртък.'),
+        votes: votesOf('up', 'up'),
+      },
+    });
+    const patches = serveMealUpdates(plan);
+    const restores = serveMealRestores(plan);
+    const { user, sheet } = await openSheet(
+      plan,
+      /Мусака/,
+      'четвъртък, 5 ноември',
+    );
+    await pickFromSearch(user, sheet, /^Пиле с ориз/);
+    const status = await within(sheet).findByRole('status');
+
+    await user.click(within(status).getByRole('button', { name: 'Върни' }));
+
+    await expect.poll(() => restores).toEqual([plan.meals[3]?.id]);
+    expect(patches).toHaveLength(1);
+    expect(
+      await within(sheet).findByRole('link', { name: 'Мусака' }),
+    ).toBeInTheDocument();
+    expect(within(sheet).getByText('Мусака за четвъртък.')).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole('group', { name: 'Гласове' }),
+    ).toHaveTextContent('Поли: за');
+    expect(within(sheet).getByRole('status')).toBeEmptyDOMElement();
+  });
+
+  it('отказът на „Върни“ се показва', async () => {
+    const plan = planFor(thisWeek, { 3: withRecipe(moussaka) });
+    serveMealUpdates(plan);
+    server.use(
+      http.post('/api/menu/meals/:id/restore', () =>
+        HttpResponse.json(
+          {
+            error: 'conflict',
+            message: 'Ястието е сменено отново',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    const { user, sheet } = await openSheet(
+      plan,
+      /Мусака/,
+      'четвъртък, 5 ноември',
+    );
+    await pickFromSearch(user, sheet, /^Пиле с ориз/);
+    const status = await within(sheet).findByRole('status');
+
+    await user.click(within(status).getByRole('button', { name: 'Върни' }));
+
+    expect(await within(sheet).findByRole('alert')).toHaveTextContent(
+      'Ястието е сменено отново',
+    );
+    expect(
+      within(sheet).getByRole('link', { name: 'Пиле с ориз' }),
+    ).toBeInTheDocument();
+  });
+
+  it('след нова бележка е „✓ Сменено (беше „…“)“ без „Върни“', async () => {
+    const plan = planFor(thisWeek, { 3: { note: 'ядем навън' } });
+    serveMealUpdates(plan);
+    const { user, sheet } = await openSheet(
+      plan,
+      /ядем навън/,
+      'четвъртък, 5 ноември',
+    );
+    await saveNote(user, sheet, 'на гости');
+
+    await within(sheet).findByRole('heading', { name: 'на гости' });
+    const status = within(sheet).getByRole('status');
+    expect(status).toHaveTextContent('✓ Сменено (беше „ядем навън“)');
+    expect(within(status).queryByRole('button')).toBeNull();
+  });
+
+  it('бележка към ястие с рецепта не сменя заглавието: само „✓ Сменено“', async () => {
+    const plan = planFor(thisWeek, { 3: withRecipe(moussaka) });
+    const patches = serveMealUpdates(plan);
+    const { user, sheet } = await openSheet(
+      plan,
+      /Мусака/,
+      'четвъртък, 5 ноември',
+    );
+    await saveNote(user, sheet, 'ядем навън');
+
+    await expect.poll(() => patches.length).toBe(1);
+    const status = await within(sheet).findByRole('status');
+    await vi.waitFor(() => expect(status).toHaveTextContent(/^✓ Сменено$/));
+  });
+});
+
+describe('MealSheet: „✓ Сменено“ след времето', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(fixtureNow);
+    setUpDevice('phone', dani.id);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('изчезва след около 8 s', async () => {
+    const plan = planFor(thisWeek, { 3: withRecipe(moussaka) });
+    serveMealUpdates(plan);
+    servePlans({ [thisWeek]: plan });
+    serveDinnerRecipes();
+    renderApp('/menu');
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await screen.findByRole('list', { name: 'Вечери' });
+    await user.click(screen.getByRole('button', { name: /Мусака/ }));
+    const sheet = screen.getByRole('dialog', { name: 'четвъртък, 5 ноември' });
+    await pickFromSearch(user, sheet, /^Пиле с ориз/);
+    const status = await within(sheet).findByRole('status');
+    await vi.waitFor(() => expect(status).toHaveTextContent('✓ Сменено'));
+
+    await act(() => vi.advanceTimersByTimeAsync(7000));
+    expect(status).toHaveTextContent('✓ Сменено');
+    await act(() => vi.advanceTimersByTimeAsync(1500));
+
+    expect(status).toBeEmptyDOMElement();
   });
 });

@@ -126,6 +126,10 @@ describe('MealSheet: „Размени с друг ден“', () => {
     expect(
       await within(sheet).findByRole('button', { name: '↻ Смени ястието' }),
     ).toBeInTheDocument();
+    // Листът следва ястието на новия му ден: заглавието е същото, затова е „✓ Сменено“ без „беше“ и без „Върни“.
+    const status = within(sheet).getByRole('status');
+    expect(status).toHaveTextContent(/^✓ Сменено$/);
+    expect(within(status).queryByRole('button')).toBeNull();
     await waitFor(() => {
       const rows = rowNames();
       expect(rows[3]).toMatch(/Пиле с ориз/);

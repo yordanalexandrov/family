@@ -203,6 +203,11 @@ describe('MealSheet: „✨ Предложи друго“', () => {
     expect(
       within(sheet).queryByRole('list', { name: 'Предложения' }),
     ).toBeNull();
+    const status = within(sheet).getByRole('status');
+    expect(status).toHaveTextContent('✓ Сменено (беше „Мусака“)');
+    expect(
+      within(status).getByRole('button', { name: 'Върни' }),
+    ).toBeInTheDocument();
   });
 
   it('при failed казва защо и „Опитай пак“ пуска нова заявка', async () => {
