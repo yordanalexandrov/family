@@ -83,6 +83,7 @@ import {
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
 import type { InboxService } from './inbox.js';
+import { voteText } from './menu-activity-text.js';
 import type { MenuNotifications } from './menu-notifications.js';
 import { isPerson } from './users.js';
 
@@ -527,7 +528,7 @@ export function createMenuService({
               kind: 'votes',
               mealId: id,
               date: current.date,
-              text: `гласува ${value === 'up' ? 'за' : 'против'} „${mealTitle(current) ?? ''}“`,
+              text: voteText(value, mealTitle(current)),
             },
             now(),
           );

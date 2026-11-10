@@ -1,10 +1,8 @@
 import {
   addDays,
   type DateKey,
-  type InboxDetail,
   type MenuProposalRequest,
   type MenuReworkRequest,
-  weekdayName,
   withHint,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
@@ -16,7 +14,8 @@ import {
 import { findRework } from '../db/repositories/menu-reworks.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
 import type { InboxService } from './inbox.js';
-import { mealUrl, menuWeekUrl, notificationTag } from './notification-links.js';
+import { activityDetails, activityTitle } from './menu-activity-text.js';
+import { menuWeekUrl, notificationTag } from './notification-links.js';
 import type { PushMessage } from './push.js';
 import { isPerson } from './users.js';
 
@@ -42,27 +41,6 @@ function activitySummary(actions: readonly MenuActivityAction[]): string {
       return `${count} ${count === 1 ? one : many}`;
     })
     .join(', ');
-}
-
-/**
- * The details of the notification (GLOSSARY: Известие от Съгласуването): each action under its day, the days in order
- * and the actions of a day in the order they were done, each opening its meal in the menu of the week: „Вторник: Поли
- * смени „Пиле“ → „Мусака““.
- */
-function activityDetails(
-  actions: readonly MenuActivityAction[],
-  names: ReadonlyMap<string, string>,
-): InboxDetail[] {
-  // A stable sort: the actions come in the order they were done.
-  return [...actions]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .map((action) => {
-      const day = weekdayName(action.date);
-      return {
-        text: `${day.charAt(0).toUpperCase()}${day.slice(1)}: ${names.get(action.actorUserId) ?? ''} ${action.text}`,
-        url: mealUrl({ id: action.mealId, date: action.date }),
-      };
-    });
 }
 
 const dayMonth = new Intl.DateTimeFormat('bg-BG', {
@@ -136,12 +114,8 @@ export function createMenuNotifications({
       const users = await listPeople(db);
       const names = new Map(users.map((user) => [user.id, user.name]));
       for (const { recipientUserId, weekStart, actions } of quiet) {
-        const actors = users
-          .filter((other) => actions.some((a) => a.actorUserId === other.id))
-          .map((other) => other.name)
-          .join(' и ');
         await inbox.notify(recipientUserId, 'menu', {
-          title: `${actors} по менюто`,
+          title: activityTitle(actions, users),
           body: activitySummary(actions),
           details: activityDetails(actions, names),
           ...ofWeek(weekStart),
