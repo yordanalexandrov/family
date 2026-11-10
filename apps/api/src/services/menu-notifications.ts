@@ -83,7 +83,8 @@ export interface MenuNotifications {
   ): Promise<void>;
   /**
    * „Преработено меню“ to everyone but the one who asked for the rework: „Дани преработи менюто за 2–8 ноември ·
-   * сменени 3 · „<подсказка>““. The number of changed dishes is read back, as `onDone` wrote it. Never rejects.
+   * сменени 3 · „<подсказка>““. The number of changed dishes is read back, as `onDone` wrote it; none, no notification.
+   * Never rejects.
    */
   reworked(rework: Pick<MenuReworkRequest, 'id' | 'weekStart'>): Promise<void>;
 }
@@ -149,13 +150,14 @@ export function createMenuNotifications({
     async reworked({ id, weekStart }) {
       try {
         const rework = await findRework(db, id);
-        if (!rework) {
+        // An unchanged menu is no news.
+        if (!rework?.changed) {
           return;
         }
         // Рецептурко may ask for it too; only people are told (ADR-0014).
         const users = await listUsers(db);
         const requester = users.find((user) => user.id === rework.requestedBy);
-        const what = `${requester?.name ?? 'AI'} преработи менюто за ${weekRange(weekStart)} · сменени ${rework.changed ?? 0}`;
+        const what = `${requester?.name ?? 'AI'} преработи менюто за ${weekRange(weekStart)} · сменени ${rework.changed}`;
         const message: PushMessage = {
           title: 'Преработено меню',
           body: withHint(what, rework.hint),

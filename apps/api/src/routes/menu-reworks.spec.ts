@@ -748,6 +748,36 @@ describe('reworked menu notification', () => {
     ]);
   });
 
+  it('tells nobody when the AI changed no dish', async () => {
+    const meals = await fixtureWeek();
+    // Only Friday is left to fill: Поли takes Wednesday after all and Дани picks Saturday.
+    await vote(meals[2]?.id ?? '', 'up', POLI.id);
+    await patchMeal(meals[5]?.id ?? '', { recipeId: recipeId(2) });
+    answerInTurn(
+      JSON.stringify({
+        days: [
+          {
+            date: '2026-11-06',
+            slot: 'dinner',
+            recipeId: recipeId(6),
+            why: 'Чушките си остават.',
+          },
+        ],
+        summary: 'Седмицата остава.',
+      }),
+    );
+    // What the family did is in the digest; it goes first.
+    clock = new Date(NOW.getTime() + 10 * 60_000);
+    await app.reminders.run();
+    push.delivered.length = 0;
+
+    const done = await finished((await rework()).id);
+
+    expect(done).toMatchObject({ status: 'done', changed: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(received()).toEqual([]);
+  });
+
   it('leaves the rework done and written when the notification cannot be sent', async () => {
     answerInTurn(JSON.stringify(reworkFixture));
     await fixtureWeek();
