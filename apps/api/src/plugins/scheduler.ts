@@ -166,37 +166,27 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
     },
   });
 
-  schedule({
-    name: 'step-photo-orphans',
-    intervalMs: PHOTO_ORPHANS_INTERVAL_MS,
-    jitter: 0,
-    run: async () => {
-      const removed = await removeOrphanStepPhotos(app.db, app.now());
-      if (removed !== null) {
-        app.log.info(
-          { job: 'step-photo-orphans', removed },
-          'orphan step photos removed',
-        );
-      }
-      return undefined;
-    },
-  });
+  /** A night job that removes orphan photos of one kind (`services/photo-orphans.ts`) and logs how many. */
+  function schedulePhotoOrphans(
+    name: string,
+    remove: (db: typeof app.db, now: Date) => Promise<number | null>,
+  ) {
+    schedule({
+      name,
+      intervalMs: PHOTO_ORPHANS_INTERVAL_MS,
+      jitter: 0,
+      run: async () => {
+        const removed = await remove(app.db, app.now());
+        if (removed !== null) {
+          app.log.info({ job: name, removed }, 'orphan photos removed');
+        }
+        return undefined;
+      },
+    });
+  }
 
-  schedule({
-    name: 'source-photo-orphans',
-    intervalMs: PHOTO_ORPHANS_INTERVAL_MS,
-    jitter: 0,
-    run: async () => {
-      const removed = await removeOrphanSourcePhotos(app.db, app.now());
-      if (removed !== null) {
-        app.log.info(
-          { job: 'source-photo-orphans', removed },
-          'orphan source photos removed',
-        );
-      }
-      return undefined;
-    },
-  });
+  schedulePhotoOrphans('step-photo-orphans', removeOrphanStepPhotos);
+  schedulePhotoOrphans('source-photo-orphans', removeOrphanSourcePhotos);
 
   // Before `onClose`, where the database pool is closed.
   app.addHook('preClose', async () => {
