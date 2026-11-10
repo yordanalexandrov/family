@@ -73,7 +73,7 @@ export function InboxRow({
 
 /**
  * Бутоните на известието („Извадих“, „Аз“), докато имат смисъл, или кой е отговорил („Поли вече готви“). Натиснат
- * бутон прочита записа; при отказ `cook_taken` редът казва кой готви.
+ * бутон прочита записа след отговора; при отказ `cook_taken` редът казва кой готви.
  */
 function InboxActions({ item }: { item: InboxItem }) {
   const action = useInboxAction();
@@ -95,12 +95,10 @@ function InboxActions({ item }: { item: InboxItem }) {
           type="button"
           className="button"
           disabled={action.isPending}
-          onClick={() => {
-            action.mutate(button);
-            if (item.unread) {
-              read.mutate(item.id);
-            }
-          }}
+          onClick={() =>
+            // Прочита се след отговора: „Аз“ обновява записа („Довечера готвиш ти“) и го прави непрочетен.
+            action.mutate(button, { onSettled: () => read.mutate(item.id) })
+          }
         >
           {button.title}
         </button>

@@ -15,7 +15,7 @@
 - `InboxBell.tsx:InboxBell` — без действащ човек (`useWritingUserId()` е `null`) не се рендира и не пита api-то; бройката се скрива при 0, над 9 е „9+“; името на линка казва бройката
 - `InboxScreen.tsx:InboxScreen` — извън `phone`/`browser` пренасочва към `/`
 - `InboxRow.tsx:InboxRow` — натискането на главата прочита само непрочетен запис и води към `url` с `router.navigate({ href })`; Ctrl/Cmd/Shift клик оставя браузъра
-- `InboxRow.tsx:InboxActions` — бутонът вика `post` на действието (същият път като на push-а) с действащия човек и прочита записа; при 409 `cook_taken` вместо бутона е „<име> вече готви“; `answered` от api-то заменя бутоните
+- `InboxRow.tsx:InboxActions` — бутонът вика `post` на действието (същият път като на push-а) с действащия човек и след отговора прочита записа; при 409 `cook_taken` вместо бутона е „<име> вече готви“; `answered` от api-то заменя бутоните
 - `queries.ts:useReadMutation` — прочитането е оптимистично върху записите и бройката на действащия човек; `onSettled` инвалидира `inboxKeys.all`; мутацията довършва и след смяната на екрана
 
 ## Side Effects
