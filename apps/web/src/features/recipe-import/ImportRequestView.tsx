@@ -78,6 +78,7 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
       photo={photo}
       linked={detail.ingredients}
       sourceUrl={request.url}
+      sourceText={detail.text}
       onApproved={(recipeId) =>
         void navigate({ to: '/recipes/$id', params: { id: recipeId } })
       }

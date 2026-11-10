@@ -19,6 +19,7 @@ import { CookingFeedbackSheet } from './CookingFeedbackSheet';
 import { componentHeading, formatMinutes } from './format';
 import { OpenRevisionBadge } from './OpenRevisionBadge';
 import { useArchiveRecipe, useRateRecipe, useRecipe } from './queries';
+import { RecipeSource } from './RecipeSource';
 import { RatingStars, StarsBadge } from './Stars';
 import './recipes.css';
 
@@ -82,6 +83,10 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   const canCook = interactive;
   // „Как мина?“ (GLOSSARY: Обратна връзка след готвене) и по-късно, след като е опитал.
   const [feedback, setFeedback] = useState(false);
+  // GLOSSARY: Източник на рецепта. На TV не се показва: там няма какво да се отвори.
+  const hasSource =
+    interactive &&
+    (recipe.sourceUrl !== undefined || recipe.sourceText !== null);
   const lines = linesByComponent(
     recipe.ingredients,
     recipe.components.length,
@@ -234,12 +239,15 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
         </ol>
       </section>
 
-      {(recipe.sourceUrl || nutrition) && (
+      {(hasSource || nutrition) && (
         <footer className="recipe-view__wide recipe-view__meta">
-          {recipe.sourceUrl && (
-            <a href={recipe.sourceUrl} target="_blank" rel="noreferrer">
-              Източник
-            </a>
+          {hasSource && (
+            <RecipeSource
+              url={recipe.sourceUrl}
+              text={recipe.sourceText}
+              label="Източник"
+              className="recipe-view__source"
+            />
           )}
           {nutrition && (
             <span>

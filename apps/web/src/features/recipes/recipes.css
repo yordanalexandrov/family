@@ -306,6 +306,31 @@
   }
 }
 
+/* Източник (GLOSSARY: Източник на рецепта): бутонът за листа с текста изглежда като линка, когато е само линк. */
+.recipe-view__source {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Поставеният текст, както е бил: със запазените редове, четим и на тъмно. */
+.recipe-source__text {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 3px solid var(--color-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.recipe-source__link {
+  overflow-wrap: anywhere;
+}
+
 /* Форма */
 .recipe-form {
   display: grid;
@@ -561,6 +586,31 @@
 .recipe-form__hint {
   margin: 0;
   color: var(--color-text-muted);
+}
+
+/* Текстът на източника под линка (GLOSSARY: Източник на рецепта): свит ред с „Махни“ вдясно. */
+.recipe-form__source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.recipe-form__source-text {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.recipe-form__source-text .recipe-source__text {
+  max-block-size: 50dvh;
+  overflow-y: auto;
+}
+
+p.recipe-form__source {
+  align-items: center;
 }
 
 @media (min-width: 48rem) {

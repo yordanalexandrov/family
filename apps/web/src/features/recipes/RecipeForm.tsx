@@ -43,6 +43,53 @@ import { StepSheet } from './StepSheet';
 import { TagChips } from './TagChips';
 import './recipes.css';
 
+/**
+ * GLOSSARY: Източник на рецепта. Поставеният текст под линка: свит и само за четене; „Махни“ го маха при запис, а
+ * „Върни“ отменя махането преди записа.
+ */
+function SourceTextField({
+  text,
+  removed,
+  onRemovedChange,
+}: {
+  text: string;
+  removed: boolean;
+  onRemovedChange: (removed: boolean) => void;
+}) {
+  if (removed) {
+    return (
+      <p className="recipe-form__source recipe-form__hint">
+        Текстът на източника ще се махне при запис.{' '}
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => onRemovedChange(false)}
+        >
+          Върни
+        </button>
+      </p>
+    );
+  }
+  return (
+    <div className="recipe-form__source">
+      <details className="recipe-form__more recipe-form__source-text">
+        <summary className="recipe-form__more-summary">
+          Текст на източника
+        </summary>
+        <blockquote className="recipe-source__text">{text}</blockquote>
+      </details>
+      <button
+        type="button"
+        className="button button--quiet"
+        aria-label="Махни текста на източника"
+        onClick={() => onRemovedChange(true)}
+      >
+        Махни
+      </button>
+    </div>
+  );
+}
+
 export interface RecipeFormProps {
   /** Начални стойности: празна рецепта по подразбиране, `recipeToFormValues(recipe)` за редакция. */
   initialValues?: RecipeFormValues;
@@ -643,6 +690,13 @@ export function RecipeForm({
               />
             )}
           </Field>
+          {values.sourceText !== null && (
+            <SourceTextField
+              text={values.sourceText}
+              removed={values.removeSourceText}
+              onRemovedChange={(removed) => set('removeSourceText', removed)}
+            />
+          )}
           <Field label="Уред" error={errors.appliance}>
             {(props) => (
               <select

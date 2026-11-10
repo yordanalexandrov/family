@@ -14,6 +14,8 @@ import {
   importedSuggestion,
   sumac as importedSumac,
   importId,
+  importText,
+  importUrl,
 } from '../../test/imports';
 import { dani, server } from '../../test/msw';
 import { chicken, ingredients, omelette, salt } from '../../test/recipes';
@@ -998,6 +1000,70 @@ describe('SuggestionReview', () => {
       screen.queryByRole('img', { name: 'Снимката на рецептата' }),
     ).not.toBeInTheDocument();
   });
+  describe('„Отвори източника“ при внасяне (GLOSSARY: Източник на рецепта)', () => {
+    function serveImport(request: typeof doneImport, text?: string) {
+      server.use(
+        http.get(`/api/recipe-imports/${importId}`, () =>
+          HttpResponse.json({
+            request,
+            ...(text === undefined ? {} : { text }),
+            suggestion: importedSuggestion,
+            ingredients: [chicken, salt, importedSumac],
+          }),
+        ),
+      );
+    }
+
+    it('внасяне от текст с линк: листът показва текста със запазените редове и линка', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveImport(doneImport, importText);
+
+      renderApp(`/recipes/import/${importId}`);
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Отвори източника' }),
+      );
+      const sheet = screen.getByRole('dialog', { name: 'Източник' });
+      expect(within(sheet).getByRole('blockquote').textContent).toBe(
+        importText,
+      );
+      expect(
+        within(sheet).getByRole('link', { name: importUrl }),
+      ).toHaveAttribute('target', '_blank');
+    });
+
+    it('внасяне от текст без линк: листът е само с текста', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveImport({ ...doneImport, url: undefined }, importText);
+
+      renderApp(`/recipes/import/${importId}`);
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Отвори източника' }),
+      );
+      const sheet = screen.getByRole('dialog', { name: 'Източник' });
+      expect(within(sheet).getByRole('blockquote').textContent).toBe(
+        importText,
+      );
+      expect(within(sheet).queryByRole('link')).toBeNull();
+    });
+
+    it('внасяне от линк: „Отвори източника“ е връзка в нов таб', async () => {
+      setUpDevice('phone', dani.id);
+      serveImport({ ...doneImport, source: 'url' });
+
+      renderApp(`/recipes/import/${importId}`);
+
+      const link = await screen.findByRole('link', {
+        name: 'Отвори източника',
+      });
+      expect(link).toHaveAttribute('href', importUrl);
+      expect(link).toHaveAttribute('target', '_blank');
+    });
+  });
+
   describe('рецепта със същото заглавие в регистъра', () => {
     const existing: Recipe = {
       ...omelette,

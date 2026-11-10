@@ -92,6 +92,10 @@ export interface RecipeFormValues {
   servings: string;
   prepMinutes: string;
   sourceUrl: string;
+  /** GLOSSARY: Източник на рецепта. Поставеният текст на рецептата, само за четене; `null` без текст. */
+  sourceText: string | null;
+  /** „Махни“ под текста: записът праща `sourceText: null`. */
+  removeSourceText: boolean;
   tags: Tag[];
   /** Името на уреда (GLOSSARY: Уред), както е в Настройки; празно = без уред. */
   appliance: string;
@@ -156,6 +160,8 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     servings: '4',
     prepMinutes: '',
     sourceUrl: '',
+    sourceText: null,
+    removeSourceText: false,
     tags: [],
     appliance: '',
     steps: [],
@@ -197,6 +203,8 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     servings: String(recipe.servings),
     prepMinutes: numberText(recipe.prepMinutes),
     sourceUrl: displaySourceUrl(recipe.sourceUrl ?? ''),
+    sourceText: recipe.sourceText,
+    removeSourceText: false,
     tags: [...recipe.tags],
     appliance: recipe.appliance ?? '',
     steps: recipe.steps.map((step) => ({ ...step })),
@@ -369,6 +377,10 @@ export function toRecipeInput(
     servings: parseNumber(values.servings) ?? Number.NaN,
     steps: values.steps,
     ...(sourceUrl ? { sourceUrl } : {}),
+    // Само махането: без него api-то пази текста (GLOSSARY: Източник на рецепта).
+    ...(values.removeSourceText && values.sourceText !== null
+      ? { sourceText: null }
+      : {}),
     ...(prepMinutes === undefined ? {} : { prepMinutes }),
     tags: values.tags,
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),

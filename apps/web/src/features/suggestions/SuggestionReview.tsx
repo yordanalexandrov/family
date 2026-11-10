@@ -19,6 +19,7 @@ import { useOnline } from '../../lib/use-online';
 import { ApplianceBadge } from '../recipes/ApplianceBadge';
 import { ingredientSearchQuery, useRecipes } from '../recipes/queries';
 import { type AiReplacement, RecipeForm } from '../recipes/RecipeForm';
+import { RecipeSource } from '../recipes/RecipeSource';
 import { ReviseSheet } from '../recipes/ReviseSheet';
 import { toRevisableRecipe } from '../recipes/recipe-form-values';
 import {
@@ -176,6 +177,8 @@ interface ReviewSuggestionProps {
   linked?: readonly Ingredient[];
   /** Внасяне: линкът към източника от заявката (предложението от `recipe.suggest` носи своя). */
   sourceUrl?: string | undefined;
+  /** Внасяне от текст: поставеният текст, който „Отвори източника“ показва в лист (GLOSSARY: Източник на рецепта). */
+  sourceText?: string | undefined;
   /** Внасяне от снимка: снимката, ако още е в паметта на страницата (същото внасяне, без презареждане). */
   photo?: Blob | undefined;
   onApproved: (recipeId: string) => void;
@@ -289,6 +292,7 @@ export function ReviewSuggestion({
   suggestion,
   linked = [],
   sourceUrl,
+  sourceText,
   photo,
   onApproved,
   onRejected,
@@ -302,6 +306,7 @@ export function ReviewSuggestion({
     ? suggestion.payload.assumptions
     : suggestion.payload.why;
   const source = imported ? sourceUrl : suggestion.payload.sourceUrl;
+  const text = imported ? sourceText : undefined;
   // Значката следва избора в „Уред“ във формата; до първата смяна е уредът на предложението.
   const [chosenAppliance, setChosenAppliance] = useState<string>();
   const appliance = imported
@@ -347,7 +352,7 @@ export function ReviewSuggestion({
           onAnyway={() => setImportedAnyway(duplicate.id)}
         />
       )}
-      {(photo || appliance || note || source) && (
+      {(photo || appliance || note || source || text) && (
         <section className="suggestions__section">
           {photo && <SourcePhoto photo={photo} />}
           {appliance && (
@@ -369,16 +374,14 @@ export function ReviewSuggestion({
               {note}
             </p>
           )}
-          {source && (
+          {(source || text) && (
             <div className="recipes__actions">
-              <a
-                href={source}
-                target="_blank"
-                rel="noopener noreferrer"
+              <RecipeSource
+                url={source}
+                text={text}
+                label="Отвори източника"
                 className="button button--quiet"
-              >
-                Отвори източника
-              </a>
+              />
             </div>
           )}
         </section>
