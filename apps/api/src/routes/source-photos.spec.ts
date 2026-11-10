@@ -265,6 +265,20 @@ describe('the source photo orphans of the night cron', () => {
     return { cron, lines };
   }
 
+  /** The night cron once (03:30 in Sofia), until it logs how many photos it removed. */
+  async function nightRemoving(removed: number) {
+    const { cron, lines } = await cronAt('2026-11-05T01:30:00Z');
+    try {
+      await vi.waitFor(() => {
+        expect(lines).toContainEqual(
+          expect.objectContaining({ job: 'source-photo-orphans', removed }),
+        );
+      });
+    } finally {
+      await cron.close();
+    }
+  }
+
   it('removes at night only the photos older than a day that no import and no recipe points at, and logs how many', async () => {
     const ids = await photos();
     // The import of the archived recipe goes too; deleting the import of `ofDeletedImport` leaves it an orphan.
@@ -324,10 +338,11 @@ describe('the source photo orphans of the night cron', () => {
     expect(await photoStatus(ids.fresh)).toBe(200);
   });
 
-  it('keeps the photos of a failed import imported again while either import points at them', async () => {
-    const detail = await photoImport([await aPhoto(), await aPhoto()]);
-    expect(detail.request.status).toBe('failed');
-    const photos = detail.photos ?? [];
+  /** A failed photo import of two photos and the import of the same photos again (its retry), both ended. */
+  async function importedAgain() {
+    const original = await photoImport([await aPhoto(), await aPhoto()]);
+    expect(original.request.status).toBe('failed');
+    const photos = original.photos ?? [];
     const again = await app.inject({
       method: 'POST',
       url: '/api/recipe-imports',
@@ -335,11 +350,11 @@ describe('the source photo orphans of the night cron', () => {
       payload: { kind: 'photo', photos },
     });
     expect(again.statusCode).toBe(202);
-    const againId: string = again.json().request.id;
+    const retry: string = again.json().request.id;
     await vi.waitFor(async () => {
       const got = await app.inject({
         method: 'GET',
-        url: `/api/recipe-imports/${againId}`,
+        url: `/api/recipe-imports/${retry}`,
         headers,
       });
       expect(got.json().request.status).toBe('failed');
@@ -347,33 +362,42 @@ describe('the source photo orphans of the night cron', () => {
     await testDb()
       .update(sourcePhoto)
       .set({ createdAt: new Date('2026-11-01T12:00:00Z') });
+    return { original: original.request.id, retry, photos };
+  }
 
-    /** Runs the night cron once, until it says how many it removed. */
-    async function night(removed: number) {
-      const { cron, lines } = await cronAt('2026-11-05T01:30:00Z');
-      try {
-        await vi.waitFor(() => {
-          expect(lines).toContainEqual(
-            expect.objectContaining({ job: 'source-photo-orphans', removed }),
-          );
-        });
-      } finally {
-        await cron.close();
-      }
-    }
-
+  async function deleteImport(id: string) {
     await testDb()
       .delete(recipeImportRequest)
-      .where(sql`${recipeImportRequest.id} = ${detail.request.id}`);
-    await night(0);
+      .where(sql`${recipeImportRequest.id} = ${id}`);
+  }
+
+  it('keeps the photos of a failed import while its retry points at them, and removes them once neither does', async () => {
+    const { original, retry, photos } = await importedAgain();
+
+    await deleteImport(original);
+    await nightRemoving(0);
     for (const id of photos) {
       expect(await photoStatus(id)).toBe(200);
     }
 
-    await testDb()
-      .delete(recipeImportRequest)
-      .where(sql`${recipeImportRequest.id} = ${againId}`);
-    await night(2);
+    await deleteImport(retry);
+    await nightRemoving(2);
+    for (const id of photos) {
+      expect(await photoStatus(id)).toBe(404);
+    }
+  });
+
+  it('keeps the photos of a retry that is gone while the failed import points at them', async () => {
+    const { original, retry, photos } = await importedAgain();
+
+    await deleteImport(retry);
+    await nightRemoving(0);
+    for (const id of photos) {
+      expect(await photoStatus(id)).toBe(200);
+    }
+
+    await deleteImport(original);
+    await nightRemoving(2);
     for (const id of photos) {
       expect(await photoStatus(id)).toBe(404);
     }

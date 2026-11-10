@@ -290,7 +290,6 @@ describe('Неуспешно внасяне от снимка', () => {
     setUpDevice('phone', dani.id);
     const againId = 'dddddddd-0000-4000-8000-000000000365';
     const posted: unknown[] = [];
-    const opened: string[] = [];
     server.use(
       http.get('/api/recipe-imports', () =>
         HttpResponse.json({ requests: [] }),
@@ -309,17 +308,16 @@ describe('Неуспешно внасяне от снимка', () => {
           { status: 202 },
         );
       }),
-      http.get(`/api/recipe-imports/${againId}`, () => {
-        opened.push(againId);
-        return HttpResponse.json({
+      http.get(`/api/recipe-imports/${againId}`, () =>
+        HttpResponse.json({
           request: { ...photoImport, id: againId },
           photos: sourcePhotoIds,
           ingredients: [],
-        } satisfies RecipeImportDetail);
-      }),
+        } satisfies RecipeImportDetail),
+      ),
     );
 
-    renderApp(`/recipes/import/${importId}`);
+    const { router } = renderApp(`/recipes/import/${importId}`);
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(
@@ -335,8 +333,16 @@ describe('Неуспешно внасяне от снимка', () => {
     await user.click(within(alert).getByRole('button', { name: 'Опитай пак' }));
 
     expect(posted).toEqual([{ kind: 'photo', photos: sourcePhotoIds }]);
-    expect(await screen.findByText(WAITING)).toBeInTheDocument();
-    expect(opened.length).toBeGreaterThan(0);
+    const waiting = (await screen.findByText(WAITING)).parentElement;
+    expect(router.state.location.pathname).toBe(`/recipes/import/${againId}`);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    if (!waiting) {
+      throw new Error('waiting without a parent');
+    }
+    expect(within(waiting).getByText('Снимки')).toBeInTheDocument();
+    expect(
+      within(waiting).getAllByRole('img', { name: /^Снимка \d на източника$/ }),
+    ).toHaveLength(3);
   });
 
   it('„Нова снимка“ води към таба „Снимка“; без записани снимки няма „Опитай пак“', async () => {

@@ -53,21 +53,21 @@ import { sourcePhotoJpeg } from './source-photos.js';
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
 /**
- * What the api imports: the client's JSON (text, link, or the ids of photos already stored with an earlier import), or
- * the photos from the multipart form (one photo, or the parts of a long screenshot, in their order) as they were
- * uploaded.
+ * What the api imports: the client's JSON (text, link, or as `photo` the ids of photos already stored with an earlier
+ * import), or as `upload` the new photos of the multipart form (one photo, or the parts of a long screenshot, in their
+ * order) as they were uploaded.
  */
 export type ImportParams =
   | RecipeImportParams
-  | { kind: 'photo'; uploadedPhotos: Buffer[] };
+  | { kind: 'upload'; uploadedPhotos: Buffer[] };
 
 /**
- * What the store inserts: the same photos as the api keeps them, made ready (`sourcePhotoJpeg`) outside its
+ * What the store inserts: as `upload` the new photos as the api keeps them, made ready (`sourcePhotoJpeg`) outside its
  * transaction.
  */
 export type StoredImportParams =
   | RecipeImportParams
-  | { kind: 'photo'; keptPhotos: Buffer[] };
+  | { kind: 'upload'; keptPhotos: Buffer[] };
 
 /** `recipe.normalize` as AI requests (GLOSSARY: Внасяне на рецепта), registered in `buildApp()`. */
 export type RecipeImportRequests = ContractRequestHandle<
@@ -104,29 +104,40 @@ export function createRecipeImportStore(): ContractRequestStore<
   return {
     table: recipeImportRequest,
     async insert(tx, params, requestedBy) {
-      if (params.kind === 'photo' && 'keptPhotos' in params) {
-        const photos = await insertSourcePhotos(tx, params.keptPhotos);
-        return insertImportRequest(tx, { kind: 'photo', photos }, requestedBy);
-      }
-      if (params.kind === 'photo') {
-        // The new import points at the same rows, in their order; it copies nothing.
-        const stored = await existingSourcePhotoIds(tx, params.photos);
-        if (params.photos.some((id) => !stored.has(id))) {
-          throw new InvalidReferenceError('Няма такава снимка');
-        }
-      }
-      if (params.kind === 'url' && !params.force) {
-        const matches = await findSourceUrlMatches(tx, params.url);
-        if (matches.recipe || matches.suggestion) {
-          throw new AlreadyImportedError(
-            matches.recipe
-              ? `Вече е в регистъра: ${matches.recipe.title}`
-              : `Вече чака одобрение: ${matches.suggestion?.title}`,
-            matches,
+      switch (params.kind) {
+        case 'upload': {
+          const photos = await insertSourcePhotos(tx, params.keptPhotos);
+          return insertImportRequest(
+            tx,
+            { kind: 'photo', photos },
+            requestedBy,
           );
         }
+        case 'photo': {
+          // The new import points at the same rows, in their order; it copies nothing.
+          const stored = await existingSourcePhotoIds(tx, params.photos);
+          if (params.photos.some((id) => !stored.has(id))) {
+            throw new InvalidReferenceError('Няма такава снимка');
+          }
+          return insertImportRequest(tx, params, requestedBy);
+        }
+        case 'url': {
+          if (!params.force) {
+            const matches = await findSourceUrlMatches(tx, params.url);
+            if (matches.recipe || matches.suggestion) {
+              throw new AlreadyImportedError(
+                matches.recipe
+                  ? `Вече е в регистъра: ${matches.recipe.title}`
+                  : `Вече чака одобрение: ${matches.suggestion?.title}`,
+                matches,
+              );
+            }
+          }
+          return insertImportRequest(tx, params, requestedBy);
+        }
+        case 'text':
+          return insertImportRequest(tx, params, requestedBy);
       }
-      return insertImportRequest(tx, params, requestedBy);
     },
     find: findImportRequest,
 
@@ -240,7 +251,7 @@ export function createRecipeImportsService({
 }): RecipeImportsService {
   return {
     async requestImport(params, actingUserId) {
-      if (!('uploadedPhotos' in params)) {
+      if (params.kind !== 'upload') {
         return requests.request(params, actingUserId);
       }
       // One at a time: each decodes up to 50 megapixels.
@@ -248,7 +259,7 @@ export function createRecipeImportsService({
       for (const photo of params.uploadedPhotos) {
         keptPhotos.push(await sourcePhotoJpeg(photo));
       }
-      return requests.request({ kind: 'photo', keptPhotos }, actingUserId);
+      return requests.request({ kind: 'upload', keptPhotos }, actingUserId);
     },
 
     listImports(limit) {

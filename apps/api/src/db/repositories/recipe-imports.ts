@@ -144,9 +144,8 @@ export async function setImportNoResults(
 
 /** What an import kept of its source: the pasted text (and its link), the link to fetch, or the ids of its photos. */
 export type ImportSource =
-  | { kind: 'text'; text: string; url?: string }
-  | { kind: 'url'; url: string }
-  | { kind: 'photo'; photos: string[] };
+  | Extract<RecipeImportParams, { kind: 'text' | 'photo' }>
+  | { kind: 'url'; url: string };
 
 export async function findImportSource(
   db: DbExecutor,
