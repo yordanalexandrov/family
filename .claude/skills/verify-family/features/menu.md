@@ -29,6 +29,7 @@ Preconditions:
 
 - **Empty plan.** Proven by `scenarios/menu-to-shopping.mjs`: `go('/menu')`; `tap` tab „Следваща седмица“; `tap` „Започни празно“ → list „Вечери“ with 7 buttons containing „Избери ястие“.
 - **Pick a dinner.** Proven by `scenarios/menu-to-shopping.mjs`: `tap` the first button of list „Вечери“ (each row also has vote buttons „Не“/„Да“ after it) → dialog named after the day (e.g. „понеделник, 2 ноември“). On an empty day, in region „Какво ще ядем?“ `tap` „Избери от рецептите“ (on a day with a recipe: „↻ Смени ястието“ first), fill searchbox „Търси рецепта“, `tap` the recipe in list „Вечерни рецепти“ → back on the overview with link `<recipe>`. `tap` button `/^Готвач/`, then „Дани“ in group „Готвач“ → back on the overview, row „Готвач Дани“. `tap` „Готово“ → the row reads `пн 2 ноември <recipe> Дани избра „<recipe>“ 1 в разговора Готви Дани 2 порции`; match it with `new RegExp(`${title} .*Готви Дани 2 порции`)`. Picking also casts the acting user's „Да“ vote.
+- **Change and „Върни“.** Proven by `scenarios/meal-change-restore.mjs`: on a day with a recipe and both votes, „↻ Смени ястието“ → „Избери от рецептите“ → another recipe → `status` „✓ Сменено (беше „<old>“)“ with button „Върни“, and `meal_vote` keeps only the acting user's vote; `tap` „Върни“ → link `<old>` again, group „Гласове“ shows „Поли: за“, the `status` is empty, and `meal`/`meal_vote` read as before the change.
 - **Servings.** `tap` button `/^Порции/`; in group „Порции“, `tap` „Повече порции за Дани“ → status „Порции за Дани“ goes from `1` to `2` (the sub-view stays open); „Назад“ → row „Порции 3 (Дани 2, Поли 1)“; the week's row shows `3 порции`.
 - **Thread.** `tap` button `/^Разговор/`, fill textbox „Коментар“, `tap` „Изпрати“ → list „Разговор“ shows `Дани: <text>`; after „Готово“ the row reads `… Дани: <text> 2 в разговора Готви …`.
 - **Note.** Open an empty row, `tap` „Бележка вместо ястие“, fill textbox „Бележка“, `tap` „Запази“ → back on the overview with heading `<note>`; `tap` „Готово“ → the row's name contains the note.
@@ -41,7 +42,7 @@ Preconditions:
 ## Gotchas
 
 - „Започни празно“ exists only while the week has no plan; on next week it can be started once per run. „Изтрий плана“ shows only for weeks that have not started, so use `?week=` two weeks ahead for a repeatable delete.
-- 404 in `network.log` on `GET /api/menu/plans?weekStart=…`, `/api/menu/proposals?weekStart=…` or `/api/shopping-lists/<week>` means „no plan/proposal/list for that week“, not an error.
+- 404 in `network.log` on `GET /api/menu/plans?weekStart=…`, `/api/menu/proposals?weekStart=…`, `/api/menu/reworks?weekStart=…` or `/api/shopping-lists/<week>` means „no plan/proposal/list for that week“, not an error.
 - The sheet's recipe list shows only `вечеря`-tagged recipes; an untagged recipe gives „Няма такава рецепта.“
 - Changes in the sheet save as you tap; „Готово“ only closes it. The note's „Запази“ is separate and stays disabled until the note text changes.
 - The row's middle text is the last thread line, so after a comment it no longer reads „Дани избра …“; anchor regexes on the title and „Готви …“.
