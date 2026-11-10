@@ -91,3 +91,37 @@
   inset-block-start: max(var(--space-4), env(safe-area-inset-top));
   inset-inline-end: max(var(--space-4), env(safe-area-inset-right));
 }
+
+/* Няколко снимки (частите на източника): ‹ 1/3 › долу в средата, на място под снимката, за да не я покрива. */
+.photo-viewer--many {
+  padding-block-end: calc(
+    max(var(--space-4), env(safe-area-inset-bottom)) +
+    3.5rem
+  );
+}
+
+.photo-viewer__nav {
+  position: absolute;
+  inset-block-end: max(var(--space-4), env(safe-area-inset-bottom));
+  inset-inline-start: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  transform: translateX(-50%);
+}
+
+.photo-viewer__step {
+  min-inline-size: 3rem;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.photo-viewer__step:disabled {
+  opacity: 0.4;
+}
+
+.photo-viewer__count {
+  /* На черния фон и в светлата тема. */
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}

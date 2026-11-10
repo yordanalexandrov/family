@@ -26,6 +26,7 @@ import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { ComponentSheet } from './ComponentSheet';
 import { componentHeading, componentName } from './format';
 import { IngredientLineSheet } from './IngredientLineSheet';
+import { SourcePhotoThumbnails } from './RecipeSource';
 import {
   type ComponentValues,
   emptyIngredientRow,
@@ -82,6 +83,48 @@ function SourceTextField({
         type="button"
         className="button button--quiet"
         aria-label="Махни текста на източника"
+        onClick={() => onRemovedChange(true)}
+      >
+        Махни
+      </button>
+    </div>
+  );
+}
+
+/**
+ * GLOSSARY: Източник на рецепта. Миниатюрите на снимките под линка: само за четене (докосване ги отваря на цял екран);
+ * „Махни“ ги маха при запис, а „Върни“ отменя махането преди записа.
+ */
+function SourcePhotosField({
+  photos,
+  removed,
+  onRemovedChange,
+}: {
+  photos: readonly string[];
+  removed: boolean;
+  onRemovedChange: (removed: boolean) => void;
+}) {
+  if (removed) {
+    return (
+      <p className="recipe-form__source recipe-form__hint">
+        Снимките на източника ще се махнат при запис.{' '}
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => onRemovedChange(false)}
+        >
+          Върни
+        </button>
+      </p>
+    );
+  }
+  return (
+    <div className="recipe-form__source">
+      <SourcePhotoThumbnails photos={photos} />
+      <button
+        type="button"
+        className="button button--quiet"
+        aria-label="Махни снимките на източника"
         onClick={() => onRemovedChange(true)}
       >
         Махни
@@ -695,6 +738,13 @@ export function RecipeForm({
               text={values.sourceText}
               removed={values.removeSourceText}
               onRemovedChange={(removed) => set('removeSourceText', removed)}
+            />
+          )}
+          {values.sourcePhotos.length > 0 && (
+            <SourcePhotosField
+              photos={values.sourcePhotos}
+              removed={values.removeSourcePhotos}
+              onRemovedChange={(removed) => set('removeSourcePhotos', removed)}
             />
           )}
           <Field label="Уред" error={errors.appliance}>

@@ -14,7 +14,8 @@
 - `IngredientLineSheet.tsx:IngredientLineSheet`, `IngredientPicker.tsx:IngredientPicker`, `NewIngredientForm.tsx:NewIngredientForm`, `StepSheet.tsx:StepSheet`, `ComponentSheet.tsx:ComponentSheet` — листовете на формата
 - `refinements.ts:useRequestRefinement`, `useRefinement`; `RefineSheet.tsx:RefineSheet`, `ComparisonColumn` — „Подобри рецептата“
 - `revisions.ts:useRequestRevision`, `useRevision`, `useRejectRevision`, `useRefreshRevision`, `revisionReplacement`, `revisionBaseOf`, `RevisionTarget`, `RevisionBase`, `ComparedLine` (ползват се и от `features/suggestions` за поправка на предложение); `ReviseSheet.tsx:ReviseSheet`; `OpenRevisionBadge.tsx:OpenRevisionBadge` — „Поправи с AI“
-- `RecipeSource.tsx:RecipeSource` — „Източник“ (GLOSSARY: Източник на рецепта): линк в нов таб или лист с текста (и с линка); ползва се и от `features/suggestions`
+- `RecipeSource.tsx:RecipeSource` — „Източник“ (GLOSSARY: Източник на рецепта): линк в нов таб, лист с текста (и с линка) или снимките в `PhotoViewer` с номер „1/3“; ползва се и от `features/suggestions`
+- `RecipeSource.tsx:SourcePhotoThumbnails` — миниатюрите на снимките на източника (`/api/source-photos/:id?w=240`), всяка отваря `PhotoViewer` на своята част; в прегледа на внасяне и във формата (там с „Махни“, което праща `sourcePhotos: []`)
 - `CookingFeedbackSheet.tsx:CookingFeedbackSheet`, `Stars.tsx:RatingStars`, `Stars.tsx:StarsBadge`, `Stars.tsx:ratingText` — „Как мина?“ и оценка
 - `format.ts:formatMinutes`, `formatDateTime`, `sourceDomain`, `productCount`, `componentHeading`, `shorten`, `componentName`, `MINUTES_PER_HOUR`; `stored-filters.ts:useStoredRecipeFilters`; `useDebouncedValue.ts:useDebouncedValue`; `TagChips.tsx:TagChips`, `TimeChips`, `toggled` (и в `features/suggestions`); `ApplianceBadge.tsx:ApplianceBadge` — помощници
 

@@ -147,3 +147,10 @@ export function serveRating(
   );
   return calls;
 }
+
+/** Ids of the stored photos of a recipe source (GLOSSARY: Източник на рецепта): the parts of a long screenshot, in order. */
+export const sourcePhotoIds = [
+  'ffffffff-2222-4000-8000-000000000001',
+  'ffffffff-2222-4000-8000-000000000002',
+  'ffffffff-2222-4000-8000-000000000003',
+];

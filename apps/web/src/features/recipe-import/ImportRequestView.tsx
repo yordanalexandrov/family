@@ -49,7 +49,6 @@ function useImportPhoto(
 function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   const navigate = useNavigate();
   const { request, suggestion } = detail;
-  const photo = useImportPhoto(request);
   if (request.status === 'pending') {
     return (
       <div className="suggestions__waiting">
@@ -75,7 +74,7 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   return (
     <ReviewSuggestion
       suggestion={suggestion}
-      photo={photo}
+      sourcePhotos={detail.photos}
       linked={detail.ingredients}
       sourceUrl={request.url}
       sourceText={detail.text}
@@ -134,8 +133,8 @@ function retryParams({
 
 /**
  * Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст или линк.
- * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам. Снимката не се
- * пази никъде, затова при снимка вместо „Опитай пак“ е „Нова снимка“ (табът „Снимка“).
+ * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам. Ново внасяне по
+ * вече записаните снимки няма, затова при снимка вместо „Опитай пак“ е „Нова снимка“ (табът „Снимка“).
  */
 function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
   const retry = useRequestImport();

@@ -785,3 +785,13 @@ fieldset.chips {
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
+
+/* Миниатюрите на снимките на източника (GLOSSARY: Източник на рецепта), в реда им. */
+.source-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

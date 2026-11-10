@@ -18,7 +18,13 @@ import {
   importUrl,
 } from '../../test/imports';
 import { dani, server } from '../../test/msw';
-import { chicken, ingredients, omelette, salt } from '../../test/recipes';
+import {
+  chicken,
+  ingredients,
+  omelette,
+  salt,
+  sourcePhotoIds,
+} from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 import {
   cameraPhoto,
@@ -995,18 +1001,23 @@ describe('SuggestionReview', () => {
     );
     expect(assumed.parentElement).toHaveClass('suggestion-note--warning');
     expect(screen.queryByText('Защо:')).not.toBeInTheDocument();
-    // Внасяне от текст: няма снимка, няма и място за нея.
+    // Внасяне от текст: няма снимки, няма и място за тях.
     expect(
-      screen.queryByRole('img', { name: 'Снимката на рецептата' }),
+      screen.queryByRole('list', { name: 'Снимките на източника' }),
     ).not.toBeInTheDocument();
   });
   describe('„Отвори източника“ при внасяне (GLOSSARY: Източник на рецепта)', () => {
-    function serveImport(request: typeof doneImport, text?: string) {
+    function serveImport(
+      request: typeof doneImport,
+      text?: string,
+      photos?: string[],
+    ) {
       server.use(
         http.get(`/api/recipe-imports/${importId}`, () =>
           HttpResponse.json({
             request,
             ...(text === undefined ? {} : { text }),
+            ...(photos === undefined ? {} : { photos }),
             suggestion: importedSuggestion,
             ingredients: [chicken, salt, importedSumac],
           }),
@@ -1048,6 +1059,55 @@ describe('SuggestionReview', () => {
         importText,
       );
       expect(within(sheet).queryByRole('link')).toBeNull();
+    });
+
+    it('внасяне от снимка: миниатюрите на частите са над рецептата, а „Отвори източника“ ги показва една след друга', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveImport(
+        { ...doneImport, source: 'photo', url: undefined },
+        undefined,
+        [...sourcePhotoIds],
+      );
+
+      renderApp(`/recipes/import/${importId}`);
+
+      const thumbnails = await screen.findAllByRole('button', {
+        name: /^Снимка \d на източника на цял екран$/,
+      });
+      expect(
+        thumbnails.map((thumb) =>
+          within(thumb).getByRole('img').getAttribute('src'),
+        ),
+      ).toEqual(sourcePhotoIds.map((id) => `/api/source-photos/${id}?w=240`));
+      // Над рецептата.
+      expect(
+        (thumbnails[0] as HTMLElement).compareDocumentPosition(
+          screen.getByRole('textbox', { name: 'Заглавие' }),
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      await user.click(
+        screen.getByRole('button', { name: 'Отвори източника' }),
+      );
+      let viewer = screen.getByRole('dialog', {
+        name: 'Снимките на източника',
+      });
+      expect(viewer).toHaveTextContent('1/3');
+      expect(within(viewer).getByRole('img')).toHaveAttribute(
+        'src',
+        `/api/source-photos/${sourcePhotoIds[0]}`,
+      );
+      await user.click(within(viewer).getByRole('button', { name: 'Затвори' }));
+
+      // Миниатюрата отваря своята част.
+      await user.click(thumbnails[1] as HTMLElement);
+      viewer = screen.getByRole('dialog', { name: 'Снимките на източника' });
+      expect(viewer).toHaveTextContent('2/3');
+      expect(within(viewer).getByRole('img')).toHaveAttribute(
+        'src',
+        `/api/source-photos/${sourcePhotoIds[1]}`,
+      );
     });
 
     it('внасяне от линк: „Отвори източника“ е връзка в нов таб', async () => {

@@ -4,7 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { apiError, dani, server } from '../../test/msw';
-import { chickenWithRice, serveRating } from '../../test/recipes';
+import {
+  chickenWithRice,
+  serveRating,
+  sourcePhotoIds,
+} from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 
 function serveRecipe(recipe: Recipe = chickenWithRice) {
@@ -250,6 +254,83 @@ describe('RecipeView', () => {
       expect(link).toHaveAttribute('target', '_blank');
     });
 
+    it('със снимки „Източник“ ги отваря на цял екран една след друга, с номер „1/3“', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveRecipe({
+        ...chickenWithRice,
+        sourceUrl: undefined,
+        sourcePhotos: [...sourcePhotoIds],
+      });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      await user.click(await screen.findByRole('button', { name: 'Източник' }));
+
+      const viewer = screen.getByRole('dialog', {
+        name: 'Снимките на източника',
+      });
+      const shown = () => within(viewer).getByRole('img');
+      expect(shown()).toHaveAttribute(
+        'src',
+        `/api/source-photos/${sourcePhotoIds[0]}`,
+      );
+      expect(viewer).toHaveTextContent('1/3');
+      const previous = within(viewer).getByRole('button', {
+        name: 'Предишна снимка',
+      });
+      const next = within(viewer).getByRole('button', {
+        name: 'Следваща снимка',
+      });
+      expect(previous).toBeDisabled();
+
+      await user.click(next);
+      expect(viewer).toHaveTextContent('2/3');
+      expect(shown()).toHaveAttribute(
+        'src',
+        `/api/source-photos/${sourcePhotoIds[1]}`,
+      );
+      await user.keyboard('{ArrowRight}');
+      expect(viewer).toHaveTextContent('3/3');
+      expect(shown()).toHaveAttribute(
+        'src',
+        `/api/source-photos/${sourcePhotoIds[2]}`,
+      );
+      expect(next).toBeDisabled();
+      await user.keyboard('{ArrowLeft}');
+      await user.click(previous);
+      expect(viewer).toHaveTextContent('1/3');
+
+      await user.click(within(viewer).getByRole('button', { name: 'Затвори' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('една снимка е без номер и без превъртане', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveRecipe({
+        ...chickenWithRice,
+        sourceUrl: undefined,
+        sourcePhotos: [sourcePhotoIds[0] as string],
+      });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      await user.click(await screen.findByRole('button', { name: 'Източник' }));
+
+      const viewer = screen.getByRole('dialog', {
+        name: 'Снимките на източника',
+      });
+      expect(within(viewer).getByRole('img')).toHaveAttribute(
+        'src',
+        `/api/source-photos/${sourcePhotoIds[0]}`,
+      );
+      expect(viewer).not.toHaveTextContent('1/1');
+      expect(
+        within(viewer).queryByRole('button', { name: 'Следваща снимка' }),
+      ).toBeNull();
+    });
+
     it('само с линк „Източник“ е връзка, която се отваря в нов таб', async () => {
       setUpDevice('phone', dani.id);
       serveRecipe();
@@ -273,7 +354,11 @@ describe('RecipeView', () => {
 
     it('на TV източник не се показва', async () => {
       setUpDevice('tv');
-      serveRecipe({ ...chickenWithRice, sourceText: pastedText });
+      serveRecipe({
+        ...chickenWithRice,
+        sourceText: pastedText,
+        sourcePhotos: [...sourcePhotoIds],
+      });
 
       renderApp(`/recipes/${chickenWithRice.id}`);
 

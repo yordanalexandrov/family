@@ -11,6 +11,7 @@ import {
   ingredients,
   omelette,
   salt,
+  sourcePhotoIds,
 } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 import {
@@ -512,6 +513,110 @@ describe('RecipeForm', () => {
 
       await screen.findByRole('textbox', { name: 'Източник (линк)' });
       expect(screen.queryByText('Текст на източника')).toBeNull();
+    });
+  });
+
+  describe('снимките на източника (GLOSSARY: Източник на рецепта)', () => {
+    /** Рецептата със снимки на източника и PUT, който пази телата. */
+    function serveWithPhotos() {
+      const put: RecipeInput[] = [];
+      let stored: Recipe = {
+        ...chickenWithRice,
+        sourcePhotos: [...sourcePhotoIds],
+      };
+      server.use(
+        http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+          HttpResponse.json({ recipe: stored }),
+        ),
+        http.put(`/api/recipes/${chickenWithRice.id}`, async ({ request }) => {
+          const body = (await request.json()) as RecipeInput;
+          put.push(body);
+          stored = {
+            ...stored,
+            ...(body.sourcePhotos ? { sourcePhotos: [] } : {}),
+          };
+          return HttpResponse.json({ recipe: stored });
+        }),
+      );
+      return put;
+    }
+
+    it('са миниатюри под линка, само за четене, а записът без промяна не ги праща', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      const put = serveWithPhotos();
+
+      renderApp(`/recipes/${chickenWithRice.id}/edit`);
+
+      const list = await screen.findByRole('list', {
+        name: 'Снимките на източника',
+      });
+      expect(
+        within(list)
+          .getAllByRole('img')
+          .map((img) => img.getAttribute('src')),
+      ).toEqual(sourcePhotoIds.map((id) => `/api/source-photos/${id}?w=240`));
+      // Под полето за линка.
+      expect(
+        screen
+          .getByRole('textbox', { name: 'Източник (линк)' })
+          .compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      await screen.findByRole('option', { name: 'sous vide' });
+      await user.click(actionBar().getByRole('button', { name: 'Запази' }));
+
+      await waitFor(() => expect(put).toHaveLength(1));
+      expect(put[0]).not.toHaveProperty('sourcePhotos');
+    });
+
+    it('„Махни“ ги маха от формата, „Върни“ ги връща, а записът след „Махни“ праща sourcePhotos: []', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      const put = serveWithPhotos();
+
+      renderApp(`/recipes/${chickenWithRice.id}/edit`);
+      await screen.findByRole('option', { name: 'sous vide' });
+
+      const remove = () =>
+        screen.getByRole('button', { name: 'Махни снимките на източника' });
+      await user.click(remove());
+      expect(
+        screen.queryByRole('list', { name: 'Снимките на източника' }),
+      ).toBeNull();
+      expect(
+        screen.getByText('Снимките на източника ще се махнат при запис.'),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Върни' }));
+      expect(
+        screen.getByRole('list', { name: 'Снимките на източника' }),
+      ).toBeInTheDocument();
+
+      await user.click(remove());
+      await user.click(actionBar().getByRole('button', { name: 'Запази' }));
+
+      await waitFor(() => expect(put).toHaveLength(1));
+      expect(put[0]).toMatchObject({
+        sourcePhotos: [],
+        sourceUrl: 'https://recepti.example/pile-s-oriz',
+      });
+      expect(put[0]).not.toHaveProperty('sourceText');
+    });
+
+    it('рецепта без снимки няма миниатюри на източника', async () => {
+      setUpDevice('phone', dani.id);
+      server.use(
+        http.get(`/api/recipes/${chickenWithRice.id}`, () =>
+          HttpResponse.json({ recipe: chickenWithRice }),
+        ),
+      );
+
+      renderApp(`/recipes/${chickenWithRice.id}/edit`);
+
+      await screen.findByRole('textbox', { name: 'Източник (линк)' });
+      expect(
+        screen.queryByRole('list', { name: 'Снимките на източника' }),
+      ).toBeNull();
     });
   });
 

@@ -16,7 +16,7 @@
 - `shared-photo.ts:isShareTarget`, `receiveShare`, `takeSharedPhoto` — споделена снимка (за `sw.ts` и екрана)
 
 ## Invariants
-- `queries.ts:importKeys.photo` — ключът на снимката е извън `all`, за да не я изтрие инвалидиране; `useSentPhoto` живее само в кеша
+- `queries.ts:importKeys.photo` — ключът на снимката е извън `all`, за да не я изтрие инвалидиране; `useSentPhoto` живее само в кеша и дава миниатюрата само докато внасянето чака; прегледът показва записаните снимки (`detail.photos`)
 - `queries.ts:useImport` — проверява на `POLL_INTERVAL_MS` само докато е `pending`; `RECENT_LIMIT` = 10
 - `queries.ts:importBody` — снимките са `multipart/form-data` с поле `photo`, текст и линк са JSON
 - `ImportScreen.tsx:sharedStarted` — споделянето пуска една заявка (и при StrictMode) и подменя адреса с replace, за да не се внесе пак при презареждане

@@ -86,7 +86,9 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
   // GLOSSARY: Източник на рецепта. На TV не се показва: там няма какво да се отвори.
   const hasSource =
     interactive &&
-    (recipe.sourceUrl !== undefined || recipe.sourceText !== null);
+    (recipe.sourceUrl !== undefined ||
+      recipe.sourceText !== null ||
+      recipe.sourcePhotos.length > 0);
   const lines = linesByComponent(
     recipe.ingredients,
     recipe.components.length,
@@ -245,6 +247,7 @@ function RecipeDetails({ recipe }: { recipe: Recipe }) {
             <RecipeSource
               url={recipe.sourceUrl}
               text={recipe.sourceText}
+              photos={recipe.sourcePhotos}
               label="Източник"
               className="recipe-view__source"
             />
