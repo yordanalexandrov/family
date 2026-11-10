@@ -109,18 +109,21 @@
   white-space: nowrap;
 }
 
-/* „Още“ и подробностите: под главата, подравнени с текста (след колоната на точката). */
+/* „Още“ и подробностите: под главата, подравнени с текста (след колоната на точката). Всеки ред от подробностите е
+   висок колкото докосване, с линия между редовете; ред с линк има „›“ вдясно. */
 .inbox-row__more {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1);
-  margin-block-start: calc(-1 * var(--space-2));
+  margin-block-start: calc(-1 * var(--space-3));
   padding-inline: calc(0.625rem + 2 * var(--space-3)) var(--space-3);
   padding-block-end: var(--space-2);
 }
 
 .inbox-row__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   min-block-size: var(--touch-target);
   margin-inline-start: calc(-1 * var(--space-2));
   padding-inline: var(--space-2);
@@ -133,26 +136,62 @@
   cursor: pointer;
 }
 
+.inbox-row__toggle::after {
+  content: "";
+  inline-size: 0.45em;
+  block-size: 0.45em;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+
+.inbox-row__toggle[aria-expanded="true"]::after {
+  transform: translateY(0.1em) rotate(225deg);
+}
+
 .inbox-row__details {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0 0 var(--space-2);
+  align-self: stretch;
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
   list-style: none;
-  font-size: var(--font-size-sm);
   color: var(--color-text);
+  font-size: var(--font-size-sm);
 }
 
 .inbox-row__detail {
-  overflow-wrap: break-word;
+  display: flex;
+  align-items: center;
+  min-block-size: var(--touch-target);
+  overflow-wrap: anywhere;
+}
+
+.inbox-row__detail + .inbox-row__detail {
+  border-block-start: 1px solid var(--color-line);
 }
 
 .inbox-row__detail a {
-  display: inline-flex;
+  display: flex;
+  flex: 1;
   align-items: center;
-  min-block-size: var(--touch-target);
-  text-underline-offset: 0.2em;
+  gap: var(--space-2);
+  align-self: stretch;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.inbox-row__detail a::after {
+  content: "›";
+  margin-inline-start: auto;
+  font-size: 1.25em;
+  line-height: 1;
+}
+
+.inbox-row__detail a:focus-visible {
+  outline-offset: -2px;
 }
 
 /* Камбанката: преди аватара, със същото докосване; бройката е в горния десен ъгъл. */
