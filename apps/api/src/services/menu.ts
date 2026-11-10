@@ -165,7 +165,7 @@ export interface MenuService {
    * „Извадих“ for a meal (GLOSSARY), from either person: the morning „Извади месото“ is not sent to anyone. Pressed
    * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it. Signals only `menu.changed`.
    */
-  markThawed(id: string): Promise<void>;
+  markThawed(id: string, actingUserId: string): Promise<void>;
   /**
    * „Аз“ on „Кой готви довечера“: `actingUserId` becomes the cook unless the meal has one, so the first to answer
    * wins; signalled as a cook picked in the menu. 409 `cook_taken` with `cookUserId` and `cookName` once the meal has a cook (the one
@@ -583,8 +583,8 @@ export function createMenuService({
       return plan;
     },
 
-    async markThawed(id) {
-      const thawed = await markMealThawed(db, id, now());
+    async markThawed(id, actingUserId) {
+      const thawed = await markMealThawed(db, id, actingUserId, now());
       if (!thawed) {
         throw new NotFoundError(NO_SUCH_MEAL);
       }
@@ -876,7 +876,7 @@ export async function changeRecipe(
     tx,
     before.id,
     before.planId,
-    { ...values, thawedAt: null },
+    { ...values, thawedAt: null, thawedByUserId: null },
     at,
   );
   if (actor.by === 'person') {

@@ -81,13 +81,16 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: mealResponseSchema },
       },
     },
-    async (request) => ({
-      meal: await service.updateMeal(
+    async (request) => {
+      const meal = await service.updateMeal(
         request.params.id,
         request.body,
         request.actor.id,
-      ),
-    }),
+      );
+      // A cook picked or a new recipe answers or undoes the buttons of the meal's reminders.
+      await app.inbox.answered(meal.id);
+      return { meal };
+    },
   );
 
   // GLOSSARY: Глас. A second press on the same vote is the client's `DELETE`.
@@ -154,7 +157,8 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     '/api/menu/meals/:id/thawed',
     { schema: { params: idParamsSchema } },
     async (request, reply) => {
-      await service.markThawed(request.params.id);
+      await service.markThawed(request.params.id, request.actor.id);
+      await app.inbox.answered(request.params.id);
       return reply.code(204).send();
     },
   );

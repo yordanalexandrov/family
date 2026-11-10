@@ -37,6 +37,8 @@ function state(overrides: Partial<ReminderState> = {}): ReminderState {
 const EVENING = new Date('2026-11-04T18:00:00Z');
 /** 08:00 in Sofia on Thursday 5 November. */
 const MORNING = new Date('2026-11-05T06:00:00Z');
+/** Friday 00:00 in Sofia. */
+const END_OF_THURSDAY = new Date('2026-11-05T22:00:00Z');
 
 function evening(userId: string): DueReminder {
   return {
@@ -64,6 +66,8 @@ function evening(userId: string): DueReminder {
           post: `/api/menu/meals/${MUSAKA.id}/thawed`,
         },
       ],
+      // The buttons stay in the inbox until the end of Thursday in Sofia.
+      actionUntil: END_OF_THURSDAY,
     },
   };
 }
@@ -212,6 +216,8 @@ function whoCooks(
           post: `/api/menu/meals/${MUSAKA.id}/cook-claim`,
         },
       ],
+      // The buttons stay in the inbox until the end of Thursday in Sofia.
+      actionUntil: END_OF_THURSDAY,
     },
   };
 }

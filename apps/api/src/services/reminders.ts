@@ -6,6 +6,7 @@ import {
   type InboxDetail,
   type Meal,
   mealTitle,
+  startOfDayInSofia,
   weekdayName,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
@@ -53,6 +54,11 @@ export interface ReminderState {
 /** One reminder to send to one person; once sent it goes to `notification_log` with these `kind`, `subjectId` and `onDate`. */
 export interface DueReminder extends NotificationLogEntry {
   message: InboxMessage;
+}
+
+/** The buttons of a reminder about a dinner on `date` make sense in the inbox until the end of that day. */
+function endOfDay(date: DateKey): Date {
+  return startOfDayInSofia(addDays(date, 1));
 }
 
 /** Whether a reminder for `hour` on `date` is due at `now`: from that hour until {@link REMINDER_GRACE_MS} after it. */
@@ -107,6 +113,7 @@ function thawMessage(
         post: `/api/menu/meals/${meal.id}/thawed`,
       },
     ],
+    actionUntil: endOfDay(meal.date),
   };
 }
 
@@ -203,6 +210,7 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
               post: `/api/menu/meals/${meal.id}/cook-claim`,
             },
           ],
+          actionUntil: endOfDay(meal.date),
         };
     for (const user of state.users) {
       if (meal.cookUserId === null || meal.cookUserId === user.id) {

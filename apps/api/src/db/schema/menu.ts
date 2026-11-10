@@ -69,6 +69,10 @@ export const meal = pgTable(
     why: text('why'),
     /** „Извадих“ (GLOSSARY): when someone took the meat out for it; a new recipe sets it back to `null`. */
     thawedAt: timestamp('thawed_at', { withTimezone: true }),
+    /** Who answered „Извадих“; `null` with `thawed_at`, or when it was answered before this was kept. */
+    thawedByUserId: uuid('thawed_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
   },
   (t) => [
     uniqueIndex('meal_plan_date_slot_key').on(t.planId, t.date, t.slot),

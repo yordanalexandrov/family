@@ -1,9 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { inboxItem, serveInbox } from '../../test/inbox';
 import { servePlans } from '../../test/menu';
-import { dani, poli } from '../../test/msw';
+import { dani, poli, server } from '../../test/msw';
 import { servePantry } from '../../test/pantry';
 import { renderApp, setUpDevice } from '../../test/render';
 import { serveShopping } from '../../test/shopping';
@@ -316,5 +317,134 @@ describe('камбанката', () => {
       await screen.findByRole('list', { name: 'Синхронизация' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Входяща кутия/ })).toBeNull();
+  });
+});
+
+describe('Бутоните на реда', () => {
+  const mealId = 'aaaaaaaa-0000-4000-8000-000000000001';
+  const thawing = inboxItem({
+    actions: [
+      {
+        action: 'thawed',
+        title: 'Извадих',
+        post: `/api/menu/meals/${mealId}/thawed`,
+      },
+    ],
+  });
+  const asking = inboxItem({
+    kind: 'cook',
+    title: 'Кой готви довечера?',
+    body: 'Мусака',
+    updatedAt: '2026-11-05T06:15:00.000Z',
+    actions: [
+      {
+        action: 'cook-claim',
+        title: 'Аз',
+        post: `/api/menu/meals/${mealId}/cook-claim`,
+      },
+    ],
+  });
+
+  function row(title: RegExp) {
+    return screen
+      .findByRole('link', { name: title })
+      .then((link) => within(link.closest('li') as HTMLElement));
+  }
+
+  it('„Извадих“ вика пътя на бутона като действащия потребител и казва кой е отговорил', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([thawing]);
+    const posted: (string | null)[] = [];
+    server.use(
+      http.post(`/api/menu/meals/${mealId}/thawed`, ({ request }) => {
+        posted.push(request.headers.get('x-acting-user'));
+        inbox.update(thawing.id, {
+          actions: undefined,
+          answered: { text: 'Ти извади месото' },
+        });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    await user.click(
+      (await row(/Извади месото за утре/)).getByRole('button', {
+        name: 'Извадих',
+      }),
+    );
+
+    expect(posted).toEqual([dani.id]);
+    const answered = await row(/Извади месото за утре/);
+    expect(await answered.findByText('Ти извади месото')).toBeInTheDocument();
+    expect(answered.queryByRole('button')).not.toBeInTheDocument();
+    await waitFor(() => expect(inbox.reads).toEqual([thawing.id]));
+  });
+
+  it('„Аз“ вика пътя на бутона като действащия потребител', async () => {
+    const user = userEvent.setup();
+    const inbox = serveInbox([asking], poli.id);
+    const posted: (string | null)[] = [];
+    server.use(
+      http.post(`/api/menu/meals/${mealId}/cook-claim`, ({ request }) => {
+        posted.push(request.headers.get('x-acting-user'));
+        inbox.update(asking.id, {
+          title: 'Довечера готвиш ти',
+          actions: undefined,
+          answered: { text: 'Ти готвиш' },
+        });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    setUpDevice('phone', poli.id);
+    renderApp('/inbox');
+
+    await user.click(
+      (await row(/Кой готви довечера\?/)).getByRole('button', { name: 'Аз' }),
+    );
+
+    expect(posted).toEqual([poli.id]);
+    expect(
+      await (await row(/Довечера готвиш ти/)).findByText('Ти готвиш'),
+    ).toBeInTheDocument();
+  });
+
+  it('при отказ `cook_taken` казва кой готви вместо „Аз“', async () => {
+    const user = userEvent.setup();
+    serveInbox([asking]);
+    server.use(
+      http.post(`/api/menu/meals/${mealId}/cook-claim`, () =>
+        HttpResponse.json(
+          {
+            error: 'conflict',
+            code: 'cook_taken',
+            message: 'Някой вече готви',
+            cookUserId: poli.id,
+            cookName: 'Поли',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    const question = await row(/Кой готви довечера\?/);
+    await user.click(question.getByRole('button', { name: 'Аз' }));
+
+    expect(await question.findByText('Поли вече готви')).toBeInTheDocument();
+    expect(question.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('отговореният ред казва кой е отговорил, без бутон', async () => {
+    serveInbox([
+      { ...asking, actions: undefined, answered: { text: 'Поли вече готви' } },
+    ]);
+    setUpDevice('phone', dani.id);
+    renderApp('/inbox');
+
+    const answered = await row(/Кой готви довечера\?/);
+    expect(answered.getByText('Поли вече готви')).toBeInTheDocument();
+    expect(answered.queryByRole('button')).not.toBeInTheDocument();
   });
 });

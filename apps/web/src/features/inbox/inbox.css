@@ -109,6 +109,25 @@
   white-space: nowrap;
 }
 
+/* Бутоните на известието и кой е отговорил: под главата, подравнени със заглавието. */
+.inbox-row__actions,
+.inbox-row__answered {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3) calc(var(--space-3) * 2 + 0.625rem);
+}
+
+.inbox-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.inbox-row__answered {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
 /* „Още“ и подробностите: под главата, подравнени с текста (след колоната на точката). Всеки ред от подробностите е
    висок колкото докосване, с линия между редовете; ред с линк има „›“ вдясно. */
 .inbox-row__more {

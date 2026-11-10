@@ -23,11 +23,20 @@ export function inboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
 
 /**
  * `/api/inbox*` като в api: записите на `owner` (Дани по подразбиране), другият вижда празна кутия. Прочитането мени
- * състоянието; `reads` са id-тата от `POST /api/inbox/:id/read`, `readAll` — колко пъти е натиснато „Всички прочетени“.
+ * състоянието; `reads` са id-тата от `POST /api/inbox/:id/read`, `readAll` — колко пъти е натиснато „Всички прочетени“,
+ * а `update` мени запис, както го дава api-то след отговор на бутон („Извадих“ → `answered`).
  */
 export function serveInbox(initial: InboxItem[], owner = dani.id) {
   let items = structuredClone(initial);
-  const state = { reads: [] as string[], readAll: 0 };
+  const state = {
+    reads: [] as string[],
+    readAll: 0,
+    update(id: string, changes: Partial<InboxItem>) {
+      items = items.map((item) =>
+        item.id === id ? { ...item, ...changes } : item,
+      );
+    },
+  };
   const mine = (request: Request) =>
     request.headers.get('x-acting-user') === owner ? items : [];
   server.use(

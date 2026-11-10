@@ -430,3 +430,85 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+describe('„Аз“ in GET /api/inbox', () => {
+  /** Friday 00:00 in Sofia: Thursday's dinner is over. */
+  const NEXT_DAY = new Date('2026-11-05T22:00:00Z');
+
+  async function cookItem(userId: string) {
+    const items = await inboxOf(app, userId);
+    return items.find((item) => item.kind === 'cook');
+  }
+
+  it('gives „Аз“ until the end of the dinner’s day while no one cooks, then only the text', async () => {
+    await runAt(AFTERNOON);
+
+    clock = new Date('2026-11-05T21:59:00Z');
+    const before = await cookItem(POLI.id);
+    expect(before?.actions).toEqual([
+      {
+        action: 'cook-claim',
+        title: 'Аз',
+        post: `/api/menu/meals/${mealId}/cook-claim`,
+      },
+    ]);
+    expect(before?.answered).toBeUndefined();
+
+    clock = NEXT_DAY;
+    const after = await cookItem(POLI.id);
+    expect(after).toMatchObject({ title: 'Кой готви довечера?' });
+    expect(after?.actions).toBeUndefined();
+    expect(after?.answered).toBeUndefined();
+  });
+
+  it('says who cooks after „Аз“ of the other, instead of the button', async () => {
+    await runAt(AFTERNOON);
+
+    await claim(mealId, DANI.id);
+
+    const atPoli = await cookItem(POLI.id);
+    expect(atPoli).toMatchObject({ title: 'Довечера готви Дани' });
+    expect(atPoli?.actions).toBeUndefined();
+    expect(atPoli?.answered).toEqual({ text: 'Дани вече готви' });
+    expect((await cookItem(DANI.id))?.answered).toEqual({
+      text: 'Ти готвиш',
+    });
+  });
+
+  it('says who cooks when the cook was picked in the menu', async () => {
+    await runAt(AFTERNOON);
+
+    clock = new Date('2026-11-05T14:30:00Z');
+    await patchMeal(mealId, { cookUserId: POLI.id });
+
+    const atDani = await cookItem(DANI.id);
+    expect(atDani?.actions).toBeUndefined();
+    expect(atDani?.answered).toEqual({ text: 'Поли вече готви' });
+  });
+
+  it('signals inbox.changed to each who was asked when the cook is picked in the menu', async () => {
+    await runAt(AFTERNOON);
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await patchMeal(mealId, { cookUserId: POLI.id });
+    unsubscribe();
+
+    expect(
+      signals
+        .filter((event) => event.type === 'inbox.changed')
+        .map((event) => event.userId)
+        .sort(),
+    ).toEqual([DANI.id, POLI.id].sort());
+  });
+
+  it('gives no button and no answer to the cook told „Довечера готвиш ти“', async () => {
+    await patchMeal(mealId, { cookUserId: DANI.id });
+    await runAt(AFTERNOON);
+
+    const item = await cookItem(DANI.id);
+    expect(item).toMatchObject({ title: 'Довечера готвиш ти' });
+    expect(item?.actions).toBeUndefined();
+    expect(item?.answered).toBeUndefined();
+  });
+});

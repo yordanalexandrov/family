@@ -1,5 +1,5 @@
 {
-  "id": "2f3b3d7a-2c9f-4808-8188-77eeac903394",
+  "id": "9caaa806-7c5a-44e2-a10c-1ea25a6d5413",
   "prevId": "138d93db-63d6-4855-a9df-7b5d7b542b8e",
   "version": "7",
   "dialect": "postgresql",
@@ -1875,6 +1875,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "thawed_by_user_id": {
+          "name": "thawed_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -1954,6 +1960,19 @@
           "tableTo": "user",
           "columnsFrom": [
             "cook_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "meal_thawed_by_user_id_user_id_fk": {
+          "name": "meal_thawed_by_user_id_user_id_fk",
+          "tableFrom": "meal",
+          "tableTo": "user",
+          "columnsFrom": [
+            "thawed_by_user_id"
           ],
           "columnsTo": [
             "id"
@@ -2808,6 +2827,18 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "actions": {
+          "name": "actions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action_until": {
+          "name": "action_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2901,23 +2932,6 @@
       "name": "menu_activity",
       "schema": "",
       "columns": {
-        "seq": {
-          "name": "seq",
-          "type": "bigint",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "type": "always",
-            "name": "menu_activity_seq_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1",
-            "minValue": "1",
-            "maxValue": "9223372036854775807",
-            "cache": "1",
-            "cycle": false
-          }
-        },
         "week_start": {
           "name": "week_start",
           "type": "date",
@@ -2930,66 +2944,35 @@
           "primaryKey": false,
           "notNull": true
         },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "uuid",
+        "votes": {
+          "name": "votes",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": 0
         },
-        "kind": {
-          "name": "kind",
-          "type": "text",
+        "comments": {
+          "name": "comments",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": 0
         },
-        "meal_id": {
-          "name": "meal_id",
-          "type": "uuid",
+        "swaps": {
+          "name": "swaps",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": 0
         },
-        "date": {
-          "name": "date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "at": {
-          "name": "at",
+        "last_at": {
+          "name": "last_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         }
       },
-      "indexes": {
-        "menu_activity_recipient_week_idx": {
-          "name": "menu_activity_recipient_week_idx",
-          "columns": [
-            {
-              "expression": "recipient_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "week_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "menu_activity_recipient_user_id_user_id_fk": {
           "name": "menu_activity_recipient_user_id_user_id_fk",
@@ -3003,30 +2986,20 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "menu_activity_actor_user_id_user_id_fk": {
-          "name": "menu_activity_actor_user_id_user_id_fk",
-          "tableFrom": "menu_activity",
-          "tableTo": "user",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "menu_activity_week_start_recipient_user_id_pk": {
+          "name": "menu_activity_week_start_recipient_user_id_pk",
+          "columns": [
+            "week_start",
+            "recipient_user_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "menu_activity_kind_check": {
-          "name": "menu_activity_kind_check",
-          "value": "\"menu_activity\".\"kind\" in ('votes', 'comments', 'swaps')"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.notification_log": {

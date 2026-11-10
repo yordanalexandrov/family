@@ -10,6 +10,11 @@ export const notificationTag = {
   menu: (weekStart: DateKey) => `menu-${weekStart}`,
 };
 
+/** The meal a reminder's {@link notificationTag} is about; `null` for a tag of the menu or anything else. */
+export function mealOfTag(tag: string): string | null {
+  return /^(?:thaw|cook)-([0-9a-f-]{36})$/.exec(tag)?.[1] ?? null;
+}
+
 /** The menu of a week, with the sheet of a meal open when `mealId` is given. */
 function menuUrl(weekStart: DateKey, mealId?: string): string {
   const query = new URLSearchParams({ week: weekStart });
