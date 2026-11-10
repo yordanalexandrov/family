@@ -37,6 +37,9 @@
   --color-status-ok: #1fa463;
   --color-status-stale: #e0a100;
   --color-status-off: rgba(20, 24, 38, 0.28);
+  /* Преглед на снимка на цял екран: тъмно и в двете теми, затова тъмната тема не ги променя. */
+  --color-photo-viewer-bg: #000000;
+  --color-photo-viewer-ink: #ffffff;
 
   /* Щандове (#308): текстът и ръбът на лентата вляво от продуктите. Фонът ѝ е цветът, смесен с --aisle-band-mix в
      --color-surface; tokens.spec.ts пази текста ≥ 4.5:1 върху него. */

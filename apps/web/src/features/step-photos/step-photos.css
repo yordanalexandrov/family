@@ -72,8 +72,7 @@
   position: absolute;
   inset: 0;
   border: 0;
-  /* Снимката се гледа на тъмно и в светлата тема. */
-  background: #000;
+  background: var(--color-photo-viewer-bg);
   cursor: zoom-out;
 }
 
@@ -121,7 +120,6 @@
 }
 
 .photo-viewer__count {
-  /* На черния фон и в светлата тема. */
-  color: #fff;
+  color: var(--color-photo-viewer-ink);
   font-variant-numeric: tabular-nums;
 }
