@@ -6,7 +6,9 @@ import {
   menuReworkResponseSchema,
 } from '@family/shared';
 import {
+  type Query,
   type QueryClient,
+  type QueryKey,
   useMutation,
   useQuery,
   useQueryClient,
@@ -42,14 +44,13 @@ export function useRequestRework() {
 }
 
 /**
- * Преработката; пита отново на 3 s, докато е `pending`. При `done` презарежда плана на седмицата (и разговорите под
- * него), списъка за пазаруване и дашборда.
+ * Преработката; пита отново на 3 s, докато е `pending`. Когато видяната `pending` стане `done`, презарежда плана на
+ * седмицата (и разговорите под него), списъка за пазаруване и дашборда; при край и последната преработка на седмицата.
  */
 export function useRework(id: string | undefined) {
   const queryClient = useQueryClient();
   return useQuery({
-    queryKey: reworkKey(id ?? ''),
-    queryFn: async () => {
+    ...pollRework(queryClient, reworkKey(id ?? ''), async () => {
       const { rework } = await apiFetch(
         `/menu/reworks/${id}`,
         menuReworkResponseSchema,
@@ -59,15 +60,36 @@ export function useRework(id: string | undefined) {
           queryKey: menuKeys.weekRework(rework.weekStart),
         });
       }
-      if (rework.status === 'done') {
+      return rework;
+    }),
+    enabled: id !== undefined,
+  });
+}
+
+/**
+ * Заявка за преработка (`null`: няма такава), която пита отново на 3 s, докато е `pending`, а когато видяната `pending`
+ * стане `done`, презарежда менюто на седмицата.
+ */
+function pollRework<T extends MenuReworkRequest | null>(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  read: () => Promise<T>,
+) {
+  return {
+    queryKey,
+    queryFn: async (): Promise<T> => {
+      const before = queryClient.getQueryData<MenuReworkRequest | null>(
+        queryKey,
+      );
+      const rework = await read();
+      if (before?.status === 'pending' && rework?.status === 'done') {
         await reloadReworked(queryClient, rework.weekStart);
       }
       return rework;
     },
-    enabled: id !== undefined,
-    refetchInterval: (query) =>
+    refetchInterval: (query: Query<T, Error, T, QueryKey>) =>
       query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
-  });
+  };
 }
 
 /** Менюто на седмицата след преработка: планът (с разговорите под него), списъкът за пазаруване и дашбордът. */
@@ -86,31 +108,24 @@ async function reloadReworked(queryClient: QueryClient, weekStart: DateKey) {
  */
 export function useWeekRework(weekStart: DateKey) {
   const queryClient = useQueryClient();
-  const queryKey = menuKeys.weekRework(weekStart);
-  return useQuery({
-    queryKey,
-    queryFn: async (): Promise<MenuReworkRequest | null> => {
-      const before = queryClient.getQueryData<MenuReworkRequest | null>(
-        queryKey,
-      );
-      let rework: MenuReworkRequest;
-      try {
-        ({ rework } = await apiFetch(
-          `/menu/reworks?${new URLSearchParams({ weekStart })}`,
-          menuReworkResponseSchema,
-        ));
-      } catch (error) {
-        if (refusalOf(error, 'no_rework')) {
-          return null;
+  return useQuery(
+    pollRework(
+      queryClient,
+      menuKeys.weekRework(weekStart),
+      async (): Promise<MenuReworkRequest | null> => {
+        try {
+          const { rework } = await apiFetch(
+            `/menu/reworks?${new URLSearchParams({ weekStart })}`,
+            menuReworkResponseSchema,
+          );
+          return rework;
+        } catch (error) {
+          if (refusalOf(error, 'no_rework')) {
+            return null;
+          }
+          throw error;
         }
-        throw error;
-      }
-      if (before?.status === 'pending' && rework.status === 'done') {
-        await reloadReworked(queryClient, weekStart);
-      }
-      return rework;
-    },
-    refetchInterval: (query) =>
-      query.state.data?.status === 'pending' ? POLL_INTERVAL_MS : false,
-  });
+      },
+    ),
+  );
 }

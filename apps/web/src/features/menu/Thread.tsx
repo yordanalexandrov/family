@@ -14,6 +14,14 @@ import { Spinner } from '../../components/Spinner';
 import { formatTime, formatWeekday } from '../../lib/format';
 import { useAddComment, useDeleteComment, useThread } from './queries';
 
+/**
+ * Системният ред, както се чете: с името на сменилия отпред (`name`), а редът на AI (`isAiLine`) без него, защото AI е
+ * в самия ред.
+ */
+export function systemLineText(line: MealComment, name: string): string {
+  return isAiLine(line.body) ? line.body : `${name} ${line.body}`;
+}
+
 interface ThreadProps {
   meal: Meal;
   weekStart: DateKey;
@@ -92,8 +100,7 @@ function ThreadLine({
   if (line.kind === 'system') {
     return (
       <li className="thread__line thread__line--system">
-        <span>{isAiLine(line.body) ? line.body : `${name} ${line.body}`}</span>{' '}
-        {when}
+        <span>{systemLineText(line, name)}</span> {when}
       </li>
     );
   }

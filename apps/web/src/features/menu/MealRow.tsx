@@ -1,6 +1,5 @@
 import {
   type DateKey,
-  isAiLine,
   isEmptyMeal,
   isPastMeal,
   type Meal,
@@ -20,6 +19,7 @@ import {
   formatWeekday,
 } from '../../lib/format';
 import { RatingStars } from '../recipes/Stars';
+import { systemLineText } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 /** Id-то на реда на ястието: `MenuWeek` превърта до него, когато листът му е отворен от адреса (`?meal=`). */
@@ -227,9 +227,7 @@ function LastComment({
         className={`meal-row__comment-text${line.kind === 'system' ? ' meal-row__comment-text--system' : ''}`}
       >
         {line.kind === 'system'
-          ? isAiLine(line.body)
-            ? line.body
-            : `${name} ${line.body}`
+          ? systemLineText(line, name)
           : `${name}: ${line.body}`}
       </span>
       <span className="meal-row__comment-count">
