@@ -467,16 +467,18 @@ describe('POST /api/menu/reworks', () => {
     const unsubscribe = app.events.subscribe((event) => signals.push(event));
 
     await finished((await rework()).id);
-    unsubscribe();
 
-    expect(signals).toEqual([
-      { type: 'menu.rework.changed', weekStart: WEEK },
-      { type: 'menu.rework.changed', weekStart: WEEK },
-      { type: 'menu.changed', weekStart: WEEK },
-      { type: 'shopping.changed', weekStart: WEEK },
-      // „Преработено меню“ in the other's inbox.
-      { type: 'inbox.changed', userId: POLI.id },
-    ]);
+    // `afterDone` runs once the request is marked done, and „Преработено меню“ lands in the other's inbox after it.
+    await vi.waitFor(() =>
+      expect(signals).toEqual([
+        { type: 'menu.rework.changed', weekStart: WEEK },
+        { type: 'menu.rework.changed', weekStart: WEEK },
+        { type: 'menu.changed', weekStart: WEEK },
+        { type: 'shopping.changed', weekStart: WEEK },
+        { type: 'inbox.changed', userId: POLI.id },
+      ]),
+    );
+    unsubscribe();
   });
 
   it('signals inbox.changed to each who has a reminder with buttons for a changed day: „Извадих“ no longer holds', async () => {
