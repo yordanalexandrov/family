@@ -1,5 +1,6 @@
 import {
   addDays,
+  classifyRework,
   type DateKey,
   dateKeyInSofia,
   HINT_MAX,
@@ -13,6 +14,7 @@ import {
   mealSchema,
   menuProposalRequestSchema,
   type Rating,
+  reworkCounts,
   type User,
   weekStartOf,
   weekStartSchema,
@@ -59,6 +61,7 @@ import {
   useVote,
   useWeekProposal,
 } from './queries';
+import { ReworkSheet } from './ReworkSheet';
 import { useSeeWeek } from './unseen-proposals';
 import { OUTCOME_LABELS } from './Votes';
 import '../recipes/recipes.css';
@@ -565,6 +568,13 @@ function PlanView({
   const [feedbackRecipeId, setFeedbackRecipeId] = useState<string | null>(null);
   const [pastOpen, setPastOpen] = useState(false);
   const [removed, setRemoved] = useState<RemovedRecipe | null>(null);
+  const [reworking, setReworking] = useState(false);
+  // Преработката, пусната от листа: отвореният пак лист продължава да я чака.
+  const [reworkId, setReworkId] = useState<string>();
+  const reworked = useCallback(() => {
+    setReworkId(undefined);
+    setReworking(false);
+  }, []);
   const hideRemoved = useCallback(() => setRemoved(null), []);
   const mealsId = useId();
   const vote = useVote(plan.weekStart);
@@ -605,6 +615,10 @@ function PlanView({
     agreement && !agreed && chosen !== 'all' && shownFilters.includes(chosen)
       ? chosen
       : 'all';
+  // „✨ Преработи менюто“: с действащ потребител, когато от днес нататък има какво да се смени или попълни.
+  const rework = reworkCounts(classifyRework(plan.meals, today));
+  const canRework =
+    voterId !== null && !readOnly && rework.replace + rework.fill > 0;
   // Минали дни на текущата седмица: сгънати в един ред, за да не избутват днешния надолу.
   const past = plan.meals.filter((meal) => isPastMeal(meal, today));
   // Само на телефона с действащ потребител; kiosk и TV показват цялата седмица.
@@ -655,6 +669,15 @@ function PlanView({
         <p className="menu__agreed" role="status">
           <span aria-hidden="true">✓ </span>Менюто е съгласувано
         </p>
+      )}
+      {canRework && (
+        <button
+          type="button"
+          className="button button--quiet menu__rework"
+          onClick={() => setReworking(true)}
+        >
+          ✨ Преработи менюто
+        </button>
       )}
       {agreement && !agreed && (
         <div className="menu__filters" role="tablist" aria-label="Филтър">
@@ -742,6 +765,17 @@ function PlanView({
           {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
           onRecipeRemoved={setRemoved}
           onClose={() => onOpenMeal(null)}
+        />
+      )}
+      {reworking && (
+        <ReworkSheet
+          plan={plan}
+          users={users}
+          today={today}
+          reworkId={reworkId}
+          onRequested={setReworkId}
+          onDone={reworked}
+          onClose={() => setReworking(false)}
         />
       )}
       {feedbackRecipeId !== null && (
