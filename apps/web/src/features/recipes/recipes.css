@@ -588,20 +588,31 @@
   color: var(--color-text-muted);
 }
 
-/* Текстът на източника под линка (GLOSSARY: Източник на рецепта): свит ред с „Махни“ вдясно. */
+/* Текстът на източника под линка (GLOSSARY: Източник на рецепта): „Махни“ е на реда на свития текст, а разгънатият
+   текст е под тях на цялата ширина. */
 .recipe-form__source {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
   gap: var(--space-2);
 }
 
 .recipe-form__source-text {
   display: flex;
-  flex: 1 1 12rem;
+  grid-row: 1;
+  grid-column: 1 / -1;
   flex-direction: column;
   gap: var(--space-2);
   min-inline-size: 0;
+}
+
+.recipe-form__source-text > .recipe-form__more-summary {
+  margin-inline-end: 7rem;
+}
+
+.recipe-form__source > .button {
+  grid-row: 1;
+  grid-column: 2;
 }
 
 .recipe-form__source-text .recipe-source__text {
@@ -610,6 +621,8 @@
 }
 
 p.recipe-form__source {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
 }
 
