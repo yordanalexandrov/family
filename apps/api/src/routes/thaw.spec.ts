@@ -243,6 +243,50 @@ describe('„Извади месото“ through the reminders cron', () => {
     }
   });
 
+  it('details in the inbox each frozen product, with the pantry, and the dinner, with its day in the menu', async () => {
+    await runAt(EVENING);
+
+    const [thaw] = await inboxOf(app, DANI.id);
+    expect(thaw?.details).toEqual([
+      { text: 'Във фризера: смесена кайма', url: '/pantry' },
+      { text: 'Във фризера: свински врат', url: '/pantry' },
+      {
+        text: 'Вечеря: Мусака, четвъртък',
+        url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
+      },
+    ]);
+    expect(push.delivered[0]?.payload).not.toHaveProperty('details');
+  });
+
+  it('details the cook of the dinner, when it has one', async () => {
+    await patchMeal(musakaMealId, { cookUserId: POLI.id });
+
+    await runAt(EVENING);
+
+    const [thaw] = (await inboxOf(app, DANI.id)).filter(
+      (item) => item.kind === 'thaw',
+    );
+    expect(thaw?.details.at(-1)).toEqual({ text: 'Готви: Поли' });
+  });
+
+  it('updates the details with the morning one, as the dinner is then', async () => {
+    await runAt(EVENING);
+    await patchMeal(musakaMealId, { cookUserId: POLI.id });
+
+    await runAt(MORNING);
+
+    const thaw = (await inboxOf(app, DANI.id)).filter(
+      (item) => item.kind === 'thaw',
+    );
+    expect(thaw).toHaveLength(1);
+    expect(thaw[0]?.details.map((detail) => detail.text)).toEqual([
+      'Във фризера: смесена кайма',
+      'Във фризера: свински врат',
+      'Вечеря: Мусака, четвъртък',
+      'Готви: Поли',
+    ]);
+  });
+
   it('updates the evening one in the inbox with the morning one, unread again', async () => {
     await runAt(EVENING);
     const [evening] = await inboxOf(app, DANI.id);

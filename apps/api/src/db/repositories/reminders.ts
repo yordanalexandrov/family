@@ -9,6 +9,7 @@ import { pantryItem } from '../schema/pantry.js';
 export interface ReminderMeal {
   id: string;
   date: DateKey;
+  recipeId: string | null;
   title: string | null;
   /** The recipe's products, in its order. */
   ingredients: { id: string; name: string }[];
@@ -56,10 +57,10 @@ export async function listReminderDinners(
           )
           .where(inArray(recipeIngredient.recipeId, recipeIds))
           .orderBy(asc(recipeIngredient.position));
-  return meals.map(({ recipeId, ...row }) => ({
+  return meals.map((row) => ({
     ...row,
     ingredients: lines
-      .filter((line) => line.recipeId === recipeId)
+      .filter((line) => line.recipeId === row.recipeId)
       .map(({ id, name }) => ({ id, name })),
   }));
 }

@@ -36,7 +36,7 @@
 - `pantry.ts:pantryItem` – по един ред на продукт (`ingredient_id` е уникален, FK с `cascade`); `ran_out_at is null or kind = 'staple'`.
 - `shopping.ts:shoppingItem` – уникален `(list_id, item_key)`; `shopping_list.week_start` и `plan_id` са уникални. `plan_id` в `shopping_list` и в `menu_proposal_request` е `set null` при изтрит план.
 - Съставни първични ключове: `notification_log(kind, subject_id, on_date, user_id)` (напомняне не се праща два пъти), `notification_setting(user_id, kind)`, `shopping_meal(list_id, meal_id)`, `menu_activity(week_start, recipient_user_id)`, `meal_vote(meal_id, user_id)`.
-- `notifications.ts:pushSubscription` – уникален `endpoint`. `notifications.ts:inboxItem` – уникален `(user_id, tag)`: известие със същия `tag` обновява реда; `actions`/`action_until` са бутоните на въпроса и до кога имат смисъл. `menu.ts:meal.thawed_by_user_id` – кой е натиснал „Извадих“ (`set null`), отпада с `thawed_at`. `dashboard.ts:calendarEvent` – уникален `(calendar_source_id, external_id)`. `dashboard.ts:calendarSource` – уникален `google_calendar_id`.
+- `notifications.ts:pushSubscription` – уникален `endpoint`. `notifications.ts:inboxItem` – уникален `(user_id, tag)`: известие със същия `tag` обновява реда; `details` е jsonb `{ text, url? }[]`, по подразбиране `[]`; `actions`/`action_until` са бутоните на въпроса и до кога имат смисъл. `menu.ts:meal.thawed_by_user_id` – кой е натиснал „Извадих“ (`set null`), отпада с `thawed_at`. `dashboard.ts:calendarEvent` – уникален `(calendar_source_id, external_id)`. `dashboard.ts:calendarSource` – уникален `google_calendar_id`.
 - Промяна тук изисква нова миграция (`pnpm --filter api db:generate`) в `../../../drizzle`.
 
 ## Side Effects

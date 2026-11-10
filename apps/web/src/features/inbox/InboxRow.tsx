@@ -1,7 +1,7 @@
 import type { InboxItem } from '@family/shared';
 import { dateKeyInSofia } from '@family/shared';
 import { useRouter } from '@tanstack/react-router';
-import type { MouseEvent } from 'react';
+import { type MouseEvent, useState } from 'react';
 import { refusalOf } from '../../api/client';
 import { formatShortDate, formatTime } from '../../lib/format';
 import { useInboxAction, useReadInboxItem } from './queries';
@@ -14,10 +14,22 @@ function when(item: InboxItem, withDate: boolean): string {
     : time;
 }
 
+/** Обикновено натискане (без нов таб/прозорец) на линк, който води в приложението. */
+function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+  return !(
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey
+  );
+}
+
 /**
  * Един ред на Входящата кутия (`<li>`): час, заглавие, текст и точка за непрочетено (и по-плътен шрифт). Главата на
- * реда е линкът на известието: натискането прави записа прочетен и води към `url`. Подробностите и бутоните на
- * известието идват под главата, в същия `<li>`.
+ * реда е линкът на известието: натискането прави записа прочетен и води към `url`. Под главата, в същия `<li>`:
+ * „Още“ разгъва подробностите на място и прави записа прочетен; ред от подробностите с линк води натам. Без
+ * подробности няма „Още“. Бутоните на известието идват също тук.
  */
 export function InboxRow({
   item,
@@ -28,22 +40,34 @@ export function InboxRow({
 }) {
   const router = useRouter();
   const read = useReadInboxItem();
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = `inbox-${item.id}-details`;
 
-  function open(event: MouseEvent<HTMLAnchorElement>) {
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey
-    ) {
-      return;
-    }
-    event.preventDefault();
+  function markRead() {
     if (item.unread) {
       read.mutate(item.id);
     }
-    void router.navigate({ href: item.url });
+  }
+
+  /** Води към `href` в приложението; `alsoRead` прави записа прочетен. */
+  function follow(href: string, alsoRead: boolean) {
+    return (event: MouseEvent<HTMLAnchorElement>) => {
+      if (!isPlainClick(event)) {
+        return;
+      }
+      event.preventDefault();
+      if (alsoRead) {
+        markRead();
+      }
+      void router.navigate({ href });
+    };
+  }
+
+  function toggle() {
+    if (!expanded) {
+      markRead();
+    }
+    setExpanded(!expanded);
   }
 
   return (
@@ -51,7 +75,7 @@ export function InboxRow({
       <a
         className="inbox-row__head"
         href={item.url}
-        onClick={open}
+        onClick={follow(item.url, true)}
         aria-label={`${item.title}${item.unread ? ' · непрочетено' : ''}`}
         aria-describedby={`inbox-${item.id}-body`}
       >
@@ -67,6 +91,40 @@ export function InboxRow({
         </time>
       </a>
       <InboxActions item={item} />
+      {item.details.length > 0 && (
+        <div className="inbox-row__more">
+          <button
+            type="button"
+            className="inbox-row__toggle"
+            aria-expanded={expanded}
+            aria-controls={expanded ? detailsId : undefined}
+            onClick={toggle}
+          >
+            {expanded ? 'Скрий' : 'Още'}
+          </button>
+          {expanded && (
+            <ul
+              className="inbox-row__details"
+              id={detailsId}
+              aria-label={`Подробности: ${item.title}`}
+            >
+              {item.details.map((detail, index) => (
+                // Редовете нямат id; редът им е от api-то и не се мени, докато записът е на екрана.
+                // biome-ignore lint/suspicious/noArrayIndexKey: виж горе
+                <li key={index} className="inbox-row__detail">
+                  {detail.url ? (
+                    <a href={detail.url} onClick={follow(detail.url, false)}>
+                      {detail.text}
+                    </a>
+                  ) : (
+                    detail.text
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </li>
   );
 }

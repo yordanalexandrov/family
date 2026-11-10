@@ -150,6 +150,84 @@ describe('Входящата кутия', () => {
     ).toBeDisabled();
   });
 
+  describe('подробностите', () => {
+    const detailed = inboxItem({
+      details: [
+        { text: 'Във фризера: смесена кайма', url: '/pantry' },
+        {
+          text: 'Вечеря: Мусака, четвъртък',
+          url: '/menu?week=2026-11-02&meal=aaaaaaaa-0000-4000-8000-000000000001',
+        },
+        { text: 'Готви: Поли' },
+      ],
+    });
+
+    it('„Още“ ги разгъва на място и прочита известието', async () => {
+      const user = userEvent.setup();
+      const inbox = serveInbox([detailed]);
+      setUpDevice('phone', dani.id);
+      renderApp('/inbox');
+
+      const more = await screen.findByRole('button', { name: 'Още' });
+      expect(more).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByText('Готви: Поли')).toBeNull();
+
+      await user.click(more);
+
+      expect(more).toHaveAttribute('aria-expanded', 'true');
+      const details = screen.getByRole('list', {
+        name: 'Подробности: Извади месото за утре',
+      });
+      expect(
+        within(details)
+          .getAllByRole('listitem')
+          .map((line) => line.textContent),
+      ).toEqual([
+        'Във фризера: смесена кайма',
+        'Вечеря: Мусака, четвъртък',
+        'Готви: Поли',
+      ]);
+      expect(
+        within(details).queryByRole('link', { name: 'Готви: Поли' }),
+      ).toBeNull();
+      await waitFor(() => expect(inbox.reads).toEqual([detailed.id]));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('link', { name: /Извади месото за утре/ }),
+        ).not.toHaveAccessibleName(/непрочетено/),
+      );
+      expect(screen.getByRole('list', { name: /^Подробности/ })).toBeVisible();
+    });
+
+    it('ред с линк води натам', async () => {
+      const user = userEvent.setup();
+      serveInbox([detailed]);
+      servePantry();
+      setUpDevice('phone', dani.id);
+      const { router } = renderApp('/inbox');
+
+      await user.click(await screen.findByRole('button', { name: 'Още' }));
+      await user.click(
+        screen.getByRole('link', { name: 'Във фризера: смесена кайма' }),
+      );
+
+      await waitFor(() =>
+        expect(router.state.location.pathname).toBe('/pantry'),
+      );
+    });
+
+    it('известие без подробности е без „Още“', async () => {
+      serveInbox([detailed, menu]);
+      setUpDevice('phone', dani.id);
+      renderApp('/inbox');
+
+      expect(
+        await screen.findByRole('link', { name: /Поли по менюто/ }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Още' })).toHaveLength(1);
+    });
+  });
+
   it('е на действащия потребител', async () => {
     serveInbox([cook], dani.id);
     setUpDevice('browser', poli.id);

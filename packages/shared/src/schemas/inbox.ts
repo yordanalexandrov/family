@@ -7,9 +7,21 @@ import {
 } from './notifications.js';
 
 /**
+ * A line of a notification's details (GLOSSARY: Входяща кутия), seen only in the inbox, under „Още“: what it says and,
+ * when there is one, the place in the app it leads to.
+ */
+export const inboxDetailSchema = z.object({
+  text: z.string().min(1),
+  url: appPathSchema.optional(),
+});
+
+export type InboxDetail = z.infer<typeof inboxDetailSchema>;
+
+/**
  * A notification in the inbox (GLOSSARY: Входяща кутия) of the acting user, as `GET /api/inbox` gives it: what the push
- * said (`title`, `body`), where it leads (`url`) and its buttons while they make sense. One per person and `tag`: a notification with the same tag updates
- * it, moves it to the top (`updatedAt`) and makes it unread again.
+ * said (`title`, `body`), where it leads (`url`), its `details`, which the push leaves out (may be none), and its
+ * buttons while they make sense. One per person and `tag`: a notification with the same tag updates it (the details
+ * too), moves it to the top (`updatedAt`) and makes it unread again.
  */
 export const inboxItemSchema = z.object({
   id: z.uuid(),
@@ -17,6 +29,7 @@ export const inboxItemSchema = z.object({
   title: z.string().min(1),
   body: z.string(),
   url: appPathSchema,
+  details: z.array(inboxDetailSchema),
   createdAt: instantSchema,
   updatedAt: instantSchema,
   unread: z.boolean(),

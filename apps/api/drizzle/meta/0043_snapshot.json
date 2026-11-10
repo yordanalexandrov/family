@@ -1,5 +1,5 @@
 {
-  "id": "5661da2b-f214-4577-bf1c-862f282386d4",
+  "id": "138d93db-63d6-4855-a9df-7b5d7b542b8e",
   "prevId": "b0377595-65b5-482a-be05-caa7dd38a8a0",
   "version": "7",
   "dialect": "postgresql",
@@ -1875,12 +1875,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
-        },
-        "thawed_by_user_id": {
-          "name": "thawed_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -1960,19 +1954,6 @@
           "tableTo": "user",
           "columnsFrom": [
             "cook_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "meal_thawed_by_user_id_user_id_fk": {
-          "name": "meal_thawed_by_user_id_user_id_fk",
-          "tableFrom": "meal",
-          "tableTo": "user",
-          "columnsFrom": [
-            "thawed_by_user_id"
           ],
           "columnsTo": [
             "id"
@@ -2820,17 +2801,12 @@
           "primaryKey": false,
           "notNull": true
         },
-        "actions": {
-          "name": "actions",
+        "details": {
+          "name": "details",
           "type": "jsonb",
           "primaryKey": false,
-          "notNull": false
-        },
-        "action_until": {
-          "name": "action_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",

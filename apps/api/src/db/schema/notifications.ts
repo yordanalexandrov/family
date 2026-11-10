@@ -1,8 +1,10 @@
 import {
+  type InboxDetail,
   type NotificationKind,
   notificationKindSchema,
   type PushAction,
 } from '@family/shared';
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
@@ -109,7 +111,7 @@ export const menuActivity = pgTable(
  * A person's notification in the inbox (GLOSSARY: Входяща кутия), the source of every notification; push only rings
  * the phone (ADR-0015). One per person and `tag`: the same tag updates the row, `updated_at = now` and unread again
  * (`read_at` null). The cron deletes rows not updated for 30 days. Apart from `notification_log`, which only keeps the
- * cron from sending a reminder twice.
+ * cron from sending a reminder twice. `details` are the lines under „Още“, only in the inbox (`[]` when there are none).
  */
 export const inboxItem = pgTable(
   'inbox_item',
@@ -123,6 +125,10 @@ export const inboxItem = pgTable(
     title: text('title').notNull(),
     body: text('body').notNull(),
     url: text('url').notNull(),
+    details: jsonb('details')
+      .$type<InboxDetail[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     /**
      * The buttons of the question („Извадих“, „Аз“), as in its push. An answer with the same tag and no buttons
      * („Довечера готви Дани“) keeps them, so the inbox can say who answered.

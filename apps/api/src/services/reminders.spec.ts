@@ -15,6 +15,7 @@ const ONION = { id: 'ing-onion', name: 'лук' };
 const MUSAKA: ReminderMeal = {
   id: 'meal-thu',
   date: '2026-11-05',
+  recipeId: 'recipe-musaka',
   title: 'Мусака',
   ingredients: [ONION, KAIMA, PORK],
   note: null,
@@ -26,7 +27,7 @@ function state(overrides: Partial<ReminderState> = {}): ReminderState {
   return {
     meals: [MUSAKA],
     frozen: [KAIMA.id, PORK.id],
-    users: [{ id: DANI.id }, { id: POLI.id }],
+    users: [DANI, POLI],
     log: [],
     ...overrides,
   };
@@ -50,6 +51,14 @@ function evening(userId: string): DueReminder {
       body: 'Мусака: кайма, свинско',
       tag: `thaw-${MUSAKA.id}`,
       url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+      details: [
+        { text: 'Във фризера: кайма', url: '/pantry' },
+        { text: 'Във фризера: свинско', url: '/pantry' },
+        {
+          text: 'Вечеря: Мусака, четвъртък',
+          url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+        },
+      ],
       actions: [
         {
           action: 'thawed',
@@ -175,11 +184,20 @@ function youCook(userId: string): DueReminder {
       body: 'Мусака',
       tag: `cook-${MUSAKA.id}`,
       url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+      details: [{ text: 'Рецепта: Мусака', url: '/recipes/recipe-musaka' }],
     },
   };
 }
 
-function whoCooks(userId: string, body = 'Мусака'): DueReminder {
+const MUSAKA_RECIPE = [
+  { text: 'Рецепта: Мусака', url: '/recipes/recipe-musaka' },
+];
+
+function whoCooks(
+  userId: string,
+  body = 'Мусака',
+  details = MUSAKA_RECIPE,
+): DueReminder {
   return {
     userId,
     kind: 'cook',
@@ -190,6 +208,7 @@ function whoCooks(userId: string, body = 'Мусака'): DueReminder {
       body,
       tag: `cook-${MUSAKA.id}`,
       url: `/menu?week=2026-11-02&meal=${MUSAKA.id}`,
+      details,
       actions: [
         {
           action: 'cook-claim',
@@ -219,13 +238,14 @@ describe('dueReminders: „Кой готви довечера“', () => {
   it('names the note of a dinner without a recipe', () => {
     const note: ReminderMeal = {
       ...MUSAKA,
+      recipeId: null,
       title: null,
       ingredients: [],
       note: 'Пица от Мама Миа',
     };
     expect(cookReminders(AFTERNOON, { meals: [note] })).toEqual([
-      whoCooks(DANI.id, 'Пица от Мама Миа'),
-      whoCooks(POLI.id, 'Пица от Мама Миа'),
+      whoCooks(DANI.id, 'Пица от Мама Миа', []),
+      whoCooks(POLI.id, 'Пица от Мама Миа', []),
     ]);
   });
 

@@ -129,6 +129,7 @@ describe('app.inbox.notify', () => {
         title: THAW.title,
         body: THAW.body,
         url: THAW.url,
+        details: [],
         createdAt: EVENING.toISOString(),
         updatedAt: EVENING.toISOString(),
         unread: true,
@@ -193,11 +194,42 @@ describe('app.inbox.notify', () => {
         title: 'Извади месото за довечера',
         body: 'Мусака: смесена кайма, свински врат',
         url: THAW.url,
+        details: [],
         createdAt: EVENING.toISOString(),
         updatedAt: '2026-11-05T06:00:00.000Z',
         unread: true,
       },
       expect.objectContaining({ title: MENU.title }),
+    ]);
+  });
+
+  it('keeps the details in the inbox only, and the same tag replaces them', async () => {
+    await subscribe(DANI, 'dani-phone');
+    await app.inbox.notify(DANI.id, 'thaw', {
+      ...THAW,
+      details: [
+        { text: 'Във фризера: смесена кайма', url: '/pantry' },
+        { text: 'Готви: Поли' },
+      ],
+    });
+
+    expect((await inbox(DANI))[0]?.details).toEqual([
+      { text: 'Във фризера: смесена кайма', url: '/pantry' },
+      { text: 'Готви: Поли' },
+    ]);
+    expect(push.delivered[0]?.payload).not.toHaveProperty('details');
+
+    await app.inbox.notify(DANI.id, 'thaw', {
+      ...THAW,
+      details: [{ text: 'Готви: Дани' }],
+    });
+    await app.inbox.notify(DANI.id, 'menu', MENU);
+
+    expect(
+      (await inbox(DANI)).map(({ kind, details }) => ({ kind, details })),
+    ).toEqual([
+      { kind: 'menu', details: [] },
+      { kind: 'thaw', details: [{ text: 'Готви: Дани' }] },
     ]);
   });
 

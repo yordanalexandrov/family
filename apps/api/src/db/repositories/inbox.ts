@@ -1,4 +1,9 @@
-import type { InboxItem, NotificationKind, PushAction } from '@family/shared';
+import type {
+  InboxDetail,
+  InboxItem,
+  NotificationKind,
+  PushAction,
+} from '@family/shared';
 import {
   and,
   count,
@@ -22,6 +27,7 @@ export interface InboxWrite {
   title: string;
   body: string;
   url: string;
+  details: InboxDetail[];
   /** The buttons of a question; `null` for a notification without, which keeps the buttons of the row it updates. */
   actions: PushAction[] | null;
   actionUntil: Date | null;
@@ -82,6 +88,7 @@ export async function listInboxItems(
     title: row.title,
     body: row.body,
     url: row.url,
+    details: row.details,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     unread: row.readAt === null,
