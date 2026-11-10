@@ -3,7 +3,6 @@ import {
   type DateKey,
   isEmptyMeal,
   isPastMeal,
-  MEAL_NOTE_MAX,
   MENU_REWORKING_MESSAGE,
   type Meal,
   type MealPlan,
@@ -15,32 +14,21 @@ import {
   weekdayName,
 } from '@family/shared';
 import { Link } from '@tanstack/react-router';
-import {
-  type FormEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Sheet } from '../../components/Sheet';
-import { Spinner } from '../../components/Spinner';
 import { useSheetHistory } from '../../components/sheet-history';
-import { Toast } from '../../components/Toast';
+import { ACTION_DURATION_MS, Toast } from '../../components/Toast';
 import { formatDayLong } from '../../lib/format';
-import { useRecipes } from '../recipes/queries';
-import { useDebouncedValue } from '../recipes/useDebouncedValue';
-import { MealReplace } from './MealReplace';
+import { ChangeTools, ReplaceMeal } from './ChangeTools';
 import { MealShopping } from './MealShopping';
-import { MoveMeal, swapTargetsOf } from './MoveMeal';
-import { usePlan, useRestoreMeal, useUpdateMeal } from './queries';
+import { useRestoreMeal, useUpdateMeal } from './queries';
 import { systemLineText, Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote, voteOf } from './Votes';
 
-const SEARCH_DEBOUNCE_MS = 300;
 /** Колко стои „✓ Сменено“ под заглавието: колкото toast-а с „Върни“. */
-const CHANGED_MS = 8000;
+const CHANGED_MS = ACTION_DURATION_MS;
 
 interface MealSheetProps {
   meal: Meal;
@@ -112,7 +100,8 @@ export function MealSheet({
   const empty = isEmptyMeal(meal);
   const canChange = !past && !locked;
   const mine = voterId ? voteOf(meal, voterId) : undefined;
-  const askVote = voterId !== undefined && onVote && !past && !empty && !mine;
+  const vote = onVote && ((value: VoteValue | null) => onVote(meal, value));
+  const askVote = voterId !== undefined && vote && !past && !empty && !mine;
   const showOverview = useCallback(() => setView(null), []);
   const clearChanged = useCallback(() => setChanged(null), []);
   // `readOnly` е и седмица, която само устройството не сменя (kiosk): тогава без бележка.
@@ -126,8 +115,12 @@ export function MealSheet({
         ? MENU_REWORKING_MESSAGE
         : null;
 
-  function patch(change: UpdateMeal) {
-    update.mutate({ id: meal.id, patch: change });
+  /** Всяка промяна на ястието от листа; `onSuccess` е какво следва, щом мине. */
+  function patch(change: UpdateMeal, onSuccess?: () => void) {
+    update.mutate(
+      { id: meal.id, patch: change },
+      onSuccess ? { onSuccess } : undefined,
+    );
   }
 
   /**
@@ -136,10 +129,7 @@ export function MealSheet({
    */
   function changeMeal(change: UpdateMeal) {
     const undo = change.recipeId !== undefined;
-    update.mutate(
-      { id: meal.id, patch: change },
-      { onSuccess: () => mealChanged(undo) },
-    );
+    patch(change, () => mealChanged(undo));
   }
 
   /** Тук `title` още е на ястието отпреди смяната: то е „беше“. */
@@ -155,23 +145,15 @@ export function MealSheet({
   }
 
   function removeRecipe() {
-    if (meal.recipeId === null) {
-      return;
-    }
     const before: RemovedRecipe = {
       mealId: meal.id,
       date: meal.date,
       title: title ?? '',
     };
-    update.mutate(
-      { id: meal.id, patch: { recipeId: null } },
-      {
-        onSuccess: () => {
-          showOverview();
-          onRecipeRemoved(before);
-        },
-      },
-    );
+    patch({ recipeId: null }, () => {
+      showOverview();
+      onRecipeRemoved(before);
+    });
   }
 
   const tools = (
@@ -183,7 +165,8 @@ export function MealSheet({
       replace={!empty}
       onChange={changeMeal}
       onSwapped={() => mealChanged()}
-      {...(empty ? {} : { onRemove: removeRecipe })}
+      // „Махни ястието от деня“ само за ястие с рецепта: бележка без рецепта се сменя, не се маха.
+      onRemove={meal.recipeId !== null ? removeRecipe : undefined}
     />
   );
 
@@ -206,12 +189,7 @@ export function MealSheet({
             <CookPicker
               meal={meal}
               users={users}
-              onPick={(change) =>
-                update.mutate(
-                  { id: meal.id, patch: change },
-                  { onSuccess: showOverview },
-                )
-              }
+              onPick={(change) => patch(change, showOverview)}
             />
           )}
           {view === 'servings' && (
@@ -260,7 +238,7 @@ export function MealSheet({
               <MyVote
                 meal={meal}
                 userId={voterId}
-                onVote={(value) => onVote(meal, value)}
+                onVote={vote}
                 big
                 disabled={locked}
               />
@@ -274,12 +252,11 @@ export function MealSheet({
               <h4 id="meal-sheet-empty" className="meal-sheet__group-title">
                 Какво ще ядем?
               </h4>
-              <MealReplace
-                key={meal.id}
+              <ReplaceMeal
                 meal={meal}
-                weekStart={plan.weekStart}
+                plan={plan}
                 askLabel="✨ Предложи ястие"
-                onPick={({ recipeId, why }) => changeMeal({ recipeId, why })}
+                onChange={changeMeal}
               />
               {tools}
             </section>
@@ -303,11 +280,11 @@ export function MealSheet({
                       )}
                     />
                   )}
-                  {!past && onVote && (
+                  {!past && vote && (
                     <MyVote
                       meal={meal}
                       userId={voterId}
-                      onVote={(value) => onVote(meal, value)}
+                      onVote={vote}
                       disabled={locked}
                     />
                   )}
@@ -508,99 +485,6 @@ function servingsText(meal: Meal, users: User[]): string {
   return `${total} (${each})`;
 }
 
-type ChangeTool = 'pick' | 'swap' | 'note';
-
-/**
- * Начините да се смени ястието, всеки се разгъва на място: „✨ Предложи друго“ (`replace`), „Избери от рецептите“,
- * „Размени с друг ден“ (`swap`, ако има с кой) и „Бележка вместо ястие“; отделно и в червено „Махни ястието от деня“
- * (`onRemove`, само за ястие с рецепта). На празен ден същите без „Предложи друго“ и „Махни“: главният бутон е над тях.
- */
-function ChangeTools({
-  meal,
-  plan,
-  today,
-  replace,
-  swap,
-  onChange,
-  onSwapped,
-  onRemove,
-}: {
-  meal: Meal;
-  plan: MealPlan;
-  today: DateKey;
-  replace: boolean;
-  swap: boolean;
-  onChange: (change: UpdateMeal) => void;
-  onSwapped: () => void;
-  onRemove?: () => void;
-}) {
-  const [open, setOpen] = useState<ChangeTool | null>(null);
-  const swapTargets = swapTargetsOf(meal, plan, today);
-  const tools: { key: ChangeTool; label: string }[] = [
-    { key: 'pick', label: 'Избери от рецептите' },
-    ...(swap && swapTargets.length > 0
-      ? [{ key: 'swap' as const, label: 'Размени с друг ден' }]
-      : []),
-    { key: 'note', label: 'Бележка вместо ястие' },
-  ];
-  return (
-    <div className="meal-tools">
-      {replace && (
-        <div className="meal-tools__replace">
-          <MealReplace
-            key={meal.id}
-            meal={meal}
-            weekStart={plan.weekStart}
-            onPick={({ recipeId, why }) => onChange({ recipeId, why })}
-          />
-        </div>
-      )}
-      {tools.map((tool) => (
-        <div key={tool.key} className="meal-tools__tool">
-          <button
-            type="button"
-            className="meal-tools__item"
-            aria-expanded={open === tool.key}
-            onClick={() => setOpen(open === tool.key ? null : tool.key)}
-          >
-            {tool.label}
-            <span aria-hidden="true" className="meal-tools__chevron">
-              ›
-            </span>
-          </button>
-          {open === tool.key && (
-            <div className="meal-tools__open">
-              {tool.key === 'pick' && (
-                <RecipePicker meal={meal} plan={plan} onPick={onChange} />
-              )}
-              {tool.key === 'swap' && (
-                <MoveMeal
-                  meal={meal}
-                  plan={plan}
-                  targets={swapTargets}
-                  onSwapped={onSwapped}
-                />
-              )}
-              {tool.key === 'note' && (
-                <NoteField key={meal.note} meal={meal} onSave={onChange} />
-              )}
-            </div>
-          )}
-        </div>
-      ))}
-      {onRemove && meal.recipeId !== null && (
-        <button
-          type="button"
-          className="meal-tools__item meal-tools__item--danger"
-          onClick={onRemove}
-        >
-          Махни ястието от деня
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** Рецептата, която „Махни ястието от деня“ е махнало, за toast-а с „Върни“; какво се връща пази api-то. */
 export interface RemovedRecipe {
   mealId: string;
@@ -634,124 +518,6 @@ export function RemovedRecipeToast({
         undo={removed ? () => restore.mutate(removed.mealId) : undefined}
       />
     </>
-  );
-}
-
-interface PickerProps {
-  meal: Meal;
-  plan: MealPlan;
-  onPick: (change: UpdateMeal) => void;
-}
-
-/** Търсене сред вечерните рецепти с маркери „в тази седмица“ и „последните 2 седмици“. */
-function RecipePicker({ meal, plan, onPick }: PickerProps) {
-  const [search, setSearch] = useState('');
-  const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
-  const recipes = useRecipes({ tags: ['dinner'], ...(q ? { q } : {}) });
-  const recent = useRecentRecipeIds(plan.weekStart);
-  const inWeek = new Set(
-    plan.meals
-      .filter((m) => m.id !== meal.id && m.recipeId !== null)
-      .map((m) => m.recipeId),
-  );
-
-  return (
-    <div className="meal-tools__picker">
-      <input
-        type="search"
-        className="field__input"
-        aria-label="Търси рецепта"
-        placeholder="Търси по заглавие"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-      {recipes.isPending ? (
-        <Spinner />
-      ) : recipes.isError ? (
-        <ErrorBox
-          error={recipes.error}
-          onRetry={() => void recipes.refetch()}
-        />
-      ) : (
-        <ul className="recipe-picker" aria-label="Вечерни рецепти">
-          {recipes.data.map((recipe) => (
-            <li key={recipe.id}>
-              <button
-                type="button"
-                className="recipe-picker__option"
-                aria-pressed={recipe.id === meal.recipeId}
-                onClick={() =>
-                  recipe.id !== meal.recipeId && onPick({ recipeId: recipe.id })
-                }
-              >
-                <span>{recipe.title}</span>
-                {inWeek.has(recipe.id) && (
-                  <span className="badge">в тази седмица</span>
-                )}
-                {recent.has(recipe.id) && (
-                  <span className="badge">последните 2 седмици</span>
-                )}
-              </button>
-            </li>
-          ))}
-          {recipes.data.length === 0 && (
-            <li className="recipe-picker__empty">Няма такава рецепта.</li>
-          )}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** Рецептите от менютата на двете предходни седмици. */
-function useRecentRecipeIds(weekStart: string): Set<string> {
-  const week1 = usePlan(addDays(weekStart, -7));
-  const week2 = usePlan(addDays(weekStart, -14));
-  const ids = new Set<string>();
-  for (const plan of [week1.data, week2.data]) {
-    for (const meal of plan?.meals ?? []) {
-      if (meal.recipeId !== null) {
-        ids.add(meal.recipeId);
-      }
-    }
-  }
-  return ids;
-}
-
-function NoteField({
-  meal,
-  onSave,
-}: {
-  meal: Meal;
-  onSave: (change: UpdateMeal) => void;
-}) {
-  const [note, setNote] = useState(meal.note ?? '');
-  const changed = note.trim() !== (meal.note ?? '');
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    onSave({ note });
-  }
-
-  return (
-    <form className="field" noValidate onSubmit={submit}>
-      <label className="field__label" htmlFor="meal-note">
-        Бележка
-      </label>
-      <div className="sheet__row">
-        <input
-          id="meal-note"
-          className="field__input"
-          maxLength={MEAL_NOTE_MAX}
-          placeholder="напр. ядем навън"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-        />
-        <button type="submit" className="button" disabled={!changed}>
-          Запази
-        </button>
-      </div>
-    </form>
   );
 }
 

@@ -14,7 +14,7 @@
 - `replacements.ts:useRequestReplacement`, `useLatestReplacement`, `changedSince` — „Предложи друго“
 - `unseen-proposals.ts:noteProposalChange`, `useUnseenProposalWeek`, `useSeeWeek`, `UNSEEN_PROPOSALS_KEY` — невидени предложения
 - `MenuWeek.tsx:MenuWeek`, `MenuWeek.tsx:parseMenuSearch`, `MenuWeek.tsx:MenuSearch` — екранът и `?week=`, `?proposal=`, `?meal=`
-- `MealRow.tsx:MealRow`, `MealRow.tsx:RowVoting`, `MealRow.tsx:mealRowId`, `MealSheet.tsx:MealSheet`, `MealSheet.tsx:RemovedRecipeToast`, `MealSheet.tsx:RemovedRecipe`, `MealReplace.tsx:MealReplace`, `MealDrag.tsx:MealDrag`, `MealDrag.tsx:DraggableMeal`, `MoveMeal.tsx:MoveMeal`, `MoveMeal.tsx:swapTargetsOf`, `MealShopping.tsx:MealShopping`, `MealFeedback.tsx:MealFeedbackSheet`, `Thread.tsx:Thread`, `Thread.tsx:systemLineText` — редове, лист на ястието и действията му
+- `MealRow.tsx:MealRow`, `MealRow.tsx:RowVoting`, `MealRow.tsx:mealRowId`, `MealSheet.tsx:MealSheet`, `MealSheet.tsx:RemovedRecipeToast`, `MealSheet.tsx:RemovedRecipe`, `MealReplace.tsx:MealReplace`, `MealDrag.tsx:MealDrag`, `MealDrag.tsx:DraggableMeal`, `MoveMeal.tsx:MoveMeal`, `MoveMeal.tsx:swapTargetsOf`, `ChangeTools.tsx:ChangeTools`, `ChangeTools.tsx:ReplaceMeal`, `RecipePicker.tsx:RecipePicker`, `MealShopping.tsx:MealShopping`, `MealFeedback.tsx:MealFeedbackSheet`, `Thread.tsx:Thread`, `Thread.tsx:systemLineText` — редове, лист на ястието и действията му
 - `Votes.tsx:OUTCOME_LABELS`, `voteOf`, `OutcomeLabel`, `PersonVote`, `MyVote` — гласове и изход
 
 ## Invariants
@@ -30,8 +30,9 @@
 - `MenuWeek.tsx:PlanView` — филтрите `FILTERS` (`pending`/`discuss`/`replace`) са само докато менюто не е съгласувано (`isAgreed` → „Менюто е съгласувано“); миналите дни се сгъват в `PastFold` само с действащ потребител; „Как мина?“ е на интерактивно устройство, за ястие с рецепта и `date <= today`
 - `MealSheet.tsx:MealSheet` — преглед от редове (спек #366): заглавието (връзка към рецептата; без рецепта — бележката, празен ден — „Още няма ястие“) и „защо“; „Става ли за теб?“ с големите 👎/👍, докато действащият човек не е гласувал (и денят не е минал или празен), иначе ред „Гласове“; после редовете Разговор, Готвач, Порции, превключвателят „В списъка за пазаруване“ (само за ястие с рецепта, не в `readOnly`) и „↻ Смени ястието“ (не на минал ден, празен ден и при `locked`). Без действащ потребител няма гласове и разговор. Празен ден вместо гласове и „Смени ястието“ има „Какво ще ядем?“ с „✨ Предложи ястие“ и другите три начина
 - `MealSheet.tsx:MealSheet` — под-изгледите (Разговор, Готвач, Порции, Смени ястието) са в същия лист с „‹ Назад“; отвореният е запис в историята (`useSheetHistory`), затова „назад“ връща към прегледа, а второто „назад“ затваря листа. Изборът на готвач, успешната смяна на рецептата, размяната, бележката и „Махни ястието от деня“ връщат към прегледа; порциите остават отворени
-- `MealSheet.tsx:mealChanged` — след смяна на рецептата (търсене, „Предложи друго“, празен ден), бележка и размяна заглавието светва (без анимация при `prefers-reduced-motion`), а под него за `CHANGED_MS` = 8 s е `status` „✓ Сменено (беше „…“)“ (без „беше“ на празен ден и когато заглавието не се е сменило: бележка към ястие с рецепта, размяна). „Върни“ (`useRestoreMeal`) има само след смяна на рецептата; отказът му е `ErrorBox` в листа. „Махни ястието от деня“ няма това потвърждение, а `RemovedRecipeToast` на екрана
+- `MealSheet.tsx:mealChanged` — след смяна на рецептата (търсене, „Предложи друго“, празен ден), бележка и размяна заглавието светва (без анимация при `prefers-reduced-motion`), а под него за `CHANGED_MS` = `ACTION_DURATION_MS` на `Toast` (8 s) е `status` „✓ Сменено (беше „…“)“ (без „беше“ на празен ден и когато заглавието не се е сменило: бележка към ястие с рецепта, размяна). „Върни“ (`useRestoreMeal`) има само след смяна на рецептата; отказът му е `ErrorBox` в листа. „Махни ястието от деня“ няма това потвърждение, а `RemovedRecipeToast` на екрана
 - `MealSheet.tsx:MealSheet` — на минал ден рецептата и бележката не се сменят, а готвачът и порциите се сменят и разговорът се чете; в `readOnly` седмица не се сменят и те, а редовете им са без „›“
+- `ChangeTools.tsx:ChangeTools` — „Смени ястието“: „✨ Предложи друго“ (`ReplaceMeal`, и в празния ден с „✨ Предложи ястие“), „Избери от рецептите“ (`RecipePicker`), „Размени с друг ден“ (`MoveMeal`), „Бележка вместо ястие“ и „Махни ястието от деня“ само с `onRemove`; дали „Махни“ се предлага (ястие с рецепта) решава `MealSheet`
 - `MoveMeal.tsx:swapTargetsOf` — целите на „Размени с друг ден“ са ястия от същия `slot` от днес нататък; без цели действието не се показва
 - `MealDrag.tsx:DraggableMeal` — минал ден не се влачи и не е цел; `MealDrag` — задържане `TOUCH_HOLD_MS` = 200 ms при докосване
 - `Thread.tsx:Thread` — изтрива се само собствен коментар; `maxLength` е `MEAL_COMMENT_MAX`
@@ -48,7 +49,7 @@
 - `MenuWeek.tsx:MenuWeek` — navigate с replace за `?meal=` и `?proposal=`; `scrollIntoView` към ястието от адреса
 - `MealShopping.tsx:MealShopping` — `useShoppingWeek` и `useSetMealListed` от `features/shopping`; `MealDrag.tsx:MealDrag` — сензори на dnd-kit
 - `MenuWeek.tsx:PlanView` — `useRateRecipe` от `features/recipes` за „Как беше?“ и `useShoppingWeek` за маркера 🛒
-- `MealSheet.tsx:RecipePicker` — `useRecipes` (вечерни, debounce `SEARCH_DEBOUNCE_MS` = 300 ms); `useRecentRecipeIds` чете плановете на двете предходни седмици
+- `RecipePicker.tsx:RecipePicker` — `useRecipes` (вечерни, debounce `SEARCH_DEBOUNCE_MS` = 300 ms); `useRecentRecipeIds` чете плановете на двете предходни седмици
 
 ## Verification
 - Run: `pnpm --filter web test src/features/menu`
