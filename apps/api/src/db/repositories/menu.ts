@@ -562,6 +562,33 @@ export async function markMealThawed(
   return row ?? null;
 }
 
+/** How the buttons of a reminder about a meal were answered: who cooks, who took the meat out. */
+export interface MealAnswers {
+  id: string;
+  cookUserId: string | null;
+  thawedAt: Date | null;
+  thawedByUserId: string | null;
+}
+
+/** The answers of the meals `ids`; a meal that is gone is left out. */
+export async function listMealAnswers(
+  db: DbExecutor,
+  ids: string[],
+): Promise<MealAnswers[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      id: meal.id,
+      cookUserId: meal.cookUserId,
+      thawedAt: meal.thawedAt,
+      thawedByUserId: meal.thawedByUserId,
+    })
+    .from(meal)
+    .where(inArray(meal.id, ids));
+}
+
 /**
  * „Аз“ on „Кой готви довечера“: `userId` becomes the cook of the meal unless it has one. Answers the plan of the meal
  * when it did, else `null` (the meal has a cook, or there is no such meal).

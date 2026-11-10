@@ -4,14 +4,13 @@ import {
   countUnreadInboxItems,
   deleteInboxItemsBefore,
   listInboxItems,
-  listMealAnswers,
   listUsersWithButtons,
-  type MealAnswers,
   markAllInboxItemsRead,
   markInboxItemRead,
   type StoredInboxItem,
   upsertInboxItem,
 } from '../db/repositories/inbox.js';
+import { listMealAnswers, type MealAnswers } from '../db/repositories/menu.js';
 import { listUsers } from '../db/repositories/users.js';
 import { NotFoundError } from './errors.js';
 import type { EventBus } from './events.js';

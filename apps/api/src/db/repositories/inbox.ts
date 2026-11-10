@@ -16,7 +16,6 @@ import {
   sql,
 } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
-import { meal } from '../schema/menu.js';
 import { inboxItem } from '../schema/notifications.js';
 
 /** What a notification writes into the inbox of one person. */
@@ -108,33 +107,6 @@ export async function listUsersWithButtons(
     .from(inboxItem)
     .where(and(inArray(inboxItem.tag, tags), isNotNull(inboxItem.actions)));
   return rows.map((row) => row.userId);
-}
-
-/** How the buttons of a reminder about a meal were answered: who cooks, who took the meat out. */
-export interface MealAnswers {
-  id: string;
-  cookUserId: string | null;
-  thawedAt: Date | null;
-  thawedByUserId: string | null;
-}
-
-/** The answers of the meals `ids`; a meal that is gone is left out. */
-export async function listMealAnswers(
-  db: DbExecutor,
-  ids: string[],
-): Promise<MealAnswers[]> {
-  if (ids.length === 0) {
-    return [];
-  }
-  return db
-    .select({
-      id: meal.id,
-      cookUserId: meal.cookUserId,
-      thawedAt: meal.thawedAt,
-      thawedByUserId: meal.thawedByUserId,
-    })
-    .from(meal)
-    .where(inArray(meal.id, ids));
 }
 
 export async function countUnreadInboxItems(
