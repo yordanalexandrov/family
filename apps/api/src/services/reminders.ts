@@ -25,7 +25,12 @@ import {
 import { listPeople, listUsers } from '../db/repositories/users.js';
 import type { InboxMessage, InboxService } from './inbox.js';
 import type { MenuNotifications } from './menu-notifications.js';
-import { mealUrl, notificationTag } from './notification-links.js';
+import {
+  mealUrl,
+  notificationTag,
+  pantryUrl,
+  recipeUrl,
+} from './notification-links.js';
 import {
   THAW_EVENING_HOUR,
   THAW_MORNING_HOUR,
@@ -73,7 +78,7 @@ function cookDetails(
   title: string | null,
 ): InboxDetail[] {
   return recipeId && title
-    ? [{ text: `Рецепта: ${title}`, url: `/recipes/${recipeId}` }]
+    ? [{ text: `Рецепта: ${title}`, url: recipeUrl(recipeId) }]
     : [];
 }
 
@@ -90,7 +95,7 @@ function thawMessage(
   const details: InboxDetail[] = [
     ...products.map((product) => ({
       text: `Във фризера: ${product}`,
-      url: '/pantry',
+      url: pantryUrl(),
     })),
     {
       text: `Вечеря: ${meal.title}, ${weekdayName(meal.date)}`,
