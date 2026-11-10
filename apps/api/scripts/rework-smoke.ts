@@ -250,7 +250,12 @@ async function inputs(): Promise<[string, unknown][]> {
       : new Date();
     const db = createDb(databaseUrl);
     try {
-      const store = createMenuReworkStore(createEventBus(), () => today);
+      // Only `buildInput` runs: nothing is written, so nobody is notified.
+      const store = createMenuReworkStore(
+        createEventBus(),
+        { reworked: async () => {} },
+        () => today,
+      );
       const request: MenuReworkRequest = {
         id: '00000000-0000-4000-8000-000000000000',
         weekStart: values.week,

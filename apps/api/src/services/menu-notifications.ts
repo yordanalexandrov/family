@@ -2,6 +2,7 @@ import {
   addDays,
   type DateKey,
   type MenuProposalRequest,
+  type MenuReworkRequest,
   withHint,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
@@ -10,6 +11,7 @@ import {
   type MenuActivity,
   takeQuietMenuActivity,
 } from '../db/repositories/menu-activity.js';
+import { findRework } from '../db/repositories/menu-reworks.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
 import { menuWeekUrl, notificationTag } from './notification-links.js';
 import type { PushMessage, PushService } from './push.js';
@@ -79,6 +81,11 @@ export interface MenuNotifications {
   proposed(
     proposal: Pick<MenuProposalRequest, 'weekStart' | 'requestedBy' | 'hint'>,
   ): Promise<void>;
+  /**
+   * „Преработено меню“ to everyone but the one who asked for the rework: „Дани преработи менюто за 2–8 ноември ·
+   * сменени 3 · „<подсказка>““. The number of changed dishes is read back, as `onDone` wrote it. Never rejects.
+   */
+  reworked(rework: Pick<MenuReworkRequest, 'id' | 'weekStart'>): Promise<void>;
 }
 
 export function createMenuNotifications({
@@ -136,6 +143,31 @@ export function createMenuNotifications({
         }
       } catch (error) {
         log.warn({ err: error, weekStart }, 'menu proposal not notified');
+      }
+    },
+
+    async reworked({ id, weekStart }) {
+      try {
+        const rework = await findRework(db, id);
+        if (!rework) {
+          return;
+        }
+        // Рецептурко may ask for it too; only people are told (ADR-0014).
+        const users = await listUsers(db);
+        const requester = users.find((user) => user.id === rework.requestedBy);
+        const what = `${requester?.name ?? 'AI'} преработи менюто за ${weekRange(weekStart)} · сменени ${rework.changed ?? 0}`;
+        const message: PushMessage = {
+          title: 'Преработено меню',
+          body: withHint(what, rework.hint),
+          ...ofWeek(weekStart),
+        };
+        for (const user of users.filter(isPerson)) {
+          if (user.id !== rework.requestedBy) {
+            await push.send(user.id, 'menu', message);
+          }
+        }
+      } catch (error) {
+        log.warn({ err: error, weekStart }, 'menu rework not notified');
       }
     },
   };

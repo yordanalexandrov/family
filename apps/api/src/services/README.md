@@ -22,9 +22,9 @@
 - `recipe-photo.ts:photoType` – типът на снимка по първите ѝ байтове (JPEG, PNG, WebP, HEIC/HEIF).
 - `menu.ts:createMenuService, MenuService, createMenuProposalStore, MenuProposals, readCooking, refusePastMeal, refuseReworkingWeek, writeSystemLine, recordContentChange, NO_SUCH_MEAL` – Седмично меню, Ястие, Глас, Разговор, Предложение за меню, „Днес се готви“.
 - `meal-replacements.ts:createMealReplaceStore, getLatestReplacement, MealReplacements` – `meal.replace` („Предложи друго“).
-- `menu-reworks.ts:createMenuReworkStore, getLatestRework, MenuReworks` – `menu.rework` („Преработи менюто“): откази `no_plan`, `menu_reworking`, `replacement_pending`, `nothing_to_rework`, `not_enough_recipes`; `onDone` пише новите рецепти, маха гласовете, пише ред на AI, маха ястието от списъка за пазаруване и заявките му за „Предложи друго“, сменя обобщението; не пише в `menu_activity`.
+- `menu-reworks.ts:createMenuReworkStore, getLatestRework, MenuReworks` – `menu.rework` („Преработи менюто“): откази `no_plan`, `menu_reworking`, `replacement_pending`, `nothing_to_rework`, `not_enough_recipes`; `onDone` пише новите рецепти, маха гласовете, пише ред на AI, маха ястието от списъка за пазаруване и заявките му за „Предложи друго“, сменя обобщението; не пише в `menu_activity`; `afterDone` праща „Преработено меню“ (`MenuNotifications.reworked`).
 - `menu-schedule.ts:createMenuSchedule, scheduledProposalDue, scheduledWeekOf, MenuSchedule, SCHEDULED_PROPOSAL_WEEKDAY, SCHEDULED_PROPOSAL_HOUR` – Предложението за меню от cron-а.
-- `menu-notifications.ts:createMenuNotifications, MenuNotifications, MENU_ACTIVITY_QUIET_MS` – Известие от Съгласуването: `sendQuietActivity` праща на всеки действията на другите по седмица, след `MENU_ACTIVITY_QUIET_MS` (10 мин) тишина, по едно известие на седмица; `proposed` праща „Ново предложение за меню“ на всички без поискалия (никога не отхвърля).
+- `menu-notifications.ts:createMenuNotifications, MenuNotifications, MENU_ACTIVITY_QUIET_MS` – Известие от Съгласуването: `sendQuietActivity` праща на всеки действията на другите по седмица, след `MENU_ACTIVITY_QUIET_MS` (10 мин) тишина, по едно известие на седмица; `proposed` праща „Ново предложение за меню“ на всички без поискалия, `reworked` — „Преработено меню“ на всички без пусналия преработката, с броя сменени ястия (никога не отхвърлят).
 - `shopping.ts:getShoppingList, setItemChecked, setItemHidden, addManualItem, deleteItem, setMealListed` – Списък за пазаруване (Отметка, Скрит ред, Ръчен ред, Ястие в списъка).
 - `pantry.ts:getPantry, addPantryItem, changePantryItem, removePantryItem, markPantryRanOut` – Килер.
 - `reminders.ts:createReminders, dueReminders, Reminders, COOK_HOUR, REMINDER_GRACE_MS` – Напомняния („Извади месото“, „Кой готви довечера“). `Reminders.run` (cron на 5 мин) праща дължимите напомняния и натрупаната активност по менюто; `Reminders.cookClaimed` след „Аз“ праща на всички, получили въпроса, „Довечера готвиш ти“ или „Довечера готви <име>“ със същия tag.
@@ -69,7 +69,7 @@
 - Мрежа: `calendar-sync.ts` (Google Calendar), `budget-sync.ts` (Wallet), `push.ts` (Web Push), `recipe-imports.ts`/`recipe-refinements.ts`/`imported-step-photos.ts` (страници и снимки през `recipe-page`).
 - CPU и памет: `step-photos.ts` декодира и преоразмерява снимки (`sharp`, `heic-decode`).
 - Сигнали в паметта: `events.ts:createEventBus` към абонатите на `GET /api/events`.
-- Логване: провалите на фоновите изпълнения (`contract-requests.ts`, `warn` и за очаквани откази като `no_results`), на push (`push.ts`), на известието за предложение (`menu-notifications.ts`) и на `health.ts:checkHealth`; `info` за пратено напомняне (`reminders.ts`) и непредложено от cron-а меню (`menu-schedule.ts`).
+- Логване: провалите на фоновите изпълнения (`contract-requests.ts`, `warn` и за очаквани откази като `no_results`), на push (`push.ts`), на известията за предложение и преработка (`menu-notifications.ts`) и на `health.ts:checkHealth`; `info` за пратено напомняне (`reminders.ts`) и непредложено от cron-а меню (`menu-schedule.ts`).
 
 ## Verification
 

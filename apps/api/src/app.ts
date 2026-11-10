@@ -327,7 +327,7 @@ export function buildApp({
     'menuReworks',
     contractRequests.register(
       menuRework,
-      createMenuReworkStore(events, now),
+      createMenuReworkStore(events, menuNotifications, now),
       agents.menuReworkAgent,
     ),
   );
