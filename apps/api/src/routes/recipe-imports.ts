@@ -25,7 +25,10 @@ import {
 /** A photo import as the multipart form becomes before validation (`readPhotos`); never JSON from the client. */
 const photoBodySchema = z.object({
   kind: z.literal('photo'),
-  photos: z.array(z.instanceof(Buffer)).min(1).max(IMPORT_PHOTO_MAX_PARTS),
+  uploadedPhotos: z
+    .array(z.instanceof(Buffer))
+    .min(1)
+    .max(IMPORT_PHOTO_MAX_PARTS),
 });
 
 /**
@@ -137,5 +140,5 @@ async function readPhotos(
   if (photos.length === 0) {
     throw missingPhoto();
   }
-  return { kind: 'photo', photos };
+  return { kind: 'photo', uploadedPhotos: photos };
 }

@@ -273,7 +273,7 @@ export function ReviewSuggestion({
   const source = imported ? sourceUrl : suggestion.payload.sourceUrl;
   const text = imported ? sourceText : undefined;
   const photos = (imported && sourcePhotos) || [];
-  const photo = photos.length > 0;
+  const hasPhotos = photos.length > 0;
   // Значката следва избора в „Уред“ във формата; до първата смяна е уредът на предложението.
   const [chosenAppliance, setChosenAppliance] = useState<string>();
   const appliance = imported
@@ -319,9 +319,9 @@ export function ReviewSuggestion({
           onAnyway={() => setImportedAnyway(duplicate.id)}
         />
       )}
-      {(photo || appliance || note || source || text) && (
+      {(hasPhotos || appliance || note || source || text) && (
         <section className="suggestions__section">
-          {photo && <SourcePhotoThumbnails photos={photos} />}
+          {hasPhotos && <SourcePhotoThumbnails photos={photos} />}
           {appliance && (
             <p className="suggestion-card__meta">
               <ApplianceBadge name={appliance} />
@@ -341,7 +341,7 @@ export function ReviewSuggestion({
               {note}
             </p>
           )}
-          {(source || text || photo) && (
+          {(source || text || hasPhotos) && (
             <div className="recipes__actions">
               <RecipeSource
                 url={source}

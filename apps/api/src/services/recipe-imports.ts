@@ -53,12 +53,15 @@ const NO_SUCH_IMPORT = 'Няма такова внасяне';
  */
 export type ImportParams =
   | RecipeImportParams
-  | { kind: 'photo'; photos: Buffer[] };
+  | { kind: 'photo'; uploadedPhotos: Buffer[] };
 
-/** What the store inserts: the photos of an import already made ready (`sourcePhotoJpeg`), outside its transaction. */
+/**
+ * What the store inserts: the same photos as the api keeps them, made ready (`sourcePhotoJpeg`) outside its
+ * transaction.
+ */
 export type StoredImportParams =
   | RecipeImportParams
-  | { kind: 'photo'; jpegs: Buffer[] };
+  | { kind: 'photo'; keptPhotos: Buffer[] };
 
 /** `recipe.normalize` as AI requests (GLOSSARY: Внасяне на рецепта), registered in `buildApp()`. */
 export type RecipeImportRequests = ContractRequestHandle<
@@ -93,7 +96,7 @@ export function createRecipeImportStore(): ContractRequestStore<
     table: recipeImportRequest,
     async insert(tx, params, requestedBy) {
       if (params.kind === 'photo') {
-        const photos = await insertSourcePhotos(tx, params.jpegs);
+        const photos = await insertSourcePhotos(tx, params.keptPhotos);
         return insertImportRequest(tx, { kind: 'photo', photos }, requestedBy);
       }
       if (params.kind === 'url' && !params.force) {
@@ -225,11 +228,11 @@ export function createRecipeImportsService({
         return requests.request(params, actingUserId);
       }
       // One at a time: each decodes up to 50 megapixels.
-      const jpegs: Buffer[] = [];
-      for (const photo of params.photos) {
-        jpegs.push(await sourcePhotoJpeg(photo));
+      const keptPhotos: Buffer[] = [];
+      for (const photo of params.uploadedPhotos) {
+        keptPhotos.push(await sourcePhotoJpeg(photo));
       }
-      return requests.request({ kind: 'photo', jpegs }, actingUserId);
+      return requests.request({ kind: 'photo', keptPhotos }, actingUserId);
     },
 
     listImports(limit) {
