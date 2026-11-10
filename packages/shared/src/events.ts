@@ -32,7 +32,15 @@ export const serverEventSchema = z.discriminatedUnion('type', [
     type: z.literal('shopping.changed'),
     weekStart: weekStartSchema.optional(),
   }),
+  /**
+   * The inbox (GLOSSARY: Входяща кутия) of `userId` changed: a notification came in or was updated, or the person read
+   * one or all. Only the streams of that person get it (`?user=`); their bell, icon badge and open inbox reload.
+   */
+  z.object({ type: z.literal('inbox.changed'), userId: z.uuid() }),
 ]);
+
+/** The query of `GET /api/events`: `user` is the person whose inbox signals the stream gets; without it, none. */
+export const serverEventsQuerySchema = z.object({ user: z.uuid().optional() });
 
 export type ServerEvent = z.infer<typeof serverEventSchema>;
 

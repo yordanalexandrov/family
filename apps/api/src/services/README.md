@@ -29,8 +29,8 @@
 - `pantry.ts:getPantry, addPantryItem, changePantryItem, removePantryItem, markPantryRanOut` – Килер.
 - `reminders.ts:createReminders, dueReminders, Reminders, COOK_HOUR, REMINDER_GRACE_MS` – Напомняния („Извади месото“, „Кой готви довечера“). `Reminders.run` (cron на 5 мин) праща дължимите напомняния и натрупаната активност по менюто; `Reminders.cookClaimed` след „Аз“ праща на всички, получили въпроса, „Довечера готвиш ти“ или „Довечера готви <име>“ със същия tag.
 - `thaw.ts:thawCandidates, thawDates, THAW_EVENING_HOUR, THAW_MORNING_HOUR` – „Извади месото“ за дашборда и напомнянията.
-- `inbox.ts:createInboxService, InboxService, InboxMessage, Notified, INBOX_KEEP_DAYS` – Входящата кутия (ADR-0015): `notify` е единственият път за известие (запис в кутията, после `push.send`); `InboxMessage` е `PushMessage` с `details` (редовете под „Още“, само в кутията), `list`, `unreadCount`, `read`, `readAll`, `prune` (задачата `prune-inbox`).
-- `push.ts:createPushService, PushService, WebPushDelivery, PushMessage` – Web Push абонаменти, настройки и изпращане (само през `inbox.notify`, освен `sendTest`).
+- `inbox.ts:createInboxService, InboxService, InboxMessage, Notified, INBOX_KEEP_DAYS` – Входящата кутия (ADR-0015): `notify` е единственият път за известие (запис в кутията, после `push.send` с `inboxId` и бройката `unread`); `InboxMessage` е `PushMessage` с `details` (редовете под „Още“, само в кутията), `list`, `unreadCount`, `read`, `readAll`, `prune` (задачата `prune-inbox`). Записът и прочитането пращат `inbox.changed { userId }`.
+- `push.ts:createPushService, PushService, WebPushDelivery, PushMessage, InboxPushMessage` – Web Push абонаменти, настройки и изпращане (само през `inbox.notify`, освен `sendTest`).
 - `notification-links.ts:notificationTag, menuWeekUrl, mealUrl` – tag и адрес на Известие.
 - `events.ts:createEventBus, EventBus, menuAndShoppingChanged` – шината за сигнали в паметта (`GET /api/events`).
 - `calendar-sync.ts:createCalendarSync, syncCalendars, syncWindow, toCalendarEventRow` и `budget-sync.ts:createBudgetSync, syncBudget` – Синхронизация с Google Calendar и Wallet.

@@ -91,7 +91,9 @@ export const appPathSchema = z
 /**
  * What the service worker gets in a push message. `tag` replaces the earlier notification with the same tag; `url` is
  * opened on a tap (and when a button fails). A button's `post` is an api path the service worker calls with
- * `x-acting-user: <userId>`, the person the notification is for.
+ * `x-acting-user: <userId>`, the person the notification is for. `inboxId` is the notification's row in the inbox
+ * (GLOSSARY: Входяща кутия), which a tap reads, and `unread` the person's unread count with it, for the icon badge; the
+ * „Пробно известие“ is not in the inbox and has neither.
  */
 export const pushPayloadSchema = z.object({
   kind: pushKindSchema,
@@ -100,6 +102,8 @@ export const pushPayloadSchema = z.object({
   tag: z.string().min(1),
   url: appPathSchema,
   userId: z.uuid(),
+  inboxId: z.uuid().optional(),
+  unread: z.number().int().nonnegative().optional(),
   actions: z
     .array(
       z.object({

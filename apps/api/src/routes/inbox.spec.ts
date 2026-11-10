@@ -140,6 +140,22 @@ describe('app.inbox.notify', () => {
     ]);
   });
 
+  it('gives the push the inbox id, to read it from the push, and the unread count, for the icon badge', async () => {
+    await subscribe(DANI, 'dani-phone');
+    await app.inbox.notify(DANI.id, 'menu', MENU);
+    clock = new Date('2026-11-04T18:30:00Z');
+
+    const { inboxId } = await app.inbox.notify(DANI.id, 'thaw', THAW);
+
+    const [thaw] = await inbox(DANI);
+    expect(inboxId).toBe(thaw?.id);
+    expect(push.delivered.at(-1)?.payload).toMatchObject({
+      kind: 'thaw',
+      inboxId: thaw?.id,
+      unread: 2,
+    });
+  });
+
   it('keeps it in the inbox with the kind turned off, without ringing', async () => {
     await subscribe(DANI, 'dani-phone');
     await turnOff(DANI, 'thaw');
