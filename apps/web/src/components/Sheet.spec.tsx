@@ -214,6 +214,24 @@ describe('Sheet и „назад“', () => {
     await expectPath('/');
   });
 
+  it('лист над лист: затварянето на долния маха и двата записа, следващото „назад“ напуска екрана', async () => {
+    const user = userEvent.setup();
+    render(<StackedScreen />);
+    await user.click(screen.getByRole('button', { name: 'Още' }));
+    const lower = screen.getByRole('dialog', { name: 'Долен' });
+    await user.click(
+      within(lower).getAllByRole('button', {
+        name: 'Готово',
+      })[0] as HTMLElement,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(window.history.state).toBeNull());
+
+    await back();
+
+    await expectPath('/');
+  });
+
   describe('с router-а', () => {
     it('затварянето с „назад“ оставя Меню, а следващото „назад“ води на Дашборда', async () => {
       const user = userEvent.setup();

@@ -25,7 +25,7 @@
 - `ErrorBox.tsx:describeError` — само `ApiError` носи свое съобщение; `isSessionExpired()` (401/403 или код `session_expired` при пренасочване) дава „Презареди“; друга грешка е „Няма връзка със сървъра“
 - `Sheet.tsx:Sheet` — фокусът се слага само при монтиране (`focusRef` или бутона за затваряне; при `hideClose` без `focusRef` фокусът се слага отвън, от съдържанието); Escape и фонът викат `onClose`
 - `sheet-drag.ts:onEnd` — затваря при плъзгане над `CLOSE_FRACTION` = 0.25 от височината или при `FLICK_VELOCITY` = 0.5 px/ms и поне `FLICK_MIN_PX` = 24 px; не работи в режим прозорец и при превъртяно съдържание
-- `sheet-history.ts:useSheetHistory` — всеки лист добавя запис с маркер `familySheet`; `history.back()` само ако текущият запис е на този лист; при StrictMode не се добавя втори запис
+- `sheet-history.ts:useSheetHistory` — всеки лист (и под-изглед на лист, напр. в листа на деня) добавя запис с маркер `familySheet`; при затваряне записите се махат само ако текущият запис е на затварящ се лист, а листове, затворени в едно действие (долният заедно с горния), се махат с една стъпка `history.go(-n)`; при StrictMode не се добавя втори запис
 - `sheet-history.ts:replacePushOverSheet` — докато има отворен лист, `pushState` над него става `replaceState`
 - `NeedsConnection.tsx:useNeedsConnection` — `disabled = !online`
 - `TopBar.tsx:STATES` — `ok` → ok, `stale`/`failed` → stale, `unconfigured` → off; датата е в `Europe/Sofia`
@@ -37,7 +37,7 @@
 - `Sheet.tsx:Sheet` — `keydown` на `document` за Escape
 - `Toast.tsx:Toast` — `setTimeout(onDone)` и портал в `document.body`
 - `sheet-drag.ts:useSheetDrag` — touch слушатели на панела, мутира `style.transform`
-- `sheet-history.ts:useSheetHistory` — `History.prototype.pushState`, временна подмяна на `window.history.pushState`, `popstate` слушател и `history.back()`
+- `sheet-history.ts:useSheetHistory` — `History.prototype.pushState`, временна подмяна на `window.history.pushState`, `popstate` слушател и `history.go(-n)`
 
 ## Verification
 - Run: `pnpm --filter web test src/components`
