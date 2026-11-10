@@ -26,7 +26,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `pantry.ts:pantryRoutes` – `GET|POST /api/pantry`, `PATCH|DELETE /api/pantry/:id`, `POST /api/pantry/:id/ran-out`.
 - `appliances.ts:appliancesRoutes` – `GET|POST /api/appliances`, `PUT|DELETE /api/appliances/:id`.
 - `notifications.ts:notificationsRoutes` – `GET /api/notifications/vapid-key`, `PUT|DELETE /api/notifications/subscription`, `GET|PUT /api/notifications/settings`, `POST /api/notifications/test` (`vapid-key` и `test` отговарят 404 `push_disabled`, когато сървърът няма VAPID ключове – `requirePublicKey`). Служебният Рецептурко (роля `app`) получава 403 `forbidden` на всички тях (ADR-0014).
-- `inbox.ts:inboxRoutes` – `GET /api/inbox`, `GET /api/inbox/unread-count`, `POST /api/inbox/read-all`, `POST /api/inbox/:id/read` (204; 404 за чужд или непознат запис), всички на действащия потребител (Входяща кутия, ADR-0015).
+- `inbox.ts:inboxRoutes` – `GET /api/inbox` (бутоните „Извадих“/„Аз“ или кой е отговорил), `GET /api/inbox/unread-count`, `POST /api/inbox/read-all`, `POST /api/inbox/:id/read` (204; 404 за чужд или непознат запис), всички на действащия потребител (Входяща кутия, ADR-0015).
 - `params.ts:idParamsSchema` – `{ id: uuid }` за `:id` параметрите.
 - `photo-form.ts:PHOTO_FIELD, missingPhoto, megabytes, photoTooLarge` – общите помощни функции за multipart полето `photo` и грешките му.
 

@@ -154,7 +154,7 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     '/api/menu/meals/:id/thawed',
     { schema: { params: idParamsSchema } },
     async (request, reply) => {
-      await service.markThawed(request.params.id);
+      await service.markThawed(request.params.id, request.actor.id);
       return reply.code(204).send();
     },
   );

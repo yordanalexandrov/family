@@ -1,10 +1,15 @@
-import { type NotificationKind, notificationKindSchema } from '@family/shared';
+import {
+  type NotificationKind,
+  notificationKindSchema,
+  type PushAction,
+} from '@family/shared';
 import {
   boolean,
   check,
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -118,6 +123,13 @@ export const inboxItem = pgTable(
     title: text('title').notNull(),
     body: text('body').notNull(),
     url: text('url').notNull(),
+    /**
+     * The buttons of the question („Извадих“, „Аз“), as in its push. An answer with the same tag and no buttons
+     * („Довечера готви Дани“) keeps them, so the inbox can say who answered.
+     */
+    actions: jsonb('actions').$type<PushAction[]>(),
+    /** Until when the buttons make sense: the end of the dinner's day. */
+    actionUntil: timestamp('action_until', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
     readAt: timestamp('read_at', { withTimezone: true }),

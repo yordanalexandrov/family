@@ -6,20 +6,23 @@
 ## Interface
 - `queries.ts:inboxKeys`, `useInbox`, `useInboxUnreadCount` — записите и бройката, под `['inbox', userId, …]`
 - `queries.ts:useReadInboxItem`, `useReadAllInbox` — прочитане на един и „Всички прочетени“
+- `queries.ts:useInboxAction` — бутон на известие („Извадих“, „Аз“) от реда
 - `InboxScreen.tsx:InboxScreen` — екранът: групи „Днес“, „Вчера“, „По-рано“ (`inboxGroups` от shared), „Всички прочетени“ вдясно на реда под заглавието (до него заглавието не се събира на телефона), „Няма известия“
-- `InboxRow.tsx:InboxRow` — един ред (`<li>`): глава-линк с точка, заглавие, текст и час
+- `InboxRow.tsx:InboxRow` — един ред (`<li>`): глава-линк с точка, заглавие, текст и час; под нея бутоните или кой е отговорил
 - `InboxBell.tsx:InboxBell`, `bellLabel` — камбанката в `ScreenHeader` и в `TopBar` на дашборда, преди аватара
 
 ## Invariants
 - `InboxBell.tsx:InboxBell` — без действащ човек (`useWritingUserId()` е `null`) не се рендира и не пита api-то; бройката се скрива при 0, над 9 е „9+“; името на линка казва бройката
 - `InboxScreen.tsx:InboxScreen` — извън `phone`/`browser` пренасочва към `/`
 - `InboxRow.tsx:InboxRow` — натискането на главата прочита само непрочетен запис и води към `url` с `router.navigate({ href })`; Ctrl/Cmd/Shift клик оставя браузъра
+- `InboxRow.tsx:InboxActions` — бутонът вика `post` на действието (същият път като на push-а) с действащия човек и прочита записа; при 409 `cook_taken` вместо бутона е „<име> вече готви“; `answered` от api-то заменя бутоните
 - `queries.ts:useReadMutation` — прочитането е оптимистично върху записите и бройката на действащия човек; `onSettled` инвалидира `inboxKeys.all`; мутацията довършва и след смяната на екрана
 
 ## Side Effects
 - `queries.ts:useInbox` — GET `/api/inbox`
 - `queries.ts:useInboxUnreadCount` — GET `/api/inbox/unread-count`
 - `queries.ts:useReadInboxItem`, `useReadAllInbox` — POST `/api/inbox/:id/read`, POST `/api/inbox/read-all`
+- `queries.ts:useInboxAction` — POST на `action.post` (напр. `/api/menu/meals/:id/thawed`); `onSettled` инвалидира кутията, дашборда и менюто
 
 ## Verification
 - Run: `pnpm --filter web test src/features/inbox`

@@ -1,10 +1,14 @@
 import { z } from 'zod';
 import { instantSchema } from './dates.js';
-import { appPathSchema, notificationKindSchema } from './notifications.js';
+import {
+  appPathSchema,
+  notificationKindSchema,
+  pushActionSchema,
+} from './notifications.js';
 
 /**
  * A notification in the inbox (GLOSSARY: Входяща кутия) of the acting user, as `GET /api/inbox` gives it: what the push
- * said (`title`, `body`) and where it leads (`url`). One per person and `tag`: a notification with the same tag updates
+ * said (`title`, `body`), where it leads (`url`) and its buttons while they make sense. One per person and `tag`: a notification with the same tag updates
  * it, moves it to the top (`updatedAt`) and makes it unread again.
  */
 export const inboxItemSchema = z.object({
@@ -16,6 +20,16 @@ export const inboxItemSchema = z.object({
   createdAt: instantSchema,
   updatedAt: instantSchema,
   unread: z.boolean(),
+  /**
+   * The buttons of the notification („Извадих“, „Аз“), as in the push, only while they make sense: until the end of
+   * the dinner's day and while no one answered.
+   */
+  actions: z.array(pushActionSchema).optional(),
+  /**
+   * Who answered the buttons, instead of them (`Поли вече готви`, `Дани извади месото`), from the dinner as it is now;
+   * none after the end of the dinner's day.
+   */
+  answered: z.object({ text: z.string().min(1) }).optional(),
 });
 
 export type InboxItem = z.infer<typeof inboxItemSchema>;

@@ -368,3 +368,72 @@ describe('thaw in GET /api/dashboard', () => {
     expect(await thaw(MORNING)).toEqual([]);
   });
 });
+
+describe('„Извадих“ in GET /api/inbox', () => {
+  /** Thursday 23:59 in Sofia, the last minute of the dinner's day. */
+  const LAST_MINUTE = new Date('2026-11-05T21:59:00Z');
+  /** Friday 00:00 in Sofia: the dinner's day is over. */
+  const NEXT_DAY = new Date('2026-11-05T22:00:00Z');
+
+  async function thawItem(userId: string) {
+    const items = await inboxOf(app, userId);
+    return items.find((item) => item.kind === 'thaw');
+  }
+
+  it('gives „Извадих“ until the end of the dinner’s day while no one answered, then only the text', async () => {
+    await runAt(EVENING);
+    const button = {
+      action: 'thawed',
+      title: 'Извадих',
+      post: `/api/menu/meals/${musakaMealId}/thawed`,
+    };
+
+    clock = LAST_MINUTE;
+    const before = await thawItem(DANI.id);
+    expect(before?.actions).toEqual([button]);
+    expect(before?.answered).toBeUndefined();
+
+    clock = NEXT_DAY;
+    const after = await thawItem(DANI.id);
+    expect(after).toMatchObject({ title: 'Извади месото за утре' });
+    expect(after?.actions).toBeUndefined();
+    expect(after?.answered).toBeUndefined();
+  });
+
+  it('says who took the meat out after „Извадих“, instead of the button', async () => {
+    await runAt(EVENING);
+
+    expect((await thawed(musakaMealId, POLI.id)).statusCode).toBe(204);
+
+    const atDani = await thawItem(DANI.id);
+    expect(atDani?.actions).toBeUndefined();
+    expect(atDani?.answered).toEqual({ text: 'Поли извади месото' });
+    expect((await thawItem(POLI.id))?.answered).toEqual({
+      text: 'Ти извади месото',
+    });
+  });
+
+  it('gives „Извадих“ again after a new recipe undid it', async () => {
+    await runAt(EVENING);
+    await thawed(musakaMealId, POLI.id);
+    const peppers = await createRecipe('Пълнени чушки', [
+      'чушка',
+      'смесена кайма',
+    ]);
+    await patchMeal(musakaMealId, { recipeId: peppers });
+
+    const item = await thawItem(DANI.id);
+    expect(item?.actions).toHaveLength(1);
+    expect(item?.answered).toBeUndefined();
+  });
+
+  it('gives nothing after the dinner’s day, answered or not', async () => {
+    await runAt(EVENING);
+    await thawed(musakaMealId, POLI.id);
+
+    clock = NEXT_DAY;
+    const item = await thawItem(DANI.id);
+    expect(item?.actions).toBeUndefined();
+    expect(item?.answered).toBeUndefined();
+  });
+});

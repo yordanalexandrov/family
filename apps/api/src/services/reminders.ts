@@ -5,6 +5,7 @@ import {
   dateKeyInSofia,
   type Meal,
   mealTitle,
+  startOfDayInSofia,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
@@ -20,10 +21,9 @@ import {
   type ReminderMeal,
 } from '../db/repositories/reminders.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
-import type { InboxService } from './inbox.js';
+import type { InboxMessage, InboxService } from './inbox.js';
 import type { MenuNotifications } from './menu-notifications.js';
 import { mealUrl, notificationTag } from './notification-links.js';
-import type { PushMessage } from './push.js';
 import {
   THAW_EVENING_HOUR,
   THAW_MORNING_HOUR,
@@ -48,7 +48,12 @@ export interface ReminderState {
 
 /** One reminder to send to one person; once sent it goes to `notification_log` with these `kind`, `subjectId` and `onDate`. */
 export interface DueReminder extends NotificationLogEntry {
-  message: PushMessage;
+  message: InboxMessage;
+}
+
+/** The buttons of a reminder about a dinner on `date` make sense in the inbox until the end of that day. */
+function endOfDay(date: DateKey): Date {
+  return startOfDayInSofia(addDays(date, 1));
 }
 
 /** Whether a reminder for `hour` on `date` is due at `now`: from that hour until {@link REMINDER_GRACE_MS} after it. */
@@ -62,7 +67,7 @@ function thawMessage(
   meal: ReminderMeal,
   products: string[],
   title: string,
-): PushMessage {
+): InboxMessage {
   return {
     title,
     body: `${meal.title}: ${products.join(', ')}`,
@@ -75,6 +80,7 @@ function thawMessage(
         post: `/api/menu/meals/${meal.id}/thawed`,
       },
     ],
+    actionUntil: endOfDay(meal.date),
   };
 }
 
@@ -152,7 +158,7 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
       tag: notificationTag.cook(meal.id),
       url: mealUrl(meal),
     };
-    const message: PushMessage = meal.cookUserId
+    const message: InboxMessage = meal.cookUserId
       ? { ...base, title: 'Довечера готвиш ти' }
       : {
           ...base,
@@ -164,6 +170,7 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
               post: `/api/menu/meals/${meal.id}/cook-claim`,
             },
           ],
+          actionUntil: endOfDay(meal.date),
         };
     for (const user of state.users) {
       if (meal.cookUserId === null || meal.cookUserId === user.id) {

@@ -2,8 +2,9 @@ import type { InboxItem } from '@family/shared';
 import { dateKeyInSofia } from '@family/shared';
 import { useRouter } from '@tanstack/react-router';
 import type { MouseEvent } from 'react';
+import { refusalOf } from '../../api/client';
 import { formatShortDate, formatTime } from '../../lib/format';
-import { useReadInboxItem } from './queries';
+import { useInboxAction, useReadInboxItem } from './queries';
 
 /** „18:00“, а в „По-рано“ — „2.11 · 18:00“. */
 function when(item: InboxItem, withDate: boolean): string {
@@ -65,6 +66,45 @@ export function InboxRow({
           {when(item, withDate)}
         </time>
       </a>
+      <InboxActions item={item} />
     </li>
+  );
+}
+
+/**
+ * Бутоните на известието („Извадих“, „Аз“), докато имат смисъл, или кой е отговорил („Поли вече готви“). Натиснат
+ * бутон прочита записа; при отказ `cook_taken` редът казва кой готви.
+ */
+function InboxActions({ item }: { item: InboxItem }) {
+  const action = useInboxAction();
+  const read = useReadInboxItem();
+  const taken = refusalOf(action.error, 'cook_taken');
+  const answer = taken ? `${taken.cookName} вече готви` : item.answered?.text;
+
+  if (answer) {
+    return <p className="inbox-row__answered">{answer}</p>;
+  }
+  if (!item.actions?.length) {
+    return null;
+  }
+  return (
+    <div className="inbox-row__actions">
+      {item.actions.map((button) => (
+        <button
+          key={button.action}
+          type="button"
+          className="button"
+          disabled={action.isPending}
+          onClick={() => {
+            action.mutate(button);
+            if (item.unread) {
+              read.mutate(item.id);
+            }
+          }}
+        >
+          {button.title}
+        </button>
+      ))}
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import {
   type InboxItem,
   inboxResponseSchema,
   inboxUnreadCountSchema,
+  type PushAction,
 } from '@family/shared';
 import {
   type QueryClient,
@@ -10,7 +11,9 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiFetch } from '../../api/client';
+import { queryKeys } from '../../api/queries';
 import { useWritingUserId } from '../../app/acting-user';
+import { menuKeys } from '../menu/queries';
 
 /**
  * Ключовете на Входящата кутия (GLOSSARY: Входяща кутия): всичко е под `['inbox']`, по човек, за да не се покаже
@@ -104,4 +107,20 @@ export function useReadAllInbox() {
     () => post('/inbox/read-all'),
     () => () => true,
   );
+}
+
+/**
+ * Бутон на известие от реда („Извадих“, „Аз“): същият api път като бутона на push (`post`), с действащия потребител.
+ * След отговора (и при отказ, напр. 409 `cook_taken`) кутията, дашбордът и менюто се презареждат.
+ */
+export function useInboxAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: PushAction) => post(action.post.replace(/^\/api/, '')),
+    onSettled() {
+      void queryClient.invalidateQueries({ queryKey: inboxKeys.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
+      void queryClient.invalidateQueries(menuKeys.plans);
+    },
+  });
 }

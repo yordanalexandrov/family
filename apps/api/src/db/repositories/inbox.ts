@@ -1,6 +1,7 @@
-import type { InboxItem, NotificationKind } from '@family/shared';
-import { and, count, desc, eq, isNull, lt } from 'drizzle-orm';
+import type { InboxItem, NotificationKind, PushAction } from '@family/shared';
+import { and, count, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
+import { meal } from '../schema/menu.js';
 import { inboxItem } from '../schema/notifications.js';
 
 /** What a notification writes into the inbox of one person. */
@@ -11,11 +12,23 @@ export interface InboxWrite {
   title: string;
   body: string;
   url: string;
+  /** The buttons of a question; `null` for a notification without, which keeps the buttons of the row it updates. */
+  actions: PushAction[] | null;
+  actionUntil: Date | null;
+}
+
+/** A notification as the inbox keeps it; {@link InboxItem} without the buttons, which the service decides on. */
+export interface StoredInboxItem
+  extends Omit<InboxItem, 'actions' | 'answered'> {
+  tag: string;
+  actions: PushAction[] | null;
+  actionUntil: Date | null;
 }
 
 /**
  * Writes the notification at `at`: a new row, or the person's row with the same `tag` updated (content,
- * `updated_at`, unread again; `created_at` stays). Answers the row's id.
+ * `updated_at`, unread again; `created_at` stays, and so do the buttons when the new one has none). Answers the row's
+ * id.
  */
 export async function upsertInboxItem(
   db: DbExecutor,
@@ -28,7 +41,13 @@ export async function upsertInboxItem(
     .values({ ...item, createdAt: at, updatedAt: at })
     .onConflictDoUpdate({
       target: [inboxItem.userId, inboxItem.tag],
-      set: { ...content, updatedAt: at, readAt: null },
+      set: {
+        ...content,
+        actions: sql`coalesce(excluded.actions, ${inboxItem.actions})`,
+        actionUntil: sql`coalesce(excluded.action_until, ${inboxItem.actionUntil})`,
+        updatedAt: at,
+        readAt: null,
+      },
     })
     .returning({ id: inboxItem.id });
   if (!row) {
@@ -41,7 +60,7 @@ export async function upsertInboxItem(
 export async function listInboxItems(
   db: DbExecutor,
   userId: string,
-): Promise<InboxItem[]> {
+): Promise<StoredInboxItem[]> {
   const rows = await db
     .select()
     .from(inboxItem)
@@ -56,7 +75,37 @@ export async function listInboxItems(
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     unread: row.readAt === null,
+    tag: row.tag,
+    actions: row.actions,
+    actionUntil: row.actionUntil,
   }));
+}
+
+/** How the buttons of a reminder about a meal were answered: who cooks, who took the meat out. */
+export interface MealAnswers {
+  id: string;
+  cookUserId: string | null;
+  thawedAt: Date | null;
+  thawedByUserId: string | null;
+}
+
+/** The answers of the meals `ids`; a meal that is gone is left out. */
+export async function listMealAnswers(
+  db: DbExecutor,
+  ids: string[],
+): Promise<MealAnswers[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  return db
+    .select({
+      id: meal.id,
+      cookUserId: meal.cookUserId,
+      thawedAt: meal.thawedAt,
+      thawedByUserId: meal.thawedByUserId,
+    })
+    .from(meal)
+    .where(inArray(meal.id, ids));
 }
 
 export async function countUnreadInboxItems(

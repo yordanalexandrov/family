@@ -324,7 +324,13 @@ export async function updateMeal(
   values: Partial<
     Pick<
       typeof meal.$inferInsert,
-      'recipeId' | 'note' | 'cookUserId' | 'servings' | 'why' | 'thawedAt'
+      | 'recipeId'
+      | 'note'
+      | 'cookUserId'
+      | 'servings'
+      | 'why'
+      | 'thawedAt'
+      | 'thawedByUserId'
     >
   >,
   at: Date,
@@ -535,16 +541,21 @@ export async function setProposalPlan(
     .where(eq(menuProposalRequest.id, id));
 }
 
-/** „Извадих“ for the meal at `at`, unless it is already; answers the plan of the meal, `null` when there is no such meal. */
+/**
+ * „Извадих“ of `userId` for the meal at `at`, unless it is already (then who and when stay); answers the plan of the
+ * meal, `null` when there is no such meal.
+ */
 export async function markMealThawed(
   db: DbExecutor,
   id: string,
+  userId: string,
   at: Date,
 ): Promise<{ planId: string } | null> {
   const [row] = await db
     .update(meal)
     .set({
       thawedAt: sql`coalesce(${meal.thawedAt}, ${at.toISOString()}::timestamptz)`,
+      thawedByUserId: sql`case when ${meal.thawedAt} is null then ${userId}::uuid else ${meal.thawedByUserId} end`,
     })
     .where(eq(meal.id, id))
     .returning({ planId: meal.planId });
