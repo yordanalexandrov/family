@@ -27,7 +27,7 @@
 - `recipe-refinements.ts:lockRecipe, hasPendingRefinement, insertRefineRequest, findRefineRequest, setRefinement, setRefineNoResults` – Подобряване на рецепта.
 - `recipe-revisions.ts:findOpenRevisions, lockRecipeUpdatedAt, insertRevisionRequest, findRevisionRequest, findRevisionBaseRecipe, findOpenSuggestionRevision, lockRevisionRequest, setRevision, setRevisionNoResults, decideRevisionRequest` – Поправка на рецепта.
 - `recipe-suggestions.ts:insertSuggestionRequest, findSuggestionRequest, listSuggestionRequests, insertSuggestions, listSuggestions, lockSuggestion, decideSuggestion, undecideSuggestion, toImportedSuggestion` – Заявка за предложения и Предложение за рецепта.
-- `recipes.ts:findRecipe, listRecipes, insertRecipe, updateRecipe, setRecipeArchivedAt, setRecipeRating, replaceRecipeLines` – Регистър рецепти: рецепти, Компоненти и редове с продукти.
+- `recipes.ts:findRecipe, listRecipes, insertRecipe, updateRecipe, setRecipeArchivedAt, setRecipeRating, replaceRecipeLines` – Регистър рецепти: рецепти, Компоненти и редове с продукти. `insertRecipe` приема по избор `source` (`ImportedSource`) — Източникът на рецептата от внасянето, от което идва (без него текстът е `null`, а снимките `[]`).
 - `recipes.ts:listActiveRecipeTitles, listActiveRecipesByTitle, isMenuRecipe, listMenuRecipes, countMenuRecipes` – контекст на регистъра за AI контрактите и менюто.
 - `reminders.ts:listReminderDinners, listFrozenIngredientIds` – вечерите и продуктите „Във фризера“, които трябват на напомнянията.
 - `shopping.ts:ensureShoppingList, findShoppingListId, listShoppingItems, setComputedItemOverlay, insertManualItem, setManualItemCheck, deleteManualItem, listShoppingMealIds, insertShoppingMeal, deleteShoppingMeal, deleteShoppingMealsOf` – Списък за пазаруване.
@@ -35,7 +35,7 @@
 - `source-photos.ts:insertSourcePhotos, findSourcePhotosData, deleteOrphanSourcePhotos` – снимките на Източник на рецепта (ADR-0016).
 - `sync-runs.ts:startRun, finishRun, lastRuns, pruneRuns` – Синхронизация (`sync_run`).
 - `users.ts:listUsers, listPeople, findUser` – Потребители; `listPeople` е без служебните (роля `app`, ADR-0014).
-- Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuAction, MenuActivity, MenuActivityAction`, `menu.ts:NewMeal, MealRemoval, MealAnswers`, `inbox.ts:InboxWrite`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
+- Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuAction, MenuActivity, MenuActivityAction`, `menu.ts:NewMeal, MealRemoval, MealAnswers`, `inbox.ts:InboxWrite`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `recipes.ts:ImportedSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
 
 ## Invariants
 
