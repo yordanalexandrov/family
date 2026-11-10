@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { HttpResponse, http } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { recipe } from '../db/schema/food.js';
 import type { CloudflareAccessOptions } from '../plugins/cloudflare-access.js';
 import { buildTestApp } from '../test/app.js';
 import { rerunMigration, testDb } from '../test/db.js';
@@ -338,6 +339,152 @@ describe('the recipe.suggest run', () => {
     });
     expect(body.request.finishedAt).toEqual(expect.any(String));
     expect(body.suggestions).toEqual([]);
+  });
+});
+
+describe('a request from a menu meal (GLOSSARY: Разговор)', () => {
+  /** A Monday far enough ahead that the meals are never past, whenever the tests run. */
+  const WEEK = '2030-01-07';
+
+  function inject(
+    method: 'POST' | 'PATCH' | 'DELETE',
+    url: string,
+    payload?: object,
+    as = DANI.id,
+  ) {
+    return app.inject({
+      method,
+      url,
+      headers: { 'x-acting-user': as },
+      payload,
+    });
+  }
+
+  /** Wednesday's dinner of {@link WEEK}: the chicken of the registry, talked over by Поли and Дани. */
+  async function talkedOverWednesday() {
+    const [chicken] = await testDb()
+      .insert(recipe)
+      .values({
+        title: 'Пиле с ориз на фурна',
+        servings: 4,
+        steps: [{ text: 'Сготви.' }],
+        tags: ['dinner'],
+      })
+      .returning({ id: recipe.id });
+    const created = await inject('POST', '/api/menu/plans', {
+      weekStart: WEEK,
+    });
+    expect(created.statusCode).toBe(201);
+    const { plan } = created.json();
+    const wednesday = plan.meals[2];
+    expect(
+      (
+        await inject('PATCH', `/api/menu/meals/${wednesday.id}`, {
+          recipeId: chicken?.id,
+        })
+      ).statusCode,
+    ).toBe(200);
+    for (const [body, as] of [
+      ['Пак пиле? Тази вечер по-добре нещо без месо.', POLI.id],
+      ['Добре, но да не е леща.', DANI.id],
+    ] as const) {
+      const comment = await inject(
+        'POST',
+        `/api/menu/meals/${wednesday.id}/comments`,
+        { body },
+        as,
+      );
+      expect(comment.statusCode).toBe(201);
+    }
+    return {
+      planId: plan.id as string,
+      meal: wednesday as { id: string; date: string },
+    };
+  }
+
+  it('tells the agent the meal and its thread, with the authors by name', async () => {
+    const { meal } = await talkedOverWednesday();
+    const calls = answerInTurn(VALID());
+
+    const request = await requested({
+      slots: ['dinner'],
+      hint: 'нещо бързо',
+      mealId: meal.id,
+    });
+
+    expect(request.meal).toEqual({
+      id: meal.id,
+      date: '2030-01-09',
+      slot: 'dinner',
+    });
+    await finished(request);
+    const input = JSON.parse(
+      (calls.bodies[0] as { messages: { content: string }[] }).messages[0]
+        ?.content ?? '',
+    );
+    expect(input).not.toHaveProperty('mealId');
+    expect(input.hint).toBe('нещо бързо');
+    expect(input.meal).toMatchObject({
+      date: '2030-01-09',
+      slot: 'dinner',
+      current: { title: 'Пиле с ориз на фурна' },
+    });
+    expect(
+      input.meal.thread.filter(
+        (line: { kind: string }) => line.kind === 'comment',
+      ),
+    ).toEqual([
+      {
+        author: POLI.name,
+        kind: 'comment',
+        body: 'Пак пиле? Тази вечер по-добре нещо без месо.',
+      },
+      { author: DANI.name, kind: 'comment', body: 'Добре, но да не е леща.' },
+    ]);
+  });
+
+  it('asks without a meal when the request is not from one', async () => {
+    const calls = answerInTurn(VALID());
+
+    const request = await requested({ slots: ['dinner'] });
+
+    expect(request.meal).toBeUndefined();
+    await finished(request);
+    const input = JSON.parse(
+      (calls.bodies[0] as { messages: { content: string }[] }).messages[0]
+        ?.content ?? '',
+    );
+    expect(input).not.toHaveProperty('meal');
+  });
+
+  it('refuses an unknown meal with 404 and stores no request', async () => {
+    const response = await postRequest({
+      slots: ['dinner'],
+      mealId: '00000000-0000-4000-8000-000000000000',
+    });
+
+    expect(response.statusCode).toBe(404);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/recipe-suggestions/requests',
+      headers,
+    });
+    expect(list.json().requests).toEqual([]);
+  });
+
+  it('keeps the request and its suggestions when the menu is deleted, without the meal', async () => {
+    const { planId, meal } = await talkedOverWednesday();
+    const done = await finished(
+      await requested({ slots: ['dinner'], mealId: meal.id }),
+    );
+
+    expect(
+      (await inject('DELETE', `/api/menu/plans/${planId}`)).statusCode,
+    ).toBe(204);
+
+    const after = (await getRequest(done.request.id)).json();
+    expect(after.request.meal).toBeUndefined();
+    expect(after.suggestions).toHaveLength(done.suggestions.length);
   });
 });
 

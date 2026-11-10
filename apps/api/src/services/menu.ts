@@ -14,6 +14,7 @@ import {
   type MealComment,
   type MealPlan,
   type MealPlanSummary,
+  type MealThreadInput,
   type MenuProposalRequest,
   type MenuProposeInput,
   type MenuProposeOutput,
@@ -781,13 +782,13 @@ export async function refuseReworkingWeek(
 const AI_AUTHOR = 'AI';
 
 /**
- * The thread of a meal as `meal.replace` and `menu.rework` get it, oldest first, each line by its author's name; a line
- * of the AI is the AI's, though it is stored on behalf of whoever asked for it.
+ * The thread of a meal as `meal.replace`, `menu.rework` and a `recipe.suggest` asked from the meal get it, oldest first,
+ * each line by its author's name; a line of the AI is the AI's, though it is stored on behalf of whoever asked for it.
  */
 export async function agentThread(
   db: DbExecutor,
   mealId: string,
-): Promise<{ author: string; body: string; kind: MealComment['kind'] }[]> {
+): Promise<MealThreadInput> {
   const names = new Map(
     (await listUsers(db)).map((user) => [user.id, user.name]),
   );

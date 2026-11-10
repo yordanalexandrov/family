@@ -15,6 +15,20 @@ import { menuProposeRecipeSchema } from './menu-propose.js';
 /** Most candidates an answer has; the API refuses a request with fewer recipes to choose from. */
 export const MEAL_REPLACE_MAX_CANDIDATES = 3;
 
+/**
+ * A meal's thread (GLOSSARY: Разговор) as an AI contract reads it, oldest first; `author` is the user's name, a system
+ * line's `body` follows it. The input of `meal.replace` and of a `recipe.suggest` asked from a meal.
+ */
+export const mealThreadInputSchema = z.array(
+  z.object({
+    author: z.string(),
+    body: z.string(),
+    kind: mealCommentKindSchema,
+  }),
+);
+
+export type MealThreadInput = z.infer<typeof mealThreadInputSchema>;
+
 const mealReplaceInputSchema = z.strictObject({
   date: dateKeySchema,
   slot: slotSchema,
@@ -24,14 +38,8 @@ const mealReplaceInputSchema = z.strictObject({
     title: z.string().optional(),
     note: z.string().optional(),
   }),
-  /** The meal's thread, oldest first; `author` is the user's name, a system line's `body` follows it. */
-  thread: z.array(
-    z.object({
-      author: z.string(),
-      body: z.string(),
-      kind: mealCommentKindSchema,
-    }),
-  ),
+  /** The meal's thread, oldest first. */
+  thread: mealThreadInputSchema,
   /** The other meals of the plan that have a title (recipe or note). */
   week: z.array(z.object({ date: dateKeySchema, title: z.string() })),
   /** Not archived, tagged with the slot, without the current recipe. */

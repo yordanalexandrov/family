@@ -6,7 +6,7 @@
 
 ## Interface
 
-- `suggest-smoke.ts` (`pnpm --filter api suggest:smoke -- --slots … [--times] [--tags] [--hint] [--no-component] [--repeat N] [--save out.json]`) – `recipe.suggest` през агента `family-recipe`.
+- `suggest-smoke.ts` (`pnpm --filter api suggest:smoke -- --slots … [--times] [--tags] [--hint] [--current "…" --comment "Поли: …"] [--no-component] [--repeat N] [--save out.json]`) – `recipe.suggest` през агента `family-recipe`.
 - `menu-smoke.ts` (`menu:smoke -- [--hint] [--save]`) – `menu.propose` през `family-menu` по fixture `menu-propose.input.json`.
 - `meal-smoke.ts` (`meal:smoke -- [--comment] [--save]`) – `meal.replace` през `family-meal` по fixture `meal-replace.input.json`.
 - `rework-smoke.ts` (`rework:smoke -- [--case …] [--repeat N] [--hint | --no-hint] [--week YYYY-MM-DD [--today YYYY-MM-DD]] [--input] [--save]`) – `menu.rework` през `family-menu-rework`: вградени случаи от fixture `menu-rework.input.json`, истинска седмица от базата (`--week`, само чете, входът е от `createMenuReworkStore().buildInput`) или записан вход.

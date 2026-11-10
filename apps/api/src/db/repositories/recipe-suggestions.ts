@@ -13,18 +13,32 @@ import {
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { recipeSuggestion, recipeSuggestionRequest } from '../schema/food.js';
+import { meal } from '../schema/menu.js';
 
 type RequestRow = typeof recipeSuggestionRequest.$inferSelect;
 type SuggestionRow = typeof recipeSuggestion.$inferSelect;
 
+/** The meal a request was asked from, by its `meal_id`: what the API shape shows of it. */
+type RequestMeal = Pick<typeof meal.$inferSelect, 'id' | 'date' | 'slot'>;
+
+/** A request row with its meal (`null` without one), as {@link selectRequests} reads it. */
+interface RequestWithMeal {
+  request: RequestRow;
+  meal: RequestMeal | null;
+}
+
 /** API shape of a request: DB nulls of optional fields become absent, dates ISO strings. */
-function toRequest(row: RequestRow): SuggestionRequest {
+function toRequest({
+  request: row,
+  meal: askedFrom,
+}: RequestWithMeal): SuggestionRequest {
   return {
     id: row.id,
     slots: row.slots,
     times: row.times,
     tags: row.tags,
     hint: row.hint ?? undefined,
+    meal: askedFrom ?? undefined,
     status: row.status,
     error: row.error ?? undefined,
     requestedBy: row.requestedBy,
@@ -82,7 +96,18 @@ function toAnySuggestion(row: SuggestionRow): AnyRecipeSuggestion {
     : toImportedSuggestion(row);
 }
 
-/** A new `pending` request. */
+/** Requests with the meal each was asked from. */
+function selectRequests(db: DbExecutor) {
+  return db
+    .select({
+      request: recipeSuggestionRequest,
+      meal: { id: meal.id, date: meal.date, slot: meal.slot },
+    })
+    .from(recipeSuggestionRequest)
+    .leftJoin(meal, eq(meal.id, recipeSuggestionRequest.mealId));
+}
+
+/** A new `pending` request; the caller has checked that its meal, if any, exists. */
 export async function insertSuggestionRequest(
   db: DbExecutor,
   params: RecipeSuggestParams,
@@ -95,22 +120,22 @@ export async function insertSuggestionRequest(
       times: params.times ?? [],
       tags: params.tags ?? [],
       hint: params.hint || null,
+      mealId: params.mealId ?? null,
       requestedBy,
     })
-    .returning();
-  if (!row) {
+    .returning({ id: recipeSuggestionRequest.id });
+  const created = row && (await findSuggestionRequest(db, row.id));
+  if (!created) {
     throw new Error('insert into recipe_suggestion_request returned no row');
   }
-  return toRequest(row);
+  return created;
 }
 
 export async function findSuggestionRequest(
   db: DbExecutor,
   id: string,
 ): Promise<SuggestionRequest | undefined> {
-  const [row] = await db
-    .select()
-    .from(recipeSuggestionRequest)
+  const [row] = await selectRequests(db)
     .where(eq(recipeSuggestionRequest.id, id))
     .limit(1);
   return row && toRequest(row);
@@ -121,9 +146,7 @@ export async function listSuggestionRequests(
   db: DbExecutor,
   limit: number,
 ): Promise<SuggestionRequest[]> {
-  const rows = await db
-    .select()
-    .from(recipeSuggestionRequest)
+  const rows = await selectRequests(db)
     .orderBy(desc(recipeSuggestionRequest.createdAt))
     .limit(limit);
   return rows.map(toRequest);

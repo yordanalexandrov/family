@@ -3,13 +3,16 @@
 // shows its preparation (#284) and the steps with a temperature, to compare the degrees with the step and the source.
 // Each suggestion shows its components (GLOSSARY: Компонент, #325) with their lines; `--no-component` makes a
 // suggestion with one ✗ and exit 1 (a moussaka's topping is never a component). `--repeat` asks that many times.
-//   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--no-component] [--repeat N] [--save out.json]
+// `--comment "Автор: текст"` (any number of them) asks as from a menu meal (GLOSSARY: Разговор): the meal is next
+// Wednesday's dinner of `--current` (a recipe title), with these comments as its thread; read the `why` against it.
+//   pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--current "..." --comment "Поли: ..."] [--no-component] [--repeat N] [--save out.json]
 import { readFile, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import {
   preparationKind,
   preparationLabel,
   type RecipeSuggestInput,
+  type RecipeSuggestMeal,
   type RecipeSuggestOutput,
   recipeSuggest,
   recipeSuggestParamsSchema,
@@ -28,6 +31,8 @@ const { values } = parseArgs({
     times: { type: 'string' },
     tags: { type: 'string' },
     hint: { type: 'string' },
+    current: { type: 'string' },
+    comment: { type: 'string', multiple: true },
     'no-component': { type: 'boolean' },
     repeat: { type: 'string' },
     save: { type: 'string' },
@@ -43,7 +48,7 @@ const params = recipeSuggestParamsSchema.safeParse({
 if (!params.success) {
   process.stderr.write(
     `Invalid arguments:\n${z.prettifyError(params.error)}\n` +
-      'Usage: pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--no-component] [--repeat N] [--save out.json]\n',
+      'Usage: pnpm --filter api suggest:smoke -- --slots lunch,dinner [--times 0-15,15-30] [--tags batch,quick] [--hint "..."] [--current "..." --comment "Поли: ..."] [--no-component] [--repeat N] [--save out.json]\n',
   );
   process.exit(2);
 }
@@ -52,6 +57,49 @@ if (!Number.isInteger(repeat) || repeat < 1) {
   process.stderr.write('--repeat is a whole number from 1.\n');
   process.exit(2);
 }
+
+// `--comment "Поли: текст"`: the author before the first colon, as the api names the users in the thread.
+const thread = (values.comment ?? []).map((line) => {
+  const colon = line.indexOf(':');
+  if (colon < 1) {
+    process.stderr.write(`--comment is "Автор: текст", got "${line}".\n`);
+    process.exit(2);
+  }
+  return {
+    author: line.slice(0, colon).trim(),
+    kind: 'comment' as const,
+    body: line.slice(colon + 1).trim(),
+  };
+});
+/** Next Wednesday in Sofia, the day of the meal the comments are about. */
+function nextWednesday(): string {
+  const today = new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'Europe/Sofia' }),
+  );
+  const ahead = ((3 - today.getDay() + 7) % 7) + 7;
+  today.setDate(today.getDate() + ahead);
+  return today.toLocaleDateString('sv-SE');
+}
+const meal: RecipeSuggestMeal | undefined =
+  thread.length > 0 || values.current !== undefined
+    ? {
+        date: nextWednesday(),
+        slot: params.data.slots[0] ?? 'dinner',
+        current: values.current === undefined ? {} : { title: values.current },
+        thread: [
+          ...(values.current === undefined
+            ? []
+            : [
+                {
+                  author: thread[0]?.author ?? 'Дани',
+                  kind: 'system' as const,
+                  body: `избра „${values.current}“`,
+                },
+              ]),
+          ...thread,
+        ],
+      }
+    : undefined;
 
 const config = loadOpenClawConfig();
 // The client logs only agent, attempt, status, duration and usage; the password stays in the Authorization header.
@@ -89,6 +137,7 @@ const appliances = parsedRows
 // The context the api would add: the seed ingredients, an empty registry and the household appliances.
 const input: RecipeSuggestInput = {
   ...params.data,
+  ...(meal ? { meal } : {}),
   existingRecipeTitles: [],
   ingredientNames: seed.ingredients.map((ingredient) => ingredient.name),
   appliances,
@@ -101,7 +150,7 @@ const outputs: RecipeSuggestOutput[] = [];
 let failed = false;
 for (let run = 1; run <= repeat; run++) {
   process.stderr.write(
-    `→ ${config.url} openclaw/${config.recipeAgent}, timeout ${config.timeoutMs} ms, input ${JSON.stringify(params.data)}${repeat > 1 ? `, опит ${run}/${repeat}` : ''}\n`,
+    `→ ${config.url} openclaw/${config.recipeAgent}, timeout ${config.timeoutMs} ms, input ${JSON.stringify({ ...params.data, ...(meal ? { meal } : {}) })}${repeat > 1 ? `, опит ${run}/${repeat}` : ''}\n`,
   );
   const started = performance.now();
   try {

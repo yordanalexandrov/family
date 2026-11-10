@@ -4,6 +4,7 @@ import {
   canonicalTitle,
   type Recipe,
   type RecipeSuggestInput,
+  type RecipeSuggestMeal,
   type RecipeSuggestOutput,
   type RecipeSuggestParams,
   type SuggestionRequest,
@@ -13,6 +14,7 @@ import {
 import type { Db, DbExecutor } from '../db/client.js';
 import { listEnabledApplianceNames } from '../db/repositories/appliances.js';
 import { listIngredientNames } from '../db/repositories/ingredients.js';
+import { findMeal } from '../db/repositories/menu.js';
 import {
   decideSuggestion,
   findSuggestionRequest,
@@ -34,6 +36,7 @@ import type {
   ContractRequestStore,
 } from './contract-requests.js';
 import { ConflictError, NotFoundError } from './errors.js';
+import { agentThread, NO_SUCH_MEAL } from './menu.js';
 import { acceptSuggestionRevision } from './recipe-revisions.js';
 import { addRecipe } from './recipes.js';
 import { stepPhotoIds } from './step-photos.js';
@@ -75,8 +78,9 @@ export type SuggestionRequests = ContractRequestHandle<
 >;
 
 /**
- * How `recipe.suggest` requests are stored: the input is the request plus the registry context (active recipe titles,
- * ingredient names) and the enabled household appliances; a valid answer stores the suggestions in the agent's order, or ends
+ * How `recipe.suggest` requests are stored: refused (404) for an unknown meal. The input is the request plus the
+ * registry context (active recipe titles, ingredient names) and the enabled household appliances, and for a request
+ * from a meal the meal with its thread, read when the request runs; a valid answer stores the suggestions in the agent's order, or ends
  * `no_results` when the agent found none.
  */
 export const suggestionRequestStore: ContractRequestStore<
@@ -86,7 +90,14 @@ export const suggestionRequestStore: ContractRequestStore<
   RecipeSuggestOutput
 > = {
   table: recipeSuggestionRequest,
-  insert: insertSuggestionRequest,
+
+  async insert(tx, params, requestedBy) {
+    if (params.mealId !== undefined && !(await findMeal(tx, params.mealId))) {
+      throw new NotFoundError(NO_SUCH_MEAL);
+    }
+    return insertSuggestionRequest(tx, params, requestedBy);
+  },
+
   find: findSuggestionRequest,
 
   async buildInput(db, request) {
@@ -95,6 +106,7 @@ export const suggestionRequestStore: ContractRequestStore<
       times: request.times.length > 0 ? request.times : undefined,
       tags: request.tags.length > 0 ? request.tags : undefined,
       hint: request.hint,
+      meal: request.meal && (await mealOfRequest(db, request.meal.id)),
       existingRecipeTitles: await listActiveRecipeTitles(db),
       ingredientNames: await listIngredientNames(db),
       appliances: await listEnabledApplianceNames(db),
@@ -116,6 +128,26 @@ export const suggestionRequestStore: ContractRequestStore<
     return output.noResults;
   },
 };
+
+/** The meal of a request asked from the menu, as the agent reads it; `undefined` when it was deleted meanwhile. */
+async function mealOfRequest(
+  db: DbExecutor,
+  mealId: string,
+): Promise<RecipeSuggestMeal | undefined> {
+  const meal = await findMeal(db, mealId);
+  if (!meal) {
+    return undefined;
+  }
+  return {
+    date: meal.date,
+    slot: meal.slot,
+    current: {
+      ...(meal.recipe ? { title: meal.recipe.title } : {}),
+      ...(meal.note === null ? {} : { note: meal.note }),
+    },
+    thread: await agentThread(db, meal.id),
+  };
+}
 
 /**
  * The suggestions with `duplicateOf` on each proposed one whose title a recipe in the registry already has (canonically);

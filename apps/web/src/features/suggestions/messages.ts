@@ -1,11 +1,12 @@
 import {
   type ContractRequestStatus,
+  type DateKey,
   type Slot,
   type SuggestionRequest,
   TAG_LABELS_BG,
   withHint,
 } from '@family/shared';
-import { capitalize } from '../../lib/format';
+import { capitalize, formatShortDate, formatWeekday } from '../../lib/format';
 import { shorten } from '../recipes/format';
 
 /** „Закуска“, „Обяд“, „Вечеря“: етикетът на тага с главна буква. */
@@ -19,17 +20,30 @@ export const REQUEST_STATUS_LABELS: Record<ContractRequestStatus, string> = {
   failed: 'неуспешна',
 };
 
-/** Заявката накратко: „Вечеря · „нещо с пиле““, „Закуска, Обяд“ (дълга подсказка е отрязана). */
+/**
+ * Заявката накратко: „Вечеря · „нещо с пиле““, „Закуска, Обяд“, „Вечеря за ср 4.11“ от ястие в менюто (дълга подсказка
+ * е отрязана).
+ */
 export function requestLabel({
   slots,
   hint,
-}: Pick<SuggestionRequest, 'slots' | 'hint'>): string {
-  return withHint(slots.map(slotLabel).join(', '), hint && shorten(hint));
+  meal,
+}: Pick<SuggestionRequest, 'slots' | 'hint' | 'meal'>): string {
+  const what = slots.map(slotLabel).join(', ');
+  return withHint(
+    meal ? `${what} за ${mealDayLabel(meal.date)}` : what,
+    hint && shorten(hint),
+  );
+}
+
+/** „ср 4.11“: денят на ястието, за което е заявката. */
+export function mealDayLabel(day: DateKey): string {
+  return `${formatWeekday(day)} ${formatShortDate(day)}`;
 }
 
 /** Какво е търсено, за чакането и грешката: „Търсено: Вечеря · „нещо с пиле““. */
 export function searchedLabel(
-  request: Pick<SuggestionRequest, 'slots' | 'hint'>,
+  request: Pick<SuggestionRequest, 'slots' | 'hint' | 'meal'>,
 ): string {
   return `Търсено: ${requestLabel(request)}`;
 }

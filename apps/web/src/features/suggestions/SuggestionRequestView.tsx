@@ -69,7 +69,10 @@ function RequestResult({ detail }: { detail: SuggestionRequestDetail }) {
         <span>{requestLabel(request)}</span>{' '}
         <Link
           to="/recipes/suggest"
-          search={paramsOf(request)}
+          search={{
+            ...paramsOf(request),
+            ...(request.meal ? { mealDate: request.meal.date } : {}),
+          }}
           className="suggestions__request-edit"
         >
           <span aria-hidden="true">✎ </span>Промени заявката

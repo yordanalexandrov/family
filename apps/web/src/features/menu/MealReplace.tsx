@@ -116,7 +116,11 @@ export function MealReplace({ meal, weekStart, onPick }: MealReplaceProps) {
           </li>
         ))}
       </ul>
-      <Link to="/recipes/suggest" className="meal-replace__more">
+      <Link
+        to="/recipes/suggest"
+        search={{ slots: [meal.slot], mealId: meal.id, mealDate: meal.date }}
+        className="meal-replace__more"
+      >
         Нищо не става? Поискай нови рецепти
       </Link>
     </div>

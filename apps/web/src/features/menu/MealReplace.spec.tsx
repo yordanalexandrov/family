@@ -156,11 +156,19 @@ describe('MealSheet: „✨ Предложи друго“', () => {
       expect.stringMatching(/Леща чорба.*45 мин.*Без месо, както пита Поли\./),
       expect.stringMatching(/Риба на фурна.*Риба за разнообразие/),
     ]);
-    expect(
-      within(sheet).getByRole('link', {
-        name: 'Нищо не става? Поискай нови рецепти',
-      }),
-    ).toHaveAttribute('href', '/recipes/suggest');
+    // Новите рецепти са за това ястие: агентът ще чете разговора по него.
+    const more = new URL(
+      within(sheet)
+        .getByRole('link', { name: 'Нищо не става? Поискай нови рецепти' })
+        .getAttribute('href') ?? '',
+      'http://localhost',
+    );
+    expect(more.pathname).toBe('/recipes/suggest');
+    expect(more.searchParams.get('mealId')).toBe(thursday);
+    expect(more.searchParams.get('mealDate')).toBe('2026-11-05');
+    expect(JSON.parse(more.searchParams.get('slots') ?? '')).toEqual([
+      'dinner',
+    ]);
     expect(within(sheet).queryByText('Мисля…')).toBeNull();
 
     await user.click(

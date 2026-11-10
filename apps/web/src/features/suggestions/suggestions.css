@@ -317,3 +317,19 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+
+/* „За ястието от ср 4.11: агентът ще прочете коментарите · Махни“: заявка от ястие в менюто. */
+.suggest-form__meal {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.suggest-form__meal-remove {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
