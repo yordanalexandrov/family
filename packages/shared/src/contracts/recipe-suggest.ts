@@ -12,9 +12,11 @@ import {
   quantitySchema,
   unitSchema,
 } from '../food/units.js';
+import { dateKeySchema } from '../schemas/dates.js';
 import { nutritionSchema } from '../schemas/recipe.js';
 import type { AiContract } from './contract.js';
 import { hintSchema } from './hint.js';
+import { mealThreadInputSchema } from './meal-replace.js';
 import {
   preparationFromStrict,
   preparationStrictSchema,
@@ -34,17 +36,44 @@ export const recipeSuggestParamsSchema = z.object({
   times: z.array(prepTimeRangeSchema).optional(),
   tags: z.array(tagSchema).optional(),
   hint: hintSchema.optional(),
+  /**
+   * The menu meal the request is for („Нищо не става? Поискай нови рецепти“): the API adds the meal and its thread
+   * (GLOSSARY: Разговор) to the input, so the agent reads what the family said about it.
+   */
+  mealId: z.uuid().optional(),
 });
 
 export type RecipeSuggestParams = z.infer<typeof recipeSuggestParamsSchema>;
 
-/** The contract input: the client request plus the registry context and the household appliances the API adds. */
-const recipeSuggestInputSchema = recipeSuggestParamsSchema.extend({
-  existingRecipeTitles: z.array(z.string()),
-  ingredientNames: z.array(z.string()),
-  /** The special appliances (GLOSSARY: Уред), a soft preference: the enabled ones of the household, from the `appliance` table. */
-  appliances: z.array(z.string()),
+/** The meal of a request asked from the menu, as the agent reads it when it runs. */
+const recipeSuggestMealSchema = z.strictObject({
+  date: dateKeySchema,
+  slot: slotSchema,
+  /** What the meal is now: the recipe's title or the day's note; empty for an empty meal. */
+  current: z.strictObject({
+    title: z.string().optional(),
+    note: z.string().optional(),
+  }),
+  thread: mealThreadInputSchema,
 });
+
+export type RecipeSuggestMeal = z.infer<typeof recipeSuggestMealSchema>;
+
+/**
+ * The contract input: the client request plus the registry context and the household appliances the API adds; for a
+ * request from a meal, the meal (its id stays in the API). A meal deleted before the run leaves `meal` out.
+ */
+const recipeSuggestInputSchema = recipeSuggestParamsSchema
+  .omit({
+    mealId: true,
+  })
+  .extend({
+    meal: recipeSuggestMealSchema.optional(),
+    existingRecipeTitles: z.array(z.string()),
+    ingredientNames: z.array(z.string()),
+    /** The special appliances (GLOSSARY: Уред), a soft preference: the enabled ones of the household, from the `appliance` table. */
+    appliances: z.array(z.string()),
+  });
 
 export type RecipeSuggestInput = z.infer<typeof recipeSuggestInputSchema>;
 

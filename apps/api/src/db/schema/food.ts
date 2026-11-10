@@ -46,6 +46,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { literals, oneOf } from './checks.js';
 import { contractRequestColumns, createdAt } from './columns.js';
+import { meal } from './menu.js';
 import { user } from './user.js';
 
 /** A generic ingredient (GLOSSARY: Продукт); the canonical name is unique ignoring case and outer spaces. */
@@ -173,6 +174,8 @@ export const recipeSuggestionRequest = pgTable(
       .notNull()
       .default(sql`'{}'`),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
+    /** The menu meal it was asked from (its thread goes to the agent); `null` otherwise and after the meal is deleted. */
+    mealId: uuid('meal_id').references(() => meal.id, { onDelete: 'set null' }),
   },
   (t) => [
     check(

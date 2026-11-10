@@ -1,4 +1,5 @@
 import {
+  type DateKey,
   HINT_MAX,
   type PrepTimeRange,
   type RecipeSuggestParams,
@@ -12,7 +13,7 @@ import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { applianceShortName, useAppliances } from '../appliances/queries';
 import { TagChips, TimeChips, toggled } from '../recipes/TagChips';
-import { slotLabel } from './messages';
+import { mealDayLabel, slotLabel } from './messages';
 
 /** Таговете без слотовете: слотът се избира отделно. */
 const EXTRA_TAGS = tagSchema.options.filter(
@@ -20,8 +21,10 @@ const EXTRA_TAGS = tagSchema.options.filter(
 );
 
 interface SuggestFormProps {
-  /** Входът на предишна заявка („Промени заявката“). */
-  initial?: Partial<RecipeSuggestParams>;
+  /**
+   * Входът на предишна заявка („Промени заявката“) или на ястие от менюто; `mealDate` е денят на ястието `mealId`.
+   */
+  initial?: Partial<RecipeSuggestParams> & { mealDate?: DateKey };
   onSubmit: (params: RecipeSuggestParams) => void;
   isSubmitting?: boolean;
   submitError?: unknown;
@@ -38,6 +41,12 @@ export function SuggestForm({
   const [times, setTimes] = useState<PrepTimeRange[]>(initial.times ?? []);
   const [tags, setTags] = useState<Tag[]>(initial.tags ?? []);
   const [hint, setHint] = useState(initial.hint ?? '');
+  /** Ястието, чийто разговор отива при агента; „Махни“ го маха от заявката. */
+  const [meal, setMeal] = useState(
+    initial.mealId !== undefined && initial.mealDate !== undefined
+      ? { id: initial.mealId, date: initial.mealDate }
+      : undefined,
+  );
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -50,6 +59,7 @@ export function SuggestForm({
       ...(times.length > 0 ? { times } : {}),
       ...(tags.length > 0 ? { tags } : {}),
       ...(trimmed ? { hint: trimmed } : {}),
+      ...(meal ? { mealId: meal.id } : {}),
     });
   }
 
@@ -100,6 +110,24 @@ export function SuggestForm({
           {hint.length}/{HINT_MAX}
         </span>
       </div>
+
+      {meal && (
+        <p className="suggest-form__meal">
+          <span>
+            За ястието от {mealDayLabel(meal.date)}: агентът ще прочете
+            коментарите по него
+          </span>{' '}
+          ·{' '}
+          <button
+            type="button"
+            className="suggest-form__meal-remove"
+            aria-label="Без коментарите по ястието"
+            onClick={() => setMeal(undefined)}
+          >
+            Махни
+          </button>
+        </p>
+      )}
 
       <AppliancesLine />
 

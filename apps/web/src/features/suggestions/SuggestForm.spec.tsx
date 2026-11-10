@@ -67,6 +67,55 @@ describe('SuggestForm', () => {
     ]);
   });
 
+  it('от ястие в менюто: вечерята е избрана и заявката е за ястието, докато не е махнато', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const sent = serveRequests();
+    const mealId = 'eeeeeeee-0000-4000-8000-000000000003';
+
+    renderApp(
+      `/recipes/suggest?slots=${encodeURIComponent('["dinner"]')}&mealId=${mealId}&mealDate=2026-11-04`,
+    );
+
+    expect(
+      await screen.findByText(
+        'За ястието от ср 4.11: агентът ще прочете коментарите по него',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Вечеря' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Поискай предложения' }),
+    );
+
+    expect(await screen.findByText(/Търся рецепти/)).toBeInTheDocument();
+    expect(sent).toEqual([{ slots: ['dinner'], mealId }]);
+  });
+
+  it('„Махни“ праща заявката без ястието', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const sent = serveRequests();
+
+    renderApp(
+      `/recipes/suggest?slots=${encodeURIComponent('["dinner"]')}&mealId=eeeeeeee-0000-4000-8000-000000000003&mealDate=2026-11-04`,
+    );
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Без коментарите по ястието',
+      }),
+    );
+
+    expect(screen.queryByText(/За ястието от/)).toBeNull();
+    await user.click(
+      screen.getByRole('button', { name: 'Поискай предложения' }),
+    );
+    expect(await screen.findByText(/Търся рецепти/)).toBeInTheDocument();
+    expect(sent).toEqual([{ slots: ['dinner'] }]);
+  });
+
   it('без слот не праща; без време, тагове и подсказка праща само слота', async () => {
     const user = userEvent.setup();
     setUpDevice('phone', dani.id);

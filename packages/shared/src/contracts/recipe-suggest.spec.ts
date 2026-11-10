@@ -578,3 +578,34 @@ describe('recipeSuggest.outputSchema under strict mode', () => {
     expect(outputSchema.safeParse(output).success).toBe(false);
   });
 });
+
+describe('recipeSuggest.inputSchema: a request from a meal', () => {
+  const meal = {
+    date: '2026-11-04',
+    slot: 'dinner',
+    current: { title: 'Пиле с ориз на фурна' },
+    thread: [
+      {
+        author: 'Поли',
+        kind: 'comment',
+        body: 'Пак пиле? По-добре нещо без месо.',
+      },
+    ],
+  };
+
+  it('accepts a request from a meal with its thread', () => {
+    expect(recipeSuggest.inputSchema.parse({ ...INPUT, meal })).toEqual({
+      ...INPUT,
+      meal,
+    });
+  });
+
+  it('rejects a meal without its thread', () => {
+    const { thread: _, ...withoutThread } = meal;
+
+    expect(
+      recipeSuggest.inputSchema.safeParse({ ...INPUT, meal: withoutThread })
+        .success,
+    ).toBe(false);
+  });
+});

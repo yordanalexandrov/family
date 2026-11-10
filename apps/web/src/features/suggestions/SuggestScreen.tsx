@@ -1,4 +1,6 @@
 import {
+  type DateKey,
+  dateKeySchema,
   type RecipeSuggestParams,
   recipeSuggestParamsSchema,
 } from '@family/shared';
@@ -10,23 +12,35 @@ import { SuggestForm } from './SuggestForm';
 import '../recipes/recipes.css';
 import './suggestions.css';
 
-/** Search на `/recipes/suggest`: входът на заявка за „Промени заявката“, за да попълни формата. */
-export type SuggestSearch = Partial<RecipeSuggestParams>;
+/**
+ * Search на `/recipes/suggest`: входът на заявка за „Промени заявката“ или от „Нищо не става? Поискай нови рецепти“
+ * в листа на ястие, за да попълни формата; `mealDate` е денят на ястието `mealId`, за реда над бутона.
+ */
+export type SuggestSearch = Partial<RecipeSuggestParams> & {
+  mealDate?: DateKey;
+};
 
 /**
  * Само цял валиден вход попълва формата; иначе всеки ключ е изрично `undefined` (router-ът слива резултата върху
- * суровия search, виж `parseImportSearch`).
+ * суровия search, виж `parseImportSearch`). Ястие има само с деня си.
  */
 export function parseSuggestSearch(
   search: Record<string, unknown>,
 ): SuggestSearch {
   const parsed = recipeSuggestParamsSchema.safeParse(search);
   const params = parsed.success ? parsed.data : undefined;
+  const mealDate = dateKeySchema.safeParse(search.mealDate);
+  const meal =
+    params?.mealId !== undefined && mealDate.success
+      ? { mealId: params.mealId, mealDate: mealDate.data }
+      : undefined;
   return {
     slots: params?.slots,
     times: params?.times,
     tags: params?.tags,
     hint: params?.hint,
+    mealId: meal?.mealId,
+    mealDate: meal?.mealDate,
   };
 }
 

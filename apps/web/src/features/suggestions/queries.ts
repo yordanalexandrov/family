@@ -24,13 +24,14 @@ export const suggestionKeys = {
   request: (id: string) => ['recipe-suggestions', 'request', id] as const,
 };
 
-/** Входът на заявката, за „Опитай пак“ със същите параметри. */
+/** Входът на заявката, за „Опитай пак“ със същите параметри; заявка от ястие остава за него. */
 export function paramsOf(request: SuggestionRequest) {
   return {
     slots: request.slots,
     ...(request.times.length > 0 ? { times: request.times } : {}),
     ...(request.tags.length > 0 ? { tags: request.tags } : {}),
     ...(request.hint === undefined ? {} : { hint: request.hint }),
+    ...(request.meal === undefined ? {} : { mealId: request.meal.id }),
   };
 }
 

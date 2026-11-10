@@ -1,7 +1,7 @@
 # suggestions — предложения за рецепти
 
 ## Overview
-„Поискай предложения“: форма за заявка (слотове, време, тагове, подсказка), изчакване и резултат с карти и преглед на едно предложение с редакция, одобрение или отхвърляне през `RecipeForm`. Прегледът (`ReviewSuggestion`, `Decided`, `DecisionToast`) е общ с `features/recipe-import`.
+„Поискай предложения“: форма за заявка (слотове, време, тагове, подсказка, по избор ястие от менюто, чийто разговор чете агентът), изчакване и резултат с карти и преглед на едно предложение с редакция, одобрение или отхвърляне през `RecipeForm`. Прегледът (`ReviewSuggestion`, `Decided`, `DecisionToast`) е общ с `features/recipe-import`.
 
 ## Interface
 - `SuggestScreen.tsx:SuggestScreen`, `SuggestScreen.tsx:parseSuggestSearch`, `SuggestSearch` — `/recipes/suggest`
@@ -15,6 +15,7 @@
 - `queries.ts:useSuggestionRequest` — проверява на `POLL_INTERVAL_MS` само докато е `pending`
 - `queries.ts:requestKeyOf` — след решение се инвалидира `importKeys.all` при произход `import`, иначе заявката
 - `SuggestForm.tsx:submit` — без слот не се праща; празните полета не се включват
+- `SuggestScreen.tsx:parseSuggestSearch` — ястие (`mealId`) има само с деня си (`mealDate`); формата праща `mealId`, докато редът „За ястието от …“ не е махнат с „Махни“
 - `SuggestionReview.tsx:SuggestionReview` — преглед само при статус `proposed`, иначе `Decided`
 - `SuggestionReview.tsx:ReviewSuggestion` — „Одобри“ е изключен само докато тече търсенето на продуктите (`useResolvedIngredients`); при несвързан ред `RecipeForm` (`requireResolvedIngredients`) отваря листа му вместо да праща; при рецепта със същото заглавие основното действие е „Отвори“; `revisionId` се праща само при приета поправка; „Без уред“ се праща изрично като `appliance: null`, иначе api-то взима уреда на предложението
 - `SuggestionReview.tsx:ReviewSuggestion` — „✏️ Поправи с AI“ снима формата (`toRevisableRecipe` → `revisionBaseOf`) и отваря `ReviseSheet` с цел `suggestionId`; приетата поправка влиза във формата през `revisionReplacement`

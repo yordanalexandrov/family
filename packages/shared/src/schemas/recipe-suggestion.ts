@@ -6,6 +6,7 @@ import { contractRequestStatusSchema } from '../contracts/request.js';
 import { checkComponents } from '../food/component.js';
 import { prepTimeRangeSchema } from '../food/prep-time.js';
 import { slotSchema, tagSchema } from '../food/tags.js';
+import { dateKeySchema } from './dates.js';
 import {
   recipeInputFieldsSchema,
   recipeSchema,
@@ -19,6 +20,10 @@ export const suggestionRequestSchema = z.object({
   times: z.array(prepTimeRangeSchema),
   tags: z.array(tagSchema),
   hint: z.string().optional(),
+  /** The menu meal the request was asked from; absent for any other request and after the meal is deleted. */
+  meal: z
+    .object({ id: z.uuid(), date: dateKeySchema, slot: slotSchema })
+    .optional(),
   status: contractRequestStatusSchema,
   error: contractFailureSchema.optional(),
   requestedBy: z.uuid(),

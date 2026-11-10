@@ -407,6 +407,30 @@ describe('SuggestionRequestView', () => {
     );
   });
 
+  it('заявка от ястие: редът казва деня му, а „Промени заявката“ остава за същото ястие', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    const meal = {
+      id: 'eeeeeeee-0000-4000-8000-000000000003',
+      date: '2026-11-04',
+      slot: 'dinner' as const,
+    };
+    serveDetail({ request: { ...doneRequest, meal }, suggestions });
+
+    renderApp(`/recipes/suggest/${requestId}`);
+
+    expect(
+      await screen.findByText('Вечеря за ср 4.11 · „нещо с пиле“'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Промени заявката' }));
+
+    expect(
+      await screen.findByText(
+        'За ястието от ср 4.11: агентът ще прочете коментарите по него',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('без подсказка редът със заявката е само слотовете', async () => {
     setUpDevice('phone', dani.id);
     serveDetail({
