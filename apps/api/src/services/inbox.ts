@@ -65,10 +65,11 @@ export interface InboxService {
   read(userId: string, id: string): Promise<void>;
   readAll(userId: string): Promise<void>;
   /**
-   * After the buttons of a meal's reminders may have been answered or undone („Извадих“, a cook picked, a new
-   * recipe): `inbox.changed` to each who has such a reminder with buttons, so their row follows at once.
+   * After the buttons of the reminders of `mealIds` may have been answered or undone („Извадих“, a cook picked, a new
+   * recipe): `inbox.changed` to each who has such a reminder with buttons, so their row follows at once. The menu
+   * service and the rework call it after their commit.
    */
-  answered(mealId: string): Promise<void>;
+  answered(mealIds: readonly string[]): Promise<void>;
   /** The cron's `prune-inbox` job: deletes what was not updated for {@link INBOX_KEEP_DAYS}; answers how many. */
   prune(): Promise<number>;
 }
@@ -113,8 +114,14 @@ export function createInboxService({
       });
       return { inboxId, devices };
     },
-    async answered(mealId) {
-      const tags = [notificationTag.thaw(mealId), notificationTag.cook(mealId)];
+    async answered(mealIds) {
+      if (mealIds.length === 0) {
+        return;
+      }
+      const tags = mealIds.flatMap((mealId) => [
+        notificationTag.thaw(mealId),
+        notificationTag.cook(mealId),
+      ]);
       for (const userId of await listUsersWithButtons(db, tags)) {
         changed(userId);
       }

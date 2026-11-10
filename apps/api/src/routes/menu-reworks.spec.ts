@@ -479,6 +479,40 @@ describe('POST /api/menu/reworks', () => {
     ]);
   });
 
+  it('signals inbox.changed to each who has a reminder with buttons for a changed day: „Извадих“ no longer holds', async () => {
+    answerInTurn(JSON.stringify(reworkFixture));
+    const meals = await fixtureWeek();
+    const fri = meals[4]?.id ?? '';
+    // Дани asks for the rework, so „Преработено меню“ goes only to Поли: Дани's signal is the reminder's.
+    await app.inbox.notify(DANI.id, 'thaw', {
+      title: 'Извади месото',
+      body: 'Мусака',
+      tag: `thaw-${fri}`,
+      url: '/menu',
+      actions: [
+        {
+          action: 'thawed',
+          title: 'Извадих',
+          post: `/api/menu/meals/${fri}/thawed`,
+        },
+      ],
+      actionUntil: new Date(clock.getTime() + 7 * 24 * 3_600_000),
+    });
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    await finished((await rework()).id);
+
+    // Told after the commit, without the run waiting for it.
+    await vi.waitFor(() =>
+      expect(signals).toContainEqual({
+        type: 'inbox.changed',
+        userId: DANI.id,
+      }),
+    );
+    unsubscribe();
+  });
+
   it('signals only the rework when it fails: the menu is as it was', async () => {
     answerInTurn('not json', 'not json');
     await fixtureWeek();

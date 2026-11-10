@@ -87,8 +87,6 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
         request.body,
         request.actor.id,
       );
-      // A cook picked or a new recipe answers or undoes the buttons of the meal's reminders.
-      await app.inbox.answered(meal.id);
       return { meal };
     },
   );
@@ -158,7 +156,6 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { params: idParamsSchema } },
     async (request, reply) => {
       await service.markThawed(request.params.id, request.actor.id);
-      await app.inbox.answered(request.params.id);
       return reply.code(204).send();
     },
   );

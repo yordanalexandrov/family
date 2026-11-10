@@ -82,6 +82,7 @@ import {
   refuse,
 } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
+import type { InboxService } from './inbox.js';
 import type { MenuNotifications } from './menu-notifications.js';
 import { isPerson } from './users.js';
 
@@ -163,7 +164,8 @@ export interface MenuService {
   ): Promise<MealPlan>;
   /**
    * „Извадих“ for a meal (GLOSSARY), from either person: the morning „Извади месото“ is not sent to anyone. Pressed
-   * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it. Signals only `menu.changed`.
+   * again, nothing changes; 404 for an unknown meal. A new recipe for the meal undoes it. Signals `menu.changed` (not
+   * `shopping.changed`) and `inbox.changed` to whoever has the meal's reminder with buttons.
    */
   markThawed(id: string, actingUserId: string): Promise<void>;
   /**
@@ -314,18 +316,22 @@ export function createMenuProposalStore(
  * The weekly menu (GLOSSARY: Седмично меню, Ястие, Предложение за меню); created once in `buildApp()` as `app.menu`.
  * Proposals go through `proposals`, the `menu.propose` requests registered with {@link createMenuProposalStore}. Every
  * committed change to a plan or a meal signals `menu.changed` and `shopping.changed` for its week on `events`; a vote or
- * a thread line only `menu.changed`.
+ * a thread line only `menu.changed`. A change that may answer or undo the buttons of a meal's reminders (its cook, its
+ * recipe, „Извадих“) also goes to `inbox.answered` once committed.
  */
 export function createMenuService({
   db,
   proposals,
   now,
   events,
+  inbox,
 }: {
   db: Db;
   proposals: MenuProposals;
   now: () => Date;
   events: EventBus;
+  /** Told after a change that may answer or undo the buttons of a meal's reminders (cook, „Извадих“, recipe). */
+  inbox: Pick<InboxService, 'answered'>;
 }): MenuService {
   return {
     async getPlan(weekStart) {
@@ -448,6 +454,8 @@ export function createMenuService({
         return changed;
       });
       signalWeek(events, weekStart);
+      // A cook picked or a new recipe answers or undoes the buttons of the meal's reminders.
+      await inbox.answered([meal.id]);
       return meal;
     },
 
@@ -489,6 +497,7 @@ export function createMenuService({
         return reread(tx, id, current.planId);
       });
       signalWeek(events, weekStart);
+      await inbox.answered([meal.id]);
       return meal;
     },
 
@@ -593,6 +602,7 @@ export function createMenuService({
         // „Извади месото“ is on the dashboard of every phone: the other one drops „Извадих“ at once.
         signalAgreement(events, plan.weekStart);
       }
+      await inbox.answered([id]);
     },
 
     async claimCook(id, actingUserId) {
@@ -626,6 +636,7 @@ export function createMenuService({
         return reread(tx, id, claimed.planId);
       });
       signalWeek(events, weekStart);
+      await inbox.answered([meal.id]);
       return meal;
     },
 

@@ -316,7 +316,13 @@ export function buildApp({
   );
   app.decorate(
     'menu',
-    createMenuService({ db, proposals: menuProposals, now, events }),
+    createMenuService({
+      db,
+      proposals: menuProposals,
+      now,
+      events,
+      inbox: app.inbox,
+    }),
   );
   // Without OpenClaw every proposal is refused, so the cron has nothing to run.
   app.decorate(
@@ -337,7 +343,7 @@ export function buildApp({
     'menuReworks',
     contractRequests.register(
       menuRework,
-      createMenuReworkStore(events, menuNotifications, now),
+      createMenuReworkStore(events, menuNotifications, now, app.inbox),
       agents.menuReworkAgent,
     ),
   );

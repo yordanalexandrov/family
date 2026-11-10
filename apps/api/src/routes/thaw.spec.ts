@@ -487,6 +487,28 @@ describe('„Извадих“ in GET /api/inbox', () => {
     ).toEqual([DANI.id, POLI.id].sort());
   });
 
+  it('signals inbox.changed to each who has the reminder after „Върни“ brings the recipe back', async () => {
+    await runAt(EVENING);
+    await patchMeal(musakaMealId, { recipeId: null });
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    const restored = await app.inject({
+      method: 'POST',
+      url: `/api/menu/meals/${musakaMealId}/restore`,
+      headers: as(DANI.id),
+    });
+    unsubscribe();
+
+    expect(restored.statusCode).toBe(200);
+    expect(
+      signals
+        .filter((event) => event.type === 'inbox.changed')
+        .map((event) => event.userId)
+        .sort(),
+    ).toEqual([DANI.id, POLI.id].sort());
+  });
+
   it('gives nothing after the dinner’s day, answered or not', async () => {
     await runAt(EVENING);
     await thawed(musakaMealId, POLI.id);
