@@ -1,0 +1,322 @@
+/* PROTOTYPE (throwaway): стилове на вариантите на листа на деня. */
+
+.proto-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.proto-hero__title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+.proto-hero__title--link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  text-decoration: none;
+}
+
+.proto-hero__chevron {
+  color: var(--color-text-faded);
+  font-size: 1.6rem;
+}
+
+.proto-hero__title--empty {
+  color: var(--color-text-muted);
+}
+
+.proto-hero__why {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.proto-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.proto-summary__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.proto-votes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-block: 1px solid var(--color-line);
+}
+
+.proto-list .proto-votes {
+  border: 0;
+  padding: 0;
+}
+
+.proto-votes__people {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.proto-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+}
+
+.proto-group--primary {
+  border-color: var(--color-accent);
+}
+
+.proto-group__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.proto-group .servings__name {
+  font-size: 0.95rem;
+}
+
+.proto-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  overflow: hidden;
+}
+
+.proto-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-block-end: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+}
+
+.proto-row:last-child {
+  border-block-end: 0;
+}
+
+.proto-list > .proto-row:not(.proto-row--static),
+.proto-thread + * {
+  cursor: pointer;
+}
+
+/* B: прегледът на разговора е самостоятелен ред с рамка. */
+.sheet__panel > .proto-row {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+}
+
+.proto-row--static {
+  grid-template-columns: auto 1fr;
+}
+
+.proto-row--static .proto-switch {
+  grid-column: 1 / -1;
+}
+
+.proto-row__label {
+  font-weight: 600;
+}
+
+.proto-row__value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proto-row__value--wrap {
+  display: block;
+  text-align: end;
+}
+
+.proto-row__chevron {
+  color: var(--color-text-faded);
+  font-size: 1.3rem;
+}
+
+.proto-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-block-size: var(--touch-target);
+  font-weight: 600;
+}
+
+.proto-switch input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  inline-size: 2.8em;
+  block-size: 1.6em;
+  margin: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  cursor: pointer;
+}
+
+.proto-switch input::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0.15em;
+  inset-inline-start: 0.15em;
+  inline-size: 1.2em;
+  block-size: 1.2em;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition: transform 0.2s;
+}
+
+.proto-switch input:checked {
+  background: var(--color-accent);
+}
+
+.proto-switch input:checked::after {
+  background: var(--color-accent-ink);
+  transform: translateX(1.2em);
+}
+
+.proto-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.proto-tools__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  inline-size: 100%;
+  min-block-size: var(--touch-target);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.proto-tools__item:hover,
+.proto-tools__item--open {
+  background: var(--color-surface-2);
+}
+
+.proto-tools__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-end: var(--space-2);
+}
+
+.proto-tools__item--danger {
+  margin-block-start: var(--space-2);
+  color: var(--color-danger);
+}
+
+.proto-change__button {
+  inline-size: 100%;
+}
+
+.proto-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.proto-link {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.proto-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.proto-ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.proto-ask__q {
+  margin: 0;
+  font-weight: 600;
+}
+
+.proto-drill {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.proto-back {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.proto-drill__title {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.proto-tabs {
+  flex: none;
+}

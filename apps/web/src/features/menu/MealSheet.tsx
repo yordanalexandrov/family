@@ -30,6 +30,8 @@ import { MoveMeal } from './MoveMeal';
 import { usePlan, useRestoreMeal, useUpdateMeal } from './queries';
 import { Thread } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
+import { MealSheetPrototype, usePrototypeVariant } from './MealSheet.prototype';
+import { PrototypeSwitcher } from '../../components/PrototypeSwitcher';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -58,7 +60,20 @@ interface MealSheetProps {
  * готвачът и порциите се сменят; разговорът му се чете, но не се пише. В минала седмица (`readOnly`) не се сменят и те.
  * Празен ден (без рецепта и бележка) е без гласове: чака ястие. Махнатата рецепта отива в `onRecipeRemoved`, за „Върни“.
  */
-export function MealSheet({
+export function MealSheet(props: MealSheetProps) {
+  // PROTOTYPE: ?variant=A|B|C|D (A = сегашният лист). Махни преди merge.
+  const [variant, setVariant] = usePrototypeVariant();
+  return (
+    <>
+      {variant === 'A' ? <MealSheetCurrent {...props} /> : <MealSheetPrototype variant={variant} {...props} />}
+      <PrototypeSwitcher current={variant} onChange={setVariant} />
+    </>
+  );
+}
+
+export type { MealSheetProps };
+
+function MealSheetCurrent({
   meal,
   plan,
   users,
@@ -256,7 +271,7 @@ interface PickerProps {
  * Търсене сред вечерните рецепти с маркери „в тази седмица“ и „последните 2 седмици“; под резултатите, отделно от
  * тях, „Махни ястието от деня“, за да не се маха ястие случайно с един допир по списъка.
  */
-function RecipePicker({ meal, plan, onPick, onRemove }: PickerProps) {
+export function RecipePicker({ meal, plan, onPick, onRemove }: PickerProps) {
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search, SEARCH_DEBOUNCE_MS).trim();
   const recipes = useRecipes({ tags: ['dinner'], ...(q ? { q } : {}) });
@@ -340,7 +355,7 @@ function useRecentRecipeIds(weekStart: string): Set<string> {
   return ids;
 }
 
-function NoteField({
+export function NoteField({
   meal,
   onSave,
 }: {
@@ -377,7 +392,7 @@ function NoteField({
   );
 }
 
-function CookPicker({
+export function CookPicker({
   meal,
   users,
   onPick,
@@ -415,7 +430,7 @@ function CookPicker({
   );
 }
 
-function ServingsEditor({
+export function ServingsEditor({
   meal,
   users,
   onChange,
