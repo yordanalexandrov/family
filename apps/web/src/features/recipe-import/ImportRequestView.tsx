@@ -157,7 +157,7 @@ function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
         {request.source === 'photo' && (
           <button
             type="button"
-            className="button"
+            className={again ? 'button button--quiet' : 'button'}
             onClick={() =>
               void navigate({
                 to: '/recipes/import',
