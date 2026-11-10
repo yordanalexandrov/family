@@ -512,6 +512,169 @@ describe('POST /api/menu/reworks', () => {
   });
 });
 
+describe('the week while a rework is pending', () => {
+  /** The fixture week with a pending rework; `release()` lets the agent answer and waits for the rework to end. */
+  async function reworkingWeek(answer: object = reworkFixture) {
+    const meals = await fixtureWeek();
+    const letGo = answerLater(JSON.stringify(answer));
+    const pending = await rework();
+    return {
+      meals,
+      release: async () => {
+        letGo();
+        return finished(pending.id);
+      },
+    };
+  }
+
+  function expectReworking(response: { statusCode: number; json(): unknown }) {
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'conflict',
+      code: 'menu_reworking',
+      message: 'AI преработва менюто: изчакай да свърши',
+    });
+  }
+
+  it('answers 409 menu_reworking to every change of the content, the votes or the thread of its meals', async () => {
+    const meals = await fixtureWeek();
+    const [, , wed, thu, fri, sat, sun] = meals.map((meal) => meal.id) as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+    // Дани's removal of Thursday, kept for its „Върни“; Поли's comment on Wednesday.
+    await patchMeal(thu, { recipeId: null });
+    const ownComment = (await thread(wed)).find(
+      (line) => line.kind === 'comment',
+    ) as { id?: string } | undefined;
+    const release = answerLater(JSON.stringify(reworkFixture));
+    const pending = await rework();
+    const before = await plan();
+    const lines = await thread(wed);
+
+    const refused = [
+      await inject('PATCH', `/api/menu/meals/${fri}`, {
+        recipeId: recipeId(9),
+      }),
+      await inject('PATCH', `/api/menu/meals/${fri}`, {
+        note: 'с повече чушки',
+      }),
+      await inject('PATCH', `/api/menu/meals/${sun}`, { note: null }),
+      await inject('PATCH', `/api/menu/meals/${fri}`, { recipeId: null }),
+      await inject('PATCH', `/api/menu/meals/${fri}`, {
+        recipeId: recipeId(9),
+        cookUserId: POLI.id,
+      }),
+      await inject('PATCH', `/api/menu/meals/${sun}`, {
+        note: 'пица',
+        servings: { [DANI.id]: 2, [POLI.id]: 1 },
+      }),
+      await inject('PUT', `/api/menu/meals/${wed}/vote`, { value: 'up' }),
+      await inject('DELETE', `/api/menu/meals/${wed}/vote`, undefined, POLI.id),
+      await inject('POST', `/api/menu/meals/${thu}/restore`),
+      await inject('POST', `/api/menu/meals/${fri}/swap`, { withMealId: sat }),
+      await inject('POST', `/api/menu/meals/${wed}/comments`, {
+        body: 'Нещо с риба?',
+      }),
+      await inject(
+        'DELETE',
+        `/api/menu/comments/${ownComment?.id}`,
+        undefined,
+        POLI.id,
+      ),
+      await inject('POST', `/api/menu/meals/${fri}/replacements`),
+    ];
+
+    for (const response of refused) {
+      expectReworking(response);
+    }
+    expect(await plan()).toEqual(before);
+    expect(await thread(wed)).toEqual(lines);
+    const replacement = await inject(
+      'GET',
+      `/api/menu/meals/${fri}/replacements`,
+    );
+    expect(replacement.statusCode).toBe(404);
+    release();
+    await finished(pending.id);
+  });
+
+  it('answers 409 menu_reworking to deleting the menu of a week not yet begun', async () => {
+    await fixtureWeek();
+    clock = BEFORE;
+    const release = answerLater(JSON.stringify(reworkFixture));
+    const pending = await rework();
+    const { id } = (
+      await inject('GET', `/api/menu/plans?weekStart=${WEEK}`)
+    ).json().plan;
+
+    expectReworking(await inject('DELETE', `/api/menu/plans/${id}`));
+
+    release();
+    await finished(pending.id);
+    expect((await inject('DELETE', `/api/menu/plans/${id}`)).statusCode).toBe(
+      204,
+    );
+  });
+
+  it('lets the cook, the servings, „Аз“, „Извадих“ and the shopping list through', async () => {
+    const { meals, release } = await reworkingWeek();
+    const [, , wed, thu, fri] = meals.map((meal) => meal.id);
+
+    const cook = await inject('PATCH', `/api/menu/meals/${fri}`, {
+      cookUserId: POLI.id,
+    });
+    const servings = await inject('PATCH', `/api/menu/meals/${fri}`, {
+      servings: { [DANI.id]: 2, [POLI.id]: 0 },
+    });
+    const claim = await inject('POST', `/api/menu/meals/${wed}/cook-claim`);
+    const thawed = await inject('POST', `/api/menu/meals/${thu}/thawed`);
+    const listed = await inject(
+      'PUT',
+      `/api/shopping-lists/${WEEK}/meals/${thu}`,
+    );
+
+    expect(
+      [cook, servings, claim, thawed, listed].map((r) => r.statusCode),
+    ).toEqual([200, 200, 204, 204, 200]);
+    expect((await release()).status).toBe('done');
+    expect((await plan()).meals[4]).toMatchObject({
+      cookUserId: POLI.id,
+      servings: { [DANI.id]: 2, [POLI.id]: 0 },
+    });
+  });
+
+  it('takes changes again once the rework is done', async () => {
+    const { meals, release } = await reworkingWeek();
+    const thu = meals[3]?.id ?? '';
+
+    expect((await release()).status).toBe('done');
+
+    await vote(thu, 'down', POLI.id);
+    await comment(thu, 'Пак скумрия?', POLI.id);
+    await patchMeal(thu, { note: 'по-малко лимон' });
+  });
+
+  it('takes changes again once the rework has failed', async () => {
+    const { meals, release } = await reworkingWeek({ days: [] });
+    const thu = meals[3]?.id ?? '';
+
+    expect((await release()).status).toBe('failed');
+
+    await vote(thu, 'down', POLI.id);
+    await comment(thu, 'Пак скумрия?', POLI.id);
+    const asked = await inject('POST', `/api/menu/meals/${thu}/replacements`);
+    expect(asked.statusCode).toBe(202);
+    answerInTurn(JSON.stringify(replaceFixture));
+    await waitForReplacement(asked.json().replacement.id);
+  });
+});
+
 describe('GET /api/menu/reworks', () => {
   it('answers the newest rework of the week, whoever asked', async () => {
     answerInTurn(JSON.stringify(reworkFixture));

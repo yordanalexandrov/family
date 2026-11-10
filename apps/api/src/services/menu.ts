@@ -56,6 +56,7 @@ import {
   upsertVote,
 } from '../db/repositories/menu.js';
 import { addMenuActivity } from '../db/repositories/menu-activity.js';
+import { hasPendingRework } from '../db/repositories/menu-reworks.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import {
   countMenuRecipes,
@@ -94,6 +95,7 @@ const WEEK_HAS_PENDING = 'За седмицата вече се подготвя
 const PAST_MEAL = 'Денят е минал: ястието вече не се гласува и не се сменя';
 const NO_SUCH_COMMENT = 'Няма такъв коментар';
 const EMPTY_MEAL = 'Денят е празен: първо избери ястие, после се гласува';
+const REWORKING = 'AI преработва менюто: изчакай да свърши';
 
 const PAST_MEAL_THREAD = 'Денят е минал: в разговора вече не се пише';
 const NOT_YOUR_COMMENT = 'Можеш да изтриеш само свой коментар';
@@ -111,6 +113,11 @@ const COOK_TAKEN = 'Някой вече готви';
 /** „Аз“ from a service user (ADR-0014): Рецептурко does not cook. */
 const APP_USER_COOK = 'Служебният потребител не готви';
 
+/**
+ * While a rework of the week is pending, every change of the content, the votes or the thread of its meals, and
+ * deleting its plan, answers 409 `menu_reworking` (`refuseReworkingWeek`); the cook, the servings, „Аз“ and „Извадих“
+ * do not.
+ */
 export interface MenuService {
   /** The plan of the week with its meals. */
   getPlan(weekStart: string): Promise<MealPlan>;
@@ -364,7 +371,10 @@ export function createMenuService({
           'Седмицата вече е започнала: менюто не може да се изтрие',
         );
       }
-      await deletePlan(db, id);
+      await db.transaction(async (tx) => {
+        await refuseReworkingWeek(tx, id);
+        await deletePlan(tx, id);
+      });
       signalWeek(events, plan.weekStart);
     },
 
@@ -373,6 +383,10 @@ export function createMenuService({
         const current = await findMeal(tx, id);
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
+        }
+        // A patch that carries content is refused whole, even with a cook or servings beside it.
+        if (patch.recipeId !== undefined || patch.note !== undefined) {
+          await refuseReworkingWeek(tx, current.planId);
         }
         const recipeChanged =
           patch.recipeId !== undefined && patch.recipeId !== current.recipeId;
@@ -442,6 +456,7 @@ export function createMenuService({
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
+        await refuseReworkingWeek(tx, current.planId);
         refusePastMeal(current, now());
         if (current.recipeId !== null) {
           throw new ConflictError(DAY_TAKEN);
@@ -482,6 +497,7 @@ export function createMenuService({
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
+        await refuseReworkingWeek(tx, current.planId);
         refusePastMeal(current, now());
         if (value !== null && isEmptyMeal(current)) {
           throw refuse('empty_meal', EMPTY_MEAL);
@@ -517,6 +533,7 @@ export function createMenuService({
         if (a.id === b.id || a.planId !== b.planId || a.slot !== b.slot) {
           throw new InvalidActionError(NOT_SWAPPABLE);
         }
+        await refuseReworkingWeek(tx, a.planId);
         refusePastMeal(a, now());
         refusePastMeal(b, now());
         const at = now();
@@ -602,6 +619,7 @@ export function createMenuService({
         if (!meal) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
+        await refuseReworkingWeek(tx, meal.planId);
         refusePastThread(meal, now());
         const comment = await insertComment(
           tx,
@@ -632,6 +650,7 @@ export function createMenuService({
         if (!meal) {
           throw new Error('meal of a comment vanished');
         }
+        await refuseReworkingWeek(tx, meal.planId);
         refusePastThread(meal, now());
         await deleteComment(tx, id);
         return weekOf(tx, meal.planId);
@@ -693,6 +712,22 @@ export async function readCooking(
 export function refusePastMeal(meal: Meal, at: Date): void {
   if (isPastMeal(meal, dateKeyInSofia(at))) {
     throw refuse('past_meal', PAST_MEAL);
+  }
+}
+
+/**
+ * 409 `menu_reworking` while a rework of the plan is pending (GLOSSARY: Преработка на менюто): the week is locked for
+ * the content, the votes and the threads of its meals, so the agent's answer overwrites nothing done meanwhile. Run it
+ * in the transaction of the change: it holds the week's lock (`lockWeek`), which the rework takes when it is asked for,
+ * until the change commits. Shared with `menu.rework` and `meal.replace`.
+ */
+export async function refuseReworkingWeek(
+  tx: DbExecutor,
+  planId: string,
+): Promise<void> {
+  await lockWeek(tx, await weekOf(tx, planId));
+  if (await hasPendingRework(tx, planId)) {
+    throw refuse('menu_reworking', REWORKING);
   }
 }
 
