@@ -1,0 +1,39 @@
+/* „✨ Преработи менюто“: подсказка, броят, сменяните дни, чакането и бутонът, един под друг. */
+.rework {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rework > p {
+  margin: 0;
+}
+
+.rework__counts {
+  font-weight: 600;
+}
+
+.rework__days {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  list-style: none;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.rework__waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.rework__waiting > p {
+  margin: 0;
+}

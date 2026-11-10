@@ -787,3 +787,8 @@ button.meal-row__content:hover {
 .meal-row__feedback {
   margin-inline-start: auto;
 }
+
+/* „✨ Преработи менюто“ над филтрите. */
+.menu__rework {
+  align-self: flex-start;
+}

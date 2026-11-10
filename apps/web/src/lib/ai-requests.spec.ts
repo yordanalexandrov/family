@@ -13,6 +13,7 @@ function failed(
 
 const NEXT: Record<AiRequestKind, string> = {
   menu: 'Опитай пак или започни празно.',
+  rework: 'Менюто е непроменено. Опитай пак.',
   replace: 'Опитай пак или избери сам.',
   suggest: 'Опитай пак или с друга подсказка.',
   import: 'Опитай пак.',
@@ -23,6 +24,7 @@ const NEXT: Record<AiRequestKind, string> = {
 
 const FAILED: Record<AiRequestKind, string> = {
   menu: 'AI не успя да предложи меню',
+  rework: 'AI не успя да преработи менюто',
   replace: 'AI не успя да предложи друго ястие',
   suggest: 'AI не успя да предложи рецепти',
   import: 'AI не успя да прочете рецептата',
