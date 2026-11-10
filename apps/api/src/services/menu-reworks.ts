@@ -30,7 +30,6 @@ import {
 import {
   findLatestRework,
   findRework,
-  hasPendingRework,
   insertRework,
   setReworkChanged,
 } from '../db/repositories/menu-reworks.js';
@@ -45,13 +44,12 @@ import type {
 } from './contract-requests.js';
 import { refuse } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
-import { writeSystemLine } from './menu.js';
+import { refuseReworkingWeek, writeSystemLine } from './menu.js';
 
 /** Phase 1 plans dinner only (`MENU_SLOTS`). */
 const [DINNER] = MENU_SLOTS;
 
 const NO_SUCH_PLAN = 'Няма меню за тази седмица';
-const REWORKING = 'AI преработва менюто: изчакай да свърши';
 const REPLACEMENT_PENDING =
   'За ястие от седмицата се търси друго: изчакай да свърши';
 const NOTHING_TO_REWORK =
@@ -147,9 +145,7 @@ export function createMenuReworkStore(
       if (!plan) {
         throw refuse('no_plan', NO_SUCH_PLAN);
       }
-      if (await hasPendingRework(tx, plan.id)) {
-        throw refuse('menu_reworking', REWORKING);
-      }
+      await refuseReworkingWeek(tx, plan.id);
       if (await hasPendingReplacementInPlan(tx, plan.id)) {
         throw refuse('replacement_pending', REPLACEMENT_PENDING);
       }
