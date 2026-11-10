@@ -4,8 +4,7 @@ import {
   deleteOrphanSourcePhotos,
   findSourcePhotosData,
 } from '../db/repositories/source-photos.js';
-import { NotFoundError } from './errors.js';
-import { jpegOfWidth, keptJpeg } from './photo-jpeg.js';
+import { foundJpegOfWidth, keptJpeg } from './photo-jpeg.js';
 import { orphanPhotosBefore } from './photo-orphans.js';
 
 /**
@@ -40,8 +39,5 @@ export async function sourcePhotoImage(
   width?: number,
 ): Promise<Buffer> {
   const [data] = await findSourcePhotosData(db, [id]);
-  if (!data) {
-    throw new NotFoundError('Няма такава снимка');
-  }
-  return jpegOfWidth(data, width);
+  return foundJpegOfWidth(data, width);
 }

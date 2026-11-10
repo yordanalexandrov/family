@@ -5,8 +5,7 @@ import {
   findStepPhotoData,
   insertStepPhoto,
 } from '../db/repositories/step-photos.js';
-import { NotFoundError } from './errors.js';
-import { jpegOfWidth, keptJpeg } from './photo-jpeg.js';
+import { foundJpegOfWidth, keptJpeg } from './photo-jpeg.js';
 import { orphanPhotosBefore } from './photo-orphans.js';
 
 /**
@@ -55,9 +54,5 @@ export async function stepPhotoImage(
   id: string,
   width?: number,
 ): Promise<Buffer> {
-  const data = await findStepPhotoData(db, id);
-  if (!data) {
-    throw new NotFoundError('Няма такава снимка');
-  }
-  return jpegOfWidth(data, width);
+  return foundJpegOfWidth(await findStepPhotoData(db, id), width);
 }

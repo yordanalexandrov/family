@@ -20,7 +20,7 @@
 - `appliances.ts:getAppliances, addAppliance, switchAppliance, removeAppliance` – Уреди.
 - `step-photos.ts:storeStepPhoto, stepPhotoJpeg, stepPhotoImage, stepPhotoIds, removeOrphanStepPhotos` – Снимка на стъпка (ADR-0008).
 - `recipe-photo.ts:photoType` – типът на снимка по първите ѝ байтове (JPEG, PNG, WebP, HEIC/HEIF).
-- `photo-jpeg.ts:keptJpeg, jpegOfWidth, PHOTO_MAX_INPUT_PIXELS` – общото декодиране на снимките на стъпки и на източника.
+- `photo-jpeg.ts:keptJpeg, foundJpegOfWidth, PHOTO_MAX_INPUT_PIXELS` – общото декодиране на снимките на стъпки и на източника; `foundJpegOfWidth` дава намерената снимка (или миниатюра) и `NotFoundError` без нея.
 - `photo-orphans.ts:orphanPhotosBefore` – нощните часове и прагът от един ден за снимките сираци.
 - `source-photos.ts:sourcePhotoJpeg, sourcePhotoImage, removeOrphanSourcePhotos` – снимките на Източник на рецепта (ADR-0016).
 - `menu.ts:createMenuService, MenuService, createMenuProposalStore, MenuProposals, readCooking, refusePastMeal, refuseReworkingWeek, writeSystemLine, recordContentChange, changeRecipe, agentThread, NO_SUCH_MEAL` – Седмично меню, Ястие, Глас, Разговор, Предложение за меню, „Днес се готви“.

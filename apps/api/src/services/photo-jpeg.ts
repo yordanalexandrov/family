@@ -1,6 +1,6 @@
 import decodeHeic from 'heic-decode';
 import sharp, { type Sharp } from 'sharp';
-import { UnsupportedPhotoError } from './errors.js';
+import { NotFoundError, UnsupportedPhotoError } from './errors.js';
 import { photoType } from './recipe-photo.js';
 
 const JPEG_QUALITY = 82;
@@ -57,11 +57,17 @@ export async function keptJpeg(
   }
 }
 
-/** A kept photo, or with `width` a thumbnail that wide made now (never wider than the photo). Always a JPEG. */
-export async function jpegOfWidth(
-  data: Buffer,
+/**
+ * A kept photo as found in the database, or with `width` a thumbnail that wide made now (never wider than the photo);
+ * no photo found (`undefined`) is a `NotFoundError`. Always a JPEG.
+ */
+export async function foundJpegOfWidth(
+  data: Buffer | undefined,
   width: number | undefined,
 ): Promise<Buffer> {
+  if (!data) {
+    throw new NotFoundError('Няма такава снимка');
+  }
   if (width === undefined) {
     return data;
   }
