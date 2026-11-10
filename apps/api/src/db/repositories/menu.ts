@@ -608,7 +608,7 @@ export async function claimMealCook(
 
 export type MealRemoval = typeof mealRemoval.$inferSelect;
 
-/** Keeps the last „Махни ястието от деня“ of a meal for its „Върни“, over any earlier one. */
+/** Keeps the last change of a meal's recipe by a person for its „Върни“, over any earlier one. */
 export async function saveRemoval(
   db: DbExecutor,
   removal: MealRemoval,
@@ -620,18 +620,15 @@ export async function saveRemoval(
     .onConflictDoUpdate({ target: mealRemoval.mealId, set: rest });
 }
 
-/** The last removal of a meal, if `removedBy` made it. */
+/** The last change of a meal's recipe by a person, kept for its „Върни“. */
 export async function findRemoval(
   db: DbExecutor,
   mealId: string,
-  removedBy: string,
 ): Promise<MealRemoval | undefined> {
   const [row] = await db
     .select()
     .from(mealRemoval)
-    .where(
-      and(eq(mealRemoval.mealId, mealId), eq(mealRemoval.removedBy, removedBy)),
-    );
+    .where(eq(mealRemoval.mealId, mealId));
   return row;
 }
 

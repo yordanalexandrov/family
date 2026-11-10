@@ -2,7 +2,7 @@
 
 ## Overview
 
-SQL миграциите на базата (49 файла, `0000_users.sql` … `0048_source_photos.sql`), генерирани от `drizzle-kit generate` по `src/db/schema`. Има и custom data миграции, писани на ръка. API-то ги прилага при старт (`src/db/migrate.ts:runMigrations`) по реда на журнала `meta/_journal.json`. `meta/` е служебна папка на drizzle-kit (snapshots и журнал).
+SQL миграциите на базата (50 файла, `0000_users.sql` … `0049_meal_change_restore.sql`), генерирани от `drizzle-kit generate` по `src/db/schema`. Има и custom data миграции, писани на ръка. API-то ги прилага при старт (`src/db/migrate.ts:runMigrations`) по реда на журнала `meta/_journal.json`. `meta/` е служебна папка на drizzle-kit (snapshots и журнал).
 
 ## Interface
 

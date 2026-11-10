@@ -135,8 +135,11 @@ export const mealComment = pgTable(
 );
 
 /**
- * The last „Махни ястието от деня“ of a meal, kept for its „Върни“: the recipe, its `why` and the votes it took, and
- * the system line it wrote (`comment_id`). Only `removed_by` may bring it back; a new recipe for the day drops it.
+ * The last change of a meal's recipe by a person (GLOSSARY: Глас), „Махни ястието от деня“ included, kept for its
+ * „Върни“: the recipe before (`recipe_id`, `null` for a day that was empty), its `why` and the votes the change took,
+ * the recipe it put (`to_recipe_id`, `null` for a removal), the system line it wrote (`comment_id`) and who made it
+ * (`removed_by`). One per meal, the last one; only `removed_by` may bring it back, and only while the meal still has
+ * `to_recipe_id`. A rework drops it. The table keeps its first name, from when only a removal was kept.
  */
 export const mealRemoval = pgTable('meal_removal', {
   mealId: uuid('meal_id')
@@ -145,11 +148,14 @@ export const mealRemoval = pgTable('meal_removal', {
   removedBy: uuid('removed_by')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
-  recipeId: uuid('recipe_id')
-    .notNull()
-    .references(() => recipe.id, { onDelete: 'cascade' }),
+  recipeId: uuid('recipe_id').references(() => recipe.id, {
+    onDelete: 'cascade',
+  }),
   why: text('why'),
   votes: jsonb('votes').$type<Vote[]>().notNull(),
+  toRecipeId: uuid('to_recipe_id').references(() => recipe.id, {
+    onDelete: 'cascade',
+  }),
   commentId: uuid('comment_id').references(() => mealComment.id, {
     onDelete: 'set null',
   }),

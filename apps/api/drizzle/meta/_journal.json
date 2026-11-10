@@ -344,6 +344,13 @@
       "when": 1794346119737,
       "tag": "0048_source_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794350990813,
+      "tag": "0049_meal_change_restore",
+      "breakpoints": true
     }
   ]
 }

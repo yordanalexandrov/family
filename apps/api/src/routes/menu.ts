@@ -120,8 +120,11 @@ export const menuRoutes: FastifyPluginAsyncZod = async (app) => {
     }),
   );
 
-  // „Върни“ after „Махни ястието от деня“ (GLOSSARY: Ястие): the api brings back what the acting user's removal took
-  // (the recipe, its why, the votes) and takes its line out of the thread. No body: what comes back is what was kept.
+  // „Върни“ after the acting user's last change of the recipe, „Махни ястието от деня“ and a pick for an empty day
+  // included (GLOSSARY: Глас): the api brings back what the change took (the recipe or an empty day, its why, the votes)
+  // and takes its line out of the thread. No body: what comes back is what was kept. 409 without a kept change, when
+  // the last one is someone else's or the meal has another recipe since, `past_meal`, `menu_reworking`; 400 for a
+  // recipe that is not a dinner one any more.
   app.post(
     '/api/menu/meals/:id/restore',
     {
