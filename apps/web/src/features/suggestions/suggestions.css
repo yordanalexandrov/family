@@ -318,18 +318,56 @@
   font-size: var(--font-size-sm);
 }
 
-/* „За ястието от ср 4.11: агентът ще прочете коментарите · Махни“: заявка от ястие в менюто. */
-.suggest-form__meal {
+/* „Агентът ще вземе предвид“: ястието и разговорът му, когато заявката е от менюто. */
+.meal-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+
+.meal-context__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.meal-context__title {
   margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.meal-context__meal {
+  margin: 0;
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-.suggest-form__meal-remove {
+.meal-context__current {
+  color: var(--color-text);
+}
+
+.meal-context .thread__lines {
+  margin: 0;
+}
+
+.meal-context__remove,
+.meal-context__toggle {
   padding: 0;
   border: 0;
   background: none;
   color: var(--color-accent);
   font: inherit;
+  font-size: var(--font-size-sm);
   text-decoration: underline;
   cursor: pointer;
+}
+
+.meal-context__toggle {
+  align-self: flex-start;
 }

@@ -81,7 +81,8 @@ export function Thread({
   );
 }
 
-function ThreadLine({
+/** Един ред на разговора: коментар с аватар и час или приглушен системен ред; `onDelete` дава „Изтрий“. */
+export function ThreadLine({
   line,
   author,
   onDelete,

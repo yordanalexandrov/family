@@ -425,10 +425,8 @@ describe('SuggestionRequestView', () => {
     await user.click(screen.getByRole('link', { name: 'Промени заявката' }));
 
     expect(
-      await screen.findByText(
-        'За ястието от ср 4.11: агентът ще прочете коментарите по него',
-      ),
-    ).toBeInTheDocument();
+      await screen.findByRole('region', { name: 'Агентът ще вземе предвид' }),
+    ).toHaveTextContent('ср 4.11');
   });
 
   it('без подсказка редът със заявката е само слотовете', async () => {
