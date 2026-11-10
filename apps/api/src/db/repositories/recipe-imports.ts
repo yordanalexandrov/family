@@ -85,7 +85,7 @@ function selectRequests(db: DbExecutor) {
  */
 export async function insertImportRequest(
   db: DbExecutor,
-  params: RecipeImportParams | { kind: 'photo'; photos: string[] },
+  params: RecipeImportParams,
   requestedBy: string,
 ): Promise<RecipeImportRequest> {
   const [row] = await db

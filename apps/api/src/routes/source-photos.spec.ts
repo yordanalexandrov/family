@@ -323,4 +323,59 @@ describe('the source photo orphans of the night cron', () => {
     // Stored two and a half hours before: an import whose run may not have stored it as its own yet.
     expect(await photoStatus(ids.fresh)).toBe(200);
   });
+
+  it('keeps the photos of a failed import imported again while either import points at them', async () => {
+    const detail = await photoImport([await aPhoto(), await aPhoto()]);
+    expect(detail.request.status).toBe('failed');
+    const photos = detail.photos ?? [];
+    const again = await app.inject({
+      method: 'POST',
+      url: '/api/recipe-imports',
+      headers,
+      payload: { kind: 'photo', photos },
+    });
+    expect(again.statusCode).toBe(202);
+    const againId: string = again.json().request.id;
+    await vi.waitFor(async () => {
+      const got = await app.inject({
+        method: 'GET',
+        url: `/api/recipe-imports/${againId}`,
+        headers,
+      });
+      expect(got.json().request.status).toBe('failed');
+    });
+    await testDb()
+      .update(sourcePhoto)
+      .set({ createdAt: new Date('2026-11-01T12:00:00Z') });
+
+    /** Runs the night cron once, until it says how many it removed. */
+    async function night(removed: number) {
+      const { cron, lines } = await cronAt('2026-11-05T01:30:00Z');
+      try {
+        await vi.waitFor(() => {
+          expect(lines).toContainEqual(
+            expect.objectContaining({ job: 'source-photo-orphans', removed }),
+          );
+        });
+      } finally {
+        await cron.close();
+      }
+    }
+
+    await testDb()
+      .delete(recipeImportRequest)
+      .where(sql`${recipeImportRequest.id} = ${detail.request.id}`);
+    await night(0);
+    for (const id of photos) {
+      expect(await photoStatus(id)).toBe(200);
+    }
+
+    await testDb()
+      .delete(recipeImportRequest)
+      .where(sql`${recipeImportRequest.id} = ${againId}`);
+    await night(2);
+    for (const id of photos) {
+      expect(await photoStatus(id)).toBe(404);
+    }
+  });
 });

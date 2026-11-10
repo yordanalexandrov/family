@@ -278,23 +278,45 @@ describe('Споделена снимка (share target с POST през service
 });
 
 describe('Неуспешно внасяне от снимка', () => {
-  it('няма „Опитай пак“ (снимката не е пазена), а „Нова снимка“ води към таба „Снимка“', async () => {
+  const failedPhotoImport: RecipeImportRequest = {
+    ...photoImport,
+    status: 'failed',
+    error: 'no_results',
+    noResults: 'На снимката няма рецепта.',
+  };
+
+  it('„Опитай пак“ внася наново записаните снимки по реда им и отваря новото внасяне; „Снимки“ при три части', async () => {
+    const user = userEvent.setup();
     setUpDevice('phone', dani.id);
+    const againId = 'dddddddd-0000-4000-8000-000000000365';
+    const posted: unknown[] = [];
+    const opened: string[] = [];
     server.use(
       http.get('/api/recipe-imports', () =>
         HttpResponse.json({ requests: [] }),
       ),
       http.get(`/api/recipe-imports/${importId}`, () =>
         HttpResponse.json({
-          request: {
-            ...photoImport,
-            status: 'failed',
-            error: 'no_results',
-            noResults: 'На снимката няма рецепта.',
-          },
+          request: failedPhotoImport,
+          photos: sourcePhotoIds,
           ingredients: [],
         } satisfies RecipeImportDetail),
       ),
+      http.post('/api/recipe-imports', async ({ request }) => {
+        posted.push(await request.json());
+        return HttpResponse.json(
+          { request: { ...photoImport, id: againId } },
+          { status: 202 },
+        );
+      }),
+      http.get(`/api/recipe-imports/${againId}`, () => {
+        opened.push(againId);
+        return HttpResponse.json({
+          request: { ...photoImport, id: againId },
+          photos: sourcePhotoIds,
+          ingredients: [],
+        } satisfies RecipeImportDetail);
+      }),
     );
 
     renderApp(`/recipes/import/${importId}`);
@@ -303,7 +325,37 @@ describe('Неуспешно внасяне от снимка', () => {
     expect(alert).toHaveTextContent(
       'Не намерих рецепта: На снимката няма рецепта.',
     );
-    // Отворено наново: снимката вече не е в паметта, остава само видът.
+    expect(within(alert).getByText('Снимки')).toBeInTheDocument();
+    expect(
+      within(alert).getAllByRole('img', { name: /^Снимка \d на източника$/ }),
+    ).toHaveLength(3);
+    expect(
+      within(alert).getByRole('button', { name: 'Нова снимка' }),
+    ).toBeInTheDocument();
+    await user.click(within(alert).getByRole('button', { name: 'Опитай пак' }));
+
+    expect(posted).toEqual([{ kind: 'photo', photos: sourcePhotoIds }]);
+    expect(await screen.findByText(WAITING)).toBeInTheDocument();
+    expect(opened.length).toBeGreaterThan(0);
+  });
+
+  it('„Нова снимка“ води към таба „Снимка“; без записани снимки няма „Опитай пак“', async () => {
+    setUpDevice('phone', dani.id);
+    server.use(
+      http.get('/api/recipe-imports', () =>
+        HttpResponse.json({ requests: [] }),
+      ),
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          request: failedPhotoImport,
+          ingredients: [],
+        } satisfies RecipeImportDetail),
+      ),
+    );
+
+    renderApp(`/recipes/import/${importId}`);
+
+    const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('Снимка')).toBeInTheDocument();
     expect(within(alert).queryByRole('img')).not.toBeInTheDocument();
     expect(

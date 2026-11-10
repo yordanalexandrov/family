@@ -62,7 +62,7 @@ export function ImportPhotoForm({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (photos && !tooLarge) {
-      onSubmit({ kind: 'photo', photos });
+      onSubmit({ kind: 'upload', photos });
     }
   }
 

@@ -151,7 +151,7 @@ export function ImportScreen() {
     }
     const parts = await resizePhoto(photo);
     setSharedPhoto(parts);
-    submit({ kind: 'photo', photos: parts }, true);
+    submit({ kind: 'upload', photos: parts }, true);
   }
   const formProps = {
     isSubmitting: requestImport.isPending,

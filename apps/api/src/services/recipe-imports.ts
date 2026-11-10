@@ -24,6 +24,7 @@ import {
   setImportUrl,
 } from '../db/repositories/recipe-imports.js';
 import {
+  existingSourcePhotoIds,
   findSourcePhotosData,
   insertSourcePhotos,
 } from '../db/repositories/source-photos.js';
@@ -34,7 +35,11 @@ import {
   type ContractRequestHandle,
   type ContractRequestStore,
 } from './contract-requests.js';
-import { AlreadyImportedError, NotFoundError } from './errors.js';
+import {
+  AlreadyImportedError,
+  InvalidReferenceError,
+  NotFoundError,
+} from './errors.js';
 import {
   type PreparedStepPhotos,
   prepareStepPhotos,
@@ -48,8 +53,9 @@ import { sourcePhotoJpeg } from './source-photos.js';
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
 /**
- * What the api imports: the client's JSON (text, link), or the photos from the multipart form (one photo, or the parts
- * of a long screenshot, in their order) as they were uploaded.
+ * What the api imports: the client's JSON (text, link, or the ids of photos already stored with an earlier import), or
+ * the photos from the multipart form (one photo, or the parts of a long screenshot, in their order) as they were
+ * uploaded.
  */
 export type ImportParams =
   | RecipeImportParams
@@ -76,7 +82,9 @@ export type RecipeImportRequests = ContractRequestHandle<
  * link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
  * `fetch_blocked` or `fetch_failed` without asking the agent. The photos of an import are stored with it
  * (`source_photo`, ADR-0016), in their order; its run reads them (`load`) and sends them to the agent as images next to
- * the input (`{ kind: 'photo' }`), the same for the client's retry and after a restart. Approval and rejection of the
+ * the input (`{ kind: 'photo' }`), the same for the client's retry and after a restart. A new import of photos already
+ * stored (the retry of a failed one) points at the same rows in their order, without copying them; an id that is not
+ * stored is 400 `invalid_reference`. Approval and rejection of the
  * suggestion are the suggestions' own (`app.recipeSuggestions`).
  *
  * A page's step photos (GLOSSARY: Снимка на стъпка) go to the agent as references only. Their URLs stay with what the
@@ -96,9 +104,16 @@ export function createRecipeImportStore(): ContractRequestStore<
   return {
     table: recipeImportRequest,
     async insert(tx, params, requestedBy) {
-      if (params.kind === 'photo') {
+      if (params.kind === 'photo' && 'keptPhotos' in params) {
         const photos = await insertSourcePhotos(tx, params.keptPhotos);
         return insertImportRequest(tx, { kind: 'photo', photos }, requestedBy);
+      }
+      if (params.kind === 'photo') {
+        // The new import points at the same rows, in their order; it copies nothing.
+        const stored = await existingSourcePhotoIds(tx, params.photos);
+        if (params.photos.some((id) => !stored.has(id))) {
+          throw new InvalidReferenceError('Няма такава снимка');
+        }
       }
       if (params.kind === 'url' && !params.force) {
         const matches = await findSourceUrlMatches(tx, params.url);
@@ -225,7 +240,7 @@ export function createRecipeImportsService({
 }): RecipeImportsService {
   return {
     async requestImport(params, actingUserId) {
-      if (params.kind !== 'photo') {
+      if (!('uploadedPhotos' in params)) {
         return requests.request(params, actingUserId);
       }
       // One at a time: each decodes up to 50 megapixels.

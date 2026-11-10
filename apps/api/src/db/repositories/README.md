@@ -32,7 +32,7 @@
 - `reminders.ts:listReminderDinners, listFrozenIngredientIds` – вечерите и продуктите „Във фризера“, които трябват на напомнянията.
 - `shopping.ts:ensureShoppingList, findShoppingListId, listShoppingItems, setComputedItemOverlay, insertManualItem, setManualItemCheck, deleteManualItem, listShoppingMealIds, insertShoppingMeal, deleteShoppingMeal, deleteShoppingMealsOf` – Списък за пазаруване.
 - `step-photos.ts:insertStepPhoto, findStepPhotoData, existingStepPhotoIds, deleteOrphanStepPhotos` – Снимка на стъпка.
-- `source-photos.ts:insertSourcePhotos, findSourcePhotosData, deleteOrphanSourcePhotos` – снимките на Източник на рецепта (ADR-0016).
+- `source-photos.ts:insertSourcePhotos, findSourcePhotosData, existingSourcePhotoIds, deleteOrphanSourcePhotos` – снимките на Източник на рецепта (ADR-0016).
 - `sync-runs.ts:startRun, finishRun, lastRuns, pruneRuns` – Синхронизация (`sync_run`).
 - `users.ts:listUsers, listPeople, findUser` – Потребители; `listPeople` е без служебните (роля `app`, ADR-0014).
 - Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuAction, MenuActivity, MenuActivityAction`, `menu.ts:NewMeal, MealRemoval, MealAnswers`, `inbox.ts:InboxWrite`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `recipes.ts:ImportedSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.

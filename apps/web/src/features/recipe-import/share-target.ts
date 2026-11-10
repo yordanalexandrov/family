@@ -30,7 +30,9 @@ function firstLinkIn(text: string | undefined): string | undefined {
  * The import a share starts: a link (from `url`, else the first link in `text`) is imported as a link; otherwise the
  * shared text, with the title on top unless the text already starts with it. Nothing to import → `null`.
  */
-export function importFromShare(shared: SharedData): RecipeImportParams | null {
+export function importFromShare(
+  shared: SharedData,
+): Extract<RecipeImportParams, { kind: 'text' | 'url' }> | null {
   const url = webUrl(shared.url) ?? firstLinkIn(shared.text);
   if (url) {
     return { kind: 'url', url };

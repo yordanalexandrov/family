@@ -21,6 +21,21 @@ export async function insertSourcePhotos(
   return ids;
 }
 
+/** Which of `ids` are stored photos, without reading their bytes. */
+export async function existingSourcePhotoIds(
+  db: DbExecutor,
+  ids: readonly string[],
+): Promise<Set<string>> {
+  if (ids.length === 0) {
+    return new Set();
+  }
+  const rows = await db
+    .select({ id: sourcePhoto.id })
+    .from(sourcePhoto)
+    .where(inArray(sourcePhoto.id, [...ids]));
+  return new Set(rows.map((row) => row.id));
+}
+
 /** The stored JPEGs of `ids`, in the order of `ids`; an id that is not stored is left out. */
 export async function findSourcePhotosData(
   db: DbExecutor,
