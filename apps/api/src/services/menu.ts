@@ -31,18 +31,18 @@ import type { Db, DbExecutor } from '../db/client.js';
 import {
   claimMealCook,
   deleteComment,
+  deleteMealChange,
   deleteOtherVotes,
   deletePlan,
-  deleteRemoval,
   deleteVote,
   deleteVotes,
   findComment,
   findMeal,
+  findMealChange,
   findMealOn,
   findPlanByWeek,
   findPlanSummary,
   findProposal,
-  findRemoval,
   hasPendingProposal,
   insertComment,
   insertPlan,
@@ -53,7 +53,7 @@ import {
   lockWeek,
   markMealThawed,
   type NewMeal,
-  saveRemoval,
+  saveMealChange,
   setProposalPlan,
   swapMealDates,
   updateMeal,
@@ -477,21 +477,21 @@ export function createMenuService({
         }
         await refuseReworkingWeek(tx, current.planId);
         refusePastMeal(current, now());
-        const removal = await findRemoval(tx, id);
-        if (!removal) {
+        const change = await findMealChange(tx, id);
+        if (!change) {
           throw new ConflictError(NOTHING_TO_RESTORE);
         }
-        if (removal.removedBy !== actingUserId) {
+        if (change.changedBy !== actingUserId) {
           throw new ConflictError(NOT_YOUR_CHANGE);
         }
-        if (current.recipeId !== removal.toRecipeId) {
+        if (current.recipeId !== change.toRecipeId) {
           throw new ConflictError(
-            removal.toRecipeId === null ? DAY_TAKEN : CHANGED_AGAIN,
+            change.toRecipeId === null ? DAY_TAKEN : CHANGED_AGAIN,
           );
         }
         if (
-          removal.recipeId !== null &&
-          !(await isMenuRecipe(tx, removal.recipeId, current.slot))
+          change.recipeId !== null &&
+          !(await isMenuRecipe(tx, change.recipeId, current.slot))
         ) {
           throw new InvalidReferenceError(NOT_MENU_RECIPE);
         }
@@ -499,17 +499,17 @@ export function createMenuService({
           tx,
           id,
           current.planId,
-          { recipeId: removal.recipeId, why: removal.why },
+          { recipeId: change.recipeId, why: change.why },
           now(),
         );
-        if (removal.commentId) {
-          await deleteComment(tx, removal.commentId);
+        if (change.commentId) {
+          await deleteComment(tx, change.commentId);
         }
-        await deleteRemoval(tx, id);
+        await deleteMealChange(tx, id);
         for (const vote of current.votes) {
           await deleteVote(tx, id, vote.userId);
         }
-        for (const vote of removal.votes) {
+        for (const vote of change.votes) {
           await upsertVote(tx, id, vote.userId, vote.value, now());
         }
         return reread(tx, id, current.planId);
@@ -888,7 +888,7 @@ export async function recordContentChange(
  *   change („Махни ястието от деня“ and a recipe for an empty day included) is kept for its „Върни“ with what it took
  *   and the line, over any earlier one;
  * - the AI of a rework (GLOSSARY: Преработка на менюто): every vote goes (the AI does not vote), the line says the AI
- *   did it (`reworked`) on behalf of who asked, and a kept removal goes.
+ *   did it (`reworked`) on behalf of who asked, and a kept change goes.
  * The caller has refused what it must (a past meal, a recipe outside the registry, a locked week).
  */
 export async function changeRecipe(
@@ -925,7 +925,7 @@ export async function changeRecipe(
       },
       at,
     );
-    await deleteRemoval(tx, before.id);
+    await deleteMealChange(tx, before.id);
   }
   await deleteShoppingMealsOf(tx, before.id);
 }
@@ -942,15 +942,15 @@ async function keepChange(
   line: MealComment,
   at: Date,
 ): Promise<void> {
-  await saveRemoval(tx, {
+  await saveMealChange(tx, {
     mealId: before.id,
-    removedBy: actingUserId,
+    changedBy: actingUserId,
     recipeId: before.recipeId,
     why: before.why,
     votes: before.votes.map(({ userId, value }) => ({ userId, value })),
     toRecipeId: recipeId,
     commentId: line.id,
-    removedAt: at,
+    changedAt: at,
   });
 }
 

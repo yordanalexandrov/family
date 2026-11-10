@@ -1301,6 +1301,20 @@ describe('POST /api/menu/meals/:id/restore', () => {
     });
   });
 
+  it('answers „Върни“ of a removal with whose change it is once the other one picked a recipe for the day', async () => {
+    const plan = await createPlan(WEEK);
+    const [monday] = plan.meals;
+    await patchMeal(monday.id, { recipeId: null });
+    await patchMeal(monday.id, { recipeId: recipeId(2) }, POLI.id);
+
+    const response = await restore(monday.id);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      message: 'Последната смяна на ястието е на друг',
+    });
+  });
+
   it('answers 409 to „Върни“ after a note, a swap, the cook or the servings: they keep no change for it', async () => {
     const plan = await createPlan(WEEK);
     const [monday, tuesday, wednesday] = plan.meals;
