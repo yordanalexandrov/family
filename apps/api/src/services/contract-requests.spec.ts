@@ -469,6 +469,42 @@ describe('AI requests (contract-requests)', () => {
     expect((await handle.get(young?.id ?? ''))?.status).toBe('pending');
   });
 
+  it('calls afterFailed for each request it fails as stale, as it ended', async () => {
+    const failed: EchoRequest[] = [];
+    create(undefined, silent, {
+      ...store,
+      afterFailed: (request) => failed.push(request),
+    });
+    const [old] = await testDb()
+      .insert(table)
+      .values([
+        {
+          slots: ['lunch'],
+          hint: 'old',
+          requestedBy: DANI.id,
+          createdAt: new Date(Date.now() - 11 * 60 * 1000),
+        },
+        {
+          slots: ['lunch'],
+          hint: 'young',
+          requestedBy: DANI.id,
+          createdAt: new Date(Date.now() - 60 * 1000),
+        },
+      ])
+      .returning({ id: table.id });
+
+    await requests.failStale();
+
+    expect(failed).toEqual([
+      expect.objectContaining({
+        id: old?.id,
+        word: 'old',
+        status: 'failed',
+        error: 'stale',
+      }),
+    ]);
+  });
+
   it('aborts the runs in flight on close and waits for them: they end failed/aborted', async () => {
     let reached = () => {};
     const atGateway = new Promise<void>((resolve) => {

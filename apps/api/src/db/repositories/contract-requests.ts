@@ -32,17 +32,17 @@ export async function finishContractRequest(
     .where(eq(table.id, id));
 }
 
-/** Requests still `pending` that were created before `cutoff` become `failed` with `error`; returns how many. */
+/** Requests still `pending` that were created before `cutoff` become `failed` with `error`; returns their ids. */
 export async function failPendingContractRequestsBefore(
   db: DbExecutor,
   table: ContractRequestTable,
   cutoff: Date,
   error: ContractFailure,
-): Promise<number> {
+): Promise<string[]> {
   const rows = await db
     .update(table)
     .set({ status: 'failed', error, finishedAt: new Date() })
     .where(and(eq(table.status, 'pending'), lt(table.createdAt, cutoff)))
     .returning({ id: table.id });
-  return rows.length;
+  return rows.map((row) => row.id);
 }
