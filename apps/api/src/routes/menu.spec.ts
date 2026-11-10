@@ -1423,6 +1423,8 @@ describe('POST /api/menu/proposals', () => {
         { type: 'menu.proposal.changed', weekStart: WEEK },
         { type: 'menu.changed', weekStart: WEEK },
         { type: 'shopping.changed', weekStart: WEEK },
+        // „Ново меню“ in the other's inbox.
+        { type: 'inbox.changed', userId: POLI.id },
       ]),
     );
     unsubscribe();

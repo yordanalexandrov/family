@@ -156,6 +156,8 @@ describe('„Кой готви довечера“ through the reminders cron', 
     expect(delivered[0]?.payload).toEqual({
       kind: 'cook',
       userId: POLI.id,
+      inboxId: expect.any(String),
+      unread: expect.any(Number),
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${mealId}`,
@@ -256,6 +258,8 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     expect(delivered[0]?.payload).toEqual({
       kind: 'cook',
       userId: POLI.id,
+      inboxId: expect.any(String),
+      unread: expect.any(Number),
       title: 'Довечера готви Дани',
       body: 'Мусака',
       tag: `cook-${mealId}`,
@@ -282,6 +286,8 @@ describe('POST /api/menu/meals/:id/cook-claim', () => {
     expect(toDani[0]?.payload).toEqual({
       kind: 'cook',
       userId: DANI.id,
+      inboxId: expect.any(String),
+      unread: expect.any(Number),
       title: 'Довечера готвиш ти',
       body: 'Мусака',
       tag: `cook-${mealId}`,

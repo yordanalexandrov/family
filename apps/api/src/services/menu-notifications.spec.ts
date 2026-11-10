@@ -191,6 +191,8 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
         payload: {
           kind: 'menu',
           userId: DANI.id,
+          inboxId: expect.any(String),
+          unread: 1,
           title: 'Поли по менюто',
           body: '2 гласа, 1 коментар, 1 смяна',
           tag: `menu-${WEEK}`,
@@ -349,6 +351,8 @@ describe('new menu proposal', () => {
     title: 'Ново предложение за меню',
     tag: `menu-${WEEK}`,
     url: `/menu?week=${WEEK}`,
+    inboxId: expect.any(String),
+    unread: expect.any(Number),
   };
 
   it('tells everyone of the cron’s proposal once its plan is made, without a name', async () => {

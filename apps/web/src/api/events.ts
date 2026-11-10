@@ -5,7 +5,8 @@ import {
 } from '@family/shared';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { readActingUserId } from '../app/acting-user';
+import { readActingUserId, useWritingUserId } from '../app/acting-user';
+import { inboxKeys } from '../features/inbox/queries';
 import { menuKeys } from '../features/menu/queries';
 import { noteProposalChange } from '../features/menu/unseen-proposals';
 import { pantryKeys } from '../features/pantry/queries';
@@ -13,13 +14,19 @@ import { shoppingKeys } from '../features/shopping/queries';
 import { logger } from '../logger';
 import { queryKeys } from './queries';
 
-const EVENTS_URL = '/api/events';
+/** Потокът със сигналите на кутията на `userId`; без човек (kiosk, TV) — само общите. */
+function eventsUrl(userId: string | null): string {
+  return userId
+    ? `/api/events?user=${encodeURIComponent(userId)}`
+    : '/api/events';
+}
 
-/** Всичко, което сигналите покриват: менюто и списъкът за пазаруване на всяка седмица, и килерът. */
+/** Всичко, което сигналите покриват: менюто и списъкът за пазаруване на всяка седмица, килерът и кутията. */
 function invalidateAll(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: menuKeys.all });
   void queryClient.invalidateQueries({ queryKey: shoppingKeys.all });
   void queryClient.invalidateQueries({ queryKey: pantryKeys.all });
+  void queryClient.invalidateQueries({ queryKey: inboxKeys.all });
 }
 
 /**
@@ -27,10 +34,13 @@ function invalidateAll(queryClient: QueryClient) {
  * `menu.proposal.changed` презарежда последното предложение на седмицата (чакането на другия телефон) и отбелязва
  * готовото чуждо като невидяно (точката на „Меню“);
  * `menu.rework.changed` презарежда последната преработка на седмицата (лентата „AI преработва менюто…“);
+ * `inbox.changed` идва само на потока на човека: презарежда камбанката и отворената кутия;
  * `shopping.changed` без седмица идва от килера: важи за всеки списък и за самия килер.
  */
 function invalidate(queryClient: QueryClient, event: ServerEvent) {
-  if (event.type === 'menu.changed') {
+  if (event.type === 'inbox.changed') {
+    void queryClient.invalidateQueries({ queryKey: inboxKeys.all });
+  } else if (event.type === 'menu.changed') {
     void queryClient.invalidateQueries({
       queryKey: menuKeys.plan(event.weekStart),
     });
@@ -57,17 +67,19 @@ function invalidate(queryClient: QueryClient, event: ServerEvent) {
 /**
  * Свежест между устройствата (`GET /api/events`): сигналът „X се промени“ инвалидира заявката на React Query, а
  * данните идват през същите REST заявки. След прекъсната връзка (`EventSource` се свързва сам) и при връщане към
- * приложението се презарежда всичко под `menu` и `shopping`, защото сигналите междувременно са изпуснати.
+ * приложението се презарежда всичко под `menu`, `shopping` и `inbox`, защото сигналите междувременно са изпуснати.
+ * Потокът носи пишещия човек (`?user=`), за да идват сигналите на неговата кутия; при смяна се отваря наново.
  * Монтира се веднъж, в корена на приложението.
  */
 export function useServerEvents() {
   const queryClient = useQueryClient();
+  const userId = useWritingUserId();
 
   useEffect(() => {
     if (typeof EventSource === 'undefined') {
       return;
     }
-    const source = new EventSource(EVENTS_URL);
+    const source = new EventSource(eventsUrl(userId));
     let connectedBefore = false;
     const onOpen = () => {
       if (connectedBefore) {
@@ -104,5 +116,5 @@ export function useServerEvents() {
       source.close();
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [queryClient]);
+  }, [queryClient, userId]);
 }

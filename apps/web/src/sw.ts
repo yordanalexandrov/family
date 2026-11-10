@@ -64,6 +64,7 @@ clientsClaim();
 
 const worker: PushWorker = {
   origin: self.location.origin,
+  badge: self.navigator,
   showNotification: (title, options) =>
     self.registration.showNotification(title, options),
   windows: async () =>
