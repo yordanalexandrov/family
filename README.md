@@ -54,6 +54,18 @@ pnpm --filter api meal:smoke -- --comment "И без бобови, моля" --s
 
 Скриптът (`apps/api/scripts/meal-smoke.ts`) праща входа от фикстурата `packages/shared/src/contracts/fixtures/meal-replace.input.json` (пилето в сряда, разговор „без месо, без риба“, 9 други вечери, някои с оценка или последно сервиране, 2 временни продукта в килера); `--comment` добавя ред от Поли в разговора. Валидира като api-то и печата кандидатите със заглавие, време, тагове и „защо“, отбелязва оценката, последното сервиране, продуктите от килера, които „защо“ споменава, и повторените от седмицата. `--save` записва валидирания JSON, за да замени ръчната фикстура `meal-replace.valid.json`.
 
+## Smoke тест на `menu.rework`
+
+Ръчна проверка на „✨ Преработи менюто“ срещу реалния агент `family-menu-rework` (prompt: [docs/openclaw/family-menu-rework.md](docs/openclaw/family-menu-rework.md), без инструменти); тунелът и паролата са като при `recipe.suggest`:
+
+```bash
+pnpm --filter api rework:smoke                                  # всички вградени случаи
+pnpm --filter api rework:smoke -- --case вета --repeat 3 --save /tmp/menu-rework.json
+pnpm --filter api rework:smoke -- --week 2026-11-09 --today 2026-11-11 --hint "по-леко"   # истинска седмица, DATABASE_URL
+```
+
+Скриптът (`apps/api/scripts/rework-smoke.ts`) има вградени случаи от фикстурата `packages/shared/src/contracts/fixtures/menu-rework.input.json`: `fixture` (вето с разговор, ден без гласове с бележка, празен ден, запазени дни, подсказка), `без-подсказка`, `празна-седмица`, `вета` и `бележки`. `--week` сглобява входа точно като api-то от базата на `DATABASE_URL` (само чете). Валидира като api-то и печата всеки ден: запазените и миналите, а за дните за попълване причината, бележката, старата и новата рецепта и „защо“. Бележка или разговор с „без лук“ или „без месо“, нарушени от новата рецепта, са ✗ и изходът е 1.
+
 ## Smoke тест на `recipe.normalize`
 
 Ръчна проверка на „Внеси рецепта“ срещу реалния агент `family-import` (prompt: [docs/openclaw/family-import.md](docs/openclaw/family-import.md), без инструменти); тунелът и паролата са като при `recipe.suggest`:
