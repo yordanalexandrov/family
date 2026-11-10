@@ -32,6 +32,9 @@ import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Същото като отказа 409 `menu_reworking` на api-то. */
+const REWORKING = 'AI преработва менюто: изчакай да свърши';
+
 interface MealSheetProps {
   meal: Meal;
   plan: MealPlan;
@@ -39,6 +42,10 @@ interface MealSheetProps {
   today: DateKey;
   /** Минала седмица: всичко се чете (и разговорът), нищо не се сменя. */
   readOnly?: boolean;
+  /**
+   * AI преработва менюто: гласът, разговорът, ястието, бележката и преместването чакат; готвачът и порциите не.
+   */
+  locked?: boolean;
   /** Действащият потребител, който гласува; без него листът е без гласове. */
   voterId?: string;
   onVote?: (meal: Meal, value: VoteValue | null) => void;
@@ -59,6 +66,7 @@ export function MealSheet({
   users,
   today,
   readOnly = false,
+  locked = false,
   voterId,
   onVote,
   onRecipeRemoved,
@@ -122,6 +130,7 @@ export function MealSheet({
               userId={voterId}
               onVote={(value) => onVote(meal, value)}
               big
+              disabled={locked}
             />
           )}
         </fieldset>
@@ -132,7 +141,7 @@ export function MealSheet({
           weekStart={plan.weekStart}
           users={users}
           userId={voterId}
-          readOnly={past}
+          readOnly={past || locked}
         />
       )}
       {meal.recipeId !== null && (
@@ -155,6 +164,8 @@ export function MealSheet({
             ? 'Седмицата е минала: менюто се чете, но не се сменя.'
             : 'Денят е минал: ястието и бележката не се сменят.'}
         </p>
+      ) : locked ? (
+        <p className="sheet__section meal-votes__past">{REWORKING}</p>
       ) : (
         <>
           {picking ? (

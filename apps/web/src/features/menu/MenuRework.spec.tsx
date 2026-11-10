@@ -3,14 +3,19 @@ import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MockEventSource, source } from '../../test/events';
 import {
   dinnerRecipes,
+  failedRework,
+  pendingRework,
   planFor,
+  reworkId,
   servePlans,
+  serveWeekRework,
   thisWeek,
   votesOf,
 } from '../../test/menu';
-import { dani, fixtureNow, server } from '../../test/msw';
+import { apiError, dani, fixtureNow, poli, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 
 const [chicken, lentils, moussaka, fish] = dinnerRecipes;
@@ -51,17 +56,6 @@ function agreedPlan(): MealPlan {
 }
 
 const BUTTON = { name: '✨ Преработи менюто' };
-
-const reworkId = 'dddddddd-0000-4000-8000-000000000001';
-
-const pendingRework: MenuReworkRequest = {
-  id: reworkId,
-  weekStart: thisWeek,
-  planId: planFor(thisWeek).id,
-  status: 'pending',
-  requestedBy: dani.id,
-  createdAt: '2026-11-04T08:00:00.000Z',
-};
 
 /**
  * `POST /api/menu/reworks` → 202 с `pending` (телата се пазят по ред), после `GET /api/menu/reworks/:id` с поредните
@@ -286,6 +280,190 @@ describe('MenuWeek: преработка на менюто', () => {
         { weekStart: thisWeek, hint: 'по-леко' },
         { weekStart: thisWeek, hint: 'по-леко' },
       ]);
+    });
+  });
+
+  describe('лентата', () => {
+    const BANNER = 'AI преработва менюто…';
+
+    it('на телефона казва, че AI преработва менюто, а гласовете и бутонът за преработка ги няма', async () => {
+      setUpDevice('phone', poli.id);
+      servePlans({ [thisWeek]: mixedPlan() });
+      serveWeekRework(pendingRework);
+
+      renderApp('/menu');
+
+      expect(await screen.findByText(BANNER)).toBeVisible();
+      const meals = screen.getByRole('list', { name: 'Вечери' });
+      for (const button of within(meals).getAllByRole('button', {
+        name: /^(Не|Да)$/,
+      })) {
+        expect(button).toBeDisabled();
+      }
+      expect(screen.queryByRole('button', BUTTON)).not.toBeInTheDocument();
+    });
+
+    it('в листа на ястието спира гласа, разговора и смените, а готвачът и порциите остават', async () => {
+      setUpDevice('phone', poli.id);
+      servePlans({ [thisWeek]: mixedPlan() });
+      serveWeekRework(pendingRework);
+      const user = userEvent.setup();
+      renderApp('/menu');
+      await screen.findByText(BANNER);
+
+      await user.click(screen.getByRole('button', { name: /Мусака/ }));
+
+      const sheet = screen.getByRole('dialog');
+      expect(sheet).toHaveTextContent(
+        'AI преработва менюто: изчакай да свърши',
+      );
+      for (const name of ['Не', 'Да']) {
+        expect(within(sheet).getByRole('button', { name })).toBeDisabled();
+      }
+      expect(
+        within(sheet).queryByRole('textbox', { name: 'Коментар' }),
+      ).not.toBeInTheDocument();
+      for (const name of [
+        'Избери сам',
+        '✨ Предложи друго',
+        'Размени с…',
+        'Запази',
+      ]) {
+        expect(
+          within(sheet).queryByRole('button', { name }),
+        ).not.toBeInTheDocument();
+      }
+      const cook = within(sheet).getByRole('group', { name: 'Готвач' });
+      expect(within(cook).getByRole('button', { name: /Поли/ })).toBeEnabled();
+      expect(
+        within(sheet).getByRole('button', { name: 'Повече порции за Поли' }),
+      ).toBeEnabled();
+    });
+
+    it('при 409 menu_reworking от гонка показва съобщението на api-то и лентата', async () => {
+      setUpDevice('phone', poli.id);
+      servePlans({ [thisWeek]: mixedPlan() });
+      const user = userEvent.setup();
+      renderApp('/menu');
+      const meals = await screen.findByRole('list', { name: 'Вечери' });
+      // Дани е пуснал преработка; сигналът още не е стигнал до телефона на Поли.
+      serveWeekRework(pendingRework);
+      server.use(
+        http.put('/api/menu/meals/:id/vote', () =>
+          apiError(
+            409,
+            'conflict',
+            'AI преработва менюто: изчакай да свърши',
+            'menu_reworking',
+          ),
+        ),
+      );
+      // Рибата е без гласове: „Да“ е нов глас.
+      const fish = within(meals)
+        .getByText('Риба на фурна')
+        .closest('.meal-row') as HTMLElement;
+
+      await user.click(within(fish).getByRole('button', { name: 'Да' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'AI преработва менюто: изчакай да свърши',
+      );
+      expect(await screen.findByText(BANNER)).toBeVisible();
+    });
+
+    describe('по SSE', () => {
+      beforeEach(() => {
+        MockEventSource.instances = [];
+        vi.stubGlobal('EventSource', MockEventSource);
+      });
+
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('се появява на kiosk, когато другият пусне преработка', async () => {
+        setUpDevice('kiosk');
+        servePlans({ [thisWeek]: mixedPlan() });
+        renderApp('/menu');
+        await screen.findByRole('list', { name: 'Вечери' });
+        source().open();
+        serveWeekRework(pendingRework);
+
+        act(() =>
+          source().send({ type: 'menu.rework.changed', weekStart: thisWeek }),
+        );
+
+        expect(await screen.findByText(BANNER)).toBeVisible();
+      });
+
+      it('изчезва при край, гласовете се връщат и новото меню се вижда', async () => {
+        setUpDevice('phone', poli.id);
+        const plan = mixedPlan();
+        servePlans({ [thisWeek]: plan });
+        serveWeekRework(pendingRework);
+        renderApp('/menu');
+        await screen.findByText(BANNER);
+        source().open();
+        serveWeekRework({
+          ...pendingRework,
+          status: 'done',
+          changed: 1,
+          finishedAt: '2026-11-04T08:01:00.000Z',
+        });
+        plan.meals = plan.meals.map((meal, day) =>
+          day === 3 ? { ...meal, ...withRecipe(chicken), votes: [] } : meal,
+        );
+
+        act(() => {
+          source().send({ type: 'menu.rework.changed', weekStart: thisWeek });
+          source().send({ type: 'menu.changed', weekStart: thisWeek });
+        });
+
+        await vi.waitFor(() =>
+          expect(screen.queryByText(BANNER)).not.toBeInTheDocument(),
+        );
+        const meals = screen.getByRole('list', { name: 'Вечери' });
+        expect(await within(meals).findByText('Пиле с ориз')).toBeVisible();
+        for (const button of within(meals).getAllByRole('button', {
+          name: /^(Не|Да)$/,
+        })) {
+          expect(button).toBeEnabled();
+        }
+      });
+
+      it('при неуспех показва грешката, гласовете се връщат, а „Затвори“ я маха', async () => {
+        setUpDevice('phone', poli.id);
+        servePlans({ [thisWeek]: mixedPlan() });
+        serveWeekRework(pendingRework);
+        const user = userEvent.setup();
+        renderApp('/menu');
+        await screen.findByText(BANNER);
+        source().open();
+        serveWeekRework(failedRework);
+
+        act(() =>
+          source().send({ type: 'menu.rework.changed', weekStart: thisWeek }),
+        );
+
+        const alert = await screen.findByRole('alert');
+        expect(alert).toHaveTextContent(
+          'AI не отговори за 3 минути. Менюто е непроменено. Опитай пак.',
+        );
+        expect(screen.queryByText(BANNER)).not.toBeInTheDocument();
+        const meals = screen.getByRole('list', { name: 'Вечери' });
+        for (const button of within(meals).getAllByRole('button', {
+          name: /^(Не|Да)$/,
+        })) {
+          expect(button).toBeEnabled();
+        }
+        expect(screen.getByRole('button', BUTTON)).toBeVisible();
+
+        await user.click(
+          within(alert).getByRole('button', { name: 'Затвори' }),
+        );
+
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      });
     });
   });
 });

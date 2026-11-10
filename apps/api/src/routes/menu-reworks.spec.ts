@@ -424,6 +424,23 @@ describe('POST /api/menu/reworks', () => {
     ]);
   });
 
+  it('signals only the rework when it fails: the menu is as it was', async () => {
+    answerInTurn('not json', 'not json');
+    await fixtureWeek();
+    const signals: ServerEvent[] = [];
+    const unsubscribe = app.events.subscribe((event) => signals.push(event));
+
+    expect(await finished((await rework()).id)).toMatchObject({
+      status: 'failed',
+    });
+    unsubscribe();
+
+    expect(signals).toEqual([
+      { type: 'menu.rework.changed', weekStart: WEEK },
+      { type: 'menu.rework.changed', weekStart: WEEK },
+    ]);
+  });
+
   it('answers 404 no_plan for a week without a menu', async () => {
     const response = await inject('POST', '/api/menu/reworks', {
       weekStart: WEEK,

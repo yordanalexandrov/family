@@ -10,6 +10,7 @@ import {
   type MealOutcome,
   type MealPlan,
   type MenuProposalRequest,
+  type MenuReworkRequest,
   mealOutcome,
   mealSchema,
   menuProposalRequestSchema,
@@ -62,6 +63,7 @@ import {
   useWeekProposal,
 } from './queries';
 import { ReworkSheet } from './ReworkSheet';
+import { useWeekRework } from './reworks';
 import { useSeeWeek } from './unseen-proposals';
 import { OUTCOME_LABELS } from './Votes';
 import '../recipes/recipes.css';
@@ -576,6 +578,9 @@ function PlanView({
     setReworking(false);
   }, []);
   const hideRemoved = useCallback(() => setRemoved(null), []);
+  // Докато AI преработва менюто (пуснато от което и да е устройство), съдържанието, гласовете и разговорът са заключени.
+  const weekRework = useWeekRework(plan.weekStart);
+  const locked = weekRework.data?.status === 'pending';
   const mealsId = useId();
   const vote = useVote(plan.weekStart);
   const rate = useRateRecipe();
@@ -618,7 +623,10 @@ function PlanView({
   // „✨ Преработи менюто“: с действащ потребител, когато от днес нататък има какво да се смени или попълни.
   const rework = reworkCounts(classifyRework(plan.meals, today));
   const canRework =
-    voterId !== null && !readOnly && rework.replace + rework.fill > 0;
+    voterId !== null &&
+    !readOnly &&
+    !locked &&
+    rework.replace + rework.fill > 0;
   // Минали дни на текущата седмица: сгънати в един ред, за да не избутват днешния надолу.
   const past = plan.meals.filter((meal) => isPastMeal(meal, today));
   // Само на телефона с действащ потребител; kiosk и TV показват цялата седмица.
@@ -655,11 +663,13 @@ function PlanView({
         ) => vote.mutate({ meal, userId: voterId, value }),
         onRate: (id: string, rating: Rating | null) =>
           rate.mutate({ id, rating }),
+        locked,
       }
     : undefined;
 
   return (
     <>
+      {weekRework.data && <ReworkBanner rework={weekRework.data} />}
       {plan.createdBy === null ? (
         <ScheduledNote />
       ) : (
@@ -716,7 +726,12 @@ function PlanView({
         <MealDrag plan={plan}>
           {list(
             meals.map((meal) => (
-              <DraggableMeal key={meal.id} meal={meal} today={today}>
+              <DraggableMeal
+                key={meal.id}
+                meal={meal}
+                today={today}
+                locked={locked}
+              >
                 {(handle) => (
                   <MealRow
                     meal={meal}
@@ -762,6 +777,7 @@ function PlanView({
           users={users}
           today={today}
           readOnly={readOnly}
+          locked={locked}
           {...(voting ? { onVote: voting.onVote, voterId: voting.userId } : {})}
           onRecipeRemoved={setRemoved}
           onClose={() => onOpenMeal(null)}
@@ -791,6 +807,40 @@ function PlanView({
       />
     </>
   );
+}
+
+/**
+ * Лентата на преработката на менюто, на всяко устройство: „AI преработва менюто…“, докато чака, и грешката, ако не е
+ * успяла, докато човек не я затвори. Готовата преработка няма лента: новото меню е отдолу.
+ */
+function ReworkBanner({ rework }: { rework: MenuReworkRequest }) {
+  const [closed, setClosed] = useState<string>();
+  if (rework.status === 'pending') {
+    return (
+      <p className="menu__reworking" role="status">
+        <span
+          className="spinner__ring menu__reworking-ring"
+          aria-hidden="true"
+        />
+        AI преработва менюто…
+      </p>
+    );
+  }
+  if (rework.status === 'failed' && closed !== rework.id) {
+    return (
+      <div className="menu__reworking menu__reworking--failed" role="alert">
+        <p>{failureMessage('rework', rework)}</p>
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => setClosed(rework.id)}
+        >
+          Затвори
+        </button>
+      </div>
+    );
+  }
+  return null;
 }
 
 /**

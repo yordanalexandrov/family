@@ -4,12 +4,12 @@
 Екранът „Меню“ (`/menu`): план на седмицата, предложение на AI, преработка на менюто, гласове, разговор за ястието, замяна, размяна и влачене на ястия, добавяне в списъка за пазаруване и „Как мина?“. `queries.ts` и `replacements.ts` държат заявките към `/api/menu/*`, а `unseen-proposals.ts` помни невидените предложения за всеки действащ потребител.
 
 ## Interface
-- `queries.ts:menuKeys` — ключове `all`, `plan`, `thread`, `proposal`, `weekProposal`, `plans`
+- `queries.ts:menuKeys` — ключове `all`, `plan`, `thread`, `proposal`, `weekProposal`, `weekRework`, `weekReworks`, `plans`
 - `queries.ts:usePlan`, `useCreatePlan`, `useDeletePlan` — план на седмицата (`null` при `no_plan`)
 - `queries.ts:useUpdateMeal`, `useRestoreMeal`, `useVote`, `VoteChange`, `useSwapMeals`, `MealSwap`, `swapDates` — ястие, „Върни“, глас, размяна
 - `queries.ts:useThread`, `useAddComment`, `useDeleteComment` — разговор на ястието
 - `queries.ts:useProposeMenu`, `useMenuProposal`, `useWeekProposal`, `weekProposalQuery` — предложение за меню
-- `reworks.ts:useRequestRework`, `useRework`, `reworkKey` — „✨ Преработи менюто“
+- `reworks.ts:useRequestRework`, `useRework`, `reworkKey`, `useWeekRework` — „✨ Преработи менюто“ и последната преработка на седмицата за лентата
 - `ReworkSheet.tsx:ReworkSheet` — диалогът на преработката: подсказка, преглед и чакане
 - `replacements.ts:useRequestReplacement`, `useLatestReplacement`, `changedSince` — „Предложи друго“
 - `unseen-proposals.ts:noteProposalChange`, `useUnseenProposalWeek`, `useSeeWeek`, `UNSEEN_PROPOSALS_KEY` — невидени предложения
@@ -21,7 +21,8 @@
 - `queries.ts:menuKeys.thread` — разговорът е под ключа на плана, за да го стигне `menu.changed`; `menuKeys.plans` хваща само ключове с дължина 3
 - `queries.ts:useVote`, `queries.ts:useSwapMeals` — оптимистични, с връщане при грешка; повторен глас със същата стойност се праща като `null` (`Votes.tsx:MyVote`)
 - `queries.ts:useMenuProposal`, `queries.ts:useWeekProposal`, `replacements.ts:useLatestReplacement` — проверяват на `POLL_INTERVAL_MS` само докато са `pending`; `useWeekProposal` при `done` инвалидира плана веднъж, ако кешираният не е `planId`
-- `reworks.ts:useRework` — проверява на `POLL_INTERVAL_MS` само докато е `pending`
+- `reworks.ts:useRework`, `reworks.ts:useWeekRework` — проверяват на `POLL_INTERVAL_MS` само докато са `pending`; `useWeekRework` дава `null` при `no_rework` и презарежда менюто само когато видяната `pending` стане `done`
+- `MenuWeek.tsx:PlanView` — докато последната преработка на седмицата е `pending` (`locked`), на всяко устройство има лента „AI преработва менюто…“, „✨ Преработи менюто“ го няма, гласовете са изключени, редовете не се влачат, а листът на ястието е без разговор, „Избери сам“, „Предложи друго“, бележка и „Размени с…“; готвачът и порциите остават. `failed` дава грешката в лентата, докато човек не я затвори
 - `MenuWeek.tsx:PlanView` — „✨ Преработи менюто“ е само с действащ потребител, в седмица за редакция и при `replace + fill > 0` от `reworkCounts(classifyRework(...))`; `ReworkSheet` показва същото класифициране като api
 - `replacements.ts:changedSince` — заявката за замяна е остаряла, ако след нея има системен ред, различен от преместване
 - `unseen-proposals.ts:noteProposalChange` — предложението е невидено, ако е `done` и `requestedBy` не е действащият човек (и на крона); ключът е `family.menu.unseenProposals.<actingUserId>`, а без действащ човек (kiosk) — голият `family.menu.unseenProposals`
@@ -38,7 +39,7 @@
 - `queries.ts:useUpdateMeal`, `useRestoreMeal`, `useVote`, `useSwapMeals` — PATCH `/api/menu/meals/:id`, POST `.../restore`, PUT/DELETE `.../vote`, POST `.../swap`; всички освен `useVote` инвалидират разговора и `queryKeys.dashboard`
 - `queries.ts:useThread`, `useAddComment`, `useDeleteComment` — GET/POST `/api/menu/meals/:id/comments`, DELETE `/api/menu/comments/:id`; коментарите инвалидират плана
 - `queries.ts:useProposeMenu`, `useMenuProposal`, `weekProposalQuery` — POST `/api/menu/proposals`, GET `/api/menu/proposals/:id`, GET `/api/menu/proposals?weekStart=`; `useMenuProposal` при `done` инвалидира плана и `queryKeys.dashboard`; `useProposeMenu` при 409 без `not_enough_recipes` инвалидира `weekProposal` и плана
-- `reworks.ts:useRequestRework`, `useRework` — POST `/api/menu/reworks`, GET `/api/menu/reworks/:id`; `useRework` при `done` инвалидира плана, списъка за пазаруване и `queryKeys.dashboard`
+- `reworks.ts:useRequestRework`, `useRework`, `useWeekRework` — POST `/api/menu/reworks`, GET `/api/menu/reworks/:id`, GET `/api/menu/reworks?weekStart=`; `useRequestRework` пише и `menuKeys.weekRework`; `useRework` при край инвалидира `menuKeys.weekRework`, а при `done` и плана, списъка за пазаруване и `queryKeys.dashboard`
 - `replacements.ts:useRequestReplacement`, `useLatestReplacement` — POST/GET `/api/menu/meals/:id/replacements`
 - `unseen-proposals.ts:unseenOf` — localStorage през `storedSetting`; `noteProposalChange` вика `fetchQuery`
 - `MenuWeek.tsx:MenuWeek` — navigate с replace за `?meal=` и `?proposal=`; `scrollIntoView` към ястието от адреса
