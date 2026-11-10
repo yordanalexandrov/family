@@ -76,9 +76,10 @@ export const recipeImportsResponseSchema = z.object({
 export type RecipeImportsResponse = z.infer<typeof recipeImportsResponseSchema>;
 
 /**
- * `GET /api/recipe-imports/:id`: the import, its pasted text (for „Опитай пак“; only here, not in the list), the ids
- * of its photos in their order (GLOSSARY: Източник на рецепта; `GET /api/source-photos/:id`), its suggestion once done, and the registry ingredients its lines are linked to (so the review shows them linked; an
- * ingredient deleted since is missing and its line is left to link).
+ * `GET /api/recipe-imports/:id`: the import, its pasted text (for „Опитай пак“; only here, not in the list), the ids of
+ * its photos in their order (GLOSSARY: Източник на рецепта; `GET /api/source-photos/:id`), its suggestion once done,
+ * and the registry ingredients its lines are linked to (so the review shows them linked; an ingredient deleted since is
+ * missing and its line is left to link).
  */
 export const recipeImportDetailSchema = z.object({
   request: recipeImportRequestSchema,

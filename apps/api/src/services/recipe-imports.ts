@@ -70,13 +70,14 @@ export type RecipeImportRequests = ContractRequestHandle<
 >;
 
 /**
- * How imports are stored: the input is the source plus the whole registry (id, name, base unit); a valid answer
- * stores its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none.
- * A link already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the
- * page of a link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
- * `fetch_blocked` or `fetch_failed` without asking the agent. The photos of an import are stored with it (`source_photo`,
- * ADR-0016), in their order; its run reads them (`load`) and sends them to the agent as images next to the input
- * (`{ kind: 'photo' }`), the same for the client's retry and after a restart. Approval and rejection of the suggestion are the suggestions' own (`app.recipeSuggestions`).
+ * How imports are stored: the input is the source plus the whole registry (id, name, base unit); a valid answer stores
+ * its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none. A link
+ * already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the page of a
+ * link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
+ * `fetch_blocked` or `fetch_failed` without asking the agent. The photos of an import are stored with it
+ * (`source_photo`, ADR-0016), in their order; its run reads them (`load`) and sends them to the agent as images next to
+ * the input (`{ kind: 'photo' }`), the same for the client's retry and after a restart. Approval and rejection of the
+ * suggestion are the suggestions' own (`app.recipeSuggestions`).
  *
  * A page's step photos (GLOSSARY: Снимка на стъпка) go to the agent as references only. Their URLs stay with what the
  * run loaded (`load`), in memory; once the agent has answered, the photos it chose are downloaded and made ready
@@ -168,9 +169,9 @@ interface AgentSource {
 }
 
 /**
- * Pasted text goes to the agent as it is; photos as their stored JPEGs, in their order; a link as the page read from it, whose final URL the import keeps
- * normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the URLs of the step photos of its
- * JSON-LD or its text by the references the agent gets instead.
+ * Pasted text goes to the agent as it is; photos as their stored JPEGs, in their order; a link as the page read from
+ * it, whose final URL the import keeps normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the
+ * URLs of the step photos of its JSON-LD or its text by the references the agent gets instead.
  */
 async function agentSource(db: DbExecutor, id: string): Promise<AgentSource> {
   const source = await findImportSource(db, id);
