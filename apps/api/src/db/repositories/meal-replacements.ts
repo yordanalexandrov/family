@@ -49,6 +49,32 @@ export async function hasPendingReplacement(
   return row !== undefined;
 }
 
+/** Whether `meal.replace` is pending for any meal of the plan. */
+export async function hasPendingReplacementInPlan(
+  db: DbExecutor,
+  planId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: mealReplaceRequest.id })
+    .from(mealReplaceRequest)
+    .innerJoin(meal, eq(meal.id, mealReplaceRequest.mealId))
+    .where(
+      and(eq(meal.planId, planId), eq(mealReplaceRequest.status, 'pending')),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/** Drops every request of the meal with its candidates: they were for a recipe the meal no longer has. */
+export async function deleteReplacementsOf(
+  db: DbExecutor,
+  mealId: string,
+): Promise<void> {
+  await db
+    .delete(mealReplaceRequest)
+    .where(eq(mealReplaceRequest.mealId, mealId));
+}
+
 /** A new `pending` request. Refused by `meal_replace_request_pending_meal_key` when the meal has one. */
 export async function insertReplacement(
   db: DbExecutor,

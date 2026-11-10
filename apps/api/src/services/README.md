@@ -2,7 +2,7 @@
 
 ## Overview
 
-Бизнес логиката на API-то, без HTTP. Услугите проверяват правилата, отварят транзакциите, викат `src/db/repositories`, OpenClaw, външните клиенти и Web Push. Сигналите за промяна към `app.events` се пращат след commit. Долгоживеещите услуги се създават веднъж в `src/app.ts:buildApp` и са декорации на `app`: `app.users`, `app.events`, `app.push`, `app.menu`, `app.menuSchedule`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.calendarSync`, `app.budgetSync`. Отказите са типизирани в `errors.ts` и се мапват към HTTP в `src/plugins/error-handler.ts`.
+Бизнес логиката на API-то, без HTTP. Услугите проверяват правилата, отварят транзакциите, викат `src/db/repositories`, OpenClaw, външните клиенти и Web Push. Сигналите за промяна към `app.events` се пращат след commit. Долгоживеещите услуги се създават веднъж в `src/app.ts:buildApp` и са декорации на `app`: `app.users`, `app.events`, `app.push`, `app.menu`, `app.menuSchedule`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.menuReworks`, `app.calendarSync`, `app.budgetSync`. Отказите са типизирани в `errors.ts` и се мапват към HTTP в `src/plugins/error-handler.ts`.
 
 ## Interface
 
@@ -22,6 +22,7 @@
 - `recipe-photo.ts:photoType` – типът на снимка по първите ѝ байтове (JPEG, PNG, WebP, HEIC/HEIF).
 - `menu.ts:createMenuService, MenuService, createMenuProposalStore, MenuProposals, readCooking, refusePastMeal, writeSystemLine, recordContentChange, NO_SUCH_MEAL` – Седмично меню, Ястие, Глас, Разговор, Предложение за меню, „Днес се готви“.
 - `meal-replacements.ts:createMealReplaceStore, getLatestReplacement, MealReplacements` – `meal.replace` („Предложи друго“).
+- `menu-reworks.ts:createMenuReworkStore, getLatestRework, MenuReworks` – `menu.rework` („Преработи менюто“): откази `no_plan`, `menu_reworking`, `replacement_pending`, `nothing_to_rework`, `not_enough_recipes`; `onDone` пише новите рецепти, маха гласовете, пише ред на AI, маха ястието от списъка за пазаруване и заявките му за „Предложи друго“, сменя обобщението; не пише в `menu_activity`.
 - `menu-schedule.ts:createMenuSchedule, scheduledProposalDue, scheduledWeekOf, MenuSchedule, SCHEDULED_PROPOSAL_WEEKDAY, SCHEDULED_PROPOSAL_HOUR` – Предложението за меню от cron-а.
 - `menu-notifications.ts:createMenuNotifications, MenuNotifications, MENU_ACTIVITY_QUIET_MS` – Известие от Съгласуването: `sendQuietActivity` праща на всеки действията на другите по седмица, след `MENU_ACTIVITY_QUIET_MS` (10 мин) тишина, по едно известие на седмица; `proposed` праща „Ново предложение за меню“ на всички без поискалия (никога не отхвърля).
 - `shopping.ts:getShoppingList, setItemChecked, setItemHidden, addManualItem, deleteItem, setMealListed` – Списък за пазаруване (Отметка, Скрит ред, Ръчен ред, Ястие в списъка).

@@ -13,7 +13,8 @@
 - `contract-requests.ts:finishContractRequest, failPendingContractRequestsBefore, ContractRequestTable` – общ жизнен цикъл на AI заявките за всяка таблица `*_request`.
 - `cooking-questions.ts:insertCookingQuestion, findCookingQuestion, setCookingAnswer, findAppliedChanges, lockCookingChain, hasPendingInChain, answeredBefore` – Въпрос в Готвене и веригата му.
 - `ingredients.ts:searchIngredients, findIngredientByName, findIngredient, findIngredientsByIds, existingIngredientIds, insertIngredient, updateIngredient, listIngredientNames, listRegistryIngredients, ingredientColumns` – Продукти (регистърът на продуктите).
-- `meal-replacements.ts:lockMeal, hasPendingReplacement, insertReplacement, findReplacement, findLatestReplacement, setReplacementCandidates` – заявки `meal.replace`.
+- `meal-replacements.ts:lockMeal, hasPendingReplacement, hasPendingReplacementInPlan, insertReplacement, findReplacement, findLatestReplacement, setReplacementCandidates, deleteReplacementsOf` – заявки `meal.replace`.
+- `menu-reworks.ts:insertRework, findRework, findLatestRework, hasPendingRework, setReworkChanged` – заявки `menu.rework`.
 - `menu-activity.ts:addMenuActivity, takeQuietMenuActivity, MenuActivityKind` – броячи за Известие от Съгласуването.
 - `menu.ts:lockWeek, findPlanByWeek, findPlanSummary, listPlans, insertPlan, deletePlan, findMeal, findMealOn, updateMeal, swapMealDates` – Седмично меню и ястия.
 - `menu.ts:upsertVote, deleteVote, deleteOtherVotes, listComments, findComment, insertComment, deleteComment` – Гласове и Разговор на ястие.
@@ -38,7 +39,7 @@
 
 - `menu.ts:lockWeek`, `cooking-questions.ts:lockCookingChain` – `pg_advisory_xact_lock` по седмица или по верига, за да важат проверките „няма план“, „няма чакащо предложение“ и „няма чакащ въпрос“ и в момента на вмъкването.
 - `recipe-refinements.ts:lockRecipe`, `recipe-revisions.ts:lockRecipeUpdatedAt, lockRevisionRequest`, `recipe-suggestions.ts:lockSuggestion`, `meal-replacements.ts:lockMeal` – `SELECT … FOR UPDATE` до края на транзакцията. Така две решения или две чакащи заявки не могат да се изпреварят.
-- `menu.ts:insertPlan, insertProposal`, `recipe-refinements.ts:insertRefineRequest`, `meal-replacements.ts:insertReplacement` – втори план за седмицата или втора чакаща заявка се отказват от уникалните индекси (`meal_plan_week_start_unique`, `menu_proposal_request_pending_week_key`, `recipe_refine_request_pending_recipe_key`, `meal_replace_request_pending_meal_key`).
+- `menu.ts:insertPlan, insertProposal`, `recipe-refinements.ts:insertRefineRequest`, `meal-replacements.ts:insertReplacement` – втори план за седмицата или втора чакаща заявка се отказват от уникалните индекси (`meal_plan_week_start_unique`, `menu_proposal_request_pending_week_key`, `recipe_refine_request_pending_recipe_key`, `meal_replace_request_pending_meal_key`, `menu_rework_request_pending_plan_key`).
 - `menu.ts:swapMealDates` – `(plan_id, date, slot)` е уникален и не е deferrable. Затова ястието `a` първо се „паркира“ 100 години назад и чак тогава двете ястия си разменят дните.
 - `calendar-events.ts:replaceSourceEvents` – изтриването в прозореца и вмъкването са в една транзакция; при конфликт по `(calendar_source_id, external_id)` редът се обновява.
 - `calendar-sources.ts:upsertCalendarSources` – източник, който го няма в списъка, се изключва, а не се изтрива (кешът му остава). `kind` е `family`, когато `ownerUserId` е `null`.

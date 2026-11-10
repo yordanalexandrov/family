@@ -1,5 +1,6 @@
 import {
   type DateKey,
+  isAiLine,
   isEmptyMeal,
   isPastMeal,
   type Meal,
@@ -223,7 +224,9 @@ function LastComment({
         className={`meal-row__comment-text${line.kind === 'system' ? ' meal-row__comment-text--system' : ''}`}
       >
         {line.kind === 'system'
-          ? `${name} ${line.body}`
+          ? isAiLine(line.body)
+            ? line.body
+            : `${name} ${line.body}`
           : `${name}: ${line.body}`}
       </span>
       <span className="meal-row__comment-count">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMovedLine, systemLine } from './thread.js';
+import { isAiLine, isMovedLine, systemLine } from './thread.js';
 
 describe('systemLine', () => {
   it('says which recipe replaced which', () => {
@@ -41,6 +41,42 @@ describe('systemLine', () => {
         otherDate: '2026-10-26',
       }),
     ).toBe('размени понеделник и неделя');
+  });
+});
+
+describe('systemLine of the menu rework', () => {
+  it('says the AI replaced one meal with another', () => {
+    expect(
+      systemLine({ type: 'reworked', from: 'Мусака', to: 'Пъстърва' }),
+    ).toBe('AI смени „Мусака“ с „Пъстърва“ при преработката на менюто');
+  });
+
+  it('says the AI put a recipe on an empty day', () => {
+    expect(systemLine({ type: 'reworked', from: null, to: 'Пъстърва' })).toBe(
+      'AI сложи „Пъстърва“ при преработката на менюто',
+    );
+  });
+});
+
+describe('isAiLine', () => {
+  it('tells a line of the rework, shown without its author, from a person’s', () => {
+    expect(
+      isAiLine(
+        systemLine({ type: 'reworked', from: 'Мусака', to: 'Пъстърва' }),
+      ),
+    ).toBe(true);
+    expect(
+      isAiLine(systemLine({ type: 'replaced', from: 'AI', to: 'Пъстърва' })),
+    ).toBe(false);
+    expect(
+      isAiLine(systemLine({ type: 'replaced', from: null, to: 'AI' })),
+    ).toBe(false);
+  });
+
+  it('is not moved', () => {
+    expect(
+      isMovedLine(systemLine({ type: 'reworked', from: null, to: 'Пъстърва' })),
+    ).toBe(false);
   });
 });
 

@@ -7,7 +7,7 @@
 ## Interface
 
 - `index.ts` — `export *` от модулите на поддиректориите и `events.ts`; не изнася `contracts/preparation.ts`, `contracts/step-images.ts` и `contracts/strict-mode.ts`.
-- `events.ts:serverEventSchema`, `ServerEvent`, `ServerEventType`, `SERVER_EVENT_TYPES` — сигналите на `GET /api/events` (Server-Sent Events): `menu.changed`, `menu.proposal.changed`, `shopping.changed`.
+- `events.ts:serverEventSchema`, `ServerEvent`, `ServerEventType`, `SERVER_EVENT_TYPES` — сигналите на `GET /api/events` (Server-Sent Events): `menu.changed`, `menu.proposal.changed`, `menu.rework.changed`, `shopping.changed`.
 - [contracts](./contracts/README.md) — AI контрактите с OpenClaw агентите.
 - [schemas](./schemas/README.md) — схемите на HTTP API-то и на състоянието на устройството.
 - [food](./food/README.md) — единици, мащабиране, компоненти, подготовка, промени в Готвене, импорт на снимки, линк към източник.

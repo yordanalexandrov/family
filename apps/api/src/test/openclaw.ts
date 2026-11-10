@@ -33,6 +33,7 @@ export const TEST_OPENCLAW: OpenClawConfig = {
   refineAgent: 'family-refine',
   cookAgent: 'family-cook',
   reviseAgent: 'family-revise',
+  menuReworkAgent: 'family-menu-rework',
   timeoutMs: 2_000,
   cookTimeoutMs: 2_000,
 };

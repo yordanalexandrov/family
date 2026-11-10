@@ -1,6 +1,7 @@
 import {
   type DateKey,
   dateKeyInSofia,
+  isAiLine,
   MEAL_COMMENT_MAX,
   type Meal,
   type MealComment,
@@ -91,9 +92,7 @@ function ThreadLine({
   if (line.kind === 'system') {
     return (
       <li className="thread__line thread__line--system">
-        <span>
-          {name} {line.body}
-        </span>{' '}
+        <span>{isAiLine(line.body) ? line.body : `${name} ${line.body}`}</span>{' '}
         {when}
       </li>
     );

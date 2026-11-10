@@ -103,6 +103,35 @@ describe('MealSheet: разговор', () => {
     ]);
   });
 
+  it('редът на AI от преработката на менюто е без името на пусналия, в листа и в реда', async () => {
+    const { plan, threads, thursday } = planWithThread();
+    const aiLine = threadLine(thursday, 5, {
+      kind: 'system',
+      body: 'AI смени „Пиле с ориз“ с „Мусака“ при преработката на менюто',
+    });
+    threads[thursday] = [...(threads[thursday] ?? []), aiLine];
+    plan.meals = plan.meals.map((meal) =>
+      meal.id === thursday
+        ? { ...meal, commentCount: 4, lastComment: aiLine }
+        : meal,
+    );
+    servePlans({ [thisWeek]: plan });
+    serveDinnerRecipes();
+    serveThreads(plan, threads);
+
+    renderApp('/menu');
+    const row = await screen.findByRole('button', { name: /Мусака/ });
+    expect(row).toHaveTextContent('AI смени „Пиле с ориз“ с „Мусака“');
+    expect(row).not.toHaveTextContent('Дани AI');
+    const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+
+    const thread = within(sheet).getByRole('list', { name: 'Разговор' });
+    const lines = await within(thread).findAllByRole('listitem');
+    expect(lines.at(-1)?.textContent).toMatch(
+      /^AI смени „Пиле с ориз“ с „Мусака“ при преработката на менюто/,
+    );
+  });
+
   it('коментар се добавя в разговора и в реда', async () => {
     const { plan, threads } = planWithThread();
     servePlans({ [thisWeek]: plan });

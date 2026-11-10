@@ -288,6 +288,13 @@
       "when": 1794074975304,
       "tag": "0040_seed_app_user",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794314164587,
+      "tag": "0041_menu_rework_request",
+      "breakpoints": true
     }
   ]
 }

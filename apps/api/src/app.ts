@@ -2,6 +2,7 @@ import {
   cookingAsk,
   mealReplace,
   menuPropose,
+  menuRework,
   recipeNormalize,
   recipeRefine,
   recipeRevise,
@@ -37,6 +38,7 @@ import { ingredientsRoutes } from './routes/ingredients.js';
 import { meRoutes } from './routes/me.js';
 import { mealReplacementsRoutes } from './routes/meal-replacements.js';
 import { menuRoutes } from './routes/menu.js';
+import { menuReworksRoutes } from './routes/menu-reworks.js';
 import { notificationsRoutes } from './routes/notifications.js';
 import { pantryRoutes } from './routes/pantry.js';
 import { recipeImportsRoutes } from './routes/recipe-imports.js';
@@ -66,6 +68,10 @@ import {
   type MenuService,
 } from './services/menu.js';
 import { createMenuNotifications } from './services/menu-notifications.js';
+import {
+  createMenuReworkStore,
+  type MenuReworks,
+} from './services/menu-reworks.js';
 import {
   createMenuSchedule,
   type MenuSchedule,
@@ -124,6 +130,8 @@ declare module 'fastify' {
     menuSchedule: MenuSchedule | null;
     /** „✨ Предложи друго“ for a meal (`meal.replace`). */
     mealReplacements: MealReplacements;
+    /** „✨ Преработи менюто“ for the menu of a week (`menu.rework`). */
+    menuReworks: MenuReworks;
     /** Change signals for `GET /api/events`; services publish after their commit. */
     events: EventBus;
     /** Web Push to the people's devices; without VAPID keys every send is a no-op. */
@@ -266,6 +274,7 @@ export function buildApp({
     refineAgent: '',
     cookAgent: '',
     reviseAgent: '',
+    menuReworkAgent: '',
     cookTimeoutMs: 0,
   };
   app.decorate(
@@ -312,6 +321,14 @@ export function buildApp({
       mealReplace,
       createMealReplaceStore(now),
       agents.mealAgent,
+    ),
+  );
+  app.decorate(
+    'menuReworks',
+    contractRequests.register(
+      menuRework,
+      createMenuReworkStore(events, now),
+      agents.menuReworkAgent,
     ),
   );
   app.decorate(
@@ -369,6 +386,7 @@ export function buildApp({
   app.register(stepPhotosRoutes);
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);
+  app.register(menuReworksRoutes);
   app.register(shoppingRoutes);
   app.register(pantryRoutes);
   app.register(appliancesRoutes);
