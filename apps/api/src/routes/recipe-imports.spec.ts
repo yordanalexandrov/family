@@ -488,6 +488,21 @@ function postForm(form: FormData) {
   });
 }
 
+/** A JPEG as the agent gets it: a `data:` URL. */
+function dataUrl(jpeg: Buffer | undefined): string {
+  return `data:image/jpeg;base64,${jpeg?.toString('base64')}`;
+}
+
+/** A stored photo of a recipe source (GLOSSARY: Източник на рецепта), as an `<img>` gets it. */
+async function sourcePhoto(id: string): Promise<Buffer> {
+  const response = await app.inject({
+    method: 'GET',
+    url: `/api/source-photos/${id}`,
+  });
+  expect(response.statusCode).toBe(200);
+  return response.rawPayload;
+}
+
 async function importedPhoto(): Promise<RecipeImportRequest> {
   const response = await postPhoto(PHOTO);
   expect(response.statusCode).toBe(202);
@@ -513,27 +528,50 @@ describe('an import by photo', () => {
     const input = JSON.parse(textOf(messages[0]));
     expect(input.source).toEqual({ kind: 'photo' });
     expect(input.ingredients.length).toBeGreaterThan(100);
-    expect(imagesOf(messages[0])).toEqual([
-      `data:image/jpeg;base64,${PHOTO.toString('base64')}`,
-    ]);
+    expect(body.photos).toHaveLength(1);
+    const [stored] = await Promise.all((body.photos ?? []).map(sourcePhoto));
+    expect(imagesOf(messages[0])).toEqual([dataUrl(stored)]);
   });
 
-  it('sends the parts of a long screenshot as image_url parts in their order, and again with the retry', async () => {
+  it('sends the stored parts of a long screenshot as image_url parts in their order, and again with the retry', async () => {
     const calls = answerInTurn(withForeignId, normalizeAnswer);
-    const parts = [jpegOf(PHOTO.length + 1), PHOTO, jpegOf(PHOTO.length + 2)];
+    const parts = await Promise.all([301, 302, 303].map((w) => pictureOf(w)));
 
     const response = await postPhotos(parts);
 
     expect(response.statusCode).toBe(202);
     const body = await finished(response.json().request);
     expect(body.request.status).toBe('done');
-    const sent = parts.map(
-      (part) => `data:image/jpeg;base64,${part.toString('base64')}`,
+    const sent = (await Promise.all((body.photos ?? []).map(sourcePhoto))).map(
+      dataUrl,
     );
+    expect(sent).toHaveLength(3);
     expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual(sent);
     expect(calls.bodies).toHaveLength(2);
     const retry = calls.bodies[1]?.messages ?? [];
     expect(imagesOf(retry.at(-1))).toEqual(sent);
+  });
+
+  it('stores the 8 parts of a long screenshot in their order (ADR-0016): the import has them and the agent gets them', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+    const widths = [101, 102, 103, 104, 105, 106, 107, 108];
+    const parts = await Promise.all(widths.map((width) => pictureOf(width)));
+
+    const response = await postPhotos(parts);
+
+    expect(response.statusCode).toBe(202);
+    const body = await finished(response.json().request);
+    expect(body.request.status).toBe('done');
+    expect(body.photos).toHaveLength(8);
+    const stored = await Promise.all(
+      (body.photos ?? []).map((id) => sourcePhoto(id)),
+    );
+    expect(
+      await Promise.all(
+        stored.map(async (bytes) => (await sharp(bytes).metadata()).width),
+      ),
+    ).toEqual(widths);
+    expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual(stored.map(dataUrl));
   });
 
   it('answers 400 for more than 8 parts, without a request', async () => {
@@ -560,36 +598,43 @@ describe('an import by photo', () => {
     expect(calls.bodies).toHaveLength(0);
   });
 
-  it('takes the type from the picture itself, not from what the phone says', async () => {
+  it('takes the type from the picture itself, not from what the phone says, and keeps a PNG as a JPEG', async () => {
     const calls = answerInTurn(normalizeAnswer);
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-      'base64',
-    );
+    const png = await sharp({
+      create: { width: 40, height: 30, channels: 4, background: '#0000' },
+    })
+      .png()
+      .toBuffer();
 
     const response = await postPhoto(png, 'application/octet-stream');
 
     expect(response.statusCode).toBe(202);
-    await finished(recipeImportRequestSchema.parse(response.json().request));
-    expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual([
-      `data:image/png;base64,${png.toString('base64')}`,
-    ]);
+    const body = await finished(
+      recipeImportRequestSchema.parse(response.json().request),
+    );
+    const [stored] = await Promise.all((body.photos ?? []).map(sourcePhoto));
+    expect(await sharp(stored).metadata()).toMatchObject({
+      format: 'jpeg',
+      width: 40,
+      height: 30,
+    });
+    expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual([dataUrl(stored)]);
   });
 
-  it('keeps nothing of the photo: no column holds its bytes', async () => {
-    answerInTurn(normalizeAnswer);
+  it('answers 415 unsupported_photo for a part that does not decode, without a request', async () => {
+    const calls = answerInTurn(normalizeAnswer);
 
-    const request = await importedPhoto();
-    await finished(request);
+    const response = await postPhotos([PHOTO, PHOTO.subarray(0, 600)]);
 
-    const result = await app.db.execute(
-      sql`select row_to_json(r)::text as row from recipe_import_request r where id = ${request.id}`,
-    );
-    const row = String(result.rows[0]?.row);
-    expect(row).toContain('"source":"photo"');
-    expect(row).toContain('"text":null');
-    expect(row).toContain('"url":null');
-    expect(row).not.toContain(PHOTO.subarray(0, 64).toString('base64'));
+    expect(response.statusCode).toBe(415);
+    expect(response.json()).toMatchObject({ error: 'unsupported_photo' });
+    expect(calls.bodies).toHaveLength(0);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/recipe-imports',
+      headers,
+    });
+    expect(list.json().requests).toEqual([]);
   });
 
   it('answers 413 photo_too_large for a photo over 10 MB, without a request', async () => {
@@ -1462,6 +1507,35 @@ describe('deciding an imported suggestion', () => {
       sourceText: BLOG_TEXT,
       sourceUrl: 'https://blog.example/pile-s-oriz',
     });
+  });
+
+  it('approval of a photo import keeps its photos in their order as the source of the recipe, and an edit keeps them till removed', async () => {
+    answerInTurn(normalizeAnswer);
+    const parts = await Promise.all([201, 202, 203].map((w) => pictureOf(w)));
+    const body = await finished((await postPhotos(parts)).json().request);
+    const suggestion = body.suggestion;
+    if (!suggestion) {
+      throw new Error('import without a suggestion');
+    }
+
+    const response = await decide(suggestion.id, 'approve', {
+      ...editedInput(suggestion),
+      sourceUrl: undefined,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe).toMatchObject({ sourceText: null });
+    expect(recipe.sourcePhotos).toEqual(body.photos);
+    expect(recipe.sourcePhotos).toHaveLength(3);
+
+    const kept = await putRecipe(recipe.id, edited(recipe, { title: 'Пиле' }));
+    expect(kept.json().recipe.sourcePhotos).toEqual(body.photos);
+    const removed = await putRecipe(
+      recipe.id,
+      edited(recipe, { sourcePhotos: [] }),
+    );
+    expect(removed.json().recipe.sourcePhotos).toEqual([]);
   });
 
   it('an edit without the source keeps it, and sourceText: null with sourcePhotos: [] removes it', async () => {

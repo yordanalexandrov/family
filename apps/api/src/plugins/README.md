@@ -12,7 +12,7 @@ Fastify плъгините, които `buildApp()` (`src/app.ts`) регист�
 - `cloudflare-access.ts:AccessUser` – кой е минал през Access: проверен e-mail и `sub`. Това не е действащият потребител.
 - `acting-user.ts` (default, `fp` с име `acting-user`) – попълва `request.actor` от header `X-Acting-User`; route config `actingUser?: boolean | 'optional'`.
 - `acting-user.ts:actorOf` – действащият потребител на route с `actingUser: 'optional'`, `undefined` без такъв (kiosk).
-- `scheduler.ts` (default, `fp` с име `scheduler`) – cron задачи: `calendar` (5 мин), `budget` (60 мин), `menu-propose` (15 мин), `reminders` (5 мин), `prune-runs` (24 ч; трие `sync_run` по-стари от `KEEP_RUNS_DAYS` = 7 дни, без последния успех на всеки източник), `prune-inbox` (24 ч; `app.inbox.prune()` трие записите на Входящата кутия, необновявани 30 дни), `step-photo-orphans` (60 мин).
+- `scheduler.ts` (default, `fp` с име `scheduler`) – cron задачи: `calendar` (5 мин), `budget` (60 мин), `menu-propose` (15 мин), `reminders` (5 мин), `prune-runs` (24 ч; трие `sync_run` по-стари от `KEEP_RUNS_DAYS` = 7 дни, без последния успех на всеки източник), `prune-inbox` (24 ч; `app.inbox.prune()` трие записите на Входящата кутия, необновявани 30 дни), `step-photo-orphans` (60 мин), `source-photo-orphans` (60 мин).
 - `scheduler.ts:SchedulerOptions, Job` – `firstRunDelayMs` (по подразбиране 5 s); задача с `name`, `intervalMs`, `jitter`, `run`.
 - `scope.ts:isApiRequest` – дали заявката е към `/api/*`.
 
@@ -25,7 +25,7 @@ Fastify плъгините, които `buildApp()` (`src/app.ts`) регист�
 - `acting-user.ts` – за `/api/*` routes без `actingUser: false` липсващ header е 400 `missing_acting_user` (при `'optional'` е позволен). Header, който не е uuid или не е познат потребител, е 400 `unknown_acting_user`.
 - `error-handler.ts` – грешка от валидацията е 400 `validation_error` с `issues`. `ServiceRefusal` от `src/services/errors.ts` се мапва по `REFUSALS` (`NotFoundError` 404, `ConflictError` и `AlreadyImportedError` 409, `ForbiddenError` 403, `InvalidReferenceError` и `InvalidActionError` 400, `OpenClawUnavailableError` 503, `UnsupportedPhotoError` 415). Тялото носи и `error.details` на отказа (`serviceRefusal`).
 - `error-handler.ts:bodyOf` – `HttpError` казва своя код и съобщение. Друга 4xx грешка получава код `error`, а 5xx получава `internal_error` („Вътрешна грешка“) и не издава нищо от себе си (вътрешностите не изтичат). Всяка 5xx се логва изцяло.
-- `scheduler.ts` – всяка задача е верига от `setTimeout`: следващото изпълнение се планира чак след като предишното е свършило, с `jitter` по подразбиране 0.25 (0 за `reminders`, `prune-runs`, `prune-inbox`, `step-photo-orphans`). `calendar`, `budget` и `menu-propose` се пускат само ако са конфигурирани.
+- `scheduler.ts` – всяка задача е верига от `setTimeout`: следващото изпълнение се планира чак след като предишното е свършило, с `jitter` по подразбиране 0.25 (0 за `reminders`, `prune-runs`, `prune-inbox`, `step-photo-orphans`, `source-photo-orphans`). `calendar`, `budget` и `menu-propose` се пускат само ако са конфигурирани.
 - `scheduler.ts` – при `preClose` спира таймерите и изчаква текущите задачи, преди пулът към базата да се затвори в `onClose`.
 
 ## Side Effects

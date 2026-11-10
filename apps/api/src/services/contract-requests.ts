@@ -71,10 +71,10 @@ export interface ContractRequestStore<
    */
   buildInput(db: DbExecutor, request: R, loaded: C): Promise<I>;
   /**
-   * Pictures that go to the agent next to the input (the photos of an import), taken from the params once the request
-   * is stored: they live only in the memory of its run, never in the table. No method = none.
+   * Pictures that go to the agent next to the input (the photos of an import), from what `load` read: they are stored
+   * with the request, so the run reads them from the database, also after a restart. No method = none.
    */
-  images?(params: P): ContractImage[];
+  images?(loaded: C): ContractImage[];
   /**
    * After a valid answer with results, before the transaction that writes it: work too slow to hold a transaction for
    * (the downloads and decoding of an import's step photos, by what `load` read), aborted with the run (`signal`); its
@@ -226,13 +226,13 @@ export function createContractRequests({
       async function execute(
         gateway: OpenClawClient,
         request: R,
-        images: ContractImage[],
       ): Promise<void> {
         const logContext = { requestId: request.id };
         try {
           // Without `load`, `C` is `undefined`.
           const loaded = (await store.load?.(db, request)) as C;
           const input = await store.buildInput(db, request, loaded);
+          const images = store.images?.(loaded) ?? [];
           const output = await gateway.complete(contract, input, {
             agent,
             signal: shutdown.signal,
@@ -312,11 +312,10 @@ export function createContractRequests({
             store.insert(tx, params, actingUserId),
           );
           store.afterRequest?.(request);
-          const images = store.images?.(params) ?? [];
           // Not awaited: the client polls. `execute` catches and records its own errors.
           const task = new Promise<void>((resolve) =>
             setImmediate(resolve),
-          ).then(() => execute(gateway, request, images));
+          ).then(() => execute(gateway, request));
           running.add(task);
           void task.finally(() => running.delete(task));
           return request;

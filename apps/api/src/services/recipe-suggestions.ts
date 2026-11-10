@@ -27,6 +27,7 @@ import {
   undecideSuggestion,
 } from '../db/repositories/recipe-suggestions.js';
 import {
+  type ImportedSource,
   listActiveRecipesByTitle,
   listActiveRecipeTitles,
 } from '../db/repositories/recipes.js';
@@ -42,13 +43,19 @@ import { acceptSuggestionRevision } from './recipe-revisions.js';
 import { addRecipe } from './recipes.js';
 import { stepPhotoIds } from './step-photos.js';
 
-/** The pasted text of an import (GLOSSARY: Източник на рецепта); `null` for a link or a photo. */
-async function importedText(
+/**
+ * What the recipe of an import keeps of its source (GLOSSARY: Източник на рецепта): the pasted text, or the ids of its
+ * photos; neither for a link.
+ */
+async function importedSource(
   db: DbExecutor,
   importRequestId: string,
-): Promise<string | null> {
+): Promise<ImportedSource> {
   const source = await findImportSource(db, importRequestId);
-  return source.kind === 'text' ? source.text : null;
+  return {
+    text: source.kind === 'text' ? source.text : null,
+    photos: source.kind === 'photo' ? source.photos : [],
+  };
 }
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
@@ -251,8 +258,8 @@ export function createRecipeSuggestionsService({
           tx,
           { ...rest, ...(appliance === null ? {} : { appliance }) },
           proposed.origin === 'import'
-            ? await importedText(tx, proposed.importRequestId)
-            : null,
+            ? await importedSource(tx, proposed.importRequestId)
+            : undefined,
         );
         const suggestion = await decideSuggestion(tx, id, {
           status: 'approved',

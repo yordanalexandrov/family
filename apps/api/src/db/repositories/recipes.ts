@@ -225,15 +225,28 @@ export async function listRecipes(
   }));
 }
 
-/** Inserts the recipe row only, with the pasted text of the import it came from, if any; returns its id. */
+/**
+ * What a recipe keeps of the import it came from (GLOSSARY: Източник на рецепта), copied by the api on approval: the
+ * pasted text, or the ids of the photos (`source_photo`) in their order.
+ */
+export interface ImportedSource {
+  text: string | null;
+  photos: string[];
+}
+
+/** Inserts the recipe row only, with the source of the import it came from, if any; returns its id. */
 export async function insertRecipe(
   db: DbExecutor,
   input: RecipeInput,
-  sourceText: string | null = null,
+  source: ImportedSource = { text: null, photos: [] },
 ): Promise<string> {
   const [row] = await db
     .insert(recipe)
-    .values({ ...recipeValues(input), sourceText })
+    .values({
+      ...recipeValues(input),
+      sourceText: source.text,
+      sourcePhotos: source.photos,
+    })
     .returning({ id: recipe.id });
   if (!row) {
     throw new Error('insert into recipe returned no row');

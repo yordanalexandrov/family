@@ -2,6 +2,7 @@ import type { SyncRunResult } from '@family/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import { pruneRuns } from '../db/repositories/sync-runs.js';
+import { removeOrphanSourcePhotos } from '../services/source-photos.js';
 import { removeOrphanStepPhotos } from '../services/step-photos.js';
 
 const MINUTE_MS = 60_000;
@@ -13,10 +14,10 @@ const MENU_PROPOSE_INTERVAL_MS = 15 * MINUTE_MS;
 /** How often the cron sends what is due (`services/reminders.ts`); also once at start. */
 const REMINDERS_INTERVAL_MS = 5 * MINUTE_MS;
 /**
- * How often the cron looks whether it is the night to remove orphan step photos (`services/step-photos.ts`); hourly,
- * so the two night hours always get a run.
+ * How often the cron looks whether it is the night to remove orphan photos (`services/photo-orphans.ts`): of steps and
+ * of recipe sources; hourly, so the two night hours always get a run.
  */
-const STEP_PHOTO_ORPHANS_INTERVAL_MS = 60 * MINUTE_MS;
+const PHOTO_ORPHANS_INTERVAL_MS = 60 * MINUTE_MS;
 /** Days of `sync_run` history kept (the last success of each source is always kept). */
 const KEEP_RUNS_DAYS = 7;
 
@@ -167,7 +168,7 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
 
   schedule({
     name: 'step-photo-orphans',
-    intervalMs: STEP_PHOTO_ORPHANS_INTERVAL_MS,
+    intervalMs: PHOTO_ORPHANS_INTERVAL_MS,
     jitter: 0,
     run: async () => {
       const removed = await removeOrphanStepPhotos(app.db, app.now());
@@ -175,6 +176,22 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
         app.log.info(
           { job: 'step-photo-orphans', removed },
           'orphan step photos removed',
+        );
+      }
+      return undefined;
+    },
+  });
+
+  schedule({
+    name: 'source-photo-orphans',
+    intervalMs: PHOTO_ORPHANS_INTERVAL_MS,
+    jitter: 0,
+    run: async () => {
+      const removed = await removeOrphanSourcePhotos(app.db, app.now());
+      if (removed !== null) {
+        app.log.info(
+          { job: 'source-photo-orphans', removed },
+          'orphan source photos removed',
         );
       }
       return undefined;

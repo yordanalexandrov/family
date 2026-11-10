@@ -48,6 +48,7 @@ import { recipeRevisionsRoutes } from './routes/recipe-revisions.js';
 import { recipeSuggestionsRoutes } from './routes/recipe-suggestions.js';
 import { recipesRoutes } from './routes/recipes.js';
 import { shoppingRoutes } from './routes/shopping.js';
+import { sourcePhotosRoutes } from './routes/source-photos.js';
 import { stepPhotosRoutes } from './routes/step-photos.js';
 import { syncRoutes } from './routes/sync.js';
 import { usersRoutes } from './routes/users.js';
@@ -401,6 +402,7 @@ export function buildApp({
   app.register(recipeRevisionsRoutes);
   app.register(cookingQuestionsRoutes);
   app.register(stepPhotosRoutes);
+  app.register(sourcePhotosRoutes);
   app.register(menuRoutes);
   app.register(mealReplacementsRoutes);
   app.register(menuReworksRoutes);

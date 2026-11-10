@@ -6,7 +6,7 @@
 
 ## Interface
 
-- `index.ts` – реекспортира `appliance`, `dashboard`, `food`, `menu`, `notifications`, `pantry`, `shopping`, `step-photo`, `user` (без `checks.ts` и `columns.ts`).
+- `index.ts` – реекспортира `appliance`, `dashboard`, `food`, `menu`, `notifications`, `pantry`, `shopping`, `source-photo`, `step-photo`, `user` (без `checks.ts` и `columns.ts`).
 - `checks.ts:literals, oneOf` – SQL списък от фиксирани стойности и израз `col in (...)` за `CHECK`.
 - `columns.ts:createdAt, contractRequestColumns` – `created_at` и общите колони на AI заявка: `id`, `hint`, `status` (по подразбиране `pending`), `error`, `requested_by` (`NOT NULL`, FK към `user`), `created_at`, `finished_at`.
 - `user.ts:userRole, user` – enum `user_role` и таблица `user`.
@@ -18,7 +18,8 @@
 - `notifications.ts:pushSubscription, notificationSetting, notificationLog, menuActivity, inboxItem` – `push_subscription`, `notification_setting`, `notification_log`, `menu_activity`, `inbox_item` (Входяща кутия, ADR-0015).
 - `pantry.ts:pantryItem` – `pantry_item`.
 - `shopping.ts:shoppingList, shoppingItem, shoppingMeal` – `shopping_list`, `shopping_item`, `shopping_meal`.
-- `step-photo.ts:stepPhoto` – `step_photo` (байтовете са `bytea` през `customType`).
+- `step-photo.ts:stepPhoto, bytea` – `step_photo` (байтовете са `bytea` през `customType`).
+- `source-photo.ts:sourcePhoto` – `source_photo`, снимките на източника на рецепта (ADR-0016); сочат към тях `recipe_import_request.photos` и `recipe.source_photos`.
 
 ## Invariants
 
