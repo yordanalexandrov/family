@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { InboxBell } from '../features/inbox/InboxBell';
 import { ActingUserAvatar } from './ActingUserAvatar';
 import './ScreenHeader.css';
 
@@ -13,8 +14,8 @@ interface ScreenHeaderProps {
 }
 
 /**
- * Заглавната част на основните екрани (Календар, Рецепти, Меню, Пазаруване, Килер): заглавието вляво, аватарът
- * на действащия човек горе вдясно (A-10, A-17). Дашбордът има същия аватар в `TopBar`.
+ * Заглавната част на основните екрани (Календар, Рецепти, Меню, Пазаруване, Килер): заглавието вляво, камбанката на
+ * Входящата кутия и аватарът на действащия човек горе вдясно (A-10, A-17). Дашбордът ги има в `TopBar`.
  */
 export function ScreenHeader({
   title,
@@ -28,6 +29,7 @@ export function ScreenHeader({
         {start}
         <h1 className="screen-header__title">{title}</h1>
         {actions}
+        <InboxBell />
         <ActingUserAvatar />
       </div>
       {children && <div className="screen-header__tools">{children}</div>}

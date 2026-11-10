@@ -15,7 +15,7 @@
 - `food.ts:ingredient, recipe, recipeComponent, recipeIngredient` – `ingredient`, `recipe`, `recipe_component`, `recipe_ingredient`.
 - `food.ts:recipeSuggestionRequest, recipeImportRequest, recipeSuggestion, recipeRefineRequest, recipeRevisionRequest, cookingQuestionRequest` – `recipe_suggestion_request`, `recipe_import_request`, `recipe_suggestion`, `recipe_refine_request`, `recipe_revision_request`, `cooking_question_request`.
 - `menu.ts:mealPlan, meal, mealVote, mealComment, mealRemoval, menuProposalRequest, mealReplaceRequest, menuReworkRequest` – `meal_plan`, `meal`, `meal_vote`, `meal_comment`, `meal_removal`, `menu_proposal_request`, `meal_replace_request`, `menu_rework_request`.
-- `notifications.ts:pushSubscription, notificationSetting, notificationLog, menuActivity` – `push_subscription`, `notification_setting`, `notification_log`, `menu_activity`.
+- `notifications.ts:pushSubscription, notificationSetting, notificationLog, menuActivity, inboxItem` – `push_subscription`, `notification_setting`, `notification_log`, `menu_activity`, `inbox_item` (Входяща кутия, ADR-0015).
 - `pantry.ts:pantryItem` – `pantry_item`.
 - `shopping.ts:shoppingList, shoppingItem, shoppingMeal` – `shopping_list`, `shopping_item`, `shopping_meal`.
 - `step-photo.ts:stepPhoto` – `step_photo` (байтовете са `bytea` през `customType`).
@@ -36,7 +36,7 @@
 - `pantry.ts:pantryItem` – по един ред на продукт (`ingredient_id` е уникален, FK с `cascade`); `ran_out_at is null or kind = 'staple'`.
 - `shopping.ts:shoppingItem` – уникален `(list_id, item_key)`; `shopping_list.week_start` и `plan_id` са уникални. `plan_id` в `shopping_list` и в `menu_proposal_request` е `set null` при изтрит план.
 - Съставни първични ключове: `notification_log(kind, subject_id, on_date, user_id)` (напомняне не се праща два пъти), `notification_setting(user_id, kind)`, `shopping_meal(list_id, meal_id)`, `menu_activity(week_start, recipient_user_id)`, `meal_vote(meal_id, user_id)`.
-- `notifications.ts:pushSubscription` – уникален `endpoint`. `dashboard.ts:calendarEvent` – уникален `(calendar_source_id, external_id)`. `dashboard.ts:calendarSource` – уникален `google_calendar_id`.
+- `notifications.ts:pushSubscription` – уникален `endpoint`. `notifications.ts:inboxItem` – уникален `(user_id, tag)`: известие със същия `tag` обновява реда. `dashboard.ts:calendarEvent` – уникален `(calendar_source_id, external_id)`. `dashboard.ts:calendarSource` – уникален `google_calendar_id`.
 - Промяна тук изисква нова миграция (`pnpm --filter api db:generate`) в `../../../drizzle`.
 
 ## Side Effects

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { pushSubscription } from '../db/schema/notifications.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
+import { inboxOf } from '../test/inbox.js';
 import {
   createTestPushService,
   deviceSubscription,
@@ -200,7 +201,7 @@ describe('„Кой готви довечера“ through the reminders cron', 
     );
   });
 
-  it('sends nothing to a person who turned `cook` off', async () => {
+  it('rings no phone of a person who turned `cook` off, but asks them in the inbox', async () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/api/notifications/settings',
@@ -212,6 +213,9 @@ describe('„Кой готви довечера“ through the reminders cron', 
     const delivered = await runAt(AFTERNOON);
 
     expect(delivered.map((d) => d.payload.userId)).toEqual([POLI.id]);
+    expect(await inboxOf(app, DANI.id)).toMatchObject([
+      { kind: 'cook', title: 'Кой готви довечера?', body: 'Мусака' },
+    ]);
   });
 });
 

@@ -155,6 +155,17 @@ const scheduler: FastifyPluginAsync<SchedulerOptions> = async (
   });
 
   schedule({
+    name: 'prune-inbox',
+    intervalMs: PRUNE_INTERVAL_MS,
+    jitter: 0,
+    run: async () => {
+      const removed = await app.inbox.prune();
+      app.log.info({ job: 'prune-inbox', removed }, 'old inbox items removed');
+      return undefined;
+    },
+  });
+
+  schedule({
     name: 'step-photo-orphans',
     intervalMs: STEP_PHOTO_ORPHANS_INTERVAL_MS,
     jitter: 0,

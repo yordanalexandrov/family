@@ -84,7 +84,9 @@ export const pushKindSchema = z.enum([
 export type PushKind = z.infer<typeof pushKindSchema>;
 
 /** A path inside the app (`/menu`), never another origin. */
-const appPath = z.string().regex(/^\/(?!\/)/, 'must be a path of the app');
+export const appPathSchema = z
+  .string()
+  .regex(/^\/(?!\/)/, 'must be a path of the app');
 
 /**
  * What the service worker gets in a push message. `tag` replaces the earlier notification with the same tag; `url` is
@@ -96,7 +98,7 @@ export const pushPayloadSchema = z.object({
   title: z.string().min(1),
   body: z.string(),
   tag: z.string().min(1),
-  url: appPath,
+  url: appPathSchema,
   userId: z.uuid(),
   actions: z
     .array(

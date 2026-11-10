@@ -20,6 +20,7 @@
 - `menu.ts:upsertVote, deleteVote, deleteOtherVotes, listComments, findComment, insertComment, deleteComment` – Гласове и Разговор на ястие.
 - `menu.ts:insertProposal, findProposal, listProposalsOfWeek, hasPendingProposal, setProposalPlan, markMealThawed, claimMealCook, saveRemoval, findRemoval, deleteRemoval` – Предложение за меню, „Извадих“, „Аз“ и „Върни“.
 - `notification-log.ts:listNotificationLog, listNotifiedUsers, claimNotification` – дневник на изпратените напомняния.
+- `inbox.ts:upsertInboxItem, listInboxItems, countUnreadInboxItems, markInboxItemRead, markAllInboxItemsRead, deleteInboxItemsBefore` – Входящата кутия (`inbox_item`): запис или обновяване по (човек, `tag`), четене, прочитане и триене на старите.
 - `notifications.ts:upsertPushSubscription, deleteUserPushSubscription, deletePushSubscription, listPushSubscriptions, markPushSubscriptionSucceeded, listNotificationSettings, upsertNotificationSettings` – устройства за Web Push и настройките за известия.
 - `pantry.ts:listPantryItems, findPantryItem, insertPantryItem, updatePantryItem, deletePantryItem, setPantryRanOut, listUseUp, PANTRY_INGREDIENT_UNIQUE` – Килер.
 - `recipe-imports.ts:insertImportRequest, findImportRequest, listImportRequests, setImportNoResults, findImportSource, setImportUrl, findSourceUrlMatches, insertImportedSuggestion, findImportedSuggestion` – Внасяне на рецепта.
@@ -33,7 +34,7 @@
 - `step-photos.ts:insertStepPhoto, findStepPhotoData, existingStepPhotoIds, deleteOrphanStepPhotos` – Снимка на стъпка.
 - `sync-runs.ts:startRun, finishRun, lastRuns, pruneRuns` – Синхронизация (`sync_run`).
 - `users.ts:listUsers, listPeople, findUser` – Потребители; `listPeople` е без служебните (роля `app`, ADR-0014).
-- Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuActivity`, `menu.ts:NewMeal, MealRemoval`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
+- Изнесени типове за вход и изход: `budget-snapshots.ts:NewBudgetSnapshot`, `calendar-events.ts:NewCalendarEvent`, `cooking-questions.ts:StoredCookingQuestion`, `menu-activity.ts:MenuActivity`, `menu.ts:NewMeal, MealRemoval`, `inbox.ts:InboxWrite`, `notification-log.ts:NotificationLogEntry`, `notifications.ts:StoredSubscription`, `recipe-imports.ts:ImportSource`, `reminders.ts:ReminderMeal`, `shopping.ts:ItemCheck`, `sync-runs.ts:SyncRun, LastRuns`.
 
 ## Invariants
 

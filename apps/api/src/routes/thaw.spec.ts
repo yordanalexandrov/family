@@ -8,6 +8,7 @@ import {
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
+import { inboxOf } from '../test/inbox.js';
 import { stockPantry } from '../test/pantry.js';
 import {
   createTestPushService,
@@ -213,7 +214,7 @@ describe('„Извади месото“ through the reminders cron', () => {
     expect(await runAt(MORNING)).toHaveLength(2);
   });
 
-  it('sends no reminder to a person who turned `thaw` off', async () => {
+  it('rings no phone of a person who turned `thaw` off, but keeps the reminder in their inbox', async () => {
     const response = await app.inject({
       method: 'PUT',
       url: '/api/notifications/settings',
@@ -225,6 +226,37 @@ describe('„Извади месото“ through the reminders cron', () => {
     const delivered = await runAt(EVENING);
 
     expect(delivered.map((d) => d.payload.userId)).toEqual([POLI.id]);
+    for (const userId of [DANI.id, POLI.id]) {
+      // Poli also has Dani's changes of the menu in the setup.
+      const thaw = (await inboxOf(app, userId)).filter(
+        (item) => item.kind === 'thaw',
+      );
+      expect(thaw).toMatchObject([
+        {
+          kind: 'thaw',
+          title: 'Извади месото за утре',
+          body: 'Мусака: смесена кайма, свински врат',
+          url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
+          unread: true,
+        },
+      ]);
+    }
+  });
+
+  it('updates the evening one in the inbox with the morning one, unread again', async () => {
+    await runAt(EVENING);
+    const [evening] = await inboxOf(app, DANI.id);
+    await app.inject({
+      method: 'POST',
+      url: `/api/inbox/${evening?.id}/read`,
+      headers: as(DANI.id),
+    });
+
+    await runAt(MORNING);
+
+    expect(await inboxOf(app, DANI.id)).toMatchObject([
+      { id: evening?.id, title: 'Извади месото за довечера', unread: true },
+    ]);
   });
 });
 

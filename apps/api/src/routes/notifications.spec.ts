@@ -1,4 +1,5 @@
 import {
+  inboxResponseSchema,
   type NotificationSettings,
   notificationSettingsBodySchema,
   pushDisabledSchema,
@@ -93,6 +94,19 @@ describe('PUT /api/notifications/subscription and POST /api/notifications/test',
         },
       })),
     );
+  });
+
+  it('keeps „Пробно известие“ out of the inbox', async () => {
+    await subscribe(DANI, deviceSubscription('dani-phone'));
+
+    expect(await testNotification(DANI)).toHaveLength(1);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/inbox',
+      headers: { 'x-acting-user': DANI.id },
+    });
+    expect(inboxResponseSchema.parse(response.json()).items).toEqual([]);
   });
 
   it('moves a device to whoever subscribes it next', async () => {

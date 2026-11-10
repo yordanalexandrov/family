@@ -22,16 +22,11 @@ const MUSAKA: ReminderMeal = {
   thawedAt: null,
 };
 
-const ALL_ON = { thaw: true, cook: true, menu: true };
-
 function state(overrides: Partial<ReminderState> = {}): ReminderState {
   return {
     meals: [MUSAKA],
     frozen: [KAIMA.id, PORK.id],
-    users: [
-      { id: DANI.id, settings: ALL_ON },
-      { id: POLI.id, settings: ALL_ON },
-    ],
+    users: [{ id: DANI.id }, { id: POLI.id }],
     log: [],
     ...overrides,
   };
@@ -145,14 +140,6 @@ describe('dueReminders: „Извади месото“', () => {
     ]);
   });
 
-  it('sends only to the other when one has `thaw` off', () => {
-    const users = [
-      { id: DANI.id, settings: { ...ALL_ON, thaw: false } },
-      { id: POLI.id, settings: ALL_ON },
-    ];
-    expect(dueReminders(EVENING, state({ users }))).toEqual([evening(POLI.id)]);
-  });
-
   it('reads the recipe of the morning after it changed since the evening', () => {
     const changed: ReminderMeal = {
       ...MUSAKA,
@@ -244,16 +231,6 @@ describe('dueReminders: „Кой готви довечера“', () => {
       cookUserId: POLI.id,
     };
     expect(cookReminders(AFTERNOON, { meals: [empty] })).toEqual([]);
-  });
-
-  it('sends nothing to a person with `cook` off', () => {
-    const users = [
-      { id: DANI.id, settings: ALL_ON },
-      { id: POLI.id, settings: { ...ALL_ON, cook: false } },
-    ];
-    expect(cookReminders(AFTERNOON, { users })).toEqual([whoCooks(DANI.id)]);
-    const meals = [{ ...MUSAKA, cookUserId: POLI.id }];
-    expect(cookReminders(AFTERNOON, { users, meals })).toEqual([]);
   });
 
   it('is due from 16:00 for 2 hours, only for today’s dinner, and once', () => {

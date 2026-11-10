@@ -9,6 +9,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { oneOf } from './checks.js';
@@ -97,4 +98,36 @@ export const menuActivity = pgTable(
     lastAt: timestamp('last_at', { withTimezone: true }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.weekStart, t.recipientUserId] })],
+);
+
+/**
+ * A person's notification in the inbox (GLOSSARY: Входяща кутия), the source of every notification; push only rings
+ * the phone (ADR-0015). One per person and `tag`: the same tag updates the row, `updated_at = now` and unread again
+ * (`read_at` null). The cron deletes rows not updated for 30 days. Apart from `notification_log`, which only keeps the
+ * cron from sending a reminder twice.
+ */
+export const inboxItem = pgTable(
+  'inbox_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<NotificationKind>().notNull(),
+    tag: text('tag').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    url: text('url').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('inbox_item_user_id_tag_idx').on(t.userId, t.tag),
+    index('inbox_item_user_id_updated_at_idx').on(t.userId, t.updatedAt),
+    check(
+      'inbox_item_kind_check',
+      oneOf(t.kind, notificationKindSchema.options),
+    ),
+  ],
 );

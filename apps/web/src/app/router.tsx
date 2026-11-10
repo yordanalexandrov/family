@@ -20,6 +20,7 @@ import {
 } from '../features/cooking/CookingScreen';
 import { DashboardScreen } from '../features/dashboard/DashboardScreen';
 import { DeviceScreen } from '../features/device/DeviceScreen';
+import { InboxScreen } from '../features/inbox/InboxScreen';
 import { MenuWeek, parseMenuSearch } from '../features/menu/MenuWeek';
 import { PantryScreen } from '../features/pantry/PantryScreen';
 import { ImportRequestView } from '../features/recipe-import/ImportRequestView';
@@ -194,6 +195,12 @@ const calendarRoute = createRoute({
   component: CalendarScreen,
 });
 
+const inboxRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/inbox',
+  component: InboxScreen,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings',
@@ -320,6 +327,7 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute,
   calendarRoute,
   settingsRoute,
+  inboxRoute,
   whoRoute,
   deviceRoute,
   recipesRoute,

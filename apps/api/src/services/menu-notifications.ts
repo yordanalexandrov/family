@@ -13,8 +13,9 @@ import {
 } from '../db/repositories/menu-activity.js';
 import { findRework } from '../db/repositories/menu-reworks.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
+import type { InboxService } from './inbox.js';
 import { menuWeekUrl, notificationTag } from './notification-links.js';
-import type { PushMessage, PushService } from './push.js';
+import type { PushMessage } from './push.js';
 import { isPerson } from './users.js';
 
 /** How long the other has to be quiet on the menu before the gathered notification goes. */
@@ -91,12 +92,12 @@ export interface MenuNotifications {
 
 export function createMenuNotifications({
   db,
-  push,
+  inbox,
   now,
   log,
 }: {
   db: Db;
-  push: PushService;
+  inbox: InboxService;
   now: () => Date;
   log: FastifyBaseLogger;
 }): MenuNotifications {
@@ -116,7 +117,7 @@ export function createMenuNotifications({
           .filter((other) => other.id !== activity.recipientUserId)
           .map((other) => other.name)
           .join(' и ');
-        await push.send(activity.recipientUserId, 'menu', {
+        await inbox.notify(activity.recipientUserId, 'menu', {
           title: `${actors} по менюто`,
           body: activitySummary(activity),
           ...ofWeek(activity.weekStart),
@@ -139,7 +140,7 @@ export function createMenuNotifications({
         };
         for (const user of users.filter(isPerson)) {
           if (user.id !== requestedBy) {
-            await push.send(user.id, 'menu', message);
+            await inbox.notify(user.id, 'menu', message);
           }
         }
       } catch (error) {
@@ -165,7 +166,7 @@ export function createMenuNotifications({
         };
         for (const user of users.filter(isPerson)) {
           if (user.id !== rework.requestedBy) {
-            await push.send(user.id, 'menu', message);
+            await inbox.notify(user.id, 'menu', message);
           }
         }
       } catch (error) {

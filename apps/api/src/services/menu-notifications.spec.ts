@@ -18,6 +18,7 @@ import { meal } from '../db/schema/menu.js';
 import { pushSubscription } from '../db/schema/notifications.js';
 import { buildTestApp } from '../test/app.js';
 import { testDb } from '../test/db.js';
+import { inboxOf } from '../test/inbox.js';
 import { seedFixtureRecipes } from '../test/menu.js';
 import {
   CHAT_COMPLETIONS_URL,
@@ -286,7 +287,7 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
     expect(received()).toEqual([]);
   });
 
-  it('sends nothing to someone who turned menu notifications off, and forgets the actions', async () => {
+  it('rings no phone of someone who turned menu notifications off, keeps it in their inbox, and forgets the actions', async () => {
     const off = await app.inject({
       method: 'PUT',
       url: '/api/notifications/settings',
@@ -300,6 +301,9 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
     later(10);
     await runReminders();
     expect(received()).toEqual([]);
+    expect(await inboxOf(app, DANI.id)).toMatchObject([
+      { kind: 'menu', title: 'Поли по менюто', body: '1 глас' },
+    ]);
 
     await app.inject({
       method: 'PUT',

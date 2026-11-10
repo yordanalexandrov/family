@@ -2,7 +2,7 @@
 
 ## Overview
 
-Бизнес логиката на API-то, без HTTP. Услугите проверяват правилата, отварят транзакциите, викат `src/db/repositories`, OpenClaw, външните клиенти и Web Push. Сигналите за промяна към `app.events` се пращат след commit. Долгоживеещите услуги се създават веднъж в `src/app.ts:buildApp` и са декорации на `app`: `app.users`, `app.events`, `app.push`, `app.menu`, `app.menuSchedule`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.menuReworks`, `app.calendarSync`, `app.budgetSync`. Отказите са типизирани в `errors.ts` и се мапват към HTTP в `src/plugins/error-handler.ts`.
+Бизнес логиката на API-то, без HTTP. Услугите проверяват правилата, отварят транзакциите, викат `src/db/repositories`, OpenClaw, външните клиенти и Web Push. Сигналите за промяна към `app.events` се пращат след commit. Долгоживеещите услуги се създават веднъж в `src/app.ts:buildApp` и са декорации на `app`: `app.users`, `app.events`, `app.push`, `app.inbox`, `app.menu`, `app.menuSchedule`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.menuReworks`, `app.calendarSync`, `app.budgetSync`. Отказите са типизирани в `errors.ts` и се мапват към HTTP в `src/plugins/error-handler.ts`.
 
 ## Interface
 
@@ -29,7 +29,8 @@
 - `pantry.ts:getPantry, addPantryItem, changePantryItem, removePantryItem, markPantryRanOut` – Килер.
 - `reminders.ts:createReminders, dueReminders, Reminders, COOK_HOUR, REMINDER_GRACE_MS` – Напомняния („Извади месото“, „Кой готви довечера“). `Reminders.run` (cron на 5 мин) праща дължимите напомняния и натрупаната активност по менюто; `Reminders.cookClaimed` след „Аз“ праща на всички, получили въпроса, „Довечера готвиш ти“ или „Довечера готви <име>“ със същия tag.
 - `thaw.ts:thawCandidates, thawDates, THAW_EVENING_HOUR, THAW_MORNING_HOUR` – „Извади месото“ за дашборда и напомнянията.
-- `push.ts:createPushService, PushService, WebPushDelivery, PushMessage` – Web Push абонаменти, настройки и изпращане.
+- `inbox.ts:createInboxService, InboxService, Notified, INBOX_KEEP_DAYS` – Входящата кутия (ADR-0015): `notify` е единственият път за известие (запис в кутията, после `push.send`), `list`, `unreadCount`, `read`, `readAll`, `prune` (задачата `prune-inbox`).
+- `push.ts:createPushService, PushService, WebPushDelivery, PushMessage` – Web Push абонаменти, настройки и изпращане (само през `inbox.notify`, освен `sendTest`).
 - `notification-links.ts:notificationTag, menuWeekUrl, mealUrl` – tag и адрес на Известие.
 - `events.ts:createEventBus, EventBus, menuAndShoppingChanged` – шината за сигнали в паметта (`GET /api/events`).
 - `calendar-sync.ts:createCalendarSync, syncCalendars, syncWindow, toCalendarEventRow` и `budget-sync.ts:createBudgetSync, syncBudget` – Синхронизация с Google Calendar и Wallet.
@@ -55,12 +56,13 @@
 - AI заявки, други откази: `recipe-revisions.ts:createRecipeRevisionStore` – `revision_open`, когато рецептата или предложението вече има отворена поправка; той и `cooking-questions.ts:createCookingQuestionStore` – `no_applied_change`; въпросът – и `no_earlier_question`, и `InvalidActionError` за непозната стъпка. `meal-replacements.ts:createMealReplaceStore` – `not_enough_recipes` под `MEAL_REPLACE_MIN_RECIPES`; `getLatestReplacement` – `no_replacement`.
 - `recipe-imports.ts:createRecipeImportStore` – линк, който вече е в регистъра, се отказва с 409 `already_imported` (освен с `force`). Снимката от `POST` остава само в паметта на изпълнението и никога не стига до базата. Страница, която не се отваря, завършва с `fetch_blocked`/`fetch_failed`, без да пита агента.
 - `menu-schedule.ts:scheduledProposalDue` – cron-ът предлага меню за следващата седмица от сряда 09:00 в София, докато тя няма план, чакащо предложение или предложение от cron-а (провалено не се повтаря).
-- `reminders.ts:dueReminders` – напомнянето е дължимо от часа си до `REMINDER_GRACE_MS` (2 ч) след него. „Извади месото“ идва в 20:00 предния ден и (без „Извадих“) в 08:00. „Кой готви довечера“ идва в 16:00. Чиста функция: само отсява вече записаните в `notification_log`. Записът е в `createReminders` (`claimNotification` преди `push.send`), за да не се прати два пъти дори от две изпълнения; провален push не се повтаря.
+- `reminders.ts:dueReminders` – напомнянето е дължимо от часа си до `REMINDER_GRACE_MS` (2 ч) след него. „Извади месото“ идва в 20:00 предния ден и (без „Извадих“) в 08:00. „Кой готви довечера“ идва в 16:00. Получават го всички хора, а дали звъни решава `inbox.notify` по настройките. Чиста функция: само отсява вече записаните в `notification_log`. Записът е в `createReminders` (`claimNotification` преди `inbox.notify`), за да не се прати два пъти дори от две изпълнения; провален push не се повтаря.
 - `shopping.ts:getShoppingList` – списъкът се изчислява от ястията в списъка (ADR-0011) при всяко четене. Четенето не записва нищо: списъкът се създава при първата промяна. `setItemChecked` пази първата отметка; отметка на свършил постоянен продукт го „купува“ (чисти `ran_out_at`) и сигнализира всички списъци. `setMealListed` отказва с `meal_without_recipe`; `setItemHidden`/`deleteItem` – `InvalidActionError` за ръчен, съответно изчислен ред.
 - `pantry.ts` – откази `already_in_pantry`, `not_staple`; всяка промяна сигнализира `shopping.changed` без седмица (Килерът важи за всички списъци). `appliances.ts:addAppliance` – `appliance_exists`.
 - `step-photos.ts:stepPhotoJpeg` – типът се чете от байтовете; снимката се изправя по EXIF и се записва като JPEG без EXIF (без GPS). Над `STEP_PHOTO_MAX_INPUT_PIXELS` (50 MP) е `UnsupportedPhotoError`. Бавно е, затова никога в транзакция.
 - `step-photos.ts:removeOrphanStepPhotos` – трие само през нощните часове в София (`ORPHAN_CLEANUP_HOURS`) снимки сираци, по-стари от ден; денем връща `null`.
 - `sync-mutex.ts:oneAtATime` – извикване, докато предишното още тече, връща `running`. `calendar-sync.ts:syncCalendars` – източник с грешка пази старите си събития, другите се синхронизират, а изпълнението е `failed` с имената на провалените.
+- `inbox.ts:InboxService.notify` – записва в кутията винаги, преди push-а; изключен вид или липса на устройство спират само push-а. Същият `tag` обновява реда на човека (съдържание, `updated_at`, непрочетен). `sendTest` не пише в кутията. `read` дава `NotFoundError` за чужд запис.
 - `push.ts:PushService.send` – устройство, за което push услугата отговаря 404/410, се изтрива; другите грешки се логват. Отхвърля само при грешка на базата.
 - `users.ts:createUsersService` – потребителите се кешират за минута (променят се само с миграции).
 

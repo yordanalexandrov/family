@@ -17,7 +17,7 @@
 - `keyboard.ts:useKeyboardInset`, `wake-lock.ts:useWakeLock` — височина на екранната клавиатура и screen wake lock
 - `push-handlers.ts:onPush`, `onNotificationClick`, `PushWorker`, `PushData`, `AppWindow`, `NotificationShowOptions`, `ShownNotification` — чисти решения за `push` и `notificationclick` и типовете им, ползвани от `../sw.ts`
 - `theme.ts:THEME_KEY`, `THEME_BACKGROUNDS`, `device-mode.ts:DEVICE_MODE_KEY`, `acting-user.ts:ACTING_USER_KEY`, `effects.ts:EFFECTS_KEY` — ключовете в localStorage; `THEME_BACKGROUNDS` са цветовете за `theme-color` по тема
-- `MainNav.tsx:MainNav`, `ScreenHeader.tsx:ScreenHeader`, `ActingUserAvatar.tsx:ActingUserAvatar`, `ActingUserAvatar.tsx:ActingUserToast` — навигация, заглавна част и аватар на действащия потребител
+- `MainNav.tsx:MainNav`, `ScreenHeader.tsx:ScreenHeader`, `ActingUserAvatar.tsx:ActingUserAvatar`, `ActingUserAvatar.tsx:ActingUserToast` — навигация, заглавна част (с камбанката `InboxBell` от `features/inbox`) и аватар на действащия потребител
 - `IdleReturn.tsx:IdleReturn`, `IDLE_RETURN_MS`, `COOKING_IDLE_RETURN_MS` — автоматично връщане към дашборда в kiosk изглед
 
 ## Invariants
