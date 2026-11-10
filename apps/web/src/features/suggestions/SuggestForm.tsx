@@ -13,7 +13,8 @@ import { type FormEvent, useState } from 'react';
 import { ErrorBox } from '../../components/ErrorBox';
 import { applianceShortName, useAppliances } from '../appliances/queries';
 import { TagChips, TimeChips, toggled } from '../recipes/TagChips';
-import { mealDayLabel, slotLabel } from './messages';
+import { MealContext } from './MealContext';
+import { slotLabel } from './messages';
 
 /** Таговете без слотовете: слотът се избира отделно. */
 const EXTRA_TAGS = tagSchema.options.filter(
@@ -112,21 +113,11 @@ export function SuggestForm({
       </div>
 
       {meal && (
-        <p className="suggest-form__meal">
-          <span>
-            За ястието от {mealDayLabel(meal.date)}: агентът ще прочете
-            коментарите по него
-          </span>{' '}
-          ·{' '}
-          <button
-            type="button"
-            className="suggest-form__meal-remove"
-            aria-label="Без коментарите по ястието"
-            onClick={() => setMeal(undefined)}
-          >
-            Махни
-          </button>
-        </p>
+        <MealContext
+          mealId={meal.id}
+          date={meal.date}
+          onRemove={() => setMeal(undefined)}
+        />
       )}
 
       <AppliancesLine />

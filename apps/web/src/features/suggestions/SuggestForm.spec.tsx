@@ -1,10 +1,17 @@
 import type { RecipeSuggestParams } from '@family/shared';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { seedAppliances, serveAppliances } from '../../test/appliances';
-import { dani, server } from '../../test/msw';
+import {
+  planFor,
+  servePlans,
+  serveThreads,
+  thisWeek,
+  threadLine,
+} from '../../test/menu';
+import { dani, poli, server } from '../../test/msw';
 import { renderApp, setUpDevice } from '../../test/render';
 import { doneRequest, pendingRequest, requestId } from '../../test/suggestions';
 
@@ -78,10 +85,8 @@ describe('SuggestForm', () => {
     );
 
     expect(
-      await screen.findByText(
-        'За ястието от ср 4.11: агентът ще прочете коментарите по него',
-      ),
-    ).toBeInTheDocument();
+      await screen.findByRole('region', { name: 'Агентът ще вземе предвид' }),
+    ).toHaveTextContent('ср 4.11');
     expect(screen.getByRole('button', { name: 'Вечеря' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -92,6 +97,90 @@ describe('SuggestForm', () => {
 
     expect(await screen.findByText(/Търся рецепти/)).toBeInTheDocument();
     expect(sent).toEqual([{ slots: ['dinner'], mealId }]);
+  });
+
+  it('от ястие: картата показва ястието и коментарите, а разгъването и системните редове', async () => {
+    const user = userEvent.setup();
+    setUpDevice('phone', dani.id);
+    serveRequests();
+    const plan = planFor(thisWeek, {
+      2: {
+        recipeId: 'a0000000-0000-4000-8000-000000000003',
+        recipe: { title: 'Мусака', archivedAt: null, rating: null },
+      },
+    });
+    const mealId = plan.meals[2]?.id ?? '';
+    servePlans({ [thisWeek]: plan });
+    serveThreads(plan, {
+      [mealId]: [
+        threadLine(mealId, 1, {
+          kind: 'system',
+          body: 'смени рецептата на Мусака',
+        }),
+        threadLine(mealId, 2, {
+          authorUserId: poli.id,
+          body: 'без патладжан този път',
+        }),
+        threadLine(mealId, 3, { body: 'нещо по-леко' }),
+      ],
+    });
+
+    renderApp(
+      `/recipes/suggest?slots=${encodeURIComponent('["dinner"]')}&mealId=${mealId}&mealDate=2026-11-04`,
+    );
+
+    const card = await screen.findByRole('region', {
+      name: 'Агентът ще вземе предвид',
+    });
+    expect(await within(card).findByText('Мусака')).toBeInTheDocument();
+    expect(card).toHaveTextContent('Вечеря · ср 4.11 · сега: Мусака');
+    const lines = await within(card).findByRole('list', {
+      name: 'Разговор по ястието',
+    });
+    expect(
+      within(lines)
+        .getAllByRole('listitem')
+        .map((line) => line.querySelector('.thread__body')?.textContent),
+    ).toEqual(['без патладжан този път', 'нещо по-леко']);
+    expect(lines).toHaveTextContent('Поли');
+    expect(within(card).queryByText(/смени рецептата/)).toBeNull();
+
+    const toggle = within(card).getByRole('button', {
+      name: 'Целият разговор (+1)',
+    });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+    expect(within(lines).getAllByRole('listitem')).toHaveLength(3);
+    expect(
+      within(card).getByText('Дани смени рецептата на Мусака'),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(card).getByRole('button', { name: 'Само коментарите' }),
+    );
+    expect(within(card).queryByText(/смени рецептата/)).toBeNull();
+  });
+
+  it('от ястие без разговор: „Още няма коментари.“ и без разгъване', async () => {
+    setUpDevice('phone', dani.id);
+    serveRequests();
+    const plan = planFor(thisWeek);
+    servePlans({ [thisWeek]: plan });
+    serveThreads(plan);
+
+    renderApp(
+      `/recipes/suggest?slots=${encodeURIComponent('["dinner"]')}&mealId=${plan.meals[2]?.id}&mealDate=2026-11-04`,
+    );
+
+    const card = await screen.findByRole('region', {
+      name: 'Агентът ще вземе предвид',
+    });
+    expect(
+      await within(card).findByText('Още няма коментари.'),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole('button', { name: /Целият разговор/ }),
+    ).toBeNull();
   });
 
   it('„Махни“ праща заявката без ястието', async () => {
@@ -108,7 +197,9 @@ describe('SuggestForm', () => {
       }),
     );
 
-    expect(screen.queryByText(/За ястието от/)).toBeNull();
+    expect(
+      screen.queryByRole('region', { name: 'Агентът ще вземе предвид' }),
+    ).toBeNull();
     await user.click(
       screen.getByRole('button', { name: 'Поискай предложения' }),
     );
