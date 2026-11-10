@@ -258,7 +258,7 @@ describe('„Извади месото“ through the reminders cron', () => {
     expect(push.delivered[0]?.payload).not.toHaveProperty('details');
   });
 
-  it('details the cook of the dinner, when it has one', async () => {
+  it('details the cook of the dinner, when it has one, opening the dinner in the menu like every row', async () => {
     await patchMeal(musakaMealId, { cookUserId: POLI.id });
 
     await runAt(EVENING);
@@ -266,7 +266,10 @@ describe('„Извади месото“ through the reminders cron', () => {
     const [thaw] = (await inboxOf(app, DANI.id)).filter(
       (item) => item.kind === 'thaw',
     );
-    expect(thaw?.details.at(-1)).toEqual({ text: 'Готви: Поли' });
+    expect(thaw?.details.at(-1)).toEqual({
+      text: 'Готви: Поли',
+      url: `/menu?week=${WEEK}&meal=${musakaMealId}`,
+    });
   });
 
   it('updates the details with the morning one, as the dinner is then', async () => {

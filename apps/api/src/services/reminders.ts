@@ -84,7 +84,7 @@ function cookDetails(
 
 /**
  * The thaw reminder of `meal`. Its details: each product „Във фризера“ (to the pantry), the dinner (to its day in the
- * menu) and, if it has one, the cook.
+ * menu) and, if it has one, the cook (to the dinner too: every row opens something, spec #337).
  */
 function thawMessage(
   meal: ReminderMeal,
@@ -103,7 +103,7 @@ function thawMessage(
     },
   ];
   if (cook) {
-    details.push({ text: `Готви: ${cook}` });
+    details.push({ text: `Готви: ${cook}`, url: mealUrl(meal) });
   }
   return {
     title,
