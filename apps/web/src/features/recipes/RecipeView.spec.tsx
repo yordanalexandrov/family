@@ -203,6 +203,85 @@ describe('RecipeView', () => {
     expect(within(steps).queryByRole('img')).toBeNull();
   });
 
+  describe('Източник (GLOSSARY: Източник на рецепта)', () => {
+    const pastedText =
+      'Пиле с ориз\n\nПродукти:\n- 500 г пиле\n\nНарежи пилето.';
+
+    it('само с текст „Източник“ отваря лист с текста, със запазените редове', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveRecipe({
+        ...chickenWithRice,
+        sourceUrl: undefined,
+        sourceText: pastedText,
+      });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      await user.click(await screen.findByRole('button', { name: 'Източник' }));
+
+      const sheet = screen.getByRole('dialog', { name: 'Източник' });
+      expect(within(sheet).getByRole('blockquote').textContent).toBe(
+        pastedText,
+      );
+      expect(within(sheet).queryByRole('link')).toBeNull();
+    });
+
+    it('с текст и линк листът с текста съдържа и линка, който се отваря в нов таб', async () => {
+      const user = userEvent.setup();
+      setUpDevice('phone', dani.id);
+      serveRecipe({ ...chickenWithRice, sourceText: pastedText });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      await user.click(await screen.findByRole('button', { name: 'Източник' }));
+
+      const sheet = screen.getByRole('dialog', { name: 'Източник' });
+      expect(within(sheet).getByRole('blockquote').textContent).toBe(
+        pastedText,
+      );
+      const link = within(sheet).getByRole('link', {
+        name: 'https://recepti.example/pile-s-oriz',
+      });
+      expect(link).toHaveAttribute(
+        'href',
+        'https://recepti.example/pile-s-oriz',
+      );
+      expect(link).toHaveAttribute('target', '_blank');
+    });
+
+    it('само с линк „Източник“ е връзка, която се отваря в нов таб', async () => {
+      setUpDevice('phone', dani.id);
+      serveRecipe();
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      const link = await screen.findByRole('link', { name: 'Източник' });
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(screen.queryByRole('button', { name: 'Източник' })).toBeNull();
+    });
+
+    it('без линк и без текст няма „Източник“', async () => {
+      setUpDevice('phone', dani.id);
+      serveRecipe({ ...chickenWithRice, sourceUrl: undefined });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      await screen.findByRole('heading', { name: 'Пиле с ориз' });
+      expect(screen.queryByText('Източник')).toBeNull();
+    });
+
+    it('на TV източник не се показва', async () => {
+      setUpDevice('tv');
+      serveRecipe({ ...chickenWithRice, sourceText: pastedText });
+
+      renderApp(`/recipes/${chickenWithRice.id}`);
+
+      await screen.findByRole('heading', { name: 'Пиле с ориз' });
+      expect(screen.queryByText('Източник')).toBeNull();
+    });
+  });
+
   it('рецепта за наш уред показва значка с краткото му име', async () => {
     setUpDevice('phone', dani.id);
     serveRecipe({ ...chickenWithRice, appliance: 'sous vide' });
