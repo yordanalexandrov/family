@@ -2,7 +2,7 @@ import { sourcePhotoQuerySchema } from '@family/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { sourcePhotoImage } from '../services/source-photos.js';
 import { idParamsSchema } from './params.js';
-import { IMMUTABLE } from './step-photos.js';
+import { IMMUTABLE } from './photo-form.js';
 
 /**
  * Photos of a recipe source (GLOSSARY: Източник на рецепта, ADR-0016), stored by `POST /api/recipe-imports`. `GET`

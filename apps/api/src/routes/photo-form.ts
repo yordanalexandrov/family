@@ -3,6 +3,9 @@ import { HttpError } from '../plugins/error-handler.js';
 /** The form field of a photo, as the recipe form and the import screen send it. */
 export const PHOTO_FIELD = 'photo';
 
+/** A photo never changes (another photo is another id), so the browser keeps it for good; only for this person. */
+export const IMMUTABLE = 'private, max-age=31536000, immutable';
+
 /** A photo form without its photo, or with a file in another field: 400 `validation_error`. */
 export function missingPhoto(): HttpError {
   return new HttpError(400, 'validation_error', 'Липсва снимка');

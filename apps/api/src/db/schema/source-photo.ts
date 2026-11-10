@@ -1,6 +1,5 @@
 import { pgTable, uuid } from 'drizzle-orm/pg-core';
-import { createdAt } from './columns.js';
-import { bytea } from './step-photo.js';
+import { bytea, createdAt } from './columns.js';
 
 /**
  * GLOSSARY: Източник на рецепта (ADR-0016). One photo of the source of an import, as the api wrote it: a JPEG, upright,
