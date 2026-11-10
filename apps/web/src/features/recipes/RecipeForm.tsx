@@ -45,22 +45,28 @@ import { TagChips } from './TagChips';
 import './recipes.css';
 
 /**
- * GLOSSARY: Източник на рецепта. Поставеният текст под линка: свит и само за четене; „Махни“ го маха при запис, а
- * „Върни“ отменя махането преди записа.
+ * GLOSSARY: Източник на рецепта. Част от източника под линка, само за четене: „Махни“ я маха при запис, а „Върни“
+ * отменя махането преди записа.
  */
-function SourceTextField({
-  text,
+function RemovableSource({
+  children,
+  removeLabel,
+  removedText,
   removed,
   onRemovedChange,
 }: {
-  text: string;
+  children: ReactNode;
+  /** Достъпното име на „Махни“ („Махни текста на източника“). */
+  removeLabel: string;
+  /** Текстът на мястото на частта, докато е махната („… ще се махне при запис.“). */
+  removedText: string;
   removed: boolean;
   onRemovedChange: (removed: boolean) => void;
 }) {
   if (removed) {
     return (
       <p className="recipe-form__source recipe-form__hint">
-        Текстът на източника ще се махне при запис.{' '}
+        {removedText}{' '}
         <button
           type="button"
           className="button button--quiet"
@@ -73,16 +79,11 @@ function SourceTextField({
   }
   return (
     <div className="recipe-form__source">
-      <details className="recipe-form__more recipe-form__source-text">
-        <summary className="recipe-form__more-summary">
-          Текст на източника
-        </summary>
-        <blockquote className="recipe-source__text">{text}</blockquote>
-      </details>
+      {children}
       <button
         type="button"
         className="button button--quiet"
-        aria-label="Махни текста на източника"
+        aria-label={removeLabel}
         onClick={() => onRemovedChange(true)}
       >
         Махни
@@ -91,45 +92,45 @@ function SourceTextField({
   );
 }
 
-/**
- * GLOSSARY: Източник на рецепта. Миниатюрите на снимките под линка: само за четене (докосване ги отваря на цял екран);
- * „Махни“ ги маха при запис, а „Върни“ отменя махането преди записа.
- */
-function SourcePhotosField({
-  photos,
-  removed,
-  onRemovedChange,
-}: {
-  photos: readonly string[];
+interface RemovableProps {
   removed: boolean;
   onRemovedChange: (removed: boolean) => void;
-}) {
-  if (removed) {
-    return (
-      <p className="recipe-form__source recipe-form__hint">
-        Снимките на източника ще се махнат при запис.{' '}
-        <button
-          type="button"
-          className="button button--quiet"
-          onClick={() => onRemovedChange(false)}
-        >
-          Върни
-        </button>
-      </p>
-    );
-  }
+}
+
+/** Поставеният текст на източника: свит, отваря се за четене. */
+function SourceTextField({
+  text,
+  ...removable
+}: RemovableProps & { text: string }) {
   return (
-    <div className="recipe-form__source">
+    <RemovableSource
+      removeLabel="Махни текста на източника"
+      removedText="Текстът на източника ще се махне при запис."
+      {...removable}
+    >
+      <details className="recipe-form__more recipe-form__source-text">
+        <summary className="recipe-form__more-summary">
+          Текст на източника
+        </summary>
+        <blockquote className="recipe-source__text">{text}</blockquote>
+      </details>
+    </RemovableSource>
+  );
+}
+
+/** Миниатюрите на снимките на източника: докосване ги отваря на цял екран. */
+function SourcePhotosField({
+  photos,
+  ...removable
+}: RemovableProps & { photos: readonly string[] }) {
+  return (
+    <RemovableSource
+      removeLabel="Махни снимките на източника"
+      removedText="Снимките на източника ще се махнат при запис."
+      {...removable}
+    >
       <SourcePhotoThumbnails photos={photos} />
-      <button
-        type="button"
-        className="button button--quiet"
-        aria-label="Махни снимките на източника"
-        onClick={() => onRemovedChange(true)}
-      >
-        Махни
-      </button>
-    </div>
+    </RemovableSource>
   );
 }
 

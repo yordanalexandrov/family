@@ -17,10 +17,10 @@ interface RecipeSourceProps {
 }
 
 /** Името на изгледа със снимките на източника. */
-export const SOURCE_PHOTOS_LABEL = 'Снимките на източника';
+const SOURCE_PHOTOS_LABEL = 'Снимките на източника';
 
 /** Снимките на източника за `PhotoViewer`: в пълния им размер, с номер в името. */
-export function sourceViewerPhotos(photos: readonly string[]) {
+function sourceViewerPhotos(photos: readonly string[]) {
   return photos.map((id, index) => ({
     src: sourcePhotoUrl(id),
     alt: `Снимка ${index + 1} на източника`,
