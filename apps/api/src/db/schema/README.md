@@ -32,10 +32,10 @@
 - `food.ts:recipeSuggestionRequest` – `slots` не е празен (`cardinality > 0`) и е подмножество на позволените слотове. `food.ts:cookingQuestionRequest` – `follows_id` сочи предишния въпрос с `onDelete set null`.
 - Частични уникални индекси `WHERE status = 'pending'`: `recipe_refine_request(recipe_id)`, `cooking_question_request(chain_id)`, `menu_proposal_request(week_start)`, `meal_replace_request(meal_id)`, `menu_rework_request(plan_id)` – най-много една чакаща заявка на предмет.
 - `menu.ts:meal` – уникален `(plan_id, date, slot)`. FK към рецептата е `restrict`: рецепта в план се архивира, не се трие. `meal_plan.week_start` е уникален. `menu.ts:mealRemoval` – PK `meal_id` (най-много едно „Извадих“ на ястие); `comment_id` е `set null`.
-- `menu.ts:menuProposalRequest` – `trigger <> 'user' or requested_by is not null`. `menu.ts:mealComment` – колоната `seq` (identity) разрешава равенства при подреждане по `(meal_id, created_at, seq)`.
+- `menu.ts:menuProposalRequest` – `trigger <> 'user' or requested_by is not null`. `menu.ts:mealComment` – колоната `seq` (identity) разрешава равенства при подреждане по `(meal_id, created_at, seq)`. `notifications.ts:menuActivity` – `seq` (identity) е ключът и редът на действията.
 - `pantry.ts:pantryItem` – по един ред на продукт (`ingredient_id` е уникален, FK с `cascade`); `ran_out_at is null or kind = 'staple'`.
 - `shopping.ts:shoppingItem` – уникален `(list_id, item_key)`; `shopping_list.week_start` и `plan_id` са уникални. `plan_id` в `shopping_list` и в `menu_proposal_request` е `set null` при изтрит план.
-- Съставни първични ключове: `notification_log(kind, subject_id, on_date, user_id)` (напомняне не се праща два пъти), `notification_setting(user_id, kind)`, `shopping_meal(list_id, meal_id)`, `menu_activity(week_start, recipient_user_id)`, `meal_vote(meal_id, user_id)`.
+- Съставни първични ключове: `notification_log(kind, subject_id, on_date, user_id)` (напомняне не се праща два пъти), `notification_setting(user_id, kind)`, `shopping_meal(list_id, meal_id)`, `meal_vote(meal_id, user_id)`.
 - `notifications.ts:pushSubscription` – уникален `endpoint`. `notifications.ts:inboxItem` – уникален `(user_id, tag)`: известие със същия `tag` обновява реда; `details` е jsonb `{ text, url? }[]`, по подразбиране `[]`. `dashboard.ts:calendarEvent` – уникален `(calendar_source_id, external_id)`. `dashboard.ts:calendarSource` – уникален `google_calendar_id`.
 - Промяна тук изисква нова миграция (`pnpm --filter api db:generate`) в `../../../drizzle`.
 

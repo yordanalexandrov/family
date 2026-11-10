@@ -5,11 +5,11 @@ import {
 } from '@family/shared';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   date,
   index,
-  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -86,24 +86,45 @@ export const notificationLog = pgTable(
   ],
 );
 
+/** What a person did on the menu of a week, as the others are told: a vote, a comment or a changed meal. */
+export const MENU_ACTIVITY_KINDS = ['votes', 'comments', 'swaps'] as const;
+
+export type MenuActivityKind = (typeof MENU_ACTIVITY_KINDS)[number];
+
 /**
- * Actions of others on the menu of a week (GLOSSARY: Известие от Съгласуването), gathered for one person until they
- * have been quiet for a while; the cron then sends one notification and deletes the row. In the database, not a timer,
- * so a restart does not lose them.
+ * Actions of others on the menu of a week (GLOSSARY: Известие от Съгласуването), one row per action and per person
+ * told, gathered until the week has been quiet for that person for a while; the cron then sends one notification and
+ * deletes the rows. In the database, not a timer, so a restart does not lose them. `date` and `meal_id` are the day
+ * and the meal the action was on, at the time of the action; `text` is what the person did, without their name
+ * („гласува за „Мусака““). No foreign key to the meal: a deleted plan does not take back what was done.
  */
 export const menuActivity = pgTable(
   'menu_activity',
   {
+    /** Write order: the order of the actions of one day, also for two with the same `at`. */
+    seq: bigint('seq', { mode: 'number' })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
     weekStart: date('week_start', { mode: 'string' }).notNull(),
     recipientUserId: uuid('recipient_user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    votes: integer('votes').notNull().default(0),
-    comments: integer('comments').notNull().default(0),
-    swaps: integer('swaps').notNull().default(0),
-    lastAt: timestamp('last_at', { withTimezone: true }).notNull(),
+    actorUserId: uuid('actor_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<MenuActivityKind>().notNull(),
+    mealId: uuid('meal_id').notNull(),
+    date: date('date', { mode: 'string' }).notNull(),
+    text: text('text').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull(),
   },
-  (t) => [primaryKey({ columns: [t.weekStart, t.recipientUserId] })],
+  (t) => [
+    index('menu_activity_recipient_week_idx').on(
+      t.recipientUserId,
+      t.weekStart,
+    ),
+    check('menu_activity_kind_check', oneOf(t.kind, MENU_ACTIVITY_KINDS)),
+  ],
 );
 
 /**

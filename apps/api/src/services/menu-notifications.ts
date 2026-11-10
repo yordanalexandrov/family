@@ -1,20 +1,22 @@
 import {
   addDays,
   type DateKey,
+  type InboxDetail,
   type MenuProposalRequest,
   type MenuReworkRequest,
+  weekdayName,
   withHint,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
 import {
-  type MenuActivity,
+  type MenuActivityAction,
   takeQuietMenuActivity,
 } from '../db/repositories/menu-activity.js';
 import { findRework } from '../db/repositories/menu-reworks.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
 import type { InboxService } from './inbox.js';
-import { menuWeekUrl, notificationTag } from './notification-links.js';
+import { mealUrl, menuWeekUrl, notificationTag } from './notification-links.js';
 import type { PushMessage } from './push.js';
 import { isPerson } from './users.js';
 
@@ -29,17 +31,38 @@ const ACTIVITY_NOUNS = {
 } as const;
 
 /** „2 гласа, 1 коментар, 1 смяна“: only the kinds that happened. */
-function activitySummary(
-  activity: Pick<MenuActivity, keyof typeof ACTIVITY_NOUNS>,
-): string {
+function activitySummary(actions: readonly MenuActivityAction[]): string {
   return (Object.keys(ACTIVITY_NOUNS) as (keyof typeof ACTIVITY_NOUNS)[])
-    .filter((kind) => activity[kind] > 0)
-    .map((kind) => {
+    .map(
+      (kind) => [kind, actions.filter((a) => a.kind === kind).length] as const,
+    )
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => {
       const [one, many] = ACTIVITY_NOUNS[kind];
-      const count = activity[kind];
       return `${count} ${count === 1 ? one : many}`;
     })
     .join(', ');
+}
+
+/**
+ * The details of the notification (GLOSSARY: Известие от Съгласуването): each action under its day, the days in order
+ * and the actions of a day in the order they were done, each opening its meal in the menu of the week: „Вторник: Поли
+ * смени „Пиле“ → „Мусака““.
+ */
+function activityDetails(
+  actions: readonly MenuActivityAction[],
+  names: ReadonlyMap<string, string>,
+): InboxDetail[] {
+  // A stable sort: the actions come in the order they were done.
+  return [...actions]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((action) => {
+      const day = weekdayName(action.date);
+      return {
+        text: `${day.charAt(0).toUpperCase()}${day.slice(1)}: ${names.get(action.actorUserId) ?? ''} ${action.text}`,
+        url: mealUrl({ id: action.mealId, date: action.date }),
+      };
+    });
 }
 
 const dayMonth = new Intl.DateTimeFormat('bg-BG', {
@@ -111,16 +134,17 @@ export function createMenuNotifications({
         return;
       }
       const users = await listPeople(db);
-      for (const activity of quiet) {
-        // The others are the ones who acted; with two users, the one other.
+      const names = new Map(users.map((user) => [user.id, user.name]));
+      for (const { recipientUserId, weekStart, actions } of quiet) {
         const actors = users
-          .filter((other) => other.id !== activity.recipientUserId)
+          .filter((other) => actions.some((a) => a.actorUserId === other.id))
           .map((other) => other.name)
           .join(' и ');
-        await inbox.notify(activity.recipientUserId, 'menu', {
+        await inbox.notify(recipientUserId, 'menu', {
           title: `${actors} по менюто`,
-          body: activitySummary(activity),
-          ...ofWeek(activity.weekStart),
+          body: activitySummary(actions),
+          details: activityDetails(actions, names),
+          ...ofWeek(weekStart),
         });
       }
     },

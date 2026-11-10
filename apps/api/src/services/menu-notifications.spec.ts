@@ -101,22 +101,26 @@ async function notedPlan(): Promise<string[]> {
   return response.json().plan.meals.map((row: { id: string }) => row.id);
 }
 
-async function vote(user: User, mealId: string) {
+async function vote(user: User, mealId: string, value: 'up' | 'down' = 'up') {
   const response = await app.inject({
     method: 'PUT',
     url: `/api/menu/meals/${mealId}/vote`,
     headers: as(user),
-    payload: { value: 'up' },
+    payload: { value },
   });
   expect(response.statusCode).toBe(200);
 }
 
-async function comment(user: User, mealId: string) {
+async function comment(
+  user: User,
+  mealId: string,
+  body = 'Може ли нещо по-леко?',
+) {
   const response = await app.inject({
     method: 'POST',
     url: `/api/menu/meals/${mealId}/comments`,
     headers: as(user),
-    payload: { body: 'Може ли нещо по-леко?' },
+    payload: { body },
   });
   expect(response.statusCode).toBe(201);
 }
@@ -204,6 +208,80 @@ describe('menu activity (GLOSSARY: Известие от Съгласуване�
     later(5);
     await runReminders();
     expect(received()).toHaveLength(1);
+  });
+
+  it('lists in the inbox what the other did, by day, each with a link to its day', async () => {
+    const [monday = '', tuesday = '', , , friday = ''] = await notedPlan();
+    await comment(POLI, friday, 'Без лук, моля');
+    later(1);
+    await change(POLI, tuesday, 'Мусака');
+    later(1);
+    await vote(POLI, monday);
+    later(1);
+    await vote(POLI, tuesday, 'down');
+    const swapped = await app.inject({
+      method: 'POST',
+      url: `/api/menu/meals/${monday}/swap`,
+      headers: as(POLI),
+      payload: { withMealId: friday },
+    });
+    expect(swapped.statusCode).toBe(200);
+
+    later(10);
+    await runReminders();
+
+    expect(await inboxOf(app, DANI.id)).toMatchObject([
+      {
+        kind: 'menu',
+        title: 'Поли по менюто',
+        body: '2 гласа, 1 коментар, 2 смени',
+        url: `/menu?week=${WEEK}`,
+        details: [
+          {
+            text: 'Понеделник: Поли гласува за „остатъци“',
+            url: `/menu?week=${WEEK}&meal=${monday}`,
+          },
+          {
+            text: 'Понеделник: Поли размени понеделник и петък',
+            url: `/menu?week=${WEEK}&meal=${friday}`,
+          },
+          {
+            text: 'Вторник: Поли смени „остатъци“ → „Мусака“',
+            url: `/menu?week=${WEEK}&meal=${tuesday}`,
+          },
+          {
+            text: 'Вторник: Поли гласува против „Мусака“',
+            url: `/menu?week=${WEEK}&meal=${tuesday}`,
+          },
+          {
+            text: 'Петък: Поли коментира „Без лук, моля“',
+            url: `/menu?week=${WEEK}&meal=${friday}`,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('forgets the actions it sent: the next notification lists only the new ones', async () => {
+    const [monday = '', tuesday = ''] = await notedPlan();
+    await vote(POLI, monday);
+    later(10);
+    await runReminders();
+
+    await comment(POLI, tuesday);
+    later(10);
+    await runReminders();
+
+    const [item] = await inboxOf(app, DANI.id);
+    expect(item).toMatchObject({
+      body: '1 коментар',
+      details: [
+        {
+          text: 'Вторник: Поли коментира „Може ли нещо по-леко?“',
+          url: `/menu?week=${WEEK}&meal=${tuesday}`,
+        },
+      ],
+    });
   });
 
   it('waits again when the other acts before the 10 minutes are over', async () => {

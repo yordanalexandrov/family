@@ -432,7 +432,16 @@ export function createMenuService({
             tx,
             changed.weekStart,
             actingUserId,
-            'swaps',
+            {
+              kind: 'swaps',
+              mealId: id,
+              date: current.date,
+              text: systemLine({
+                type: 'replaced',
+                from: mealTitle(current),
+                to: mealTitle(changed.meal),
+              }),
+            },
             now(),
           );
         }
@@ -505,7 +514,12 @@ export function createMenuService({
             tx,
             voted.weekStart,
             actingUserId,
-            'votes',
+            {
+              kind: 'votes',
+              mealId: id,
+              date: current.date,
+              text: `гласува ${value === 'up' ? 'за' : 'против'} „${mealTitle(current) ?? ''}“`,
+            },
             now(),
           );
         }
@@ -541,7 +555,24 @@ export function createMenuService({
         await swapped(a, b);
         await swapped(b, a);
         const weekStart = await weekOf(tx, a.planId);
-        await addMenuActivity(tx, weekStart, actingUserId, 'swaps', at);
+        // One action, under the earlier day, with the meal that is there now.
+        const [earlier, later] = a.date < b.date ? [a, b] : [b, a];
+        await addMenuActivity(
+          tx,
+          weekStart,
+          actingUserId,
+          {
+            kind: 'swaps',
+            mealId: later.id,
+            date: earlier.date,
+            text: systemLine({
+              type: 'swapped',
+              date: earlier.date,
+              otherDate: later.date,
+            }),
+          },
+          at,
+        );
         const plan = await findPlanByWeek(tx, weekStart);
         if (!plan) {
           throw new Error('plan of a meal vanished');
@@ -619,7 +650,18 @@ export function createMenuService({
           now(),
         );
         const weekStart = await weekOf(tx, meal.planId);
-        await addMenuActivity(tx, weekStart, actingUserId, 'comments', now());
+        await addMenuActivity(
+          tx,
+          weekStart,
+          actingUserId,
+          {
+            kind: 'comments',
+            mealId,
+            date: meal.date,
+            text: `коментира „${body}“`,
+          },
+          now(),
+        );
         return { comment, weekStart };
       });
       signalAgreement(events, weekStart);
