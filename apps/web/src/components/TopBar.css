@@ -97,3 +97,20 @@
     opacity: 0.35;
   }
 }
+
+/* Камбанката и аватарът (телефон, браузър) остават на реда на датата: датата се пренася, ако не се събира. */
+.top-bar:has(.top-bar__person) .top-bar__date {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.top-bar__person {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+.top-bar__person .acting-user {
+  margin-inline-start: 0;
+}

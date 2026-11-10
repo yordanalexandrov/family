@@ -28,19 +28,17 @@ function Inbox() {
   const hasUnread = inbox.data?.some((item) => item.unread) ?? false;
   return (
     <main className="screen inbox">
-      <ScreenHeader
-        title="Входяща кутия"
-        actions={
-          <button
-            type="button"
-            className="button button--quiet"
-            disabled={!hasUnread}
-            onClick={() => readAll.mutate()}
-          >
-            Всички прочетени
-          </button>
-        }
-      />
+      {/* „Всички прочетени“ е на реда под заглавието, вдясно: до него на телефона заглавието не се събира. */}
+      <ScreenHeader title="Входяща кутия">
+        <button
+          type="button"
+          className="button button--quiet inbox__read-all"
+          disabled={!hasUnread}
+          onClick={() => readAll.mutate()}
+        >
+          Всички прочетени
+        </button>
+      </ScreenHeader>
       {inbox.isPending ? (
         <Spinner />
       ) : inbox.isError ? (

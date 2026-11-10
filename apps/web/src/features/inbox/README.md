@@ -6,7 +6,7 @@
 ## Interface
 - `queries.ts:inboxKeys`, `useInbox`, `useInboxUnreadCount` — записите и бройката, под `['inbox', userId, …]`
 - `queries.ts:useReadInboxItem`, `useReadAllInbox` — прочитане на един и „Всички прочетени“
-- `InboxScreen.tsx:InboxScreen` — екранът: групи „Днес“, „Вчера“, „По-рано“ (`inboxGroups` от shared), „Всички прочетени“ горе вдясно, „Няма известия“
+- `InboxScreen.tsx:InboxScreen` — екранът: групи „Днес“, „Вчера“, „По-рано“ (`inboxGroups` от shared), „Всички прочетени“ вдясно на реда под заглавието (до него заглавието не се събира на телефона), „Няма известия“
 - `InboxRow.tsx:InboxRow` — един ред (`<li>`): глава-линк с точка, заглавие, текст и час
 - `InboxBell.tsx:InboxBell`, `bellLabel` — камбанката в `ScreenHeader` и в `TopBar` на дашборда, преди аватара
 

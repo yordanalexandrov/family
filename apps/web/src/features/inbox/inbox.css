@@ -10,6 +10,10 @@
   text-align: start;
 }
 
+.inbox__read-all {
+  margin-inline-start: auto;
+}
+
 .inbox__empty {
   margin: var(--space-6) 0 0;
   color: var(--color-text-muted);
@@ -143,13 +147,4 @@
   font-weight: 700;
   line-height: calc(1.15rem - 4px);
   text-align: center;
-}
-
-/* В лентата на дашборда камбанката отива вдясно, а аватарът е до нея. */
-.top-bar > .inbox-bell {
-  margin-inline-start: auto;
-}
-
-.top-bar > .inbox-bell + .acting-user {
-  margin-inline-start: 0;
 }

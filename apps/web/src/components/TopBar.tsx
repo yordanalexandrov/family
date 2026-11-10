@@ -14,7 +14,7 @@ interface TopBarProps {
   now: Date;
   /** kiosk, TV: по една точка за източник. Телефонът я няма: състоянието е на картите. */
   sync?: TopBarSync;
-  /** Горе вдясно: аватарът на действащия човек. */
+  /** Горе вдясно, на един ред с датата: камбанката и аватарът на действащия човек. */
   avatar?: ReactNode;
 }
 
@@ -44,7 +44,10 @@ const dateFormat = new Intl.DateTimeFormat('bg-BG', {
 export function TopBar({ now, sync, avatar }: TopBarProps) {
   return (
     <header className="top-bar">
-      <p className="top-bar__date">{dateFormat.format(now)}</p>
+      <p className="top-bar__date">
+        {/* „2026 г.“ не се разделя, когато датата се пренася до камбанката. */}
+        {dateFormat.format(now).replace(/ (?=г\.$)/, '\u00a0')}
+      </p>
       {sync && (
         <ul className="top-bar__sync" aria-label="Синхронизация">
           {SOURCES.map(({ source, name }) => {
@@ -65,7 +68,7 @@ export function TopBar({ now, sync, avatar }: TopBarProps) {
           })}
         </ul>
       )}
-      {avatar}
+      {avatar && <div className="top-bar__person">{avatar}</div>}
     </header>
   );
 }
