@@ -1,9 +1,5 @@
-import { customType, pgTable, uuid } from 'drizzle-orm/pg-core';
-import { createdAt } from './columns.js';
-
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType: () => 'bytea',
-});
+import { pgTable, uuid } from 'drizzle-orm/pg-core';
+import { bytea, createdAt } from './columns.js';
 
 /**
  * GLOSSARY: Снимка на стъпка (ADR-0008). The photo itself, as the api wrote it: a JPEG, upright, without EXIF, at most

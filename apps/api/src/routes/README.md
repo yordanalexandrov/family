@@ -19,6 +19,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `recipe-revisions.ts:recipeRevisionsRoutes` – `POST /api/recipes/:id/revisions`, `POST /api/recipe-suggestions/:id/revisions`, `GET /api/recipes/revisions/:id`, `POST /api/recipes/revisions/:id/reject`.
 - `cooking-questions.ts:cookingQuestionsRoutes` – `POST /api/recipes/:id/questions`, `GET /api/recipes/questions/:id`.
 - `step-photos.ts:stepPhotosRoutes` – `POST /api/step-photos` (multipart), `GET /api/step-photos/:id` (JPEG, по избор `?w=` миниатюра).
+- `source-photos.ts:sourcePhotosRoutes` – `GET /api/source-photos/:id` (JPEG, по избор `?w=` миниатюра): снимките на източника на рецепта, записани от `POST /api/recipe-imports`.
 - `menu.ts:menuRoutes` – `GET|POST /api/menu/plans`, `DELETE /api/menu/plans/:id`, `PATCH /api/menu/meals/:id`, `PUT|DELETE /api/menu/meals/:id/vote`, `POST /api/menu/meals/:id/restore|swap|thawed|cook-claim`, `GET|POST /api/menu/meals/:id/comments`, `DELETE /api/menu/comments/:id`, `POST|GET /api/menu/proposals`, `GET /api/menu/proposals/:id`.
 - `meal-replacements.ts:mealReplacementsRoutes` – `POST|GET /api/menu/meals/:id/replacements`, `GET /api/menu/replacements/:id`.
 - `menu-reworks.ts:menuReworksRoutes` – `POST /api/menu/reworks`, `GET /api/menu/reworks?weekStart=`, `GET /api/menu/reworks/:id` (двете четения без действащ потребител).
@@ -28,18 +29,18 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `notifications.ts:notificationsRoutes` – `GET /api/notifications/vapid-key`, `PUT|DELETE /api/notifications/subscription`, `GET|PUT /api/notifications/settings`, `POST /api/notifications/test` (`vapid-key` и `test` отговарят 404 `push_disabled`, когато сървърът няма VAPID ключове – `requirePublicKey`). Служебният Рецептурко (роля `app`) получава 403 `forbidden` на всички тях (ADR-0014).
 - `inbox.ts:inboxRoutes` – `GET /api/inbox` (бутоните „Извадих“/„Аз“ или кой е отговорил; `inbox.changed` към засегнатите след отговор праща менюто, `app.menu` и преработката, чрез `inbox.answered`), `GET /api/inbox/unread-count`, `POST /api/inbox/read-all`, `POST /api/inbox/:id/read` (204; 404 за чужд или непознат запис), всички на действащия потребител (Входяща кутия, ADR-0015).
 - `params.ts:idParamsSchema` – `{ id: uuid }` за `:id` параметрите.
-- `photo-form.ts:PHOTO_FIELD, missingPhoto, megabytes, photoTooLarge` – общите помощни функции за multipart полето `photo` и грешките му.
+- `photo-form.ts:PHOTO_FIELD, missingPhoto, megabytes, photoTooLarge, IMMUTABLE` – общите помощни функции за multipart полето `photo` и грешките му и `cache-control` на всяка снимка.
 
 ## Invariants
 
 - `src/app.ts:buildApp` задава `validatorCompiler`/`serializerCompiler` от `fastify-type-provider-zod`: схемите на routes валидират входа и проверяват изхода.
-- `actingUser: false` (работи без избран потребител): `GET /api/users`, `/api/calendar/events`, `/api/dashboard`, `/api/events`, `GET /api/recipes`, `GET /api/recipes/:id`, `GET /api/recipes/questions/:id`, `GET /api/recipes/revisions/:id`, `GET /api/menu/plans`, `GET /api/menu/proposals[/:id]`, `GET /api/shopping-lists/:weekStart`, `GET /api/step-photos/:id`. Всички останали `/api/*` routes изискват `X-Acting-User` (`src/plugins/acting-user.ts`).
+- `actingUser: false` (работи без избран потребител): `GET /api/users`, `/api/calendar/events`, `/api/dashboard`, `/api/events`, `GET /api/recipes`, `GET /api/recipes/:id`, `GET /api/recipes/questions/:id`, `GET /api/recipes/revisions/:id`, `GET /api/menu/plans`, `GET /api/menu/proposals[/:id]`, `GET /api/shopping-lists/:weekStart`, `GET /api/step-photos/:id`, `GET /api/source-photos/:id`. Всички останали `/api/*` routes изискват `X-Acting-User` (`src/plugins/acting-user.ts`).
 - `actingUser: 'optional'` (и kiosk без потребител): `recipes.ts` (`PUT|DELETE /api/recipes/:id/rating`), `cooking-questions.ts` (`POST /api/recipes/:id/questions`), `recipe-revisions.ts` (`POST` на поправки и `reject`).
 - `health.ts:healthRoutes` – `/healthz` е извън Cloudflare Access (за deploy smoke и мониторинг).
 - `events.ts:eventsRoutes` – SSE носи само сигнали (`menu.changed`, `menu.proposal.changed`, `shopping.changed`, …) без лични данни; клиентът презарежда през REST. `?user=<uuid>` (иначе 400) казва чии `inbox.changed` получава потокът; без него — никои (kiosk, TV). На всеки 25 s (`HEARTBEAT_MS`) праща `: ping`, защото Cloudflare затваря тиха връзка след ~100 s. При `preClose` отворените потоци се затварят.
-- `recipe-imports.ts:readPhotos` – multipart лимити: `IMPORT_PHOTO_MAX_BYTES` на файл и `IMPORT_PHOTOS_MAX_BYTES` общо (413 `photo_too_large`), най-много `IMPORT_PHOTO_MAX_PARTS` (8) файла (иначе 400 `validation_error`). Файл, който по байтовете не е JPEG/PNG/WebP/HEIC, е 415 `unsupported_photo`. Снимките остават в паметта, не се пишат в базата или на диска. `step-photos.ts:stepPhotosRoutes` – `STEP_PHOTO_MAX_BYTES` и точно 1 файл.
+- `recipe-imports.ts:readPhotos` – multipart лимити: `IMPORT_PHOTO_MAX_BYTES` на файл и `IMPORT_PHOTOS_MAX_BYTES` общо (413 `photo_too_large`), най-много `IMPORT_PHOTO_MAX_PARTS` (8) файла (иначе 400 `validation_error`). Файл, който по байтовете не е JPEG/PNG/WebP/HEIC, е 415 `unsupported_photo`. Снимките се записват с внасянето (`source_photo`, ADR-0016), след като service-ът ги направи готови. `step-photos.ts:stepPhotosRoutes` – `STEP_PHOTO_MAX_BYTES` и точно 1 файл.
 - `calendar-events.ts:calendarEventsRoutes` – периодът `from`–`to` трябва да е от 1 до `CALENDAR_MAX_DAYS` (14) дни, иначе 400 `validation_error`.
-- `step-photos.ts:stepPhotosRoutes` – `GET` връща `image/jpeg` с immutable `cache-control`.
+- `step-photos.ts:stepPhotosRoutes`, `source-photos.ts:sourcePhotosRoutes` – `GET` връща `image/jpeg` с immutable `cache-control` (`IMMUTABLE`).
 - `recipes.ts:recipesRoutes` (коментар) – Оценката не е промяна на менюто, затова не праща `menu.changed`.
 - POST на AI заявка (предложения, внасяне, подобряване, поправка, въпрос, предложение за меню, замяна) записва `pending` заявка и връща 202. Клиентът проверява състоянието ѝ през `GET` (`src/services/contract-requests.ts:createContractRequests`).
 

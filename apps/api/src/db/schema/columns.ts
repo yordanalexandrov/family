@@ -1,6 +1,11 @@
 import type { ContractFailure, ContractRequestStatus } from '@family/shared';
-import { text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { customType, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { user } from './user.js';
+
+/** Binary data (a photo's JPEG) as a Node `Buffer`. */
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => 'bytea',
+});
 
 /** When the row was written, by the database clock. */
 export const createdAt = () =>

@@ -22,15 +22,13 @@ import {
   photoTooLarge,
 } from './photo-form.js';
 
-const photoSchema = z.object({
-  mediaType: z.string(),
-  data: z.instanceof(Buffer),
-});
-
 /** A photo import as the multipart form becomes before validation (`readPhotos`); never JSON from the client. */
 const photoBodySchema = z.object({
   kind: z.literal('photo'),
-  photos: z.array(photoSchema).min(1).max(IMPORT_PHOTO_MAX_PARTS),
+  uploadedPhotos: z
+    .array(z.instanceof(Buffer))
+    .min(1)
+    .max(IMPORT_PHOTO_MAX_PARTS),
 });
 
 /**
@@ -40,7 +38,7 @@ const photoBodySchema = z.object({
  * Text and links come as JSON; a photo as `multipart/form-data` with 1–8 files in the field `photo`: one photo, or the
  * parts of a long screenshot top to bottom. Each at most 10 MB and all at most 20 MB after the client has made them
  * smaller (else 413 `photo_too_large`), each a JPEG, PNG, WebP or HEIC picture by its bytes (else 415
- * `unsupported_photo`). The photos are read into memory and never written to the database or the disk.
+ * `unsupported_photo`). The photos are stored with the import (ADR-0016) as `GET /api/source-photos/:id` gives them.
  */
 export const recipeImportsRoutes: FastifyPluginAsyncZod = async (app) => {
   const service = app.recipeImports;
@@ -96,11 +94,11 @@ export const recipeImportsRoutes: FastifyPluginAsyncZod = async (app) => {
   );
 };
 
-/** The photos of a multipart import, in their order, each one's type read from its bytes. */
+/** The photos of a multipart import, in their order, each a picture by its bytes. */
 async function readPhotos(
   request: FastifyRequest,
 ): Promise<z.infer<typeof photoBodySchema>> {
-  const photos: z.infer<typeof photoSchema>[] = [];
+  const photos: Buffer[] = [];
   let total = 0;
   try {
     for await (const file of request.files()) {
@@ -116,15 +114,14 @@ async function readPhotos(
           `Снимките са над ${megabytes(IMPORT_PHOTOS_MAX_BYTES)} MB общо. Опитай с по-малка.`,
         );
       }
-      const mediaType = photoType(data);
-      if (!mediaType) {
+      if (!photoType(data)) {
         throw new HttpError(
           415,
           'unsupported_photo',
           'Това не е снимка (JPEG, PNG, WebP или HEIC).',
         );
       }
-      photos.push({ mediaType, data });
+      photos.push(data);
     }
   } catch (error) {
     const tooLarge = photoTooLarge(error, IMPORT_PHOTO_MAX_BYTES);
@@ -143,5 +140,5 @@ async function readPhotos(
   if (photos.length === 0) {
     throw missingPhoto();
   }
-  return { kind: 'photo', photos };
+  return { kind: 'photo', uploadedPhotos: photos };
 }

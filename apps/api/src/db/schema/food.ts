@@ -75,6 +75,13 @@ export const recipe = pgTable(
     servings: integer('servings').notNull(),
     steps: jsonb('steps').$type<RecipeStep[]>().notNull(),
     sourceUrl: text('source_url'),
+    /**
+     * GLOSSARY: Източник на рецепта. The pasted text of the approved import, copied by the api; never written from a
+     * client, only removed. `null` for a recipe from a link, a photo or by hand.
+     */
+    sourceText: text('source_text'),
+    /** GLOSSARY: Източник на рецепта. The ids of its photos (ADR-0016), in order; `{}` without them. */
+    sourcePhotos: uuid('source_photos').array().notNull().default(sql`'{}'`),
     prepMinutes: integer('prep_minutes'),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
     nutritionPer100g: jsonb('nutrition_per_100g').$type<Nutrition>(),
@@ -199,7 +206,7 @@ export const recipeSuggestionRequest = pgTable(
 
 /**
  * One run of `recipe.normalize` (GLOSSARY: Внасяне на рецепта). The source is kept with the request (the pasted text,
- * the link) for a retry and for debugging; `hint` of the common columns is unused.
+ * the link, the ids of the photos) for its run, a retry and for debugging; `hint` of the common columns is unused.
  */
 export const recipeImportRequest = pgTable(
   'recipe_import_request',
@@ -208,6 +215,11 @@ export const recipeImportRequest = pgTable(
     source: text('source').$type<RecipeImportSource>().notNull(),
     url: text('url'),
     text: text('text'),
+    /**
+     * The ids of the photos of a photo import (`source_photo`, ADR-0016), in their order: stored with the request, read
+     * by its run; `{}` for text and links.
+     */
+    photos: uuid('photos').array().notNull().default(sql`'{}'`),
     /** The agent's reason when it found no recipe (`failed`/`no_results`). */
     noResults: text('no_results'),
   },

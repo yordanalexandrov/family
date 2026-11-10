@@ -75,6 +75,8 @@ function recipe(
     servings,
     steps: [{ text: 'готви' }],
     tags: [],
+    sourceText: null,
+    sourcePhotos: [],
     preparation: [],
     components: [],
     ingredients: lines.map(([ingredient, quantity, unit]) => ({

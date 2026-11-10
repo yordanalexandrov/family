@@ -28,6 +28,7 @@ Zod схемите на HTTP API-то (`apps/api`) и на ентитетите,
 - `cooking-memory.ts:rememberedQuestionsSchema`, `appliedChangesSchema`, `lastCookingAppliedSchema` — състоянието на Готвене, което web пази на устройството.
 - `timer.ts:storedTimersSchema`, `StoredTimer` — таймерите на устройството.
 - `step-photo.ts:STEP_PHOTO_MAX_SIDE`, `STEP_PHOTO_MAX_BYTES`, `STEP_PHOTO_MIN_WIDTH`, `stepPhotoResponseSchema`, `stepPhotoQuerySchema`, `stepPhotoUrl` — снимки на стъпки.
+- `source-photo.ts:SOURCE_PHOTO_MAX_SIDE`, `sourcePhotoQuerySchema`, `SourcePhotoQuery`, `sourcePhotoUrl` — снимки на източника на рецепта.
 - `appliance.ts:applianceSchema`, `createApplianceSchema`, `updateApplianceSchema`, `appliancesResponseSchema`, `applianceResponseSchema`, `applianceExistsSchema`, `APPLIANCE_NAME_MAX` — Уред.
 - `ingredient.ts:normalizeIngredientName`, `ingredientNameSchema`, `ingredientSchema`, `createIngredientSchema`, `updateIngredientSchema`, `ingredientsQuerySchema`, `ingredientsResponseSchema`, `ingredientResponseSchema`, `ingredientConflictSchema` — Продукт.
 - `pantry.ts:pantryKindSchema`, `pantryItemSchema`, `useUpSchema`, `PANTRY_NOTE_MAX`, `createPantryItemSchema`, `updatePantryItemSchema`, `pantryResponseSchema`, `pantryItemResponseSchema`, `alreadyInPantrySchema`, `notStapleSchema` — Килер.
@@ -55,6 +56,7 @@ Zod схемите на HTTP API-то (`apps/api`) и на ентитетите,
 - `timer.ts:storedTimersSchema`, `cooking-memory.ts:rememberedQuestionsSchema` — запис, който не минава, се отказва изцяло.
 - `pantry.ts:PANTRY_NOTE_MAX` — 80, празна бележка става `null`; `shopping.ts:MANUAL_ITEM_TITLE_MAX` — 60; `appliance.ts:APPLIANCE_NAME_MAX` — 200; `recipe-import.ts:IMPORT_FIRST_LINE_MAX` — 80.
 - `step-photo.ts:STEP_PHOTO_MAX_SIDE` — 1600 px; `STEP_PHOTO_MAX_BYTES` — 10 MiB; `stepPhotoQuerySchema.w` е от 16 до 1600.
+- `source-photo.ts:SOURCE_PHOTO_MAX_SIDE` — 2000 px; `sourcePhotoQuerySchema.w` е от 16 до 2000.
 - `calendar.ts:CALENDAR_MAX_DAYS` — 14; `dashboard.ts:dashboardResponseSchema.days` е точно 4.
 - `notifications.ts:pushPayloadSchema` — `url` е път в приложението (никога друг произход), `actions[].post` започва с `/api/`; `pushSubscriptionInputSchema.endpoint` е https адрес.
 - `inbox.ts:inboxItemSchema` — `kind` е вид известие (без `test`), `url` е път в приложението (`appPathSchema`); `details` е винаги масив (може празен), а `url` на ред от тях е по избор и също път в приложението. `actions` (като в push-а) и `answered` никога не идват заедно.
@@ -63,7 +65,7 @@ Zod схемите на HTTP API-то (`apps/api`) и на ентитетите,
 
 ## Side Effects
 
-- None. Файловете само описват схеми, типове и константи; `step-photo.ts:stepPhotoUrl`, `recipe.ts:canonicalTitle`, `recipe.ts:stepsOfText`, `refusal.ts:refusalErrorOf` и `refusal.ts:parseRefusal` са чисти функции. Ключовете в localStorage (`family.timers`, `family.recipeFilters`) са само в коментари; тук нищо не чете и не пише хранилище.
+- None. Файловете само описват схеми, типове и константи; `step-photo.ts:stepPhotoUrl`, `source-photo.ts:sourcePhotoUrl`, `recipe.ts:canonicalTitle`, `recipe.ts:stepsOfText`, `refusal.ts:refusalErrorOf` и `refusal.ts:parseRefusal` са чисти функции. Ключовете в localStorage (`family.timers`, `family.recipeFilters`) са само в коментари; тук нищо не чете и не пише хранилище.
 
 ## Verification
 

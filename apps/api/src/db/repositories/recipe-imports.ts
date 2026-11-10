@@ -79,12 +79,13 @@ function selectRequests(db: DbExecutor) {
 }
 
 /**
- * A new `pending` import; the pasted text and the link are kept with it, a photo never is. The link of pasted text is
- * the source as it stays (`normalizeSourceUrl`); a link to fetch is kept as pasted until its page gives the final URL.
+ * A new `pending` import; the pasted text, the link and the ids of the stored photos (`source_photo`) are kept with it.
+ * The link of pasted text is the source as it stays (`normalizeSourceUrl`); a link to fetch is kept as pasted until its
+ * page gives the final URL.
  */
 export async function insertImportRequest(
   db: DbExecutor,
-  params: RecipeImportParams | { kind: 'photo' },
+  params: RecipeImportParams | { kind: 'photo'; photos: string[] },
   requestedBy: string,
 ): Promise<RecipeImportRequest> {
   const [row] = await db
@@ -98,6 +99,7 @@ export async function insertImportRequest(
             ? normalizeSourceUrl(params.url)
             : null,
       text: params.kind === 'text' ? params.text : null,
+      photos: params.kind === 'photo' ? params.photos : [],
       requestedBy,
     })
     .returning();
@@ -140,11 +142,11 @@ export async function setImportNoResults(
     .where(eq(recipeImportRequest.id, id));
 }
 
-/** What an import kept of its source: the pasted text (and its link), the link to fetch, or that it was a photo. */
+/** What an import kept of its source: the pasted text (and its link), the link to fetch, or the ids of its photos. */
 export type ImportSource =
   | { kind: 'text'; text: string; url?: string }
   | { kind: 'url'; url: string }
-  | { kind: 'photo' };
+  | { kind: 'photo'; photos: string[] };
 
 export async function findImportSource(
   db: DbExecutor,
@@ -155,6 +157,7 @@ export async function findImportSource(
       source: recipeImportRequest.source,
       url: recipeImportRequest.url,
       text: recipeImportRequest.text,
+      photos: recipeImportRequest.photos,
     })
     .from(recipeImportRequest)
     .where(eq(recipeImportRequest.id, id))
@@ -163,7 +166,7 @@ export async function findImportSource(
     return { kind: 'url', url: row.url };
   }
   if (row?.source === 'photo') {
-    return { kind: 'photo' };
+    return { kind: 'photo', photos: row.photos };
   }
   if (!row || row.text === null) {
     throw new Error(`recipe_import_request ${id} has no text`);

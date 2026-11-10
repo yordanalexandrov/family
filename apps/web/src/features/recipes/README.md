@@ -14,6 +14,8 @@
 - `IngredientLineSheet.tsx:IngredientLineSheet`, `IngredientPicker.tsx:IngredientPicker`, `NewIngredientForm.tsx:NewIngredientForm`, `StepSheet.tsx:StepSheet`, `ComponentSheet.tsx:ComponentSheet` — листовете на формата
 - `refinements.ts:useRequestRefinement`, `useRefinement`; `RefineSheet.tsx:RefineSheet`, `ComparisonColumn` — „Подобри рецептата“
 - `revisions.ts:useRequestRevision`, `useRevision`, `useRejectRevision`, `useRefreshRevision`, `revisionReplacement`, `revisionBaseOf`, `RevisionTarget`, `RevisionBase`, `ComparedLine` (ползват се и от `features/suggestions` за поправка на предложение); `ReviseSheet.tsx:ReviseSheet`; `OpenRevisionBadge.tsx:OpenRevisionBadge` — „Поправи с AI“
+- `RecipeSource.tsx:RecipeSource` — „Източник“ (GLOSSARY: Източник на рецепта): линк в нов таб, лист с текста (и с линка) или снимките в `PhotoViewer` с номер „1/3“; ползва се и от `features/suggestions`
+- `RecipeSource.tsx:SourcePhotoThumbnails` — миниатюрите на снимките на източника (`/api/source-photos/:id?w=240`), всяка отваря `PhotoViewer` на своята част; в прегледа на внасяне и във формата (там с „Махни“, което праща `sourcePhotos: []`)
 - `CookingFeedbackSheet.tsx:CookingFeedbackSheet`, `Stars.tsx:RatingStars`, `Stars.tsx:StarsBadge`, `Stars.tsx:ratingText` — „Как мина?“ и оценка
 - `format.ts:formatMinutes`, `formatDateTime`, `sourceDomain`, `productCount`, `componentHeading`, `shorten`, `componentName`, `MINUTES_PER_HOUR`; `stored-filters.ts:useStoredRecipeFilters`; `useDebouncedValue.ts:useDebouncedValue`; `TagChips.tsx:TagChips`, `TimeChips`, `toggled` (и в `features/suggestions`); `ApplianceBadge.tsx:ApplianceBadge` — помощници
 
@@ -22,11 +24,11 @@
 - `queries.ts:useSaveRecipe` — без `id` е POST, с `id` е PUT, който заменя цялата рецепта
 - `queries.ts:useRateRecipe` — `null` е DELETE; оптимистично върху рецептите и плановете на менюто, с връщане при грешка
 - `queries.ts:useCreateIngredient` — 409 се връща като `{status: 'exists'}`
-- `recipe-form-values.ts:toRecipeInput` — проверка с `recipeInputSchema`; празните незадължителни полета се пропускат; втора фурна дава „Фурната е само една“
+- `recipe-form-values.ts:toRecipeInput` — проверка с `recipeInputSchema`; празните незадължителни полета се пропускат; втора фурна дава „Фурната е само една“; текстът на източника не се праща, освен махането му (`sourceText: null`)
 - `RecipeForm.tsx:submit` — с `requireResolvedIngredients` не праща, докато има несвързан ред, а отваря листа на първия такъв
 - `RecipeForm.tsx:RecipeForm` — `aiReplacement` се прилага веднъж за нов `key` (`replacedKey`)
 - `RecipeEditor.tsx:useSaveAndView` — 409 `revision_stale` не записва и опреснява поправката
-- `RecipeView.tsx:RecipeDetails` — оценка, редакция и архив искат действащ потребител; „Готви“ и „Как мина?“ само на интерактивно устройство
+- `RecipeView.tsx:RecipeDetails` — оценка, редакция и архив искат действащ потребител; „Готви“, „Как мина?“ и „Източник“ само на интерактивно устройство
 - `RecipeList.tsx:RecipeList` — „Поискай предложения“, „Внеси“ и „+ Нова“ само на лично устройство; търсенето е с 300 ms debounce
 - `IngredientPicker.tsx:SEARCH_DEBOUNCE_MS` — autocomplete-ът на продуктите е с 200 ms debounce
 - `revisions.ts:postKnown` — при `no_applied_change` пита пак без непознатите id, затова опитите свършват

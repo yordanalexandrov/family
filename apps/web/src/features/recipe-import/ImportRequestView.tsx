@@ -3,11 +3,11 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { requestErrorFor } from '../../lib/ai-requests';
-import { useObjectUrl } from '../../lib/use-object-url';
 import { sourceDomain } from '../recipes/format';
+import { SourcePhotoThumbnails } from '../recipes/RecipeSource';
 import { Decided, ReviewSuggestion } from '../suggestions/SuggestionReview';
 import { importFailureMessage, textLead } from './messages';
-import { useImport, useRequestImport, useSentPhoto } from './queries';
+import { useImport, useRequestImport } from './queries';
 import '../recipes/recipes.css';
 import '../suggestions/suggestions.css';
 
@@ -38,18 +38,9 @@ export function ImportRequestView() {
   );
 }
 
-/** Снимката на внасяне от снимка, ако още е в паметта на страницата; иначе `undefined`. */
-function useImportPhoto(
-  request: RecipeImportDetail['request'],
-): Blob | undefined {
-  const sent = useSentPhoto(request.id);
-  return request.source === 'photo' ? sent : undefined;
-}
-
 function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   const navigate = useNavigate();
   const { request, suggestion } = detail;
-  const photo = useImportPhoto(request);
   if (request.status === 'pending') {
     return (
       <div className="suggestions__waiting">
@@ -75,9 +66,10 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
   return (
     <ReviewSuggestion
       suggestion={suggestion}
-      photo={photo}
+      sourcePhotos={detail.photos}
       linked={detail.ingredients}
       sourceUrl={request.url}
+      sourceText={detail.text}
       onApproved={(recipeId) =>
         void navigate({ to: '/recipes/$id', params: { id: recipeId } })
       }
@@ -88,24 +80,17 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
 }
 
 /**
- * Какво се внася, под изчакването и грешката: първите 2 реда на текста, домейнът на линка или миниатюрата на снимката
- * (ако още е в паметта; иначе само „Снимка“).
+ * Какво се внася, под изчакването и грешката: първите 2 реда на текста, домейнът на линка или миниатюрите на
+ * записаните снимки (`detail.photos`, затова и след презареждане).
  */
 function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
-  const { request, text } = detail;
-  const photoUrl = useObjectUrl(useImportPhoto(request));
+  const { request, text, photos = [] } = detail;
   if (request.source === 'photo') {
     return (
-      <p className="suggestions__searched">
-        Снимка
-        {photoUrl && (
-          <img
-            className="suggestions__searched-photo"
-            src={photoUrl}
-            alt="Внасяната снимка"
-          />
-        )}
-      </p>
+      <div className="suggestions__searched suggestions__searched--photos">
+        <p>Снимка</p>
+        {photos.length > 0 && <SourcePhotoThumbnails photos={photos} />}
+      </div>
     );
   }
   const subject =
@@ -133,8 +118,8 @@ function retryParams({
 
 /**
  * Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст или линк.
- * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам. Снимката не се
- * пази никъде, затова при снимка вместо „Опитай пак“ е „Нова снимка“ (табът „Снимка“).
+ * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам. Ново внасяне по
+ * вече записаните снимки няма, затова при снимка вместо „Опитай пак“ е „Нова снимка“ (табът „Снимка“).
  */
 function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
   const retry = useRequestImport();

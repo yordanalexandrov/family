@@ -172,6 +172,8 @@ export type RecipeSuggestionResponse = z.infer<
  * `null` is none (the user chose „Без уред“).
  */
 export const approveSuggestionInputSchema = recipeInputFieldsSchema
+  // The source of an approved import is the api's to copy (GLOSSARY: Източник на рецепта), not the client's.
+  .omit({ sourceText: true, sourcePhotos: true })
   .extend({
     appliance: recipeInputFieldsSchema.shape.appliance
       .unwrap()

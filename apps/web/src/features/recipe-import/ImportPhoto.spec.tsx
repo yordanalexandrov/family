@@ -1,4 +1,8 @@
-import type { RecipeImportDetail, RecipeImportRequest } from '@family/shared';
+import {
+  type RecipeImportDetail,
+  type RecipeImportRequest,
+  sourcePhotoUrl,
+} from '@family/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -11,7 +15,7 @@ import {
   sumac,
 } from '../../test/imports';
 import { dani, server } from '../../test/msw';
-import { chicken, salt } from '../../test/recipes';
+import { chicken, salt, sourcePhotoIds } from '../../test/recipes';
 import { renderApp, setUpDevice } from '../../test/render';
 
 const WAITING = 'Чета рецептата… обикновено отнема до минута';
@@ -35,6 +39,7 @@ function servePhotoImport() {
     http.get(`/api/recipe-imports/${importId}`, () =>
       HttpResponse.json({
         request: photoImport,
+        photos: sourcePhotoIds.slice(0, 1),
         ingredients: [],
       } satisfies RecipeImportDetail),
     ),
@@ -105,8 +110,8 @@ describe('Внеси рецепта → таб „Снимка“', () => {
 
     expect(await screen.findByText(WAITING)).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: 'Внасяната снимка' }),
-    ).toHaveAttribute('src', 'blob:preview');
+      await screen.findByRole('img', { name: 'Снимка 1 на източника' }),
+    ).toHaveAttribute('src', sourcePhotoUrl(sourcePhotoIds[0] ?? '', 240));
     expect(api.forms).toEqual([
       {
         url: expect.stringMatching(/\/api\/recipe-imports$/),
@@ -122,6 +127,29 @@ describe('Внеси рецепта → таб „Снимка“', () => {
         ],
       },
     ]);
+  });
+
+  it('под изчакването са миниатюрите на записаните снимки, и след презареждане', async () => {
+    setUpDevice('phone', dani.id);
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          request: photoImport,
+          photos: sourcePhotoIds,
+          ingredients: [],
+        } satisfies RecipeImportDetail),
+      ),
+    );
+
+    renderApp(`/recipes/import/${importId}`);
+
+    expect(await screen.findByText(WAITING)).toBeInTheDocument();
+    const thumbnails = await screen.findAllByRole('img', {
+      name: /^Снимка \d на източника$/,
+    });
+    expect(thumbnails.map((img) => img.getAttribute('src'))).toEqual(
+      sourcePhotoIds.map((id) => sourcePhotoUrl(id, 240)),
+    );
   });
 
   it('дълъг скрийншот се реже на части: всички се показват и „Внеси“ ги праща поред в полето photo', async () => {
@@ -290,9 +318,10 @@ describe('Неуспешно внасяне от снимка', () => {
 });
 
 describe('Преглед на внасяне от снимка', () => {
-  it('снимката от същото внасяне е миниатюра над рецептата и се отваря в цял размер', async () => {
+  it('снимката, записана при внасянето, е миниатюра над рецептата и се отваря на цял екран', async () => {
     mockCanvas(1200, 1600);
     servePhotoImport();
+    const photoId = sourcePhotoIds[0] as string;
     server.use(
       http.get(`/api/recipe-imports/${importId}`, () =>
         HttpResponse.json({
@@ -301,6 +330,7 @@ describe('Преглед на внасяне от снимка', () => {
             status: 'done',
             suggestionId: importedSuggestion.id,
           },
+          photos: [photoId],
           suggestion: importedSuggestion,
           ingredients: [chicken, salt, sumac],
         } satisfies RecipeImportDetail),
@@ -314,11 +344,11 @@ describe('Преглед на внасяне от снимка', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Внеси' }));
 
     const thumb = await screen.findByRole('button', {
-      name: 'Снимката на рецептата',
+      name: 'Снимка 1 на източника на цял екран',
     });
     expect(within(thumb).getByRole('img')).toHaveAttribute(
       'src',
-      'blob:preview',
+      `/api/source-photos/${photoId}?w=240`,
     );
     // Над рецептата.
     expect(
@@ -328,9 +358,9 @@ describe('Преглед на внасяне от снимка', () => {
     ).toBeTruthy();
     await userEvent.click(thumb);
     expect(
-      within(screen.getByRole('dialog', { name: 'Снимка' })).getByRole('img', {
-        name: 'Снимката на рецептата',
-      }),
-    ).toHaveAttribute('src', 'blob:preview');
+      within(
+        screen.getByRole('dialog', { name: 'Снимките на източника' }),
+      ).getByRole('img', { name: 'Снимка 1 на източника' }),
+    ).toHaveAttribute('src', `/api/source-photos/${photoId}`);
   });
 });

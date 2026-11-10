@@ -23,6 +23,10 @@ import {
   setImportNoResults,
   setImportUrl,
 } from '../db/repositories/recipe-imports.js';
+import {
+  findSourcePhotosData,
+  insertSourcePhotos,
+} from '../db/repositories/source-photos.js';
 import { recipeImportRequest } from '../db/schema/food.js';
 import type { ContractImage } from '../openclaw/client.js';
 import {
@@ -39,31 +43,41 @@ import {
 } from './imported-step-photos.js';
 import { readRecipePage, type StepImages } from './recipe-page/index.js';
 import { withDuplicateOf } from './recipe-suggestions.js';
+import { sourcePhotoJpeg } from './source-photos.js';
 
 const NO_SUCH_IMPORT = 'Няма такова внасяне';
 
 /**
  * What the api imports: the client's JSON (text, link), or the photos from the multipart form (one photo, or the parts
- * of a long screenshot), whose bytes stay in memory until its run has asked the agent and are never stored.
+ * of a long screenshot, in their order) as they were uploaded.
  */
 export type ImportParams =
   | RecipeImportParams
-  | { kind: 'photo'; photos: ContractImage[] };
+  | { kind: 'photo'; uploadedPhotos: Buffer[] };
+
+/**
+ * What the store inserts: the same photos as the api keeps them, made ready (`sourcePhotoJpeg`) outside its
+ * transaction.
+ */
+export type StoredImportParams =
+  | RecipeImportParams
+  | { kind: 'photo'; keptPhotos: Buffer[] };
 
 /** `recipe.normalize` as AI requests (GLOSSARY: Внасяне на рецепта), registered in `buildApp()`. */
 export type RecipeImportRequests = ContractRequestHandle<
-  ImportParams,
+  StoredImportParams,
   RecipeImportRequest
 >;
 
 /**
- * How imports are stored: the input is the source plus the whole registry (id, name, base unit); a valid answer
- * stores its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none.
- * A link already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the
- * page of a link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
- * `fetch_blocked` or `fetch_failed` without asking the agent. A photo goes from the `POST` straight to the memory of
- * its run (`images`) and to the agent as an image next to the input (`{ kind: 'photo' }`); the database never sees
- * it. Approval and rejection of the suggestion are the suggestions' own (`app.recipeSuggestions`).
+ * How imports are stored: the input is the source plus the whole registry (id, name, base unit); a valid answer stores
+ * its one recipe as a suggestion of the import, or ends `no_results` when the agent says the source has none. A link
+ * already in the registry is refused before anything is stored (409 `already_imported`, unless `force`); the page of a
+ * link is fetched and read when the run starts (`recipe-page/`), and a page that will not open ends the run
+ * `fetch_blocked` or `fetch_failed` without asking the agent. The photos of an import are stored with it
+ * (`source_photo`, ADR-0016), in their order; its run reads them (`load`) and sends them to the agent as images next to
+ * the input (`{ kind: 'photo' }`), the same for the client's retry and after a restart. Approval and rejection of the
+ * suggestion are the suggestions' own (`app.recipeSuggestions`).
  *
  * A page's step photos (GLOSSARY: Снимка на стъпка) go to the agent as references only. Their URLs stay with what the
  * run loaded (`load`), in memory; once the agent has answered, the photos it chose are downloaded and made ready
@@ -71,7 +85,7 @@ export type RecipeImportRequests = ContractRequestHandle<
  * were dropped.
  */
 export function createRecipeImportStore(): ContractRequestStore<
-  ImportParams,
+  StoredImportParams,
   RecipeImportRequest,
   RecipeNormalizeInput,
   RecipeNormalizeOutput,
@@ -83,7 +97,8 @@ export function createRecipeImportStore(): ContractRequestStore<
     table: recipeImportRequest,
     async insert(tx, params, requestedBy) {
       if (params.kind === 'photo') {
-        return insertImportRequest(tx, { kind: 'photo' }, requestedBy);
+        const photos = await insertSourcePhotos(tx, params.keptPhotos);
+        return insertImportRequest(tx, { kind: 'photo', photos }, requestedBy);
       }
       if (params.kind === 'url' && !params.force) {
         const matches = await findSourceUrlMatches(tx, params.url);
@@ -100,8 +115,8 @@ export function createRecipeImportStore(): ContractRequestStore<
     },
     find: findImportRequest,
 
-    images(params) {
-      return params.kind === 'photo' ? params.photos : [];
+    images({ images }) {
+      return images ?? [];
     },
 
     load(db, request) {
@@ -143,21 +158,32 @@ export function createRecipeImportStore(): ContractRequestStore<
   };
 }
 
-/** The source the agent reads, and the URLs of the step photos of a page by their references in it. */
+/**
+ * The source the agent reads, the stored photos of a photo import that go with it, and the URLs of the step photos of a
+ * page by their references in it.
+ */
 interface AgentSource {
   source: RecipeNormalizeSource;
+  images?: ContractImage[];
   stepImages?: StepImages;
 }
 
 /**
- * Pasted text goes to the agent as it is; a link as the page read from it, whose final URL the import keeps
- * normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the URLs of the step photos of its
- * JSON-LD or its text by the references the agent gets instead.
+ * Pasted text goes to the agent as it is; photos as their stored JPEGs, in their order; a link as the page read from
+ * it, whose final URL the import keeps normalised (no utm, `#` or trailing `/`; one spelling of its escapes), with the
+ * URLs of the step photos of its JSON-LD or its text by the references the agent gets instead.
  */
 async function agentSource(db: DbExecutor, id: string): Promise<AgentSource> {
   const source = await findImportSource(db, id);
-  if (source.kind === 'text' || source.kind === 'photo') {
+  if (source.kind === 'text') {
     return { source };
+  }
+  if (source.kind === 'photo') {
+    const photos = await findSourcePhotosData(db, source.photos);
+    return {
+      source: { kind: 'photo' },
+      images: photos.map((data) => ({ mediaType: 'image/jpeg', data })),
+    };
   }
   const page = await readRecipePage(source.url);
   if (!page.ok) {
@@ -198,8 +224,16 @@ export function createRecipeImportsService({
   requests: RecipeImportRequests;
 }): RecipeImportsService {
   return {
-    requestImport(params, actingUserId) {
-      return requests.request(params, actingUserId);
+    async requestImport(params, actingUserId) {
+      if (params.kind !== 'photo') {
+        return requests.request(params, actingUserId);
+      }
+      // One at a time: each decodes up to 50 megapixels.
+      const keptPhotos: Buffer[] = [];
+      for (const photo of params.uploadedPhotos) {
+        keptPhotos.push(await sourcePhotoJpeg(photo));
+      }
+      return requests.request({ kind: 'photo', keptPhotos }, actingUserId);
     },
 
     listImports(limit) {
@@ -220,6 +254,7 @@ export function createRecipeImportsService({
       return {
         request,
         ...(source.kind === 'text' ? { text: source.text } : {}),
+        ...(source.kind === 'photo' ? { photos: source.photos } : {}),
         ...(suggestion ? { suggestion } : {}),
         ingredients: await findIngredientsByIds(db, [...new Set(linked)]),
       };

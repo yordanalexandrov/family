@@ -26,6 +26,7 @@ import { StepPhotoImage } from '../step-photos/StepPhotoThumbnail';
 import { ComponentSheet } from './ComponentSheet';
 import { componentHeading, componentName } from './format';
 import { IngredientLineSheet } from './IngredientLineSheet';
+import { SourcePhotoThumbnails } from './RecipeSource';
 import {
   type ComponentValues,
   emptyIngredientRow,
@@ -42,6 +43,96 @@ import {
 import { StepSheet } from './StepSheet';
 import { TagChips } from './TagChips';
 import './recipes.css';
+
+/**
+ * GLOSSARY: Източник на рецепта. Част от източника под линка, само за четене: „Махни“ я маха при запис, а „Върни“
+ * отменя махането преди записа.
+ */
+function RemovableSource({
+  children,
+  removeLabel,
+  removedText,
+  removed,
+  onRemovedChange,
+}: {
+  children: ReactNode;
+  /** Достъпното име на „Махни“ („Махни текста на източника“). */
+  removeLabel: string;
+  /** Текстът на мястото на частта, докато е махната („… ще се махне при запис.“). */
+  removedText: string;
+  removed: boolean;
+  onRemovedChange: (removed: boolean) => void;
+}) {
+  if (removed) {
+    return (
+      <p className="recipe-form__source recipe-form__hint">
+        {removedText}{' '}
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() => onRemovedChange(false)}
+        >
+          Върни
+        </button>
+      </p>
+    );
+  }
+  return (
+    <div className="recipe-form__source">
+      {children}
+      <button
+        type="button"
+        className="button button--quiet"
+        aria-label={removeLabel}
+        onClick={() => onRemovedChange(true)}
+      >
+        Махни
+      </button>
+    </div>
+  );
+}
+
+interface RemovableProps {
+  removed: boolean;
+  onRemovedChange: (removed: boolean) => void;
+}
+
+/** Поставеният текст на източника: свит, отваря се за четене. */
+function SourceTextField({
+  text,
+  ...removable
+}: RemovableProps & { text: string }) {
+  return (
+    <RemovableSource
+      removeLabel="Махни текста на източника"
+      removedText="Текстът на източника ще се махне при запис."
+      {...removable}
+    >
+      <details className="recipe-form__more recipe-form__source-text">
+        <summary className="recipe-form__more-summary">
+          Текст на източника
+        </summary>
+        <blockquote className="recipe-source__text">{text}</blockquote>
+      </details>
+    </RemovableSource>
+  );
+}
+
+/** Миниатюрите на снимките на източника: докосване ги отваря на цял екран. */
+function SourcePhotosField({
+  photos,
+  ...removable
+}: RemovableProps & { photos: readonly string[] }) {
+  return (
+    <RemovableSource
+      removeLabel="Махни снимките на източника"
+      removedText="Снимките на източника ще се махнат при запис."
+      {...removable}
+    >
+      <SourcePhotoThumbnails photos={photos} />
+    </RemovableSource>
+  );
+}
 
 export interface RecipeFormProps {
   /** Начални стойности: празна рецепта по подразбиране, `recipeToFormValues(recipe)` за редакция. */
@@ -643,6 +734,20 @@ export function RecipeForm({
               />
             )}
           </Field>
+          {values.sourceText !== null && (
+            <SourceTextField
+              text={values.sourceText}
+              removed={values.removeSourceText}
+              onRemovedChange={(removed) => set('removeSourceText', removed)}
+            />
+          )}
+          {values.sourcePhotos.length > 0 && (
+            <SourcePhotosField
+              photos={values.sourcePhotos}
+              removed={values.removeSourcePhotos}
+              onRemovedChange={(removed) => set('removeSourcePhotos', removed)}
+            />
+          )}
           <Field label="Уред" error={errors.appliance}>
             {(props) => (
               <select

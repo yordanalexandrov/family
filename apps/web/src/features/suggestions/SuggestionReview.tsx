@@ -12,13 +12,12 @@ import { useId, useState } from 'react';
 import { ActionBar } from '../../components/ActionBar';
 import { ErrorBox } from '../../components/ErrorBox';
 import { useNeedsConnection } from '../../components/NeedsConnection';
-import { Sheet } from '../../components/Sheet';
 import { Spinner } from '../../components/Spinner';
-import { useObjectUrl } from '../../lib/use-object-url';
 import { useOnline } from '../../lib/use-online';
 import { ApplianceBadge } from '../recipes/ApplianceBadge';
 import { ingredientSearchQuery, useRecipes } from '../recipes/queries';
 import { type AiReplacement, RecipeForm } from '../recipes/RecipeForm';
+import { RecipeSource, SourcePhotoThumbnails } from '../recipes/RecipeSource';
 import { ReviseSheet } from '../recipes/ReviseSheet';
 import { toRevisableRecipe } from '../recipes/recipe-form-values';
 import {
@@ -176,45 +175,14 @@ interface ReviewSuggestionProps {
   linked?: readonly Ingredient[];
   /** Внасяне: линкът към източника от заявката (предложението от `recipe.suggest` носи своя). */
   sourceUrl?: string | undefined;
-  /** Внасяне от снимка: снимката, ако още е в паметта на страницата (същото внасяне, без презареждане). */
-  photo?: Blob | undefined;
+  /** Внасяне от текст: поставеният текст, който „Отвори източника“ показва в лист (GLOSSARY: Източник на рецепта). */
+  sourceText?: string | undefined;
+  /** Внасяне от снимка: id-тата на снимките му, поред (GLOSSARY: Източник на рецепта). */
+  sourcePhotos?: readonly string[] | undefined;
   onApproved: (recipeId: string) => void;
   onRejected: () => void;
   /** „Откажи“: излиза от прегледа, без решение. */
   onCancel: () => void;
-}
-
-/** Миниатюрата на внасяната снимка; докосване я отваря в цял размер в лист. */
-function SourcePhoto({ photo }: { photo: Blob }) {
-  const url = useObjectUrl(photo);
-  const [open, setOpen] = useState(false);
-  if (!url) {
-    return null;
-  }
-  return (
-    <>
-      <button
-        type="button"
-        className="suggestion-photo"
-        onClick={() => setOpen(true)}
-      >
-        <img
-          className="suggestion-photo__thumb"
-          src={url}
-          alt="Снимката на рецептата"
-        />
-      </button>
-      {open && (
-        <Sheet title="Снимка" onClose={() => setOpen(false)}>
-          <img
-            className="suggestion-photo__full"
-            src={url}
-            alt="Снимката на рецептата"
-          />
-        </Sheet>
-      )}
-    </>
-  );
 }
 
 /**
@@ -289,7 +257,8 @@ export function ReviewSuggestion({
   suggestion,
   linked = [],
   sourceUrl,
-  photo,
+  sourceText,
+  sourcePhotos,
   onApproved,
   onRejected,
   onCancel,
@@ -302,6 +271,9 @@ export function ReviewSuggestion({
     ? suggestion.payload.assumptions
     : suggestion.payload.why;
   const source = imported ? sourceUrl : suggestion.payload.sourceUrl;
+  const text = imported ? sourceText : undefined;
+  const photos = (imported && sourcePhotos) || [];
+  const hasPhotos = photos.length > 0;
   // Значката следва избора в „Уред“ във формата; до първата смяна е уредът на предложението.
   const [chosenAppliance, setChosenAppliance] = useState<string>();
   const appliance = imported
@@ -347,9 +319,9 @@ export function ReviewSuggestion({
           onAnyway={() => setImportedAnyway(duplicate.id)}
         />
       )}
-      {(photo || appliance || note || source) && (
+      {(hasPhotos || appliance || note || source || text) && (
         <section className="suggestions__section">
-          {photo && <SourcePhoto photo={photo} />}
+          {hasPhotos && <SourcePhotoThumbnails photos={photos} />}
           {appliance && (
             <p className="suggestion-card__meta">
               <ApplianceBadge name={appliance} />
@@ -369,16 +341,15 @@ export function ReviewSuggestion({
               {note}
             </p>
           )}
-          {source && (
+          {(source || text || hasPhotos) && (
             <div className="recipes__actions">
-              <a
-                href={source}
-                target="_blank"
-                rel="noopener noreferrer"
+              <RecipeSource
+                url={source}
+                text={text}
+                photos={photos}
+                label="Отвори източника"
                 className="button button--quiet"
-              >
-                Отвори източника
-              </a>
+              />
             </div>
           )}
         </section>

@@ -8,10 +8,12 @@ import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { stepPhotoImage, storeStepPhoto } from '../services/step-photos.js';
 import { idParamsSchema } from './params.js';
-import { missingPhoto, PHOTO_FIELD, photoTooLarge } from './photo-form.js';
-
-/** A photo never changes (another photo is another id), so the browser keeps it for good; only for this person. */
-const IMMUTABLE = 'private, max-age=31536000, immutable';
+import {
+  IMMUTABLE,
+  missingPhoto,
+  PHOTO_FIELD,
+  photoTooLarge,
+} from './photo-form.js';
 
 /**
  * Step photos (GLOSSARY: Снимка на стъпка, ADR-0008). `POST` takes one photo as `multipart/form-data` in the field

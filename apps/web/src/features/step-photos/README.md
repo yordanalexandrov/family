@@ -6,7 +6,7 @@
 ## Interface
 - `StepPhotoField.tsx:StepPhotoField` — „Снимка“/„Смени“/„Махни“; качва веднага и връща id-то през `onChange`
 - `StepPhotoThumbnail.tsx:StepPhotoThumbnail`, `StepPhotoImage`, `THUMBNAIL_WIDTH` — миниатюра (240 px)
-- `PhotoViewer.tsx:PhotoViewer` — цял екран; затваря се с бутон, фон, Escape и „назад“
+- `PhotoViewer.tsx:PhotoViewer`, `ViewerPhoto` — цял екран; затваря се с бутон, фон, Escape и „назад“; няколко снимки (частите на източника на рецепта) се превъртат с ‹ ›, стрелките и плъзгане, с номер „1/3“
 - `queries.ts:useUploadStepPhoto` — смаляване (`resizeStepPhoto`) и качване
 
 ## Invariants
@@ -16,7 +16,7 @@
 
 ## Side Effects
 - `queries.ts:useUploadStepPhoto` — POST `/api/step-photos` (multipart)
-- `StepPhotoThumbnail.tsx:StepPhotoImage`, `PhotoViewer.tsx:PhotoViewer` — картини от `/api/step-photos/:id` (`?w=240` за миниатюра)
+- `StepPhotoThumbnail.tsx:StepPhotoImage`, `StepPhotoThumbnail.tsx:StepPhotoThumbnail` — картини от `/api/step-photos/:id` (`?w=240` за миниатюра); `PhotoViewer` показва адреса, който му е подаден
 - `PhotoViewer.tsx:PhotoViewer` — `keydown` на `document` и запис в историята (`useSheetHistory`)
 
 ## Verification

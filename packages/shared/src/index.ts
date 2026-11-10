@@ -54,6 +54,7 @@ export * from './schemas/recipe-revision.js';
 export * from './schemas/recipe-suggestion.js';
 export * from './schemas/refusal.js';
 export * from './schemas/shopping.js';
+export * from './schemas/source-photo.js';
 export * from './schemas/step-photo.js';
 export * from './schemas/sync.js';
 export * from './schemas/timer.js';

@@ -173,9 +173,10 @@ describe('ImportScreen', () => {
     expect(
       screen.getByText('Порциите не са дадени: по количествата са 4.'),
     ).toBeInTheDocument();
+    // Внасяне от текст: „Отвори източника“ показва текста в лист (GLOSSARY: Източник на рецепта).
     expect(
-      screen.getByRole('link', { name: 'Отвори източника' }),
-    ).toHaveAttribute('href', importUrl);
+      screen.getByRole('button', { name: 'Отвори източника' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('textbox', { name: 'Източник (линк)' }),
     ).toHaveValue(importUrl);

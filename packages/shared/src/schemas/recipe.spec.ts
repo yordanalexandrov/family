@@ -57,6 +57,8 @@ describe('recipeSchema', () => {
       id: '66666666-6666-4666-8666-666666666666',
       archivedAt: null,
       rating: 4,
+      sourceText: null,
+      sourcePhotos: [],
       createdAt: '2026-10-25T10:00:00.000Z',
       updatedAt: '2026-10-25T10:00:00.000Z',
       openRevision: {
@@ -136,6 +138,30 @@ describe('recipeInputSchema', () => {
       preparation: [],
       components: [],
     });
+  });
+
+  it('takes the removal of the source (GLOSSARY: Източник на рецепта), never a new one', () => {
+    expect(
+      recipeInputSchema.parse({
+        ...potatoes,
+        sourceText: null,
+        sourcePhotos: [],
+      }),
+    ).toMatchObject({ sourceText: null, sourcePhotos: [] });
+    expect(recipeInputSchema.parse(potatoes)).not.toHaveProperty('sourceText');
+    expect(recipeInputSchema.parse(potatoes)).not.toHaveProperty(
+      'sourcePhotos',
+    );
+    expect(
+      recipeInputSchema.safeParse({ ...potatoes, sourceText: 'Пилешко…' })
+        .success,
+    ).toBe(false);
+    expect(
+      recipeInputSchema.safeParse({
+        ...potatoes,
+        sourcePhotos: ['77777777-7777-4777-8777-777777777777'],
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts a full recipe; lines without a component are main lines', () => {

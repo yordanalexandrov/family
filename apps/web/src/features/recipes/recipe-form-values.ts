@@ -92,6 +92,14 @@ export interface RecipeFormValues {
   servings: string;
   prepMinutes: string;
   sourceUrl: string;
+  /** GLOSSARY: Източник на рецепта. Поставеният текст на рецептата, само за четене; `null` без текст. */
+  sourceText: string | null;
+  /** „Махни“ под текста: записът праща `sourceText: null`. */
+  removeSourceText: boolean;
+  /** GLOSSARY: Източник на рецепта. Id-тата на снимките на източника, само за четене; `[]` без снимки. */
+  sourcePhotos: readonly string[];
+  /** „Махни“ под снимките: записът праща `sourcePhotos: []`. */
+  removeSourcePhotos: boolean;
   tags: Tag[];
   /** Името на уреда (GLOSSARY: Уред), както е в Настройки; празно = без уред. */
   appliance: string;
@@ -156,6 +164,10 @@ export function emptyRecipeFormValues(): RecipeFormValues {
     servings: '4',
     prepMinutes: '',
     sourceUrl: '',
+    sourceText: null,
+    removeSourceText: false,
+    sourcePhotos: [],
+    removeSourcePhotos: false,
     tags: [],
     appliance: '',
     steps: [],
@@ -197,6 +209,10 @@ export function recipeToFormValues(recipe: Recipe): RecipeFormValues {
     servings: String(recipe.servings),
     prepMinutes: numberText(recipe.prepMinutes),
     sourceUrl: displaySourceUrl(recipe.sourceUrl ?? ''),
+    sourceText: recipe.sourceText,
+    removeSourceText: false,
+    sourcePhotos: recipe.sourcePhotos,
+    removeSourcePhotos: false,
     tags: [...recipe.tags],
     appliance: recipe.appliance ?? '',
     steps: recipe.steps.map((step) => ({ ...step })),
@@ -369,6 +385,13 @@ export function toRecipeInput(
     servings: parseNumber(values.servings) ?? Number.NaN,
     steps: values.steps,
     ...(sourceUrl ? { sourceUrl } : {}),
+    // Само махането: без него api-то пази текста (GLOSSARY: Източник на рецепта).
+    ...(values.removeSourceText && values.sourceText !== null
+      ? { sourceText: null }
+      : {}),
+    ...(values.removeSourcePhotos && values.sourcePhotos.length > 0
+      ? { sourcePhotos: [] as [] }
+      : {}),
     ...(prepMinutes === undefined ? {} : { prepMinutes }),
     tags: values.tags,
     ...(values.appliance === '' ? {} : { appliance: values.appliance }),

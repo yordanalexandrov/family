@@ -30,7 +30,7 @@ export function StepPhotoThumbnail({
       </button>
       {open && (
         <PhotoViewer
-          photoId={photoId}
+          photos={[{ src: stepPhotoUrl(photoId), alt: label }]}
           label={label}
           onClose={() => setOpen(false)}
         />

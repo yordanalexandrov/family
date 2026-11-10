@@ -69,7 +69,7 @@ function toRequest(row: typeof table.$inferSelect): EchoRequest {
 
 /** The echo contract's store, with what its `load` reads. */
 type EchoStore<C = undefined> = ContractRequestStore<
-  { word: string; picture?: string },
+  { word: string },
   EchoRequest,
   EchoInput,
   EchoOutput,
@@ -79,7 +79,7 @@ type EchoStore<C = undefined> = ContractRequestStore<
 >;
 
 /** Refuses the word `taken` inside the insert, as menu refuses a taken week. */
-const store: EchoStore = {
+const store: Omit<EchoStore, 'images'> = {
   table,
   async insert(tx, params, requestedBy) {
     if (params.word === 'taken') {
@@ -113,11 +113,6 @@ const store: EchoStore = {
       .update(table)
       .set({ tags: prepared ?? ['quick'] })
       .where(eq(table.id, request.id));
-  },
-  images(params) {
-    return params.picture
-      ? [{ mediaType: 'image/png', data: Buffer.from(params.picture) }]
-      : [];
   },
   noResults(output) {
     return output.word === 'нищо' || output.word === 'нищо-гърми'
@@ -339,14 +334,22 @@ describe('AI requests (contract-requests)', () => {
     });
   });
 
-  it('sends the pictures the store takes from the params next to the input, and none without them', async () => {
+  it('sends the pictures the store takes from what load read next to the input, and none without them', async () => {
     const agent = echoing();
-    const handle = create();
+    // As an import reads its stored photos: here, the word `супа` has one.
+    const handle = create<string | undefined>(undefined, silent, {
+      ...store,
+      async load(_db, request) {
+        return request.word === 'супа' ? 'png-bytes' : undefined;
+      },
+      images(picture) {
+        return picture
+          ? [{ mediaType: 'image/png', data: Buffer.from(picture) }]
+          : [];
+      },
+    });
 
-    const pictured = await handle.request(
-      { word: 'супа', picture: 'png-bytes' },
-      DANI.id,
-    );
+    const pictured = await handle.request({ word: 'супа' }, DANI.id);
     expect((await finished(handle, pictured.id)).status).toBe('done');
     const plain = await handle.request({ word: 'боб' }, DANI.id);
     expect((await finished(handle, plain.id)).status).toBe('done');

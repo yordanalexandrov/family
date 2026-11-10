@@ -11,8 +11,8 @@
 // as references (`s1`, …), and after the answer the photos the agent chose are downloaded and made JPEGs as the api
 // does (`prepareStepPhotos`: public addresses, 10 MB, 10 s, at most 50 megapixels), without storing them. `--photo` makes the picture
 // smaller the way the screen does (`importPhotoLayout`: long side ≤ 2000 px, a long screenshot cut into up to 8 parts,
-// JPEG) and checks it the way the api does (type by its bytes, ≤ 10 MB each, ≤ 20 MB together) before sending the
-// parts as images next to `{ kind: 'photo' }`; the fixture is
+// JPEG) and checks it the way the api does (type by its bytes, ≤ 10 MB each, ≤ 20 MB together), then makes each part
+// what the api stores (`sourcePhotoJpeg`, ADR-0016) before sending the parts as images next to `{ kind: 'photo' }`; the fixture is
 // src/test/fixtures/recipe-photos/banitsa.jpg. The registry is the seed ingredients.
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -47,6 +47,7 @@ import {
   type StepImages,
 } from '../src/services/recipe-page/index.js';
 import { photoType } from '../src/services/recipe-photo.js';
+import { sourcePhotoJpeg } from '../src/services/source-photos.js';
 
 const BULGARIAN_BLOG = `Мусака с кайма и картофи — като на баба
 
@@ -348,7 +349,8 @@ function sizeOf(bytes: number): string {
  * draws it upright by its EXIF orientation by `importPhotoLayout` (at most 2000 px on the long side; a long screenshot
  * at most 1200 px wide in up to 8 overlapping parts), as JPEG; a picture the browser cannot decode (HEIC outside
  * Safari) goes as it is, and so here a picture sharp cannot decode. The api reads the type from the bytes and refuses
- * over 10 MB a part or 20 MB together (413) or not a picture (415): such a case fails here without an agent call.
+ * over 10 MB a part or 20 MB together (413) or not a picture (415): such a case fails here without an agent call. Then
+ * each part is made what the api stores and sends (`sourcePhotoJpeg`: upright, without EXIF, ≤ 2000 px, JPEG).
  */
 async function photoCases(paths: string[]): Promise<SmokeCase[]> {
   const files: string[] = [];
@@ -406,14 +408,24 @@ async function photoCases(paths: string[]): Promise<SmokeCase[]> {
         fetchFailure: `${size}: api-то ще върне 413 photo_too_large`,
       });
     } else {
+      // As the api stores them and its run sends them (ADR-0016): `sourcePhotoJpeg`, one at a time.
+      const stored: Buffer[] = [];
+      try {
+        for (const part of sent) {
+          stored.push(await sourcePhotoJpeg(part));
+        }
+      } catch (error) {
+        cases.push({
+          name,
+          fetchFailure: `${size}: api-то ще върне 415 unsupported_photo (${error instanceof Error ? error.message : String(error)})`,
+        });
+        continue;
+      }
       cases.push({
         name,
         page: size,
         source: { kind: 'photo' },
-        images: sent.map((data, index) => ({
-          mediaType: types[index] ?? 'image/jpeg',
-          data,
-        })),
+        images: stored.map((data) => ({ mediaType: 'image/jpeg', data })),
       });
     }
   }
