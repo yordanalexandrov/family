@@ -4,9 +4,11 @@ import {
   dateKeyInSofia,
   daysOfWeek,
   hasWeekStarted,
+  isAiLine,
   isEmptyMeal,
   isPastMeal,
   MENU_PROPOSE_MIN_RECIPES,
+  MENU_REWORKING_MESSAGE,
   MENU_SLOTS,
   type Meal,
   type MealComment,
@@ -32,6 +34,7 @@ import {
   deletePlan,
   deleteRemoval,
   deleteVote,
+  deleteVotes,
   findComment,
   findMeal,
   findMealOn,
@@ -56,6 +59,7 @@ import {
   upsertVote,
 } from '../db/repositories/menu.js';
 import { addMenuActivity } from '../db/repositories/menu-activity.js';
+import { hasPendingRework } from '../db/repositories/menu-reworks.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import {
   countMenuRecipes,
@@ -63,7 +67,7 @@ import {
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
 import { deleteShoppingMealsOf } from '../db/repositories/shopping.js';
-import { findUser, listPeople } from '../db/repositories/users.js';
+import { findUser, listPeople, listUsers } from '../db/repositories/users.js';
 import { menuProposalRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
@@ -111,6 +115,11 @@ const COOK_TAKEN = 'Някой вече готви';
 /** „Аз“ from a service user (ADR-0014): Рецептурко does not cook. */
 const APP_USER_COOK = 'Служебният потребител не готви';
 
+/**
+ * While a rework of the week is pending, every change of the content, the votes or the thread of its meals, and
+ * deleting its plan, answers 409 `menu_reworking` (`refuseReworkingWeek`); the cook, the servings, „Аз“ and „Извадих“
+ * do not.
+ */
 export interface MenuService {
   /** The plan of the week with its meals. */
   getPlan(weekStart: string): Promise<MealPlan>;
@@ -364,7 +373,10 @@ export function createMenuService({
           'Седмицата вече е започнала: менюто не може да се изтрие',
         );
       }
-      await deletePlan(db, id);
+      await db.transaction(async (tx) => {
+        await refuseReworkingWeek(tx, id);
+        await deletePlan(tx, id);
+      });
       signalWeek(events, plan.weekStart);
     },
 
@@ -373,6 +385,10 @@ export function createMenuService({
         const current = await findMeal(tx, id);
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
+        }
+        // A patch that carries content is refused whole, even with a cook or servings beside it.
+        if (patch.recipeId !== undefined || patch.note !== undefined) {
+          await refuseReworkingWeek(tx, current.planId);
         }
         const recipeChanged =
           patch.recipeId !== undefined && patch.recipeId !== current.recipeId;
@@ -394,30 +410,20 @@ export function createMenuService({
           throw new InvalidReferenceError(NOT_MENU_RECIPE);
         }
         await refuseUnknownUsers(tx, patch);
-        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none. A new
-        // recipe has other products to take out, so „Извадих“ of the old one no longer holds.
+        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none.
         const { why, ...values } = patch;
-        await updateMeal(
-          tx,
-          id,
-          current.planId,
-          {
-            ...values,
-            ...(recipeChanged ? { why: why ?? null, thawedAt: null } : {}),
-          },
-          now(),
-        );
-        if (contentChanged) {
-          const line = await recordContentChange(
+        if (recipeChanged) {
+          await changeRecipe(
             tx,
             current,
-            actingUserId,
+            { ...values, recipeId: patch.recipeId ?? null, why: why ?? null },
+            { by: 'person', actingUserId },
             now(),
           );
-          if (recipeChanged) {
-            await keepRemoval(tx, current, patch, actingUserId, line, now());
-            // The list was for the old recipe: the meal is added again by hand, also after „Върни“ (ADR-0011).
-            await deleteShoppingMealsOf(tx, id);
+        } else {
+          await updateMeal(tx, id, current.planId, values, now());
+          if (contentChanged) {
+            await recordContentChange(tx, current, actingUserId, now());
           }
         }
         const changed = await reread(tx, id, current.planId);
@@ -442,6 +448,7 @@ export function createMenuService({
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
+        await refuseReworkingWeek(tx, current.planId);
         refusePastMeal(current, now());
         if (current.recipeId !== null) {
           throw new ConflictError(DAY_TAKEN);
@@ -482,6 +489,7 @@ export function createMenuService({
         if (!current) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
+        await refuseReworkingWeek(tx, current.planId);
         refusePastMeal(current, now());
         if (value !== null && isEmptyMeal(current)) {
           throw refuse('empty_meal', EMPTY_MEAL);
@@ -517,6 +525,7 @@ export function createMenuService({
         if (a.id === b.id || a.planId !== b.planId || a.slot !== b.slot) {
           throw new InvalidActionError(NOT_SWAPPABLE);
         }
+        await refuseReworkingWeek(tx, a.planId);
         refusePastMeal(a, now());
         refusePastMeal(b, now());
         const at = now();
@@ -602,6 +611,7 @@ export function createMenuService({
         if (!meal) {
           throw new NotFoundError(NO_SUCH_MEAL);
         }
+        await refuseReworkingWeek(tx, meal.planId);
         refusePastThread(meal, now());
         const comment = await insertComment(
           tx,
@@ -632,6 +642,7 @@ export function createMenuService({
         if (!meal) {
           throw new Error('meal of a comment vanished');
         }
+        await refuseReworkingWeek(tx, meal.planId);
         refusePastThread(meal, now());
         await deleteComment(tx, id);
         return weekOf(tx, meal.planId);
@@ -696,6 +707,45 @@ export function refusePastMeal(meal: Meal, at: Date): void {
   }
 }
 
+/**
+ * 409 `menu_reworking` while a rework of the plan is pending (GLOSSARY: Преработка на менюто): the week is locked for
+ * the content, the votes and the threads of its meals, so the agent's answer overwrites nothing done meanwhile. Run it
+ * in the transaction of the change: it holds the week's lock (`lockWeek`), which the rework takes when it is asked for,
+ * until the change commits. Shared with `menu.rework` and `meal.replace`.
+ */
+export async function refuseReworkingWeek(
+  tx: DbExecutor,
+  planId: string,
+): Promise<void> {
+  await lockWeek(tx, await weekOf(tx, planId));
+  if (await hasPendingRework(tx, planId)) {
+    throw refuse('menu_reworking', MENU_REWORKING_MESSAGE);
+  }
+}
+
+/** Who wrote a line of the AI (`isAiLine`) in the thread an agent gets. */
+const AI_AUTHOR = 'AI';
+
+/**
+ * The thread of a meal as `meal.replace` and `menu.rework` get it, oldest first, each line by its author's name; a line
+ * of the AI is the AI's, though it is stored on behalf of whoever asked for it.
+ */
+export async function agentThread(
+  db: DbExecutor,
+  mealId: string,
+): Promise<{ author: string; body: string; kind: MealComment['kind'] }[]> {
+  const names = new Map(
+    (await listUsers(db)).map((user) => [user.id, user.name]),
+  );
+  return (await listComments(db, mealId)).map((line) => ({
+    author: isAiLine(line.body)
+      ? AI_AUTHOR
+      : (names.get(line.authorUserId) ?? ''),
+    body: line.body,
+    kind: line.kind,
+  }));
+}
+
 /** 409 `past_meal` for writing to or deleting from the thread of a past meal: it is read, but not written. */
 function refusePastThread(meal: Meal, at: Date): void {
   if (isPastMeal(meal, dateKeyInSofia(at))) {
@@ -758,18 +808,77 @@ export async function recordContentChange(
 }
 
 /**
- * After a changed recipe: „Махни ястието от деня“ (a recipe to none) is kept for its „Върни“ with what it took and the
- * `line` it wrote; any other recipe for the day drops a kept removal.
+ * A new recipe (or none) for a meal and what follows it, in the transaction of the change: its `why` (of a picked
+ * candidate or of the AI, `null` when picked by hand), „Извадих“ no longer holds (other products to take out), a line in
+ * its thread, and the meal leaves the shopping list, which was for the old recipe (it is added again by hand, also
+ * after „Върни“, ADR-0011). The note, the cook and the servings stay unless `values` carries them. Who changed it
+ * decides the rest:
+ * - a person (`recordContentChange`): the others' votes go and they vote up, the line is theirs (`replaced`), and
+ *   „Махни ястието от деня“ (a recipe to none) is kept for its „Върни“ with what it took and the line; any other recipe
+ *   drops a kept removal;
+ * - the AI of a rework (GLOSSARY: Преработка на менюто): every vote goes (the AI does not vote), the line says the AI
+ *   did it (`reworked`) on behalf of who asked, and a kept removal goes.
+ * The caller has refused what it must (a past meal, a recipe outside the registry, a locked week).
+ */
+export async function changeRecipe(
+  tx: DbExecutor,
+  before: Meal,
+  values: Omit<UpdateMeal, 'recipeId' | 'why'> & {
+    recipeId: string | null;
+    why: string | null;
+  },
+  actor: { by: 'person' | 'rework'; actingUserId: string },
+  at: Date,
+): Promise<void> {
+  await updateMeal(
+    tx,
+    before.id,
+    before.planId,
+    { ...values, thawedAt: null },
+    at,
+  );
+  if (actor.by === 'person') {
+    const line = await recordContentChange(tx, before, actor.actingUserId, at);
+    await keepRemoval(
+      tx,
+      before,
+      values.recipeId,
+      actor.actingUserId,
+      line,
+      at,
+    );
+  } else {
+    await deleteVotes(tx, before.id);
+    const after = await findMeal(tx, before.id);
+    await writeSystemLine(
+      tx,
+      before.id,
+      actor.actingUserId,
+      {
+        type: 'reworked',
+        from: mealTitle(before),
+        to: after?.recipe?.title ?? '',
+      },
+      at,
+    );
+    await deleteRemoval(tx, before.id);
+  }
+  await deleteShoppingMealsOf(tx, before.id);
+}
+
+/**
+ * After a person changed the recipe: „Махни ястието от деня“ (a recipe to none) is kept for its „Върни“ with what it
+ * took and the `line` it wrote; any other recipe for the day drops a kept removal.
  */
 async function keepRemoval(
   tx: DbExecutor,
   before: Meal,
-  patch: UpdateMeal,
+  recipeId: string | null,
   actingUserId: string,
   line: MealComment,
   at: Date,
 ): Promise<void> {
-  if (patch.recipeId === null && before.recipeId !== null) {
+  if (recipeId === null && before.recipeId !== null) {
     await saveRemoval(tx, {
       mealId: before.id,
       removedBy: actingUserId,

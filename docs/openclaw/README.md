@@ -11,6 +11,7 @@
 | `family-refine` | `recipe.refine` | [family-refine.md](family-refine.md) | `~/.openclaw/workspace-family-refine/` | `family-refine-next` |
 | `family-cook` | `cooking.ask` | [family-cook.md](family-cook.md) | `~/.openclaw/workspace-family-cook/` | `family-cook-next` |
 | `family-revise` | `recipe.revise` | [family-revise.md](family-revise.md) | `~/.openclaw/workspace-family-revise/` | `family-revise-next` |
+| `family-menu-rework` | `menu.rework` | [family-menu-rework.md](family-menu-rework.md) | `~/.openclaw/workspace-family-menu-rework/` | `family-menu-rework-next` |
 
 ## Обновяване на prompt-а
 
@@ -20,7 +21,7 @@
 - Ако prompt-ът не е променен, файлът на сървъра не се пипа. Ако е променен, старият остава до него като `AGENTS.md.bak`.
 - Revert на PR-а връща и prompt-а със следващия deploy.
 
-После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`, `meal:smoke` за `family-meal`, `import:smoke` за `family-import`, `refine:smoke` за `family-refine`, `ask:smoke` за `family-cook`, `revise:smoke` за `family-revise`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
+После smoke срещу реалния агент ([README → smoke](../../README.md)): `pnpm --filter api suggest:smoke -- …` за `family-recipe`, `menu:smoke` за `family-menu`, `meal:smoke` за `family-meal`, `import:smoke` за `family-import`, `refine:smoke` за `family-refine`, `ask:smoke` за `family-cook`, `revise:smoke` за `family-revise`, `rework:smoke` за `family-menu-rework`. Ако отговорът не следва новия prompt, рестартирай OpenClaw на `homesrv` и пробвай пак (не е проверено дали агентът чете `AGENTS.md` наново при всяка заявка).
 
 Проверка, че на сървъра е същото като в repo-то (без изход = еднакви), от корена на repo-то на `master`, с ssh достъп до `homesrv`:
 
@@ -76,7 +77,7 @@ Prompt или контракт се проверява срещу реалния
 Self-hosted runner-ът не върви за PR-и (AGENTS.md → Public repo), затова този smoke е ръчен: пуска го човекът или агентът в главната сесия (не агент в worktree, виж [worktrees.md](../agents/worktrees.md)). На клона на PR-а, от корена на repo-то, с `OPENCLAW_GATEWAY_PASSWORD` в `.env` или в средата:
 
 ```bash
-AGENT=family-recipe                                    # или family-menu, family-meal, family-import, family-refine, family-cook, family-revise
+AGENT=family-recipe                                    # или family-menu, family-meal, family-import, family-refine, family-cook, family-revise, family-menu-rework
 awk 'f; /^---$/ && !f {f=1}' "docs/openclaw/$AGENT.md" | ssh homesrv "umask 077; cat > ~/.openclaw/workspace-$AGENT-next/AGENTS.md"
 ssh -N -o ExitOnForwardFailure=yes -L 18789:127.0.0.1:18789 homesrv &    # тунел; спира се накрая
 OPENCLAW_RECIPE_AGENT=family-recipe-next pnpm --filter api suggest:smoke -- --slots dinner --hint "нещо с пиле"
@@ -86,6 +87,7 @@ OPENCLAW_IMPORT_AGENT=family-import-next pnpm --filter api import:smoke
 OPENCLAW_REFINE_AGENT=family-refine-next pnpm --filter api refine:smoke -- --url <линк към рецепта>
 OPENCLAW_COOK_AGENT=family-cook-next pnpm --filter api ask:smoke -- --repeat 2
 OPENCLAW_REVISE_AGENT=family-revise-next pnpm --filter api revise:smoke -- --repeat 3
+OPENCLAW_MENU_REWORK_AGENT=family-menu-rework-next pnpm --filter api rework:smoke -- --repeat 2
 ```
 
 Така се проверяват заедно кодът на контракта от клона (скриптът го ползва локално) и prompt-ът от клона, срещу същия модел и инструменти като в production. Резултатът отива като коментар в PR-а, без нищо от средата, и започва с `## Smoke преди merge`: по този ред CI job-ът `smoke-gate` ([smoke-gate.yml](../../.github/workflows/smoke-gate.yml)) пропуска PR-а, щом е сменен `docs/openclaw/family-*.md` или `packages/shared/src/contracts/`. Gateway-ът поема ново `AGENTS.md` без рестарт (проверено на 2026-10-27).
@@ -160,3 +162,22 @@ cp -p ~/.openclaw/workspace-family-meal/{SOUL,USER,IDENTITY}.md $W/
 `revise:smoke` поправя мусаката от фикстурата `recipe-revise.input.json` с „картофите искат още 20 мин“ (времето трябва да стане 110 мин), „заливката е малко, двойна доза“ и „никъде не пише сол“, ризото за 1 порция с песто за 5 с „пестото е за 5 порции, направи го за 1“, указание, за което трябва търсене (бешамел вместо кисело мляко с обичайната доза за тава 30×20), и указание извън рецептата, което трябва да е `noResults`. Всеки случай се пуска `--repeat` пъти (по подразбиране 2), а `--case <име>` пуска само него. Всеки случай казва кои продукти и стъпки указанието може да смени; всички други, порциите, времето и подготовката трябва да са дословно същите, иначе ✗ и exit 1. Поправка, която не сменя нищо, също е ✗. За всеки отговор се печатат бележката, сменените, махнатите и новите редове и стъпки, порциите и времето. `--recipe` (рецепта от `GET /api/recipes/:id`) с `--instruction "…"` пуска свое указание, без проверки. Регистърът е seed продуктите с измислени id-та.
 
 Компонентите в поправката, подобрението и въпроса (#326, GLOSSARY: Компонент): `revise:smoke` има вградените случаи `ризото-песто-отделно`, `паста-песто-отделно` и `пица-тесто-отделно` („направи пестото отделно, за 5“ и подобни), които трябва да дадат компонент с тези порции и продукти, `ризото-компонент-бульон` (поправка за друго, компонентът остава същият, с редовете си), `ризото-компонент-за-8` (компонентът за 8 порции) и `ризото-без-компонент` (компонентът изчезва); разминаване е ✗. Всяка поправка печата компонентите с продуктите им преди и след нея. `refine:smoke --repeat N` подобрява всяка рецепта N пъти, а за рецепта с компоненти проверява, че името на всеки компонент е в някоя стъпка (иначе ✗, стъпките са го изгубили). `ask:smoke --recipe <файл> --components 10` праща броячите на компонентите на екрана (по индекс), а `--expect <регулярен израз>` проверява всеки отговор (напр. количеството песто за брояча).
+
+### Нов агент без инструменти: `family-menu-rework`
+
+Еднократно, **преди** първия deploy с [family-menu-rework.md](family-menu-rework.md) (#347; иначе стъпката „Sync agent prompts“ спира, защото workspace-ът липсва) и преди smoke-а срещу `family-menu-rework-next`. По „Нов агент без инструменти: `family-refine`“ отгоре, но с настройките на `family-menu` (модел с fallback, `thinkingDefault`, `skills`, `subagents` и `tools`). На `homesrv`, след резервно копие на `~/.openclaw/openclaw.json`:
+
+```bash
+C=~/.openclaw/openclaw.json
+cp -p $C $C.bak-family-menu-rework
+openclaw agents add family-menu-rework --workspace ~/.openclaw/workspace-family-menu-rework --model "$(jq -r '.agents.entries["family-menu"].model.primary' $C)" --non-interactive
+jq '.agents.entries["family-menu-rework"] += (.agents.entries["family-menu"] | {model, thinkingDefault, skills, subagents, tools})
+  | .agents.entries["family-menu-rework"].identity = {name: "family-menu-rework"}' $C > $C.tmp && chmod --reference=$C $C.tmp && mv $C.tmp $C
+W=~/.openclaw/workspace-family-menu-rework
+rm $W/BOOTSTRAP.md
+cp -p ~/.openclaw/workspace-family-menu/{SOUL,USER,IDENTITY}.md $W/
+```
+
+Проверка: `jq '.agents.entries["family-menu-rework"].tools == .agents.entries["family-menu"].tools' ~/.openclaw/openclaw.json` → `true`. После копието `family-menu-rework-next` по „Как са създадени копията“ отгоре (`<агент>` = `family-menu-rework`).
+
+`rework:smoke` пуска вградените случаи (`fixture`, `без-подсказка`, `празна-седмица`, `вета`, `бележки`) по `--repeat` пъти, а `--week <понеделник> [--today <дата>]` строи входа от истинска седмица в базата на `DATABASE_URL` (само чете). Нарушена бележка или разговор („без лук“, „без месо“) е ✗ и exit 1.

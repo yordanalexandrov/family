@@ -48,18 +48,20 @@ export function PersonVote({ meal, user }: { meal: Meal; user: User }) {
 
 /**
  * Моите 👎/👍 с надпис „Не“/„Да“: натиснатият е оцветен, втори натиск на същия го маха (`null`). На реда надписът е
- * под знака, за да остане бутонът тесен.
+ * под знака, за да остане бутонът тесен. `disabled`, докато AI преработва менюто.
  */
 export function MyVote({
   meal,
   userId,
   onVote,
   big = false,
+  disabled = false,
 }: {
   meal: Meal;
   userId: string;
   onVote: (value: VoteValue | null) => void;
   big?: boolean;
+  disabled?: boolean;
 }) {
   const mine = voteOf(meal, userId);
   const press = (value: VoteValue) => onVote(mine === value ? null : value);
@@ -70,6 +72,7 @@ export function MyVote({
         className="my-vote__button my-vote__button--down"
         aria-label="Не"
         aria-pressed={mine === 'down'}
+        disabled={disabled}
         onClick={() => press('down')}
       >
         <span aria-hidden="true">👎</span>
@@ -82,6 +85,7 @@ export function MyVote({
         className="my-vote__button my-vote__button--up"
         aria-label="Да"
         aria-pressed={mine === 'up'}
+        disabled={disabled}
         onClick={() => press('up')}
       >
         <span aria-hidden="true">👍</span>

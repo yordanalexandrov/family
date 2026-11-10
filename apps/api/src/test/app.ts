@@ -18,10 +18,27 @@ export const DEV_AUTH = {
 export function buildTestApp(
   options: Partial<BuildAppOptions> = {},
 ): FastifyInstance {
-  return buildApp({
+  const app = buildApp({
     databaseUrl: TEST_DATABASE_URL,
     auth: DEV_AUTH,
     openclaw: TEST_OPENCLAW,
     ...options,
   });
+  openApps.add(app);
+  app.addHook('onClose', async () => {
+    openApps.delete(app);
+  });
+  return app;
+}
+
+/** The apps of {@link buildTestApp} not closed yet. */
+const openApps = new Set<FastifyInstance>();
+
+/**
+ * Waits until no app of {@link buildTestApp} has an AI request running in the background. A test that asks for one
+ * (202) may end before its run writes; `src/test/setup.ts` awaits this after each test, before the tables are
+ * truncated, so the run neither deadlocks with the truncate nor writes into the next test.
+ */
+export async function settleTestApps(): Promise<void> {
+  await Promise.all([...openApps].map((app) => app.aiRunsSettled()));
 }

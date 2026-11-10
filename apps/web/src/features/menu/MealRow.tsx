@@ -19,6 +19,7 @@ import {
   formatWeekday,
 } from '../../lib/format';
 import { RatingStars } from '../recipes/Stars';
+import { systemLineText } from './Thread';
 import { MyVote, OutcomeLabel, PersonVote } from './Votes';
 
 /** Id-то на реда на ястието: `MenuWeek` превърта до него, когато листът му е отворен от адреса (`?meal=`). */
@@ -34,6 +35,8 @@ export interface RowVoting {
   onVote: (meal: Meal, value: VoteValue | null) => void;
   /** Оценка на рецептата на отминало ястие („Как беше?“). */
   onRate: (recipeId: string, rating: Rating | null) => void;
+  /** AI преработва менюто: гласовете се виждат, но не се сменят. */
+  locked?: boolean;
 }
 
 interface MealRowProps {
@@ -173,6 +176,7 @@ export function MealRow({
                 meal={meal}
                 userId={voting.userId}
                 onVote={(value) => voting.onVote(meal, value)}
+                disabled={voting.locked}
               />
             )}
           </span>
@@ -223,7 +227,7 @@ function LastComment({
         className={`meal-row__comment-text${line.kind === 'system' ? ' meal-row__comment-text--system' : ''}`}
       >
         {line.kind === 'system'
-          ? `${name} ${line.body}`
+          ? systemLineText(line, name)
           : `${name}: ${line.body}`}
       </span>
       <span className="meal-row__comment-count">

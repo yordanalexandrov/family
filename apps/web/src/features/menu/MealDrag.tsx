@@ -58,19 +58,21 @@ export function MealDrag({
 }
 
 /**
- * Един ред, който се влачи за дръжката и приема друг ред; минал ден не е нито източник, нито цел. `children`
- * получава дръжката (или `undefined` за минал ден).
+ * Един ред, който се влачи за дръжката и приема друг ред; минал ден не е нито източник, нито цел, а докато AI
+ * преработва менюто (`locked`), нито един ред. `children` получава дръжката (или `undefined`, когато не се влачи).
  */
 export function DraggableMeal({
   meal,
   today,
+  locked = false,
   children,
 }: {
   meal: Meal;
   today: DateKey;
+  locked?: boolean;
   children: (handle: ReactNode) => ReactNode;
 }) {
-  const disabled = isPastMeal(meal, today);
+  const disabled = locked || isPastMeal(meal, today);
   const drag = useDraggable({ id: meal.id, disabled });
   const drop = useDroppable({ id: meal.id, disabled });
   const { transform } = drag;

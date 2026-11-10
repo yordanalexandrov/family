@@ -34,6 +34,7 @@ const defaults = {
     refineAgent: 'family-refine',
     cookAgent: 'family-cook',
     reviseAgent: 'family-revise',
+    menuReworkAgent: 'family-menu-rework',
     timeoutMs: 180_000,
     cookTimeoutMs: 120_000,
   },
@@ -94,6 +95,7 @@ describe('loadConfig', () => {
           OPENCLAW_REFINE_AGENT: 'family-refine-test',
           OPENCLAW_COOK_AGENT: 'family-cook-test',
           OPENCLAW_REVISE_AGENT: 'family-revise-test',
+          OPENCLAW_MENU_REWORK_AGENT: 'family-menu-rework-test',
           OPENCLAW_TIMEOUT_MS: '60000',
         }),
       ).toMatchObject({
@@ -107,6 +109,7 @@ describe('loadConfig', () => {
           refineAgent: 'family-refine-test',
           cookAgent: 'family-cook-test',
           reviseAgent: 'family-revise-test',
+          menuReworkAgent: 'family-menu-rework-test',
           timeoutMs: 60_000,
           cookTimeoutMs: 60_000,
         },

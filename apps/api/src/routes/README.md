@@ -21,6 +21,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `step-photos.ts:stepPhotosRoutes` – `POST /api/step-photos` (multipart), `GET /api/step-photos/:id` (JPEG, по избор `?w=` миниатюра).
 - `menu.ts:menuRoutes` – `GET|POST /api/menu/plans`, `DELETE /api/menu/plans/:id`, `PATCH /api/menu/meals/:id`, `PUT|DELETE /api/menu/meals/:id/vote`, `POST /api/menu/meals/:id/restore|swap|thawed|cook-claim`, `GET|POST /api/menu/meals/:id/comments`, `DELETE /api/menu/comments/:id`, `POST|GET /api/menu/proposals`, `GET /api/menu/proposals/:id`.
 - `meal-replacements.ts:mealReplacementsRoutes` – `POST|GET /api/menu/meals/:id/replacements`, `GET /api/menu/replacements/:id`.
+- `menu-reworks.ts:menuReworksRoutes` – `POST /api/menu/reworks`, `GET /api/menu/reworks?weekStart=`, `GET /api/menu/reworks/:id` (двете четения без действащ потребител).
 - `shopping.ts:shoppingRoutes` – `GET /api/shopping-lists/:weekStart`, `PUT /api/shopping-lists/:weekStart/items/:key/checked|hidden`, `POST /api/shopping-lists/:weekStart/items`, `DELETE /api/shopping-lists/:weekStart/items/:key`, `PUT|DELETE /api/shopping-lists/:weekStart/meals/:mealId`.
 - `pantry.ts:pantryRoutes` – `GET|POST /api/pantry`, `PATCH|DELETE /api/pantry/:id`, `POST /api/pantry/:id/ran-out`.
 - `appliances.ts:appliancesRoutes` – `GET|POST /api/appliances`, `PUT|DELETE /api/appliances/:id`.
@@ -43,7 +44,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 
 ## Side Effects
 
-- Пишат в базата и пращат сигнали само през `src/services` и декорациите на `app` (`app.menu`, `app.events`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.push`, `app.calendarSync`, `app.budgetSync`).
+- Пишат в базата и пращат сигнали само през `src/services` и декорациите на `app` (`app.menu`, `app.events`, `app.reminders`, `app.recipeSuggestions`, `app.recipeImports`, `app.recipeRefinements`, `app.recipeRevisions`, `app.cookingQuestions`, `app.mealReplacements`, `app.menuReworks`, `app.push`, `app.calendarSync`, `app.budgetSync`).
 - `events.ts:eventsRoutes` – държи отворени HTTP връзки (`reply.hijack()`) и `setInterval` таймер на връзка.
 - `notifications.ts:notificationsRoutes` – `POST /api/notifications/test` праща Web Push през `app.push.sendTest`.
 

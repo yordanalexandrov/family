@@ -35,6 +35,11 @@ export const menuKeys = {
   /** Последното предложение на седмицата (напр. на крона в сряда); не е под плана, който то презарежда. */
   weekProposal: (weekStart: DateKey) =>
     ['menu', 'week-proposal', weekStart] as const,
+  /** Последната преработка на седмицата: лентата „AI преработва менюто…“ на всяко устройство; не е под плана. */
+  weekRework: (weekStart: DateKey) =>
+    ['menu', 'week-rework', weekStart] as const,
+  /** Преработките на всички седмици. */
+  weekReworks: ['menu', 'week-rework'] as const,
   /** Филтър за плановете на всички седмици, без разговорите под тях, които делят префикса на ключа. */
   plans: {
     queryKey: ['menu', 'plan'] as const,

@@ -18,6 +18,7 @@ import {
   check,
   date,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -208,6 +209,33 @@ export const mealReplaceRequest = pgTable(
       .where(sql`${t.status} = 'pending'`),
     check(
       'meal_replace_request_status_check',
+      oneOf(t.status, contractRequestStatusSchema.options),
+    ),
+  ],
+);
+
+/**
+ * GLOSSARY: Преработка на менюто. One run of `menu.rework` for the plan of a week; `changed` (how many meals it
+ * changed) is set when it is `done`. It goes with the plan; at most one `pending` per plan, and while it is, the week's
+ * votes and content are locked.
+ */
+export const menuReworkRequest = pgTable(
+  'menu_rework_request',
+  {
+    ...contractRequestColumns(),
+    planId: uuid('plan_id')
+      .notNull()
+      .references(() => mealPlan.id, { onDelete: 'cascade' }),
+    weekStart: date('week_start', { mode: 'string' }).notNull(),
+    changed: integer('changed'),
+  },
+  (t) => [
+    uniqueIndex('menu_rework_request_pending_plan_key')
+      .on(t.planId)
+      .where(sql`${t.status} = 'pending'`),
+    index('menu_rework_request_week_created_idx').on(t.weekStart, t.createdAt),
+    check(
+      'menu_rework_request_status_check',
       oneOf(t.status, contractRequestStatusSchema.options),
     ),
   ],

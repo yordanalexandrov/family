@@ -26,6 +26,7 @@ function invalidateAll(queryClient: QueryClient) {
  * `menu.changed` презарежда и дашборда: „Днес се готви“ (готвачът) е от менюто.
  * `menu.proposal.changed` презарежда последното предложение на седмицата (чакането на другия телефон) и отбелязва
  * готовото чуждо като невидяно (точката на „Меню“);
+ * `menu.rework.changed` презарежда последната преработка на седмицата (лентата „AI преработва менюто…“);
  * `shopping.changed` без седмица идва от килера: важи за всеки списък и за самия килер.
  */
 function invalidate(queryClient: QueryClient, event: ServerEvent) {
@@ -39,6 +40,10 @@ function invalidate(queryClient: QueryClient, event: ServerEvent) {
       queryKey: menuKeys.weekProposal(event.weekStart),
     });
     void noteProposalChange(queryClient, event.weekStart, readActingUserId());
+  } else if (event.type === 'menu.rework.changed') {
+    void queryClient.invalidateQueries({
+      queryKey: menuKeys.weekRework(event.weekStart),
+    });
   } else if (event.weekStart) {
     void queryClient.invalidateQueries({
       queryKey: shoppingKeys.list(event.weekStart),

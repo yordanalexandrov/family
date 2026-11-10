@@ -4,6 +4,7 @@ import {
   type MealComment,
   type MealPlan,
   type MenuProposalRequest,
+  type MenuReworkRequest,
 } from '@family/shared';
 import { screen } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
@@ -105,6 +106,51 @@ export function serveWeekProposal(...states: MenuProposalRequest[]) {
       }
       calls += 1;
       return HttpResponse.json({ proposal });
+    }),
+  );
+  return () => calls;
+}
+
+export const reworkId = 'dddddddd-0000-4000-8000-000000000001';
+
+/** Преработката на менюто на тази седмица, пусната от Дани, докато AI работи. */
+export const pendingRework: MenuReworkRequest = {
+  id: reworkId,
+  weekStart: thisWeek,
+  planId,
+  status: 'pending',
+  requestedBy: dani.id,
+  createdAt: '2026-11-04T08:00:00.000Z',
+};
+
+/** `pendingRework`, неуспяла след 3 минути без отговор. */
+export const failedRework: MenuReworkRequest = {
+  ...pendingRework,
+  status: 'failed',
+  error: 'timeout',
+  finishedAt: '2026-11-04T08:03:00.000Z',
+};
+
+/**
+ * `GET /api/menu/reworks?weekStart=` с поредните състояния на последната преработка на седмицата; последното се
+ * повтаря. Без него (handler-ът по подразбиране) седмицата не е преработвана.
+ */
+export function serveWeekRework(...states: MenuReworkRequest[]) {
+  let calls = 0;
+  server.use(
+    http.get('/api/menu/reworks', ({ request }) => {
+      const weekStart = new URL(request.url).searchParams.get('weekStart');
+      const rework = states[Math.min(calls, states.length - 1)];
+      if (!rework || rework.weekStart !== weekStart) {
+        return apiError(
+          404,
+          'not_found',
+          'Никой не е преработвал менюто на тази седмица',
+          'no_rework',
+        );
+      }
+      calls += 1;
+      return HttpResponse.json({ rework });
     }),
   );
   return () => calls;

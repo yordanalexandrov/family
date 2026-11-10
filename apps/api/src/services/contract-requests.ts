@@ -92,7 +92,10 @@ export interface ContractRequestStore<
   afterDone?(request: R): void;
   /** After the `pending` request has committed, e.g. to signal that it waits. Must not throw. */
   afterRequest?(request: R): void;
-  /** After the request has been marked `failed` (not `stale`), e.g. to signal it. One that throws is logged. */
+  /**
+   * After the request has been marked `failed`, also `stale` by {@link ContractRequests.failStale}, e.g. to signal it.
+   * One that throws is logged.
+   */
   afterFailed?(request: R): void;
   /**
    * Why a valid answer has nothing to write, when the agent says so (e.g. `recipe.suggest` found no recipes); the
@@ -138,9 +141,14 @@ export interface ContractRequests {
   ): ContractRequestHandle<P, R, A>;
   /**
    * At start: `pending` requests of every registered contract older than 10 minutes were cut off by a restart and
-   * become `failed`/`stale`. Logs and never rejects: the api serves without it.
+   * become `failed`/`stale`, each with its `afterFailed`. Logs and never rejects: the api serves without it.
    */
   failStale(): Promise<void>;
+  /**
+   * Waits, without aborting, until no run is going, also runs started meanwhile; the specs drain it before the database
+   * is reset (`src/test/setup.ts`).
+   */
+  settled(): Promise<void>;
   /** Aborts the runs still going (they end `failed`/`aborted`) and waits for them, before the pool closes. */
   close(): Promise<void>;
 }
@@ -161,7 +169,12 @@ export function createContractRequests({
 }): ContractRequests {
   const shutdown = new AbortController();
   const running = new Set<Promise<void>>();
-  const registered: { id: string; table: ContractRequestTable }[] = [];
+  const registered: {
+    id: string;
+    table: ContractRequestTable;
+    /** `afterFailed` of the request with this id, as it ended. */
+    failed(requestId: string): Promise<void>;
+  }[] = [];
 
   return {
     register<
@@ -178,7 +191,16 @@ export function createContractRequests({
       agent: string,
       { timeoutMs }: { timeoutMs?: number } = {},
     ): ContractRequestHandle<P, R, A> {
-      registered.push({ id: contract.id, table: store.table });
+      registered.push({
+        id: contract.id,
+        table: store.table,
+        async failed(requestId) {
+          const request = await store.find(db, requestId);
+          if (request) {
+            after('afterFailed', request);
+          }
+        },
+      });
 
       /**
        * Calls `afterDone`/`afterFailed`, once the request has ended: one that throws anyway is logged, as a failed write
@@ -302,22 +324,35 @@ export function createContractRequests({
     },
 
     async failStale() {
-      // `created_at` is the database's real time, so this is not the app's clock (which specs fix).
+      // `created_at` is real time (the database's, or the app's clock for `menu.rework`), so this is not the app's
+      // clock (which specs fix).
       const cutoff = new Date(Date.now() - STALE_AFTER_MS);
-      for (const { id, table } of registered) {
+      for (const { id, table, failed } of registered) {
         try {
-          const failed = await failPendingContractRequestsBefore(
+          const stale = await failPendingContractRequestsBefore(
             db,
             table,
             cutoff,
             'stale',
           );
-          if (failed > 0) {
-            log.warn({ failed }, `stale ${id} requests marked failed`);
+          if (stale.length > 0) {
+            log.warn(
+              { failed: stale.length },
+              `stale ${id} requests marked failed`,
+            );
+          }
+          for (const requestId of stale) {
+            await failed(requestId);
           }
         } catch (error) {
           log.error({ err: error }, `could not fail stale ${id} requests`);
         }
+      }
+    },
+
+    async settled() {
+      while (running.size > 0) {
+        await Promise.all(running);
       }
     },
 

@@ -13,6 +13,12 @@ import {
   pastMealSchema,
   systemLineSchema,
 } from './menu.js';
+import {
+  menuReworkingSchema,
+  noReworkSchema,
+  nothingToReworkSchema,
+  replacementPendingSchema,
+} from './menu-rework.js';
 import { cookTakenSchema, pushDisabledSchema } from './notifications.js';
 import { alreadyInPantrySchema, notStapleSchema } from './pantry.js';
 import { revisionOpenSchema, revisionStaleSchema } from './recipe-revision.js';
@@ -41,6 +47,10 @@ export const refusalSchemas = {
   meal_without_recipe: mealWithoutRecipeSchema,
   revision_open: revisionOpenSchema,
   revision_stale: revisionStaleSchema,
+  menu_reworking: menuReworkingSchema,
+  replacement_pending: replacementPendingSchema,
+  nothing_to_rework: nothingToReworkSchema,
+  no_rework: noReworkSchema,
 } as const;
 
 export const refusalSchema = z.discriminatedUnion(

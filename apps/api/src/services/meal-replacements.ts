@@ -19,18 +19,21 @@ import {
   findMeal,
   findPlanByWeek,
   findPlanSummary,
-  listComments,
 } from '../db/repositories/menu.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import { listMenuRecipes } from '../db/repositories/recipes.js';
-import { listUsers } from '../db/repositories/users.js';
 import { mealReplaceRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
   ContractRequestStore,
 } from './contract-requests.js';
 import { ConflictError, NotFoundError, refuse } from './errors.js';
-import { NO_SUCH_MEAL, refusePastMeal } from './menu.js';
+import {
+  agentThread,
+  NO_SUCH_MEAL,
+  refusePastMeal,
+  refuseReworkingWeek,
+} from './menu.js';
 
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
 const NO_REPLACEMENT = 'Никой не е търсил друго ястие';
@@ -77,9 +80,9 @@ export type MealReplacements = ContractRequestHandle<
 
 /**
  * How `meal.replace` requests are stored: refused for an unknown or past meal, with fewer than 3 other recipes of its
- * slot, or while one is pending for the meal. The input is the meal, its thread, the other meals of its week, the
- * registry without its recipe (with ratings and last servings) and the use-up products; a valid answer is kept as the
- * candidates.
+ * slot, while one is pending for the meal, or while a rework of its week is pending (409 `menu_reworking`). The input
+ * is the meal, its thread, the other meals of its week, the registry without its recipe (with ratings and last
+ * servings) and the use-up products; a valid answer is kept as the candidates.
  */
 export function createMealReplaceStore(
   now: () => Date,
@@ -98,6 +101,7 @@ export function createMealReplaceStore(
       if (!meal) {
         throw new NotFoundError(NO_SUCH_MEAL);
       }
+      await refuseReworkingWeek(tx, meal.planId);
       refusePastMeal(meal, now());
       const have = (await otherRecipes(tx, meal)).length;
       if (have < MEAL_REPLACE_MIN_RECIPES) {
@@ -122,9 +126,6 @@ export function createMealReplaceStore(
       if (!meal || !plan) {
         throw new Error('meal of a replacement request vanished');
       }
-      const names = new Map(
-        (await listUsers(db)).map((user) => [user.id, user.name]),
-      );
       return {
         date: meal.date,
         slot: meal.slot,
@@ -133,11 +134,7 @@ export function createMealReplaceStore(
           ...(meal.recipe ? { title: meal.recipe.title } : {}),
           ...(meal.note === null ? {} : { note: meal.note }),
         },
-        thread: (await listComments(db, meal.id)).map((line) => ({
-          author: names.get(line.authorUserId) ?? '',
-          body: line.body,
-          kind: line.kind,
-        })),
+        thread: await agentThread(db, meal.id),
         week: plan.meals.flatMap((other) => {
           const title = mealTitle(other);
           return other.id !== meal.id && title

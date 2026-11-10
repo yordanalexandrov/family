@@ -118,6 +118,15 @@ export const handlers = [
       },
     }),
   ),
+  // Седмица без `serveWeekRework` не е преработвана.
+  http.get('/api/menu/reworks', () =>
+    apiError(
+      404,
+      'not_found',
+      'Никой не е преработвал менюто на тази седмица',
+      'no_rework',
+    ),
+  ),
   // Седмица без `serveWeekProposal` няма предложение (нито ръчно, нито от крона).
   http.get('/api/menu/proposals', () =>
     apiError(

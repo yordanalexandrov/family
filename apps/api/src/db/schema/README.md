@@ -14,7 +14,7 @@
 - `dashboard.ts:calendarSource, calendarEvent, budgetSnapshot, syncRun` – `calendar_source`, `calendar_event`, `budget_snapshot`, `sync_run`.
 - `food.ts:ingredient, recipe, recipeComponent, recipeIngredient` – `ingredient`, `recipe`, `recipe_component`, `recipe_ingredient`.
 - `food.ts:recipeSuggestionRequest, recipeImportRequest, recipeSuggestion, recipeRefineRequest, recipeRevisionRequest, cookingQuestionRequest` – `recipe_suggestion_request`, `recipe_import_request`, `recipe_suggestion`, `recipe_refine_request`, `recipe_revision_request`, `cooking_question_request`.
-- `menu.ts:mealPlan, meal, mealVote, mealComment, mealRemoval, menuProposalRequest, mealReplaceRequest` – `meal_plan`, `meal`, `meal_vote`, `meal_comment`, `meal_removal`, `menu_proposal_request`, `meal_replace_request`.
+- `menu.ts:mealPlan, meal, mealVote, mealComment, mealRemoval, menuProposalRequest, mealReplaceRequest, menuReworkRequest` – `meal_plan`, `meal`, `meal_vote`, `meal_comment`, `meal_removal`, `menu_proposal_request`, `meal_replace_request`, `menu_rework_request`.
 - `notifications.ts:pushSubscription, notificationSetting, notificationLog, menuActivity` – `push_subscription`, `notification_setting`, `notification_log`, `menu_activity`.
 - `pantry.ts:pantryItem` – `pantry_item`.
 - `shopping.ts:shoppingList, shoppingItem, shoppingMeal` – `shopping_list`, `shopping_item`, `shopping_meal`.
@@ -30,7 +30,7 @@
 - `food.ts:recipeRevisionRequest` – `num_nonnulls(recipe_id, suggestion_id) = 1`; `decision` е с `CHECK` по стойностите на решението.
 - `requested_by` е nullable (презаписва колоната от `columns.ts`) в `food.ts:recipeRevisionRequest` и `food.ts:cookingQuestionRequest` (kiosk) и в `menu.ts:menuProposalRequest` (cron).
 - `food.ts:recipeSuggestionRequest` – `slots` не е празен (`cardinality > 0`) и е подмножество на позволените слотове. `food.ts:cookingQuestionRequest` – `follows_id` сочи предишния въпрос с `onDelete set null`.
-- Частични уникални индекси `WHERE status = 'pending'`: `recipe_refine_request(recipe_id)`, `cooking_question_request(chain_id)`, `menu_proposal_request(week_start)`, `meal_replace_request(meal_id)` – най-много една чакаща заявка на предмет.
+- Частични уникални индекси `WHERE status = 'pending'`: `recipe_refine_request(recipe_id)`, `cooking_question_request(chain_id)`, `menu_proposal_request(week_start)`, `meal_replace_request(meal_id)`, `menu_rework_request(plan_id)` – най-много една чакаща заявка на предмет.
 - `menu.ts:meal` – уникален `(plan_id, date, slot)`. FK към рецептата е `restrict`: рецепта в план се архивира, не се трие. `meal_plan.week_start` е уникален. `menu.ts:mealRemoval` – PK `meal_id` (най-много едно „Извадих“ на ястие); `comment_id` е `set null`.
 - `menu.ts:menuProposalRequest` – `trigger <> 'user' or requested_by is not null`. `menu.ts:mealComment` – колоната `seq` (identity) разрешава равенства при подреждане по `(meal_id, created_at, seq)`.
 - `pantry.ts:pantryItem` – по един ред на продукт (`ingredient_id` е уникален, FK с `cascade`); `ran_out_at is null or kind = 'staple'`.

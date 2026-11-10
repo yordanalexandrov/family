@@ -29,7 +29,7 @@
 - `acting-user.ts:readWritingUserId` — на kiosk и TV винаги `null`, дори да е останал запис
 - `stored-setting.ts:storedSetting.write` — стойност `unset` маха ключа; при недостъпен localStorage `read` връща `parse(null)`, а `write` само логва
 - `query-client.ts:defaultRetry` — 4xx `ApiError` не се повтаря, иначе най-много един повторен опит
-- `query-client.ts:createQueryClient` — `ApiError.isUnknownActingUser()` от коя да е заявка чисти действащия потребител
+- `query-client.ts:createQueryClient` — `ApiError.isUnknownActingUser()` от коя да е заявка чисти действащия потребител; 409 `menu_reworking` от коя да е мутация инвалидира `menuKeys.weekReworks`, за да се види лентата на преработката
 - `theme.ts:defaultTheme` — без режим или на личен режим подразбирането е `system`, на kiosk/TV `auto`; `auto` ползва `themeForHour` от `@family/shared`
 - `effects.ts:resolveLevel` — без `backdrop-filter` нивото е винаги `lite`; `auto` дава `lite` при `prefers-reduced-motion`
 - `app-update.ts:startAppUpdate` — новата версия е налична само при чакащ worker и съществуващ `controller`; презарежда само след поискано прилагане; сама се прилага при връщане на екрана след >= 5 мин скрит и без незаписана работа (`hasUnsavedWork`)

@@ -4,6 +4,7 @@ import {
   isEmptyMeal,
   isPastMeal,
   MEAL_NOTE_MAX,
+  MENU_REWORKING_MESSAGE,
   type Meal,
   type MealPlan,
   mealOutcome,
@@ -39,6 +40,10 @@ interface MealSheetProps {
   today: DateKey;
   /** Минала седмица: всичко се чете (и разговорът), нищо не се сменя. */
   readOnly?: boolean;
+  /**
+   * AI преработва менюто: гласът, разговорът, ястието, бележката и преместването чакат; готвачът и порциите не.
+   */
+  locked?: boolean;
   /** Действащият потребител, който гласува; без него листът е без гласове. */
   voterId?: string;
   onVote?: (meal: Meal, value: VoteValue | null) => void;
@@ -59,6 +64,7 @@ export function MealSheet({
   users,
   today,
   readOnly = false,
+  locked = false,
   voterId,
   onVote,
   onRecipeRemoved,
@@ -122,6 +128,7 @@ export function MealSheet({
               userId={voterId}
               onVote={(value) => onVote(meal, value)}
               big
+              disabled={locked}
             />
           )}
         </fieldset>
@@ -132,7 +139,7 @@ export function MealSheet({
           weekStart={plan.weekStart}
           users={users}
           userId={voterId}
-          readOnly={past}
+          readOnly={past || locked}
         />
       )}
       {meal.recipeId !== null && (
@@ -154,6 +161,10 @@ export function MealSheet({
           {readOnly
             ? 'Седмицата е минала: менюто се чете, но не се сменя.'
             : 'Денят е минал: ястието и бележката не се сменят.'}
+        </p>
+      ) : locked ? (
+        <p className="sheet__section meal-votes__past">
+          {MENU_REWORKING_MESSAGE}
         </p>
       ) : (
         <>

@@ -148,6 +148,10 @@ describe('refusalErrorOf', () => {
     ['system_line', 'conflict'],
     ['past_meal', 'conflict'],
     ['empty_meal', 'conflict'],
+    ['menu_reworking', 'conflict'],
+    ['replacement_pending', 'conflict'],
+    ['nothing_to_rework', 'conflict'],
+    ['no_rework', 'not_found'],
   ] as const)('answers %s with %s', (code, error) => {
     expect(refusalErrorOf(code)).toBe(error);
   });

@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { SERVER_EVENT_TYPES, serverEventSchema } from './events.js';
 
 describe('serverEventSchema', () => {
-  it('accepts menu.changed, menu.proposal.changed and shopping.changed for a week', () => {
+  it('accepts menu.changed, menu.proposal.changed, menu.rework.changed and shopping.changed for a week', () => {
     for (const type of [
       'menu.changed',
       'menu.proposal.changed',
+      'menu.rework.changed',
       'shopping.changed',
     ]) {
       expect(
@@ -20,8 +21,12 @@ describe('serverEventSchema', () => {
     });
   });
 
-  it('rejects menu.changed and menu.proposal.changed without a week', () => {
-    for (const type of ['menu.changed', 'menu.proposal.changed']) {
+  it('rejects menu.changed, menu.proposal.changed and menu.rework.changed without a week', () => {
+    for (const type of [
+      'menu.changed',
+      'menu.proposal.changed',
+      'menu.rework.changed',
+    ]) {
       expect(serverEventSchema.safeParse({ type }).success).toBe(false);
     }
   });
@@ -50,6 +55,7 @@ describe('SERVER_EVENT_TYPES', () => {
     expect(SERVER_EVENT_TYPES).toEqual([
       'menu.changed',
       'menu.proposal.changed',
+      'menu.rework.changed',
       'shopping.changed',
     ]);
   });

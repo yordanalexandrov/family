@@ -274,6 +274,19 @@ export async function insertPlan(
   return withMeals(db, row);
 }
 
+/** Replaces the summary of the week (a menu rework's) and sets `updated_at` of the plan to `at`. */
+export async function setPlanSummary(
+  db: DbExecutor,
+  id: string,
+  summary: string,
+  at: Date,
+): Promise<void> {
+  await db
+    .update(mealPlan)
+    .set({ summary, updatedAt: at })
+    .where(eq(mealPlan.id, id));
+}
+
 /** `false` when there is no such plan. Its meals go with it (`cascade`). */
 export async function deletePlan(db: DbExecutor, id: string): Promise<boolean> {
   const rows = await db
@@ -373,6 +386,14 @@ export async function deleteVote(
   await db
     .delete(mealVote)
     .where(and(eq(mealVote.mealId, mealId), eq(mealVote.userId, userId)));
+}
+
+/** Drops every vote for a meal. */
+export async function deleteVotes(
+  db: DbExecutor,
+  mealId: string,
+): Promise<void> {
+  await db.delete(mealVote).where(eq(mealVote.mealId, mealId));
 }
 
 /** Drops the votes of everyone but `userId` for a meal. */

@@ -17,6 +17,14 @@ export const serverEventSchema = z.discriminatedUnion('type', [
     weekStart: weekStartSchema,
   }),
   /**
+   * The newest rework of the week's menu (GLOSSARY: Преработка на менюто) changed: it was asked for (`pending`, the
+   * week is locked), or it ended `done` or `failed`. Every device shows or drops „AI преработва менюто…“ by it.
+   */
+  z.object({
+    type: z.literal('menu.rework.changed'),
+    weekStart: weekStartSchema,
+  }),
+  /**
    * The shopping list of the week changed: a check, a hidden row, a manual row, or the menu it is computed from.
    * Without `weekStart` every list changed: the pantry (GLOSSARY: Килер) applies to all weeks.
    */
