@@ -3,8 +3,10 @@ import {
   atHourInSofia,
   type DateKey,
   dateKeyInSofia,
+  type InboxDetail,
   type Meal,
   mealTitle,
+  weekdayName,
 } from '@family/shared';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Db } from '../db/client.js';
@@ -20,10 +22,9 @@ import {
   type ReminderMeal,
 } from '../db/repositories/reminders.js';
 import { listPeople, listUsers } from '../db/repositories/users.js';
-import type { InboxService } from './inbox.js';
+import type { InboxMessage, InboxService } from './inbox.js';
 import type { MenuNotifications } from './menu-notifications.js';
 import { mealUrl, notificationTag } from './notification-links.js';
-import type { PushMessage } from './push.js';
 import {
   THAW_EVENING_HOUR,
   THAW_MORNING_HOUR,
@@ -41,14 +42,17 @@ export interface ReminderState {
   meals: ReminderMeal[];
   /** The ingredient ids of the pantry products „Във фризера“. */
   frozen: string[];
-  /** The people; each gets every reminder in the inbox, and on the phone only with its kind on (`app.inbox.notify`). */
-  users: { id: string }[];
+  /**
+   * The people; each gets every reminder in the inbox, and on the phone only with its kind on (`app.inbox.notify`).
+   * The names say who cooks in the details.
+   */
+  users: { id: string; name: string }[];
   log: NotificationLogEntry[];
 }
 
 /** One reminder to send to one person; once sent it goes to `notification_log` with these `kind`, `subjectId` and `onDate`. */
 export interface DueReminder extends NotificationLogEntry {
-  message: PushMessage;
+  message: InboxMessage;
 }
 
 /** Whether a reminder for `hour` on `date` is due at `now`: from that hour until {@link REMINDER_GRACE_MS} after it. */
@@ -57,17 +61,45 @@ function isDue(now: Date, date: DateKey, hour: number): boolean {
   return late >= 0 && late <= REMINDER_GRACE_MS;
 }
 
-/** The thaw reminder of `meal`, sent on `onDate`. */
+/** The details of „Кой готви довечера“: the dish, with its recipe; none for a dinner with only a note. */
+function cookDetails(
+  recipeId: string | null,
+  title: string | null,
+): InboxDetail[] {
+  return recipeId && title
+    ? [{ text: `Рецепта: ${title}`, url: `/recipes/${recipeId}` }]
+    : [];
+}
+
+/**
+ * The thaw reminder of `meal`. Its details: each product „Във фризера“ (to the pantry), the dinner (to its day in the
+ * menu) and, if it has one, the cook.
+ */
 function thawMessage(
   meal: ReminderMeal,
   products: string[],
   title: string,
-): PushMessage {
+  cook: string | undefined,
+): InboxMessage {
+  const details: InboxDetail[] = [
+    ...products.map((product) => ({
+      text: `Във фризера: ${product}`,
+      url: '/pantry',
+    })),
+    {
+      text: `Вечеря: ${meal.title}, ${weekdayName(meal.date)}`,
+      url: mealUrl(meal),
+    },
+  ];
+  if (cook) {
+    details.push({ text: `Готви: ${cook}` });
+  }
   return {
     title,
     body: `${meal.title}: ${products.join(', ')}`,
     tag: notificationTag.thaw(meal.id),
     url: mealUrl(meal),
+    details,
     actions: [
       {
         action: 'thawed',
@@ -124,7 +156,12 @@ function dueThaw(now: Date, state: ReminderState): DueReminder[] {
           subjectId: meal.id,
           onDate,
           userId: user.id,
-          message: thawMessage(meal, products, title),
+          message: thawMessage(
+            meal,
+            products,
+            title,
+            state.users.find((cook) => cook.id === meal.cookUserId)?.name,
+          ),
         });
       }
     }
@@ -134,7 +171,8 @@ function dueThaw(now: Date, state: ReminderState): DueReminder[] {
 
 /**
  * „Кой готви довечера“ due at `now`, sent or not: at 16:00 on D for the dinner of D with a recipe or a note. With a
- * cook, „Довечера готвиш ти“ to the cook; without, „Кой готви довечера?“ with „Аз“ to everyone.
+ * cook, „Довечера готвиш ти“ to the cook; without, „Кой готви довечера?“ with „Аз“ to everyone. The details give the
+ * dish with its recipe.
  */
 function dueCook(now: Date, state: ReminderState): DueReminder[] {
   const today = dateKeyInSofia(now);
@@ -151,8 +189,9 @@ function dueCook(now: Date, state: ReminderState): DueReminder[] {
       body: title,
       tag: notificationTag.cook(meal.id),
       url: mealUrl(meal),
+      details: cookDetails(meal.recipeId, meal.title),
     };
-    const message: PushMessage = meal.cookUserId
+    const message: InboxMessage = meal.cookUserId
       ? { ...base, title: 'Довечера готвиш ти' }
       : {
           ...base,
@@ -259,6 +298,7 @@ export function createReminders({
           body: mealTitle(meal) ?? '',
           tag: notificationTag.cook(meal.id),
           url: mealUrl(meal),
+          details: cookDetails(meal.recipeId, meal.recipe?.title ?? null),
         });
       }
     },

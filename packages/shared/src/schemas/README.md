@@ -33,7 +33,7 @@ Zod схемите на HTTP API-то (`apps/api`) и на ентитетите,
 - `pantry.ts:pantryKindSchema`, `pantryItemSchema`, `useUpSchema`, `PANTRY_NOTE_MAX`, `createPantryItemSchema`, `updatePantryItemSchema`, `pantryResponseSchema`, `pantryItemResponseSchema`, `alreadyInPantrySchema`, `notStapleSchema` — Килер.
 - `shopping.ts:shoppingItemKindSchema`, `shoppingAmountSchema`, `shoppingItemSourceSchema`, `shoppingItemPantrySchema`, `shoppingItemSchema`, `shoppingListSchema`, `ShoppingItemRecord`, `MANUAL_ITEM_TITLE_MAX`, `createManualItemSchema`, `setCheckedSchema`, `setHiddenSchema`, `shoppingListResponseSchema`, `shoppingItemResponseSchema`, `shoppingListParamsSchema`, `shoppingItemParamsSchema`, `shoppingMealParamsSchema`, `mealWithoutRecipeSchema` — Списък за пазаруване.
 - `notifications.ts:notificationKindSchema`, `pushKindSchema`, `notificationSettingsSchema`, `notificationSettingsBodySchema`, `pushSubscriptionInputSchema`, `pushUnsubscribeSchema`, `vapidKeyResponseSchema`, `pushTestResponseSchema`, `pushPayloadSchema`, `appPathSchema`, `pushDisabledSchema`, `cookTakenSchema` — push известия.
-- `inbox.ts:inboxItemSchema`, `inboxResponseSchema`, `inboxUnreadCountSchema` — Входящата кутия: `GET /api/inbox` и `GET /api/inbox/unread-count`.
+- `inbox.ts:inboxItemSchema`, `inboxDetailSchema`, `inboxResponseSchema`, `inboxUnreadCountSchema` — Входящата кутия: `GET /api/inbox` и `GET /api/inbox/unread-count`.
 - `calendar.ts:calendarColorTokenSchema`, `calendarSourceSchema`, `calendarEventSchema`, `dayEventsSchema`, `calendarEventsResponseSchema`, `calendarEventsQuerySchema`, `CALENDAR_MAX_DAYS` — календарът.
 - `budget.ts:budgetSnapshotSchema` — Бюджетна снимка.
 - `sync.ts:syncSourceSchema`, `freshnessSchema`, `lastRunStatusSchema`, `syncStatusSchema`, `syncRunResultSchema` — свежест на синхронизацията с външни източници.
@@ -57,7 +57,7 @@ Zod схемите на HTTP API-то (`apps/api`) и на ентитетите,
 - `step-photo.ts:STEP_PHOTO_MAX_SIDE` — 1600 px; `STEP_PHOTO_MAX_BYTES` — 10 MiB; `stepPhotoQuerySchema.w` е от 16 до 1600.
 - `calendar.ts:CALENDAR_MAX_DAYS` — 14; `dashboard.ts:dashboardResponseSchema.days` е точно 4.
 - `notifications.ts:pushPayloadSchema` — `url` е път в приложението (никога друг произход), `actions[].post` започва с `/api/`; `pushSubscriptionInputSchema.endpoint` е https адрес.
-- `inbox.ts:inboxItemSchema` — `kind` е вид известие (без `test`), `url` е път в приложението (`appPathSchema`).
+- `inbox.ts:inboxItemSchema` — `kind` е вид известие (без `test`), `url` е път в приложението (`appPathSchema`); `details` е винаги масив (може празен), а `url` на ред от тях е по избор и също път в приложението.
 - `recipe-suggestion.ts:recipeSuggestionStatusSchema` — `proposed`, `approved` или `rejected`; `anyRecipeSuggestionSchema` е discriminated union по `origin` (`suggest` или `import`).
 - `budget.ts:budgetSnapshotSchema.currency` — три главни букви (ISO 4217).
 

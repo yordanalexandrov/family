@@ -1,4 +1,4 @@
-import type { InboxItem, NotificationKind } from '@family/shared';
+import type { InboxDetail, InboxItem, NotificationKind } from '@family/shared';
 import type { Db } from '../db/client.js';
 import {
   countUnreadInboxItems,
@@ -16,6 +16,14 @@ export const INBOX_KEEP_DAYS = 30;
 
 const DAY_MS = 24 * 3_600_000;
 
+/**
+ * What a notification says: the push (`title`, `body`, `url`, `tag`, buttons) and what only the inbox shows — the
+ * `details` under „Още“, none when left out.
+ */
+export interface InboxMessage extends PushMessage {
+  details?: InboxDetail[];
+}
+
 /** What {@link InboxService.notify} answers: the inbox row and how many devices rang. */
 export interface Notified {
   inboxId: string;
@@ -30,12 +38,13 @@ export interface InboxService {
   /**
    * The one way to tell a person something (GLOSSARY: Известие): writes it into their inbox, always, then rings their
    * devices if they have `kind` on. A kind turned off or no device stops only the push. The same `tag` updates the
-   * person's row and makes it unread again. Rejects only when the database does.
+   * person's row (its details too) and makes it unread again. The push never carries the details. Rejects only when
+   * the database does.
    */
   notify(
     userId: string,
     kind: NotificationKind,
-    message: PushMessage,
+    message: InboxMessage,
   ): Promise<Notified>;
   /** The person's notifications, the last updated first. */
   list(userId: string): Promise<InboxItem[]>;
@@ -57,7 +66,7 @@ export function createInboxService({
   now: () => Date;
 }): InboxService {
   return {
-    async notify(userId, kind, message) {
+    async notify(userId, kind, { details = [], ...message }) {
       const inboxId = await upsertInboxItem(
         db,
         {
@@ -67,6 +76,7 @@ export function createInboxService({
           title: message.title,
           body: message.body,
           url: message.url,
+          details,
         },
         now(),
       );

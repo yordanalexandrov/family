@@ -1,4 +1,4 @@
-import type { InboxItem, NotificationKind } from '@family/shared';
+import type { InboxDetail, InboxItem, NotificationKind } from '@family/shared';
 import { and, count, desc, eq, isNull, lt } from 'drizzle-orm';
 import type { DbExecutor } from '../client.js';
 import { inboxItem } from '../schema/notifications.js';
@@ -11,6 +11,7 @@ export interface InboxWrite {
   title: string;
   body: string;
   url: string;
+  details: InboxDetail[];
 }
 
 /**
@@ -53,6 +54,7 @@ export async function listInboxItems(
     title: row.title,
     body: row.body,
     url: row.url,
+    details: row.details,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     unread: row.readAt === null,

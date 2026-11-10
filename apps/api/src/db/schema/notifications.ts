@@ -1,10 +1,16 @@
-import { type NotificationKind, notificationKindSchema } from '@family/shared';
+import {
+  type InboxDetail,
+  type NotificationKind,
+  notificationKindSchema,
+} from '@family/shared';
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -104,7 +110,7 @@ export const menuActivity = pgTable(
  * A person's notification in the inbox (GLOSSARY: Входяща кутия), the source of every notification; push only rings
  * the phone (ADR-0015). One per person and `tag`: the same tag updates the row, `updated_at = now` and unread again
  * (`read_at` null). The cron deletes rows not updated for 30 days. Apart from `notification_log`, which only keeps the
- * cron from sending a reminder twice.
+ * cron from sending a reminder twice. `details` are the lines under „Още“, only in the inbox (`[]` when there are none).
  */
 export const inboxItem = pgTable(
   'inbox_item',
@@ -118,6 +124,10 @@ export const inboxItem = pgTable(
     title: text('title').notNull(),
     body: text('body').notNull(),
     url: text('url').notNull(),
+    details: jsonb('details')
+      .$type<InboxDetail[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
     readAt: timestamp('read_at', { withTimezone: true }),

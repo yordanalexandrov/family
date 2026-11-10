@@ -13,6 +13,7 @@ export function inboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     title: 'Извади месото за утре',
     body: 'Мусака: смесена кайма, свински врат',
     url: '/menu?week=2026-11-02&meal=aaaaaaaa-0000-4000-8000-000000000001',
+    details: [],
     createdAt: '2026-11-04T18:00:00.000Z',
     updatedAt: '2026-11-04T18:00:00.000Z',
     unread: true,

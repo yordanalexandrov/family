@@ -1,6 +1,7 @@
 import {
   cookTakenSchema,
   mealPlanResponseSchema,
+  recipeResponseSchema,
   type ServerEvent,
 } from '@family/shared';
 import type { FastifyInstance } from 'fastify';
@@ -111,6 +112,24 @@ async function patchMeal(id: string, payload: object) {
   expect(response.statusCode).toBe(200);
 }
 
+/** A recipe `title` with one step and no products; answers its id. */
+async function createRecipe(title: string): Promise<string> {
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/recipes',
+    headers: as(DANI.id),
+    payload: {
+      title,
+      servings: 4,
+      steps: [{ text: 'Сготви.' }],
+      tags: ['dinner'],
+      ingredients: [],
+    },
+  });
+  expect(response.statusCode).toBe(201);
+  return recipeResponseSchema.parse(response.json()).recipe.id;
+}
+
 async function cookOf(id: string): Promise<string | null> {
   const response = await app.inject({
     method: 'GET',
@@ -216,6 +235,76 @@ describe('„Кой готви довечера“ through the reminders cron', 
     expect(await inboxOf(app, DANI.id)).toMatchObject([
       { kind: 'cook', title: 'Кой готви довечера?', body: 'Мусака' },
     ]);
+  });
+});
+
+describe('the details of „Кой готви довечера“ in the inbox', () => {
+  let recipeId: string;
+
+  beforeEach(async () => {
+    recipeId = await createRecipe('Пълнени чушки');
+    await patchMeal(mealId, { recipeId });
+  });
+
+  it('give the dish with its recipe to the cook, and none to the push', async () => {
+    await patchMeal(mealId, { cookUserId: POLI.id });
+
+    const delivered = await runAt(AFTERNOON);
+
+    // Poli also has Dani's changes of the menu in the setup.
+    const cook = (await inboxOf(app, POLI.id)).filter(
+      (item) => item.kind === 'cook',
+    );
+    expect(cook).toMatchObject([
+      {
+        title: 'Довечера готвиш ти',
+        details: [
+          { text: 'Рецепта: Пълнени чушки', url: `/recipes/${recipeId}` },
+        ],
+      },
+    ]);
+    expect(delivered[0]?.payload).not.toHaveProperty('details');
+  });
+
+  it('give the dish with its recipe to everyone asked who cooks', async () => {
+    await runAt(AFTERNOON);
+
+    for (const userId of [DANI.id, POLI.id]) {
+      const [cook] = (await inboxOf(app, userId)).filter(
+        (item) => item.kind === 'cook',
+      );
+      expect(cook).toMatchObject({
+        title: 'Кой готви довечера?',
+        details: [
+          { text: 'Рецепта: Пълнени чушки', url: `/recipes/${recipeId}` },
+        ],
+      });
+    }
+  });
+
+  it('stay with the answer that takes the place of the question', async () => {
+    await runAt(AFTERNOON);
+
+    await claim(mealId, DANI.id);
+
+    const [cook] = (await inboxOf(app, POLI.id)).filter(
+      (item) => item.kind === 'cook',
+    );
+    expect(cook).toMatchObject({
+      title: 'Довечера готви Дани',
+      details: [
+        { text: 'Рецепта: Пълнени чушки', url: `/recipes/${recipeId}` },
+      ],
+    });
+  });
+
+  it('are none for a dinner with only a note', async () => {
+    await patchMeal(mealId, { recipeId: null });
+
+    await runAt(AFTERNOON);
+
+    const [cook] = await inboxOf(app, DANI.id);
+    expect(cook).toMatchObject({ body: 'Мусака', details: [] });
   });
 });
 
