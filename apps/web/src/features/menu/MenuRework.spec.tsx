@@ -7,6 +7,7 @@ import { MockEventSource, source } from '../../test/events';
 import {
   dinnerRecipes,
   failedRework,
+  nextWeek,
   pendingRework,
   planFor,
   reworkId,
@@ -301,6 +302,25 @@ describe('MenuWeek: преработка на менюто', () => {
         expect(button).toBeDisabled();
       }
       expect(screen.queryByRole('button', BUTTON)).not.toBeInTheDocument();
+    });
+
+    it('скрива „Изтрий плана“ на седмица, която още не е започнала', async () => {
+      setUpDevice('phone', poli.id);
+      servePlans({
+        [thisWeek]: mixedPlan(),
+        [nextWeek]: planFor(nextWeek, { 0: { ...withRecipe(fish) } }),
+      });
+      serveWeekRework({ ...pendingRework, weekStart: nextWeek });
+      const user = userEvent.setup();
+      renderApp('/menu');
+      await screen.findByRole('list', { name: 'Вечери' });
+
+      await user.click(screen.getByRole('tab', { name: 'Следваща седмица' }));
+
+      expect(await screen.findByText(BANNER)).toBeVisible();
+      expect(
+        screen.queryByRole('button', { name: 'Изтрий плана' }),
+      ).not.toBeInTheDocument();
     });
 
     it('в листа на ястието спира гласа, разговора и смените, а готвачът и порциите остават', async () => {

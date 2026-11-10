@@ -578,7 +578,8 @@ function PlanView({
     setReworking(false);
   }, []);
   const hideRemoved = useCallback(() => setRemoved(null), []);
-  // Докато AI преработва менюто (пуснато от което и да е устройство), съдържанието, гласовете и разговорът са заключени.
+  // Докато AI преработва менюто (пуснато от което и да е устройство), съдържанието, гласовете, разговорът и изтриването
+  // на менюто са заключени.
   const weekRework = useWeekRework(plan.weekStart);
   const locked = weekRework.data?.status === 'pending';
   const mealsId = useId();
@@ -769,7 +770,7 @@ function PlanView({
         <p className="recipes__empty">Няма такива ястия.</p>
       )}
       {plan.summary && <p className="menu__summary">{plan.summary}</p>}
-      {!readOnly && canDelete && <DeletePlan plan={plan} />}
+      {!readOnly && canDelete && !locked && <DeletePlan plan={plan} />}
       {openMeal && !sheetWaits && (
         <MealSheet
           meal={openMeal}
