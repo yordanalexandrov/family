@@ -365,6 +365,35 @@ describe('POST /api/menu/reworks', () => {
     );
   });
 
+  it('shows the agents a line of the AI as the AI’s, not as the one’s who asked for the rework', async () => {
+    const bodies = answerInTurn(JSON.stringify(reworkFixture));
+    const meals = await fixtureWeek();
+    await finished((await rework()).id);
+    const aiLine = {
+      author: 'AI',
+      kind: 'system',
+      body: 'AI смени „Пиле с ориз на фурна“ с „Омлет със спанак и сирене“ при преработката на менюто',
+    };
+
+    // Wednesday is unvoted after the rework: the next one has it to fill.
+    await finished((await rework()).id);
+    const again = JSON.parse(bodies[1]?.messages[0]?.content ?? '');
+    expect(
+      again.days.find((day: { date: string }) => day.date === '2026-11-04')
+        .thread,
+    ).toContainEqual(aiLine);
+
+    const replaced = answerInTurn(JSON.stringify(replaceFixture));
+    const asked = await inject(
+      'POST',
+      `/api/menu/meals/${meals[2]?.id}/replacements`,
+    );
+    expect(asked.statusCode).toBe(202);
+    await waitForReplacement(asked.json().replacement.id);
+    const replaceInput = JSON.parse(replaced[0]?.messages[0]?.content ?? '');
+    expect(replaceInput.thread).toContainEqual(aiLine);
+  });
+
   it('keeps the cook and the servings of a changed day, and takes it off the shopping list', async () => {
     answerInTurn(JSON.stringify(reworkFixture));
     const meals = await fixtureWeek();

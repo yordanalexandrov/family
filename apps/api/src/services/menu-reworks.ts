@@ -22,7 +22,6 @@ import {
   deleteVotes,
   findMeal,
   findPlanByWeek,
-  listComments,
   lockWeek,
   setPlanSummary,
   updateMeal,
@@ -36,7 +35,6 @@ import {
 import { listUseUp } from '../db/repositories/pantry.js';
 import { listMenuRecipes } from '../db/repositories/recipes.js';
 import { deleteShoppingMealsOf } from '../db/repositories/shopping.js';
-import { listUsers } from '../db/repositories/users.js';
 import { menuReworkRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
@@ -44,7 +42,11 @@ import type {
 } from './contract-requests.js';
 import { refuse } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
-import { refuseReworkingWeek, writeSystemLine } from './menu.js';
+import {
+  agentThread,
+  refuseReworkingWeek,
+  writeSystemLine,
+} from './menu.js';
 import type { MenuNotifications } from './menu-notifications.js';
 
 /** Phase 1 plans dinner only (`MENU_SLOTS`). */
@@ -184,9 +186,6 @@ export function createMenuReworkStore(
       }
       // As the request saw them, even when the run starts after midnight: the input is what was asked for.
       const days = classify(plan, new Date(rework.createdAt));
-      const names = new Map(
-        (await listUsers(db)).map((user) => [user.id, user.name]),
-      );
       const inputDays: MenuReworkDay[] = [];
       for (const { meal, status, reason } of days) {
         if (status !== 'fill' || reason === undefined) {
@@ -200,11 +199,7 @@ export function createMenuReworkStore(
           ...fixedDay(meal),
           status: 'fill',
           reason,
-          thread: (await listComments(db, meal.id)).map((line) => ({
-            author: names.get(line.authorUserId) ?? '',
-            body: line.body,
-            kind: line.kind,
-          })),
+          thread: await agentThread(db, meal.id),
         });
       }
       return {

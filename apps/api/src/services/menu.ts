@@ -4,6 +4,7 @@ import {
   dateKeyInSofia,
   daysOfWeek,
   hasWeekStarted,
+  isAiLine,
   isEmptyMeal,
   isPastMeal,
   MENU_PROPOSE_MIN_RECIPES,
@@ -64,7 +65,7 @@ import {
   listMenuRecipes,
 } from '../db/repositories/recipes.js';
 import { deleteShoppingMealsOf } from '../db/repositories/shopping.js';
-import { findUser, listPeople } from '../db/repositories/users.js';
+import { findUser, listPeople, listUsers } from '../db/repositories/users.js';
 import { menuProposalRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
@@ -729,6 +730,29 @@ export async function refuseReworkingWeek(
   if (await hasPendingRework(tx, planId)) {
     throw refuse('menu_reworking', REWORKING);
   }
+}
+
+/** Who wrote a line of the AI (`isAiLine`) in the thread an agent gets. */
+const AI_AUTHOR = 'AI';
+
+/**
+ * The thread of a meal as `meal.replace` and `menu.rework` get it, oldest first, each line by its author's name; a line
+ * of the AI is the AI's, though it is stored on behalf of whoever asked for it.
+ */
+export async function agentThread(
+  db: DbExecutor,
+  mealId: string,
+): Promise<{ author: string; body: string; kind: MealComment['kind'] }[]> {
+  const names = new Map(
+    (await listUsers(db)).map((user) => [user.id, user.name]),
+  );
+  return (await listComments(db, mealId)).map((line) => ({
+    author: isAiLine(line.body)
+      ? AI_AUTHOR
+      : (names.get(line.authorUserId) ?? ''),
+    body: line.body,
+    kind: line.kind,
+  }));
 }
 
 /** 409 `past_meal` for writing to or deleting from the thread of a past meal: it is read, but not written. */

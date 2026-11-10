@@ -19,18 +19,21 @@ import {
   findMeal,
   findPlanByWeek,
   findPlanSummary,
-  listComments,
 } from '../db/repositories/menu.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import { listMenuRecipes } from '../db/repositories/recipes.js';
-import { listUsers } from '../db/repositories/users.js';
 import { mealReplaceRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
   ContractRequestStore,
 } from './contract-requests.js';
 import { ConflictError, NotFoundError, refuse } from './errors.js';
-import { NO_SUCH_MEAL, refusePastMeal, refuseReworkingWeek } from './menu.js';
+import {
+  agentThread,
+  NO_SUCH_MEAL,
+  refusePastMeal,
+  refuseReworkingWeek,
+} from './menu.js';
 
 const MEAL_HAS_PENDING = 'За ястието вече се търси друго';
 const NO_REPLACEMENT = 'Никой не е търсил друго ястие';
@@ -123,9 +126,6 @@ export function createMealReplaceStore(
       if (!meal || !plan) {
         throw new Error('meal of a replacement request vanished');
       }
-      const names = new Map(
-        (await listUsers(db)).map((user) => [user.id, user.name]),
-      );
       return {
         date: meal.date,
         slot: meal.slot,
@@ -134,11 +134,7 @@ export function createMealReplaceStore(
           ...(meal.recipe ? { title: meal.recipe.title } : {}),
           ...(meal.note === null ? {} : { note: meal.note }),
         },
-        thread: (await listComments(db, meal.id)).map((line) => ({
-          author: names.get(line.authorUserId) ?? '',
-          body: line.body,
-          kind: line.kind,
-        })),
+        thread: await agentThread(db, meal.id),
         week: plan.meals.flatMap((other) => {
           const title = mealTitle(other);
           return other.id !== meal.id && title

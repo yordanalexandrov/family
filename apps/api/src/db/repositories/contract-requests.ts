@@ -44,5 +44,5 @@ export async function failPendingContractRequestsBefore(
     .set({ status: 'failed', error, finishedAt: new Date() })
     .where(and(eq(table.status, 'pending'), lt(table.createdAt, cutoff)))
     .returning({ id: table.id });
-  return rows.map((row) => row.id);
+  return rows.map((row) => String(row.id));
 }
