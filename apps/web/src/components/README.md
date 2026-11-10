@@ -15,7 +15,7 @@
 - `NeedsConnection.tsx:useNeedsConnection` — `disabled`, `describedBy` и `hint` „Иска връзка“ за действия без мрежа
 - `SessionExpired.tsx:SessionExpired` — цял екран „Презареди“ за kiosk/TV
 - `Sheet.tsx:Sheet` — модален лист (телефон) или прозорец (широк екран); `closeLabel` сменя „Готово“, `hideClose` маха бутона, `focusRef` избира фокуса
-- `Spinner.tsx:Spinner`, `Toast.tsx:Toast`, `ToastMessage`, `ToastAction`, `TopBar.tsx:TopBar`, `TopBarSync` — индикатор, съобщение с „Върни“/действие, горна лента с дата и точки за синхронизация (kiosk/TV, `sync`) или аватар на действащия човек (телефон, `avatar`)
+- `Spinner.tsx:Spinner`, `Toast.tsx:Toast`, `ToastMessage`, `ToastAction`, `ACTION_DURATION_MS`, `TopBar.tsx:TopBar`, `TopBarSync` — индикатор, съобщение с „Върни“/действие, горна лента с дата и точки за синхронизация (kiosk/TV, `sync`) или аватар на действащия човек (телефон, `avatar`)
 - `sheet-drag.ts:useSheetDrag`, `sheet-drag.ts:SHEET_WINDOW_QUERY` — плъзгане надолу; `(min-width: 48rem)` прави листа прозорец
 - `sheet-history.ts:useSheetHistory`, `sheet-history.ts:afterSheetClosed`, `sheet-history.ts:restoreScrollBetweenScreens` — запис на листа в историята, действие след затварянето му, `scrollRestoration` за router-а
 
