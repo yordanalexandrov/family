@@ -360,9 +360,7 @@ describe('POST /api/menu/reworks', () => {
         date,
         status,
       ]),
-    ).toEqual(
-      reworkInput.days.map(({ date, status }) => [date, status]),
-    );
+    ).toEqual(reworkInput.days.map(({ date, status }) => [date, status]));
   });
 
   it('shows the agents a line of the AI as the AI’s, not as the one’s who asked for the rework', async () => {

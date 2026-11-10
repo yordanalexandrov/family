@@ -33,6 +33,7 @@ import {
   deletePlan,
   deleteRemoval,
   deleteVote,
+  deleteVotes,
   findComment,
   findMeal,
   findMealOn,
@@ -409,30 +410,20 @@ export function createMenuService({
           throw new InvalidReferenceError(NOT_MENU_RECIPE);
         }
         await refuseUnknownUsers(tx, patch);
-        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none. A new
-        // recipe has other products to take out, so „Извадих“ of the old one no longer holds.
+        // The why of a picked `meal.replace` candidate comes with its recipe; a recipe picked by hand has none.
         const { why, ...values } = patch;
-        await updateMeal(
-          tx,
-          id,
-          current.planId,
-          {
-            ...values,
-            ...(recipeChanged ? { why: why ?? null, thawedAt: null } : {}),
-          },
-          now(),
-        );
-        if (contentChanged) {
-          const line = await recordContentChange(
+        if (recipeChanged) {
+          await changeRecipe(
             tx,
             current,
-            actingUserId,
+            { ...values, recipeId: patch.recipeId ?? null, why: why ?? null },
+            { by: 'person', actingUserId },
             now(),
           );
-          if (recipeChanged) {
-            await keepRemoval(tx, current, patch, actingUserId, line, now());
-            // The list was for the old recipe: the meal is added again by hand, also after „Върни“ (ADR-0011).
-            await deleteShoppingMealsOf(tx, id);
+        } else {
+          await updateMeal(tx, id, current.planId, values, now());
+          if (contentChanged) {
+            await recordContentChange(tx, current, actingUserId, now());
           }
         }
         const changed = await reread(tx, id, current.planId);
@@ -817,18 +808,77 @@ export async function recordContentChange(
 }
 
 /**
- * After a changed recipe: „Махни ястието от деня“ (a recipe to none) is kept for its „Върни“ with what it took and the
- * `line` it wrote; any other recipe for the day drops a kept removal.
+ * A new recipe (or none) for a meal and what follows it, in the transaction of the change: its `why` (of a picked
+ * candidate or of the AI, `null` when picked by hand), „Извадих“ no longer holds (other products to take out), a line in
+ * its thread, and the meal leaves the shopping list, which was for the old recipe (it is added again by hand, also
+ * after „Върни“, ADR-0011). The note, the cook and the servings stay unless `values` carries them. Who changed it
+ * decides the rest:
+ * - a person (`recordContentChange`): the others' votes go and they vote up, the line is theirs (`replaced`), and
+ *   „Махни ястието от деня“ (a recipe to none) is kept for its „Върни“ with what it took and the line; any other recipe
+ *   drops a kept removal;
+ * - the AI of a rework (GLOSSARY: Преработка на менюто): every vote goes (the AI does not vote), the line says the AI
+ *   did it (`reworked`) on behalf of who asked, and a kept removal goes.
+ * The caller has refused what it must (a past meal, a recipe outside the registry, a locked week).
+ */
+export async function changeRecipe(
+  tx: DbExecutor,
+  before: Meal,
+  values: Omit<UpdateMeal, 'recipeId' | 'why'> & {
+    recipeId: string | null;
+    why: string | null;
+  },
+  actor: { by: 'person' | 'rework'; actingUserId: string },
+  at: Date,
+): Promise<void> {
+  await updateMeal(
+    tx,
+    before.id,
+    before.planId,
+    { ...values, thawedAt: null },
+    at,
+  );
+  if (actor.by === 'person') {
+    const line = await recordContentChange(tx, before, actor.actingUserId, at);
+    await keepRemoval(
+      tx,
+      before,
+      values.recipeId,
+      actor.actingUserId,
+      line,
+      at,
+    );
+  } else {
+    await deleteVotes(tx, before.id);
+    const after = await findMeal(tx, before.id);
+    await writeSystemLine(
+      tx,
+      before.id,
+      actor.actingUserId,
+      {
+        type: 'reworked',
+        from: mealTitle(before),
+        to: after?.recipe?.title ?? '',
+      },
+      at,
+    );
+    await deleteRemoval(tx, before.id);
+  }
+  await deleteShoppingMealsOf(tx, before.id);
+}
+
+/**
+ * After a person changed the recipe: „Махни ястието от деня“ (a recipe to none) is kept for its „Върни“ with what it
+ * took and the `line` it wrote; any other recipe for the day drops a kept removal.
  */
 async function keepRemoval(
   tx: DbExecutor,
   before: Meal,
-  patch: UpdateMeal,
+  recipeId: string | null,
   actingUserId: string,
   line: MealComment,
   at: Date,
 ): Promise<void> {
-  if (patch.recipeId === null && before.recipeId !== null) {
+  if (recipeId === null && before.recipeId !== null) {
     await saveRemoval(tx, {
       mealId: before.id,
       removedBy: actingUserId,

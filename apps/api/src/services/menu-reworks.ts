@@ -9,7 +9,6 @@ import {
   type MenuReworkInput,
   type MenuReworkOutput,
   type MenuReworkRequest,
-  mealTitle,
   type ReworkDay,
 } from '@family/shared';
 import type { DbExecutor } from '../db/client.js';
@@ -18,13 +17,9 @@ import {
   hasPendingReplacementInPlan,
 } from '../db/repositories/meal-replacements.js';
 import {
-  deleteRemoval,
-  deleteVotes,
-  findMeal,
   findPlanByWeek,
   lockWeek,
   setPlanSummary,
-  updateMeal,
 } from '../db/repositories/menu.js';
 import {
   findLatestRework,
@@ -34,7 +29,6 @@ import {
 } from '../db/repositories/menu-reworks.js';
 import { listUseUp } from '../db/repositories/pantry.js';
 import { listMenuRecipes } from '../db/repositories/recipes.js';
-import { deleteShoppingMealsOf } from '../db/repositories/shopping.js';
 import { menuReworkRequest } from '../db/schema/menu.js';
 import type {
   ContractRequestHandle,
@@ -42,11 +36,7 @@ import type {
 } from './contract-requests.js';
 import { refuse } from './errors.js';
 import { type EventBus, menuAndShoppingChanged } from './events.js';
-import {
-  agentThread,
-  refuseReworkingWeek,
-  writeSystemLine,
-} from './menu.js';
+import { agentThread, changeRecipe, refuseReworkingWeek } from './menu.js';
 import type { MenuNotifications } from './menu-notifications.js';
 
 /** Phase 1 plans dinner only (`MENU_SLOTS`). */
@@ -235,28 +225,13 @@ export function createMenuReworkStore(
         if (meal.recipeId === day.recipeId) {
           continue;
         }
-        await updateMeal(
+        await changeRecipe(
           tx,
-          meal.id,
-          plan.id,
-          { recipeId: day.recipeId, why: day.why, thawedAt: null },
+          meal,
+          { recipeId: day.recipeId, why: day.why },
+          { by: 'rework', actingUserId: rework.requestedBy },
           at,
         );
-        await deleteVotes(tx, meal.id);
-        const after = await findMeal(tx, meal.id);
-        await writeSystemLine(
-          tx,
-          meal.id,
-          rework.requestedBy,
-          {
-            type: 'reworked',
-            from: mealTitle(meal),
-            to: after?.recipe?.title ?? '',
-          },
-          at,
-        );
-        await deleteRemoval(tx, meal.id);
-        await deleteShoppingMealsOf(tx, meal.id);
         await deleteReplacementsOf(tx, meal.id);
         changed += 1;
       }
