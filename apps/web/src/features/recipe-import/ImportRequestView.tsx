@@ -3,11 +3,11 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ErrorBox } from '../../components/ErrorBox';
 import { Spinner } from '../../components/Spinner';
 import { requestErrorFor } from '../../lib/ai-requests';
-import { useObjectUrl } from '../../lib/use-object-url';
 import { sourceDomain } from '../recipes/format';
+import { SourcePhotoThumbnails } from '../recipes/RecipeSource';
 import { Decided, ReviewSuggestion } from '../suggestions/SuggestionReview';
 import { importFailureMessage, textLead } from './messages';
-import { useImport, useRequestImport, useSentPhoto } from './queries';
+import { useImport, useRequestImport } from './queries';
 import '../recipes/recipes.css';
 import '../suggestions/suggestions.css';
 
@@ -36,14 +36,6 @@ export function ImportRequestView() {
       )}
     </main>
   );
-}
-
-/** Снимката на внасяне от снимка, ако още е в паметта на страницата; иначе `undefined`. */
-function useImportPhoto(
-  request: RecipeImportDetail['request'],
-): Blob | undefined {
-  const sent = useSentPhoto(request.id);
-  return request.source === 'photo' ? sent : undefined;
 }
 
 function ImportResult({ detail }: { detail: RecipeImportDetail }) {
@@ -88,24 +80,17 @@ function ImportResult({ detail }: { detail: RecipeImportDetail }) {
 }
 
 /**
- * Какво се внася, под изчакването и грешката: първите 2 реда на текста, домейнът на линка или миниатюрата на снимката
- * (ако още е в паметта; иначе само „Снимка“).
+ * Какво се внася, под изчакването и грешката: първите 2 реда на текста, домейнът на линка или миниатюрите на
+ * записаните снимки (`detail.photos`, затова и след презареждане).
  */
 function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
-  const { request, text } = detail;
-  const photoUrl = useObjectUrl(useImportPhoto(request));
+  const { request, text, photos = [] } = detail;
   if (request.source === 'photo') {
     return (
-      <p className="suggestions__searched">
-        Снимка
-        {photoUrl && (
-          <img
-            className="suggestions__searched-photo"
-            src={photoUrl}
-            alt="Внасяната снимка"
-          />
-        )}
-      </p>
+      <div className="suggestions__searched suggestions__searched--photos">
+        <p>Снимка</p>
+        {photos.length > 0 && <SourcePhotoThumbnails photos={photos} />}
+      </div>
     );
   }
   const subject =

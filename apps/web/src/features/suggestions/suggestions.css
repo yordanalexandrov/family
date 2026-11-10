@@ -134,13 +134,15 @@
   white-space: nowrap;
 }
 
-.suggestions__searched-photo {
-  display: block;
-  max-inline-size: 6rem;
-  max-block-size: 6rem;
-  margin-block-start: var(--space-2);
-  border-radius: var(--radius-sm);
-  object-fit: cover;
+/* Внасяне от снимка: „Снимка“ и под него миниатюрите на записаните снимки. */
+.suggestions__searched--photos {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.suggestions__searched--photos > p {
+  margin: 0;
 }
 
 .suggestion-cards {

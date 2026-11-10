@@ -15,8 +15,6 @@ export const importKeys = {
   all: ['recipe-imports'] as const,
   recent: ['recipe-imports', 'recent'] as const,
   request: (id: string) => ['recipe-imports', 'request', id] as const,
-  /** Не е под `all`: invalidate на внасянията не бива да изтрие снимката (няма от къде да се вземе наново). */
-  photo: (id: string) => ['recipe-import-photo', id] as const,
 };
 
 /** Последните внасяния, най-новите първи. */
@@ -58,20 +56,6 @@ function importBody(params: ImportRequestParams): RequestInit {
   };
 }
 
-/**
- * Първата снимка на внасяне от снимка, пуснато от този прозорец: за миниатюрата под изчакването и грешката. Само в
- * кеша на заявките (api-то не пази снимката), затова след презареждане я няма (`null`).
- */
-export function useSentPhoto(id: string): Blob | undefined {
-  const photo = useQuery({
-    queryKey: importKeys.photo(id),
-    queryFn: () => null as Blob | null,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
-  });
-  return photo.data ?? undefined;
-}
-
 /** Ново внасяне → `202` с `pending`; работата тече във фона на api. */
 export function useRequestImport() {
   const queryClient = useQueryClient();
@@ -83,20 +67,17 @@ export function useRequestImport() {
         importBody(params),
       ).then((body) => body.request),
     onSuccess(request, params) {
-      if (params.kind === 'photo' && params.photos[0]) {
-        queryClient.setQueryData(
-          importKeys.photo(request.id),
-          params.photos[0],
+      // Снимките (`photos`) идват само от GET: без тях не се попълва, а GET тръгва веднага.
+      if (params.kind !== 'photo') {
+        queryClient.setQueryData<RecipeImportDetail>(
+          importKeys.request(request.id),
+          {
+            request,
+            ...(params.kind === 'text' ? { text: params.text } : {}),
+            ingredients: [],
+          },
         );
       }
-      queryClient.setQueryData<RecipeImportDetail>(
-        importKeys.request(request.id),
-        {
-          request,
-          ...(params.kind === 'text' ? { text: params.text } : {}),
-          ingredients: [],
-        },
-      );
       void queryClient.invalidateQueries({ queryKey: importKeys.recent });
     },
   });

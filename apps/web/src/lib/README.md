@@ -13,7 +13,7 @@
 - `sync-notes.ts:syncNotes`, `sync-notes.ts:SYSTEM_NAMES` — надписите `unconfigured`/`stale` на карта
 - `use-offline-cached-query.ts:useOfflineCachedQuery`, `OfflineCachedData` — обвива резултат на React Query с офлайн кеша (`pending`/`error`/`ok`/`offline`); третият параметър `usable` филтрира записаното (`null` — нищо за показване)
 - `use-online.ts:useOnline`, `use-online.ts:NEEDS_CONNECTION` — има ли връзка и надписът „Иска връзка“
-- `use-now.ts:useNow`, `use-media-query.ts:useMediaQuery`, `use-object-url.ts:useObjectUrl`, `use-hash-target.ts:useKeepHashTargetInView` — време, медийна заявка, object URL, котва от адреса
+- `use-now.ts:useNow`, `use-media-query.ts:useMediaQuery`, `use-hash-target.ts:useKeepHashTargetInView` — време, медийна заявка, котва от адреса
 
 ## Invariants
 - `cooking-record.ts:readStored` — записът важи само за днешния ден по `dateKeyInSofia`; друг ден или повредени данни дават празен запис
@@ -27,7 +27,6 @@
 - `format.ts:formatQuantity` — `pinch` дава само думата за щипка; `quantity === null` дава празен низ
 - `sync-notes.ts:staleNote` — жълт надпис само при `stale` или `failed`
 - `use-hash-target.ts:useKeepHashTargetInView` — държи котвата най-много 2000 ms (`HOLD_MS`) и спира при действие на човека
-- `use-object-url.ts:useObjectUrl` — всеки URL се освобождава при смяна или размонтиране
 
 ## Side Effects
 - `cooking-record.ts:updateCookingRecord`, `cooking-record.ts:readStored` — localStorage ключ `family.cooking.progress`; `logger.warn` при грешка
@@ -36,7 +35,6 @@
 - `use-hash-target.ts:useKeepHashTargetInView` — `window.scrollTo`, `ResizeObserver`, `setTimeout`, слушатели `wheel`/`touchstart`/`pointerdown`/`keydown`
 - `use-media-query.ts:useMediaQuery` — `matchMedia` със слушател `change`
 - `use-now.ts:useNow` — `setInterval`
-- `use-object-url.ts:useObjectUrl` — `URL.createObjectURL`/`URL.revokeObjectURL`
 - `use-online.ts:useOnline` — `navigator.onLine` и слушатели `online`/`offline`
 
 ## Verification

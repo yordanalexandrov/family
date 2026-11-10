@@ -1,4 +1,8 @@
-import type { RecipeImportDetail, RecipeImportRequest } from '@family/shared';
+import {
+  type RecipeImportDetail,
+  type RecipeImportRequest,
+  sourcePhotoUrl,
+} from '@family/shared';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
@@ -35,6 +39,7 @@ function servePhotoImport() {
     http.get(`/api/recipe-imports/${importId}`, () =>
       HttpResponse.json({
         request: photoImport,
+        photos: sourcePhotoIds.slice(0, 1),
         ingredients: [],
       } satisfies RecipeImportDetail),
     ),
@@ -105,8 +110,8 @@ describe('Внеси рецепта → таб „Снимка“', () => {
 
     expect(await screen.findByText(WAITING)).toBeInTheDocument();
     expect(
-      screen.getByRole('img', { name: 'Внасяната снимка' }),
-    ).toHaveAttribute('src', 'blob:preview');
+      await screen.findByRole('img', { name: 'Снимка 1 на източника' }),
+    ).toHaveAttribute('src', sourcePhotoUrl(sourcePhotoIds[0] ?? '', 240));
     expect(api.forms).toEqual([
       {
         url: expect.stringMatching(/\/api\/recipe-imports$/),
@@ -122,6 +127,29 @@ describe('Внеси рецепта → таб „Снимка“', () => {
         ],
       },
     ]);
+  });
+
+  it('под изчакването са миниатюрите на записаните снимки, и след презареждане', async () => {
+    setUpDevice('phone', dani.id);
+    server.use(
+      http.get(`/api/recipe-imports/${importId}`, () =>
+        HttpResponse.json({
+          request: photoImport,
+          photos: sourcePhotoIds,
+          ingredients: [],
+        } satisfies RecipeImportDetail),
+      ),
+    );
+
+    renderApp(`/recipes/import/${importId}`);
+
+    expect(await screen.findByText(WAITING)).toBeInTheDocument();
+    const thumbnails = await screen.findAllByRole('img', {
+      name: /^Снимка \d на източника$/,
+    });
+    expect(thumbnails.map((img) => img.getAttribute('src'))).toEqual(
+      sourcePhotoIds.map((id) => sourcePhotoUrl(id, 240)),
+    );
   });
 
   it('дълъг скрийншот се реже на части: всички се показват и „Внеси“ ги праща поред в полето photo', async () => {
