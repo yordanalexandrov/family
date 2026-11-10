@@ -75,6 +75,13 @@ export const recipe = pgTable(
     servings: integer('servings').notNull(),
     steps: jsonb('steps').$type<RecipeStep[]>().notNull(),
     sourceUrl: text('source_url'),
+    /**
+     * GLOSSARY: Източник на рецепта. The pasted text of the approved import, copied by the api; never written from a
+     * client, only removed. `null` for a recipe from a link, a photo or by hand.
+     */
+    sourceText: text('source_text'),
+    /** GLOSSARY: Източник на рецепта. The ids of its photos (ADR-0016), in order; `{}` without them. */
+    sourcePhotos: uuid('source_photos').array().notNull().default(sql`'{}'`),
     prepMinutes: integer('prep_minutes'),
     tags: text('tags').array().$type<Tag[]>().notNull().default(sql`'{}'`),
     nutritionPer100g: jsonb('nutrition_per_100g').$type<Nutrition>(),

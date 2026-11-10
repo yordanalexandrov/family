@@ -46,13 +46,17 @@ export function createRecipe(db: Db, input: RecipeInput): Promise<Recipe> {
   return db.transaction((tx) => addRecipe(tx, input));
 }
 
-/** `createRecipe` inside a transaction the caller owns (e.g. approving a suggestion). */
+/**
+ * `createRecipe` inside a transaction the caller owns (e.g. approving a suggestion); `sourceText` is the pasted text of
+ * the approved import (GLOSSARY: Източник на рецепта).
+ */
 export async function addRecipe(
   tx: DbExecutor,
   input: RecipeInput,
+  sourceText: string | null = null,
 ): Promise<Recipe> {
   await checkReferencesExist(tx, input);
-  const id = await insertRecipe(tx, input);
+  const id = await insertRecipe(tx, input, sourceText);
   await replaceRecipeLines(tx, id, input);
   return getRecipe(tx, id);
 }

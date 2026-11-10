@@ -126,6 +126,8 @@ describe('POST /api/recipes', () => {
             ingredient: salt,
           },
         ],
+        sourceText: null,
+        sourcePhotos: [],
         archivedAt: null,
         rating: null,
         createdAt: expect.any(String),
@@ -815,6 +817,31 @@ describe('PUT /api/recipes/:id', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: 'invalid_reference' });
     expect((await getRecipe(created.id)).json()).toEqual({ recipe: created });
+  });
+
+  it('answers 400 validation_error for a new source text or new source photos (GLOSSARY: Източник на рецепта)', async () => {
+    const created = await createdRecipe(recipeInput());
+
+    for (const source of [
+      { sourceText: 'Печени картофи…' },
+      { sourcePhotos: ['77777777-7777-4777-8777-777777777777'] },
+    ]) {
+      const replaced = await app.inject({
+        method: 'PUT',
+        url: `/api/recipes/${created.id}`,
+        headers,
+        payload: recipeInput(source as object),
+      });
+      expect(replaced.statusCode).toBe(400);
+      expect(replaced.json()).toMatchObject({ error: 'validation_error' });
+      expect(
+        (await createRecipe(recipeInput(source as object))).statusCode,
+      ).toBe(400);
+    }
+    expect((await getRecipe(created.id)).json().recipe).toMatchObject({
+      sourceText: null,
+      sourcePhotos: [],
+    });
   });
 
   it('answers 404 not_found for an unknown id', async () => {

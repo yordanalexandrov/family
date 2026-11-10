@@ -21,6 +21,7 @@ SQL миграциите на базата (41 файла, `0000_users.sql` … 
   - `0025_recipe_step_object.sql` – стъпката става обект `{ text, photoId }`.
   - `0030_cooking_question_follows.sql` – `chain_id` = `id`.
   - `0033_shopping_meal_listed.sql` – ястията на минали седмици влизат в списъка им.
+  - `0047_recipe_source.sql` – колоните на източника на рецептата (`source_text`, `source_photos`); рецептите, одобрени от текстово внасяне, получават текста му. `ADD COLUMN IF NOT EXISTS`, за да я пусне spec-ът отново.
 
 ## Invariants
 

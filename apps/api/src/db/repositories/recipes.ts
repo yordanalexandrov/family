@@ -66,6 +66,8 @@ function toRecipe(
     preparation: row.preparation,
     components,
     ingredients,
+    sourceText: row.sourceText,
+    sourcePhotos: row.sourcePhotos,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     rating: row.rating,
     createdAt: row.createdAt.toISOString(),
@@ -74,9 +76,14 @@ function toRecipe(
   };
 }
 
-/** The recipe columns that come from `RecipeInput`; the ingredient lines live in `recipe_ingredient`. */
+/**
+ * The recipe columns that come from `RecipeInput`; the ingredient lines live in `recipe_ingredient`. The source (GLOSSARY:
+ * Източник на рецепта) only when the input removes it: left out, the columns keep what they have.
+ */
 function recipeValues(input: RecipeInput) {
   return {
+    ...(input.sourceText === undefined ? {} : { sourceText: null }),
+    ...(input.sourcePhotos === undefined ? {} : { sourcePhotos: [] }),
     title: input.title,
     servings: input.servings,
     steps: input.steps,
@@ -218,14 +225,15 @@ export async function listRecipes(
   }));
 }
 
-/** Inserts the recipe row only; returns its id. */
+/** Inserts the recipe row only, with the pasted text of the import it came from, if any; returns its id. */
 export async function insertRecipe(
   db: DbExecutor,
   input: RecipeInput,
+  sourceText: string | null = null,
 ): Promise<string> {
   const [row] = await db
     .insert(recipe)
-    .values(recipeValues(input))
+    .values({ ...recipeValues(input), sourceText })
     .returning({ id: recipe.id });
   if (!row) {
     throw new Error('insert into recipe returned no row');

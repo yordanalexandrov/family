@@ -76,6 +76,13 @@ export const recipeInputFieldsSchema = z.object({
   servings: z.int().min(1),
   steps: z.array(recipeStepSchema).min(1),
   sourceUrl: z.url().optional(),
+  /**
+   * GLOSSARY: Източник на рецепта. Only its removal: `null` drops the pasted text. The api writes the text itself when an
+   * import is approved; a client never sends one. Left out, the recipe keeps its text.
+   */
+  sourceText: z.null().optional(),
+  /** GLOSSARY: Източник на рецепта. Only its removal: `[]` drops the photos. Left out, the recipe keeps them. */
+  sourcePhotos: z.tuple([]).optional(),
   prepMinutes: z.int().positive().optional(),
   tags: z.array(tagSchema),
   nutritionPer100g: nutritionSchema.optional(),
@@ -154,6 +161,10 @@ export type OpenRevision = z.infer<typeof openRevisionSchema>;
  */
 export const recipeSchema = recipeInputFieldsSchema.extend({
   ingredients: z.array(recipeLineSchema),
+  /** GLOSSARY: Източник на рецепта. The pasted text of the import the recipe came from; `null` without one. */
+  sourceText: z.string().nullable(),
+  /** GLOSSARY: Източник на рецепта. The ids of its photos, in order; `[]` without them. */
+  sourcePhotos: z.array(z.uuid()),
   id: z.uuid(),
   archivedAt: z.iso.datetime().nullable(),
   rating: ratingSchema.nullable(),

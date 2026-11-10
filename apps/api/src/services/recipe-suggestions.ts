@@ -15,6 +15,7 @@ import type { Db, DbExecutor } from '../db/client.js';
 import { listEnabledApplianceNames } from '../db/repositories/appliances.js';
 import { listIngredientNames } from '../db/repositories/ingredients.js';
 import { findMeal } from '../db/repositories/menu.js';
+import { findImportSource } from '../db/repositories/recipe-imports.js';
 import {
   decideSuggestion,
   findSuggestionRequest,
@@ -40,6 +41,15 @@ import { agentThread, NO_SUCH_MEAL } from './menu.js';
 import { acceptSuggestionRevision } from './recipe-revisions.js';
 import { addRecipe } from './recipes.js';
 import { stepPhotoIds } from './step-photos.js';
+
+/** The pasted text of an import (GLOSSARY: Източник на рецепта); `null` for a link or a photo. */
+async function importedText(
+  db: DbExecutor,
+  importRequestId: string,
+): Promise<string | null> {
+  const source = await findImportSource(db, importRequestId);
+  return source.kind === 'text' ? source.text : null;
+}
 
 const NO_SUCH_REQUEST = 'Няма такава заявка за предложения';
 const NO_SUCH_SUGGESTION = 'Няма такова предложение';
@@ -237,10 +247,13 @@ export function createRecipeSuggestionsService({
         if (revisionId !== undefined) {
           await acceptSuggestionRevision(tx, revisionId, id, actingUserId);
         }
-        const recipe = await addRecipe(tx, {
-          ...rest,
-          ...(appliance === null ? {} : { appliance }),
-        });
+        const recipe = await addRecipe(
+          tx,
+          { ...rest, ...(appliance === null ? {} : { appliance }) },
+          proposed.origin === 'import'
+            ? await importedText(tx, proposed.importRequestId)
+            : null,
+        );
         const suggestion = await decideSuggestion(tx, id, {
           status: 'approved',
           recipeId: recipe.id,

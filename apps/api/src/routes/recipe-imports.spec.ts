@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import {
   approvedSuggestionResponseSchema,
   type ImportedSuggestion,
+  type Recipe,
   type RecipeImportDetail,
   type RecipeImportRequest,
   type RecipeInputBody,
@@ -19,6 +20,7 @@ import { HttpResponse, http } from 'msw';
 import sharp from 'sharp';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { buildTestApp } from '../test/app.js';
+import { rerunMigration, testDb } from '../test/db.js';
 import {
   CHAT_COMPLETIONS_URL,
   completion,
@@ -1391,6 +1393,142 @@ describe('deciding an imported suggestion', () => {
     expect(
       payload.ingredients.map((line: { component: unknown }) => line.component),
     ).toEqual(payload.ingredients.map(() => null));
+  });
+
+  /** The recipe of an approved text import (with its link), as `GET /api/recipes/:id` reads it. */
+  async function approvedRecipe() {
+    const suggestion = await aSuggestion();
+    const response = await decide(
+      suggestion.id,
+      'approve',
+      editedInput(suggestion),
+    );
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    return recipe;
+  }
+
+  function getRecipe(id: string) {
+    return app.inject({ method: 'GET', url: `/api/recipes/${id}`, headers });
+  }
+
+  function putRecipe(id: string, payload: object) {
+    return app.inject({
+      method: 'PUT',
+      url: `/api/recipes/${id}`,
+      headers,
+      payload,
+    });
+  }
+
+  /** The recipe as the edit form sends it back: its fields of `RecipeInput`, without the source. */
+  function edited(recipe: Recipe, overrides: object = {}) {
+    const { title, servings, steps, sourceUrl, tags, preparation } = recipe;
+    return {
+      title,
+      servings,
+      steps,
+      sourceUrl,
+      tags,
+      preparation,
+      ingredients: recipe.ingredients.map(
+        ({ ingredientId, quantity, unit }) => ({
+          ingredientId,
+          quantity,
+          unit,
+        }),
+      ),
+      ...overrides,
+    };
+  }
+
+  it('approval of a text import keeps the pasted text as the source of the recipe (GLOSSARY: Източник на рецепта), and its link', async () => {
+    const suggestion = await aSuggestion();
+
+    // A client that sends a source of its own changes nothing: the api copies the import's.
+    const response = await decide(suggestion.id, 'approve', {
+      ...editedInput(suggestion),
+      sourceText: 'друг текст',
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe).toMatchObject({
+      sourceText: BLOG_TEXT,
+      sourceUrl: 'https://blog.example/pile-s-oriz',
+      sourcePhotos: [],
+    });
+    expect((await getRecipe(recipe.id)).json().recipe).toMatchObject({
+      sourceText: BLOG_TEXT,
+      sourceUrl: 'https://blog.example/pile-s-oriz',
+    });
+  });
+
+  it('an edit without the source keeps it, and sourceText: null with sourcePhotos: [] removes it', async () => {
+    const recipe = await approvedRecipe();
+
+    const kept = await putRecipe(recipe.id, edited(recipe, { title: 'Пиле' }));
+
+    expect(kept.statusCode).toBe(200);
+    expect(kept.json().recipe).toMatchObject({
+      title: 'Пиле',
+      sourceText: BLOG_TEXT,
+    });
+
+    const removed = await putRecipe(
+      recipe.id,
+      edited(recipe, { sourceText: null, sourcePhotos: [] }),
+    );
+
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().recipe).toMatchObject({
+      sourceText: null,
+      sourcePhotos: [],
+      sourceUrl: 'https://blog.example/pile-s-oriz',
+    });
+    expect((await getRecipe(recipe.id)).json().recipe.sourceText).toBeNull();
+  });
+
+  it('a new source text for the recipe is 400 and keeps the one it has', async () => {
+    const recipe = await approvedRecipe();
+
+    const response = await putRecipe(
+      recipe.id,
+      edited(recipe, { sourceText: 'друг текст' }),
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect((await getRecipe(recipe.id)).json().recipe.sourceText).toBe(
+      BLOG_TEXT,
+    );
+  });
+
+  it('the migration gives a recipe approved from a text import its text, and none to one from a link or entered by hand', async () => {
+    const fromText = await approvedRecipe();
+    const fromLink = await approvedRecipe();
+    const byHand = await app.inject({
+      method: 'POST',
+      url: '/api/recipes',
+      headers,
+      payload: edited(fromText, { title: 'Омлет' }),
+    });
+    expect(byHand.statusCode).toBe(201);
+    // Back to how the rows were before the column: no source text, and the second import made from a link.
+    await app.db.execute(sql`update recipe set source_text = null`);
+    await app.db.execute(
+      sql`update recipe_import_request set source = 'url', text = null
+        where id = (select import_request_id from recipe_suggestion where recipe_id = ${fromLink.id})`,
+    );
+
+    await rerunMigration(testDb(), '_recipe_source');
+
+    expect((await getRecipe(fromText.id)).json().recipe.sourceText).toBe(
+      BLOG_TEXT,
+    );
+    expect((await getRecipe(fromLink.id)).json().recipe.sourceText).toBeNull();
+    expect(
+      (await getRecipe(byHand.json().recipe.id)).json().recipe,
+    ).toMatchObject({ sourceText: null, sourcePhotos: [] });
   });
 
   it('rejection marks it rejected', async () => {
