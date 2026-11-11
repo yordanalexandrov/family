@@ -14,7 +14,7 @@ HTTP повърхността на API-то: по един Fastify плъгин 
 - `ingredients.ts:ingredientsRoutes` – `GET /api/ingredients`, `POST /api/ingredients`, `PATCH /api/ingredients/:id`.
 - `recipes.ts:recipesRoutes` – `GET /api/recipes`, `GET /api/recipes/:id`, `POST /api/recipes`, `PUT /api/recipes/:id`, `POST /api/recipes/:id/archive`, `POST /api/recipes/:id/unarchive`, `PUT /api/recipes/:id/rating`, `DELETE /api/recipes/:id/rating`.
 - `recipe-suggestions.ts:recipeSuggestionsRoutes` – `POST|GET /api/recipe-suggestions/requests`, `GET /api/recipe-suggestions/requests/:id`, `POST /api/recipe-suggestions/:id/approve|reject|restore`.
-- `recipe-imports.ts:recipeImportsRoutes` – `POST /api/recipe-imports` (JSON или multipart с 1–8 снимки в полето `photo`), `GET /api/recipe-imports`, `GET /api/recipe-imports/:id`.
+- `recipe-imports.ts:recipeImportsRoutes` – `POST /api/recipe-imports` (JSON: текст, линк или id-тата на записани снимки; или multipart с 1–8 нови снимки в полето `photo`), `GET /api/recipe-imports`, `GET /api/recipe-imports/:id`.
 - `recipe-refinements.ts:recipeRefinementsRoutes` – `POST /api/recipes/:id/refinements`, `GET /api/recipes/refinements/:id`.
 - `recipe-revisions.ts:recipeRevisionsRoutes` – `POST /api/recipes/:id/revisions`, `POST /api/recipe-suggestions/:id/revisions`, `GET /api/recipes/revisions/:id`, `POST /api/recipes/revisions/:id/reject`.
 - `cooking-questions.ts:cookingQuestionsRoutes` – `POST /api/recipes/:id/questions`, `GET /api/recipes/questions/:id`.

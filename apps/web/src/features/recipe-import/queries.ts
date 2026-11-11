@@ -30,19 +30,22 @@ export function useRecentImports() {
 }
 
 /**
- * Внасяне от снимка: файлът, вече смален (`resizePhoto`) — една снимка или частите на дълъг скрийншот отгоре надолу;
- * отива като `multipart/form-data`, не като JSON.
+ * Внасяне от нова снимка: файлът, вече смален (`resizePhoto`) — една снимка или частите на дълъг скрийншот отгоре
+ * надолу; отива като `multipart/form-data`, не като JSON. Записаните снимки на внасяне (по id) са `kind: 'photo'`.
  */
 export interface PhotoImport {
-  kind: 'photo';
+  kind: 'upload';
   photos: Blob[];
 }
 
 export type ImportRequestParams = RecipeImportParams | PhotoImport;
 
-/** Текст и линк като JSON; снимка като формуляр с файл за всяка част в полето `photo` (браузърът слага boundary-то). */
+/**
+ * Текст, линк и записаните снимки като JSON; нова снимка като формуляр с файл за всяка част в полето `photo`
+ * (браузърът слага boundary-то).
+ */
 function importBody(params: ImportRequestParams): RequestInit {
-  if (params.kind === 'photo') {
+  if (params.kind === 'upload') {
     const form = new FormData();
     for (const photo of params.photos) {
       form.append('photo', photo, 'photo.jpg');
@@ -67,13 +70,14 @@ export function useRequestImport() {
         importBody(params),
       ).then((body) => body.request),
     onSuccess(request, params) {
-      // Снимките (`photos`) идват само от GET: без тях не се попълва, а GET тръгва веднага.
-      if (params.kind !== 'photo') {
+      // Id-тата на новите снимки идват само от GET: без тях не се попълва, а GET тръгва веднага.
+      if (params.kind !== 'upload') {
         queryClient.setQueryData<RecipeImportDetail>(
           importKeys.request(request.id),
           {
             request,
             ...(params.kind === 'text' ? { text: params.text } : {}),
+            ...(params.kind === 'photo' ? { photos: params.photos } : {}),
             ingredients: [],
           },
         );

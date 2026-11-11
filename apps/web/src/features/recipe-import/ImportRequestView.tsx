@@ -88,7 +88,7 @@ function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
   if (request.source === 'photo') {
     return (
       <div className="suggestions__searched suggestions__searched--photos">
-        <p>Снимка</p>
+        <p>{photos.length > 1 ? 'Снимки' : 'Снимка'}</p>
         {photos.length > 0 && <SourcePhotoThumbnails photos={photos} />}
       </div>
     );
@@ -102,11 +102,18 @@ function ImportSubject({ detail }: { detail: RecipeImportDetail }) {
   return subject ? <p className="suggestions__searched">{subject}</p> : null;
 }
 
-/** Същото внасяне наново: същият текст или същият линк; `undefined`, ако няма какво да се повтори. */
+/**
+ * Същото внасяне наново: същият текст, същият линк или същите записани снимки (по реда им, без ново качване);
+ * `undefined`, ако няма какво да се повтори.
+ */
 function retryParams({
   request,
   text,
+  photos = [],
 }: RecipeImportDetail): RecipeImportParams | undefined {
+  if (request.source === 'photo') {
+    return photos.length > 0 ? { kind: 'photo', photos } : undefined;
+  }
   if (text !== undefined) {
     return { kind: 'text', text, ...(request.url ? { url: request.url } : {}) };
   }
@@ -117,9 +124,9 @@ function retryParams({
 }
 
 /**
- * Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст или линк.
- * Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам. Ново внасяне по
- * вече записаните снимки няма, затова при снимка вместо „Опитай пак“ е „Нова снимка“ (табът „Снимка“).
+ * Съобщение по кода (при `no_results` причината на агента) и „Опитай пак“: ново внасяне на същия текст, линк или
+ * записаните снимки. Страница, която не се прочете, води към таба „Текст“ с пренесен линк: човекът поставя текста сам.
+ * При снимка има и „Нова снимка“ (табът „Снимка“).
  */
 function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
   const retry = useRequestImport();
@@ -150,7 +157,7 @@ function ImportFailed({ detail }: { detail: RecipeImportDetail }) {
         {request.source === 'photo' && (
           <button
             type="button"
-            className="button"
+            className={again ? 'button button--quiet' : 'button'}
             onClick={() =>
               void navigate({
                 to: '/recipes/import',

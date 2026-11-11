@@ -85,7 +85,7 @@ function selectRequests(db: DbExecutor) {
  */
 export async function insertImportRequest(
   db: DbExecutor,
-  params: RecipeImportParams | { kind: 'photo'; photos: string[] },
+  params: RecipeImportParams,
   requestedBy: string,
 ): Promise<RecipeImportRequest> {
   const [row] = await db
@@ -144,9 +144,8 @@ export async function setImportNoResults(
 
 /** What an import kept of its source: the pasted text (and its link), the link to fetch, or the ids of its photos. */
 export type ImportSource =
-  | { kind: 'text'; text: string; url?: string }
-  | { kind: 'url'; url: string }
-  | { kind: 'photo'; photos: string[] };
+  | Extract<RecipeImportParams, { kind: 'text' | 'photo' }>
+  | { kind: 'url'; url: string };
 
 export async function findImportSource(
   db: DbExecutor,

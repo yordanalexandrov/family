@@ -574,6 +574,49 @@ describe('an import by photo', () => {
     expect(imagesOf(calls.bodies[0]?.messages[0])).toEqual(stored.map(dataUrl));
   });
 
+  it('imports the stored photos of a failed import again by their ids: the agent gets the same JPEGs in their order', async () => {
+    const calls = answerInTurn(withForeignId, withForeignId, normalizeAnswer);
+    const parts = await Promise.all([311, 312, 313].map((w) => pictureOf(w)));
+    const failed = await finished((await postPhotos(parts)).json().request);
+    expect(failed.request).toMatchObject({
+      status: 'failed',
+      error: 'invalid_output',
+    });
+    const photos = failed.photos ?? [];
+    const sent = (await Promise.all(photos.map(sourcePhoto))).map(dataUrl);
+
+    const again = await finished(await imported({ kind: 'photo', photos }));
+
+    expect(again.request).toMatchObject({ status: 'done', source: 'photo' });
+    expect(again.request.id).not.toBe(failed.request.id);
+    expect(again.photos).toEqual(photos);
+    expect(calls.bodies).toHaveLength(3);
+    const input = JSON.parse(textOf(calls.bodies[2]?.messages[0]));
+    expect(input.source).toEqual({ kind: 'photo' });
+    expect(imagesOf(calls.bodies[2]?.messages[0])).toEqual(sent);
+  });
+
+  it('answers 400 invalid_reference for a photo id that is not stored, without a request', async () => {
+    const calls = answerInTurn(normalizeAnswer);
+    const [stored = ''] = (await finished(await importedPhoto())).photos ?? [];
+    const before = await testDb().execute(
+      sql`select count(*)::int as n from recipe_import_request`,
+    );
+
+    const response = await postImport({
+      kind: 'photo',
+      photos: [stored, 'a0000000-0000-4000-8000-000000000365'],
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: 'invalid_reference' });
+    expect(calls.bodies).toHaveLength(1);
+    const after = await testDb().execute(
+      sql`select count(*)::int as n from recipe_import_request`,
+    );
+    expect(after.rows).toEqual(before.rows);
+  });
+
   it('answers 400 for more than 8 parts, without a request', async () => {
     const calls = answerInTurn(normalizeAnswer);
 
@@ -1536,6 +1579,28 @@ describe('deciding an imported suggestion', () => {
       edited(recipe, { sourcePhotos: [] }),
     );
     expect(removed.json().recipe.sourcePhotos).toEqual([]);
+  });
+
+  it('approval of an import of the stored photos of a failed one keeps the same photos as the source of the recipe', async () => {
+    answerInTurn(withForeignId, withForeignId, normalizeAnswer);
+    const parts = await Promise.all([211, 212].map((w) => pictureOf(w)));
+    const failed = await finished((await postPhotos(parts)).json().request);
+    const photos = failed.photos ?? [];
+    const again = await finished(await imported({ kind: 'photo', photos }));
+    const suggestion = again.suggestion;
+    if (!suggestion) {
+      throw new Error('import without a suggestion');
+    }
+
+    const response = await decide(suggestion.id, 'approve', {
+      ...editedInput(suggestion),
+      sourceUrl: undefined,
+    });
+
+    expect(response.statusCode).toBe(201);
+    const { recipe } = approvedSuggestionResponseSchema.parse(response.json());
+    expect(recipe.sourcePhotos).toEqual(photos);
+    expect(recipe.sourcePhotos).toHaveLength(2);
   });
 
   it('an edit without the source keeps it, and sourceText: null with sourcePhotos: [] removes it', async () => {

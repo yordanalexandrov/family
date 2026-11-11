@@ -22,9 +22,9 @@ import {
   photoTooLarge,
 } from './photo-form.js';
 
-/** A photo import as the multipart form becomes before validation (`readPhotos`); never JSON from the client. */
+/** New photos as the multipart form becomes before validation (`readPhotos`); never JSON from the client. */
 const photoBodySchema = z.object({
-  kind: z.literal('photo'),
+  kind: z.literal('upload'),
   uploadedPhotos: z
     .array(z.instanceof(Buffer))
     .min(1)
@@ -35,8 +35,10 @@ const photoBodySchema = z.object({
  * Imports of recipes (GLOSSARY: Внасяне на рецепта). A POST answers 202 at once; the client polls `GET …/:id` until the
  * status is not `pending`. Its one suggestion is approved or rejected at `/api/recipe-suggestions/:id/…`.
  *
- * Text and links come as JSON; a photo as `multipart/form-data` with 1–8 files in the field `photo`: one photo, or the
- * parts of a long screenshot top to bottom. Each at most 10 MB and all at most 20 MB after the client has made them
+ * Text, links and the photos an earlier import stored (`{ kind: 'photo', photos }`, their ids in order: the retry of a
+ * failed photo import, without a new upload; an id not stored is 400 `invalid_reference`) come as JSON; new photos as
+ * `multipart/form-data` with 1–8 files in the field `photo`: one photo, or the parts of a long screenshot top to
+ * bottom. Each at most 10 MB and all at most 20 MB after the client has made them
  * smaller (else 413 `photo_too_large`), each a JPEG, PNG, WebP or HEIC picture by its bytes (else 415
  * `unsupported_photo`). The photos are stored with the import (ADR-0016) as `GET /api/source-photos/:id` gives them.
  */
@@ -140,5 +142,5 @@ async function readPhotos(
   if (photos.length === 0) {
     throw missingPhoto();
   }
-  return { kind: 'photo', uploadedPhotos: photos };
+  return { kind: 'upload', uploadedPhotos: photos };
 }

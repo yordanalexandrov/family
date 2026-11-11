@@ -493,6 +493,34 @@ describe('recipeImportParamsSchema', () => {
     });
   });
 
+  it('accepts the stored photos of a source by their ids, 1 to 8 of them, in their order', () => {
+    const photos = [
+      'a0000000-0000-4000-8000-000000000002',
+      'a0000000-0000-4000-8000-000000000001',
+    ];
+    expect(recipeImportParamsSchema.parse({ kind: 'photo', photos })).toEqual({
+      kind: 'photo',
+      photos,
+    });
+    const nine = Array.from(
+      { length: 9 },
+      (_, i) => `a0000000-0000-4000-8000-00000000000${i}`,
+    );
+    for (const ids of [[], nine, ['снимка']]) {
+      expect(
+        recipeImportParamsSchema.safeParse({ kind: 'photo', photos: ids })
+          .success,
+        ids.join(),
+      ).toBe(false);
+    }
+    expect(
+      recipeImportParamsSchema.safeParse({
+        kind: 'photo',
+        photos: nine.slice(1),
+      }).success,
+    ).toBe(true);
+  });
+
   it('refuses empty text, text over 20 000 characters and a link that is not a URL', () => {
     expect(
       recipeImportParamsSchema.safeParse({ kind: 'text', text: '   ' }).success,

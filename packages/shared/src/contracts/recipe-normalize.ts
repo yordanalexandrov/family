@@ -7,6 +7,7 @@ import {
   recipeComponentsSchema,
   recipeComponentsWireSchema,
 } from '../food/component.js';
+import { IMPORT_PHOTO_MAX_PARTS } from '../food/import-photo.js';
 import { preparationSchema } from '../food/preparation.js';
 import { tagSchema } from '../food/tags.js';
 import {
@@ -53,12 +54,22 @@ const urlParamsSchema = z.object({
 });
 
 /**
- * What the client asks to import (GLOSSARY: Внасяне на рецепта), by kind of source: pasted text or a link. `photo` is
- * added by its own ticket.
+ * The stored photos of a source (GLOSSARY: Източник на рецепта, ADR-0016) by their ids, in their order: the photos of an
+ * import that failed, imported again without a new upload. New photos come as `multipart/form-data` instead.
+ */
+const storedPhotosParamsSchema = z.object({
+  kind: z.literal('photo'),
+  photos: z.array(z.uuid()).min(1).max(IMPORT_PHOTO_MAX_PARTS),
+});
+
+/**
+ * What the client asks to import as JSON (GLOSSARY: Внасяне на рецепта), by kind of source: pasted text, a link, or
+ * the stored photos of an earlier import.
  */
 export const recipeImportParamsSchema = z.discriminatedUnion('kind', [
   textSourceSchema,
   urlParamsSchema,
+  storedPhotosParamsSchema,
 ]);
 
 export type RecipeImportParams = z.infer<typeof recipeImportParamsSchema>;
