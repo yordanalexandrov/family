@@ -27,7 +27,7 @@ async function openSheet(title: RegExp, name: string) {
   return { user, sheet: screen.getByRole('dialog', { name }) };
 }
 
-describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () => {
+describe('MealSheet: превключвателят „В списъка за пазаруване“ (ADR-0011)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(fixtureNow);
@@ -38,7 +38,7 @@ describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () =
     vi.useRealTimers();
   });
 
-  it('добавя ястието в списъка, показва „🛒 В списъка ✓“, а повторното докосване го маха', async () => {
+  it('включен добавя ястието в списъка, а изключен го маха', async () => {
     const week = plan();
     const thursday = week.meals[3]?.id ?? '';
     servePlans({ [thisWeek]: week });
@@ -46,26 +46,21 @@ describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () =
 
     renderApp('/menu');
     const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
-    const add = await within(sheet).findByRole('button', {
-      name: '🛒 Добави в списъка',
+    const listed = within(sheet).getByRole('switch', {
+      name: 'В списъка за пазаруване',
     });
-    expect(add).toHaveAttribute('aria-pressed', 'false');
+    expect(listed).not.toBeChecked();
     // Докато списъкът на седмицата не е прочетен, не се знае дали ястието е в него.
-    await vi.waitFor(() => expect(add).toBeEnabled());
-
-    await user.click(add);
-
-    const listed = await within(sheet).findByRole('button', {
-      name: '🛒 В списъка ✓',
-    });
-    expect(listed).toHaveAttribute('aria-pressed', 'true');
     await vi.waitFor(() => expect(listed).toBeEnabled());
 
     await user.click(listed);
 
-    expect(
-      await within(sheet).findByRole('button', { name: '🛒 Добави в списъка' }),
-    ).toHaveAttribute('aria-pressed', 'false');
+    await vi.waitFor(() => expect(listed).toBeChecked());
+    await vi.waitFor(() => expect(listed).toBeEnabled());
+
+    await user.click(listed);
+
+    await vi.waitFor(() => expect(listed).not.toBeChecked());
     expect(
       shopping.requests.map(({ method, path, actingUser }) => ({
         method,
@@ -86,7 +81,7 @@ describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () =
     ]);
   });
 
-  it('показва „🛒 В списъка ✓“ за ястие, което вече е в списъка', async () => {
+  it('е включен за ястие, което вече е в списъка', async () => {
     const week = plan();
     servePlans({ [thisWeek]: week });
     serveShopping({
@@ -96,12 +91,13 @@ describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () =
     renderApp('/menu');
     const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
 
-    expect(
-      await within(sheet).findByRole('button', { name: '🛒 В списъка ✓' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    const listed = within(sheet).getByRole('switch', {
+      name: 'В списъка за пазаруване',
+    });
+    await vi.waitFor(() => expect(listed).toBeChecked());
   });
 
-  it('няма бутон за ястие само с бележка', async () => {
+  it('няма превключвател за ястие само с бележка', async () => {
     servePlans({ [thisWeek]: plan() });
     serveShopping({ [thisWeek]: withMenu(thisWeek) });
 
@@ -112,23 +108,23 @@ describe('MealSheet: „🛒 Добави в списъка“ (ADR-0011)', () =
       within(sheet).getByRole('heading', { name: 'ядем навън' }),
     ).toBeInTheDocument();
     expect(
-      within(sheet).queryByRole('button', { name: /списъка/ }),
+      within(sheet).queryByRole('switch', { name: /списъка/ }),
     ).not.toBeInTheDocument();
   });
 
-  it('без връзка бутонът е изключен с „Иска връзка“', async () => {
+  it('без връзка превключвателят е изключен с „Иска връзка“', async () => {
     servePlans({ [thisWeek]: plan() });
     serveShopping({ [thisWeek]: withMenu(thisWeek) });
 
     renderApp('/menu');
     const { sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
-    await within(sheet).findByRole('button', { name: '🛒 Добави в списъка' });
+    const add = within(sheet).getByRole('switch', {
+      name: 'В списъка за пазаруване',
+    });
+    await vi.waitFor(() => expect(add).toBeEnabled());
 
     const online = goOffline();
     try {
-      const add = await within(sheet).findByRole('button', {
-        name: '🛒 Добави в списъка',
-      });
       await vi.waitFor(() => expect(add).toBeDisabled());
       expect(add).toHaveAccessibleDescription('Иска връзка');
     } finally {

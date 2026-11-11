@@ -105,17 +105,46 @@ export function useSheetHistory(onClose: () => void) {
           return;
         }
         releasing.current = false;
-        openSheets.splice(openSheets.indexOf(id), 1);
-        if (openSheets.length === 0) {
-          restorePush?.();
-          restorePush = null;
-        }
-        if (markerOf(window.history.state) === id) {
-          window.history.back();
-        }
+        scheduleClose(id);
       });
     };
   }, []);
+}
+
+/** Затварящите се в това действие листове: `flushClosing` ги маха заедно, след като всички са казали, че се затварят. */
+const closing = new Set<string>();
+
+/**
+ * Записът на затворения лист се маха от историята. Листове, затворени в едно действие (долният лист заедно с листа
+ * или под-изгледа над него), махат записите си с една стъпка назад, иначе остава запис, който не е ничий: затова
+ * `scheduleClose` само го слага в `closing`, а първият в действието пуска `flushClosing` в microtask.
+ */
+function scheduleClose(id: string) {
+  if (closing.size === 0) {
+    queueMicrotask(flushClosing);
+  }
+  closing.add(id);
+}
+
+/** Маха наведнъж записите на всички листове от `closing`. */
+function flushClosing() {
+  // Записите на отворените листове са отгоре на историята в реда на `openSheets`: махат се затварящите се отгоре.
+  let steps = 0;
+  const top = openSheets.indexOf(markerOf(window.history.state) ?? '');
+  for (let i = top; i >= 0 && closing.has(openSheets[i] ?? ''); i--) {
+    steps += 1;
+  }
+  for (const id of closing) {
+    openSheets.splice(openSheets.indexOf(id), 1);
+  }
+  closing.clear();
+  if (openSheets.length === 0) {
+    restorePush?.();
+    restorePush = null;
+  }
+  if (steps > 0) {
+    window.history.go(-steps);
+  }
 }
 
 /**

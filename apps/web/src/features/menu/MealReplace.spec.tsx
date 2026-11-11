@@ -107,13 +107,26 @@ function serveReplacement(
   return () => posts;
 }
 
-/** `reopen`: the past days are already unfolded from the first opening. */
-async function openSheet(title: RegExp, name: string, { reopen = false } = {}) {
+/**
+ * Отваря листа на ястието и в него „↻ Смени ястието ›“ (`change: false` остава на прегледа). `reopen`: миналите дни
+ * вече са разгънати от първото отваряне.
+ */
+async function openSheet(
+  title: RegExp,
+  name: string,
+  { reopen = false, change = true } = {},
+) {
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   await screen.findByRole('list', { name: 'Вечери' });
   if (!reopen) await showPastDays(user);
   await user.click(await screen.findByRole('button', { name: title }));
-  return { user, sheet: screen.getByRole('dialog', { name }) };
+  const sheet = screen.getByRole('dialog', { name });
+  if (change) {
+    await user.click(
+      within(sheet).getByRole('button', { name: '↻ Смени ястието' }),
+    );
+  }
+  return { user, sheet };
 }
 
 describe('MealSheet: „✨ Предложи друго“', () => {
@@ -183,9 +196,18 @@ describe('MealSheet: „✨ Предложи друго“', () => {
           body: { recipeId: lentils.id, why: 'Без месо, както пита Поли.' },
         },
       ]);
-    await expect
-      .poll(() => within(sheet).queryByRole('list', { name: 'Предложения' }))
-      .toBeNull();
+    // Изборът е минал: листът е пак на прегледа, с новото заглавие.
+    expect(
+      await within(sheet).findByRole('link', { name: 'Леща чорба' }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole('list', { name: 'Предложения' }),
+    ).toBeNull();
+    const status = within(sheet).getByRole('status');
+    expect(status).toHaveTextContent('✓ Сменено (беше „Мусака“)');
+    expect(
+      within(status).getByRole('button', { name: 'Върни' }),
+    ).toBeInTheDocument();
   });
 
   it('при failed казва защо и „Опитай пак“ пуска нова заявка', async () => {
@@ -387,7 +409,9 @@ describe('MealSheet: „✨ Предложи друго“', () => {
     serveDinnerRecipes();
 
     renderApp('/menu');
-    const { sheet } = await openSheet(/Пиле с ориз/, 'понеделник, 2 ноември');
+    const { sheet } = await openSheet(/Пиле с ориз/, 'понеделник, 2 ноември', {
+      change: false,
+    });
 
     expect(
       within(sheet).queryByRole('button', { name: '✨ Предложи друго' }),
@@ -406,7 +430,7 @@ describe('MealSheet: „Махни ястието от деня“', () => {
     vi.useRealTimers();
   });
 
-  it('„Без рецепта“ не е сред резултатите, а отделен бутон под тях; махането показва toast с „Върни“, което връща рецептата и гласовете', async () => {
+  it('не е сред рецептите, а отделен бутон под тях; махането връща към прегледа и показва toast с „Върни“, което връща рецептата и гласовете', async () => {
     const week = planFor(thisWeek, {
       3: {
         recipeId: moussaka.id,
@@ -423,7 +447,9 @@ describe('MealSheet: „Махни ястието от деня“', () => {
 
     renderApp('/menu');
     const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
-    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Избери от рецептите' }),
+    );
     const results = await within(sheet).findByRole('list', {
       name: 'Вечерни рецепти',
     });
@@ -445,6 +471,9 @@ describe('MealSheet: „Махни ястието от деня“', () => {
     expect(
       within(sheet).queryByRole('button', { name: 'Махни ястието от деня' }),
     ).toBeNull();
+    expect(
+      within(sheet).getByRole('heading', { name: 'Още няма ястие' }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Върни' }));
 
@@ -473,7 +502,6 @@ describe('MealSheet: „Махни ястието от деня“', () => {
 
     renderApp('/menu');
     const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
-    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
     await user.click(
       within(sheet).getByRole('button', { name: 'Махни ястието от деня' }),
     );
@@ -491,8 +519,12 @@ describe('MealSheet: „Махни ястието от деня“', () => {
     serveDinnerRecipes();
 
     renderApp('/menu');
-    const { user, sheet } = await openSheet(/пт/, 'петък, 6 ноември');
-    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    const { user, sheet } = await openSheet(/пт/, 'петък, 6 ноември', {
+      change: false,
+    });
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Избери от рецептите' }),
+    );
     await within(sheet).findByRole('list', { name: 'Вечерни рецепти' });
 
     expect(

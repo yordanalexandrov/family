@@ -24,7 +24,8 @@ interface ToastProps {
 }
 
 const DURATION_MS = 4000;
-const ACTION_DURATION_MS = 8000;
+/** Колко стои toast с действие („Върни“, „Отвори“). */
+export const ACTION_DURATION_MS = 8000;
 
 /**
  * Кратко съобщение над долната лента; изчезва само след `durationMs`. Действието

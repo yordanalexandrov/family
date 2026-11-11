@@ -210,7 +210,7 @@ export function createMenuReworkStore(
     /**
      * Each answered day gets its recipe and why, unless it is the recipe it had: its votes go (the AI does not vote),
      * a line of the AI goes into its thread on behalf of who asked, it leaves the shopping list, its „Предложи друго“
-     * requests and its kept removal go, and „Извадих“ no longer holds. The note, the cook and the servings stay. The
+     * requests and its kept change go, and „Извадих“ no longer holds. The note, the cook and the servings stay. The
      * plan gets the new summary. Not recorded as menu activity: the digest is about what people did.
      */
     async onDone(tx, rework, output) {

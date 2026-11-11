@@ -19,6 +19,8 @@ interface MealReplaceProps {
   weekStart: DateKey;
   /** Избраният кандидат: `PATCH` на ястието с неговите `recipeId` и `why`. */
   onPick: (candidate: MealReplaceCandidate) => void;
+  /** Надписът на главния бутон: „✨ Предложи ястие“ на празен ден. */
+  askLabel?: string;
 }
 
 /**
@@ -26,7 +28,12 @@ interface MealReplaceProps {
  * „защо“ и „Избери“. Докато агентът мисли, листът пита отново; при неуспех има „Опитай пак“. Отвореният пак лист
  * показва последната заявка на ястието: чакането, грешката или кандидатите, докато ястието не е сменено след нея.
  */
-export function MealReplace({ meal, weekStart, onPick }: MealReplaceProps) {
+export function MealReplace({
+  meal,
+  weekStart,
+  onPick,
+  askLabel = '✨ Предложи друго',
+}: MealReplaceProps) {
   /** Заявката, чийто кандидат е избран току-що: листът не чака разговора, за да я скрие. */
   const [pickedId, setPickedId] = useState<string>();
   const start = useRequestReplacement();
@@ -69,7 +76,7 @@ export function MealReplace({ meal, weekStart, onPick }: MealReplaceProps) {
     return (
       <>
         {start.isError && <ErrorBox error={start.error} />}
-        {askButton('✨ Предложи друго')}
+        {askButton(askLabel)}
       </>
     );
   }

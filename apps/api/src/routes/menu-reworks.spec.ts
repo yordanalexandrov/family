@@ -437,6 +437,22 @@ describe('POST /api/menu/reworks', () => {
     expect(latest.json()).toMatchObject({ code: 'no_replacement' });
   });
 
+  it('drops the change a person made to a changed day: its „Върни“ is gone', async () => {
+    answerInTurn(JSON.stringify(reworkFixture));
+    const meals = await fixtureWeek();
+
+    await finished((await rework()).id);
+
+    const response = await inject(
+      'POST',
+      `/api/menu/meals/${meals[2]?.id}/restore`,
+    );
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      message: 'Няма смяна на ястието за връщане',
+    });
+  });
+
   it('leaves a day that gets its own recipe back as it was', async () => {
     const answer = structuredClone(reworkFixture);
     answer.days[1] = {
@@ -658,7 +674,7 @@ describe('the week while a rework is pending', () => {
 
   it('answers 409 menu_reworking to every change of the content, the votes or the thread of its meals', async () => {
     const meals = await fixtureWeek();
-    const [, , wed, thu, fri, sat, sun] = meals.map((meal) => meal.id) as [
+    const [, tue, wed, thu, fri, sat, sun] = meals.map((meal) => meal.id) as [
       string,
       string,
       string,
@@ -697,6 +713,8 @@ describe('the week while a rework is pending', () => {
       await inject('PUT', `/api/menu/meals/${wed}/vote`, { value: 'up' }),
       await inject('DELETE', `/api/menu/meals/${wed}/vote`, undefined, POLI.id),
       await inject('POST', `/api/menu/meals/${thu}/restore`),
+      // Дани's pick for Tuesday, an empty day then, is kept for its „Върни“ as well.
+      await inject('POST', `/api/menu/meals/${tue}/restore`),
       await inject('POST', `/api/menu/meals/${fri}/swap`, { withMealId: sat }),
       await inject('POST', `/api/menu/meals/${wed}/comments`, {
         body: 'Нещо с риба?',

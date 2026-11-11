@@ -26,9 +26,9 @@ import type { DbExecutor } from '../client.js';
 import { recipe } from '../schema/food.js';
 import {
   meal,
+  mealChange,
   mealComment,
   mealPlan,
-  mealRemoval,
   mealVote,
   menuProposalRequest,
 } from '../schema/menu.js';
@@ -606,38 +606,35 @@ export async function claimMealCook(
   return row ?? null;
 }
 
-export type MealRemoval = typeof mealRemoval.$inferSelect;
+export type MealChange = typeof mealChange.$inferSelect;
 
-/** Keeps the last „Махни ястието от деня“ of a meal for its „Върни“, over any earlier one. */
-export async function saveRemoval(
+/** Keeps the last change of a meal's recipe by a person for its „Върни“, over any earlier one. */
+export async function saveMealChange(
   db: DbExecutor,
-  removal: MealRemoval,
+  change: MealChange,
 ): Promise<void> {
-  const { mealId, ...rest } = removal;
+  const { mealId, ...rest } = change;
   await db
-    .insert(mealRemoval)
-    .values(removal)
-    .onConflictDoUpdate({ target: mealRemoval.mealId, set: rest });
+    .insert(mealChange)
+    .values(change)
+    .onConflictDoUpdate({ target: mealChange.mealId, set: rest });
 }
 
-/** The last removal of a meal, if `removedBy` made it. */
-export async function findRemoval(
+/** The last change of a meal's recipe by a person, kept for its „Върни“. */
+export async function findMealChange(
   db: DbExecutor,
   mealId: string,
-  removedBy: string,
-): Promise<MealRemoval | undefined> {
+): Promise<MealChange | undefined> {
   const [row] = await db
     .select()
-    .from(mealRemoval)
-    .where(
-      and(eq(mealRemoval.mealId, mealId), eq(mealRemoval.removedBy, removedBy)),
-    );
+    .from(mealChange)
+    .where(eq(mealChange.mealId, mealId));
   return row;
 }
 
-export async function deleteRemoval(
+export async function deleteMealChange(
   db: DbExecutor,
   mealId: string,
 ): Promise<void> {
-  await db.delete(mealRemoval).where(eq(mealRemoval.mealId, mealId));
+  await db.delete(mealChange).where(eq(mealChange.mealId, mealId));
 }

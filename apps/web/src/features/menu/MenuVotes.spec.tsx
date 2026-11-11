@@ -438,6 +438,10 @@ describe('MenuWeek: гласове', () => {
       await screen.findByRole('button', { name: new RegExp(fish.title) }),
     );
     const sheet = screen.getByRole('dialog', { name: 'петък, 6 ноември' });
+    // Дани вече е гласувал: гласовете са един ред, без въпроса.
+    expect(
+      within(sheet).queryByRole('group', { name: 'Става ли за теб?' }),
+    ).toBeNull();
     const votes = within(sheet).getByRole('group', { name: 'Гласове' });
     expect(votes).toHaveTextContent('Дани: за');
     expect(votes).toHaveTextContent('Поли: против');
@@ -453,11 +457,20 @@ describe('MenuWeek: гласове', () => {
       screen.getByRole('button', { name: new RegExp(chicken.title) }),
     );
     const past = screen.getByRole('dialog', { name: 'понеделник, 2 ноември' });
+    expect(past).toHaveTextContent(
+      'Денят е минал: ястието и бележката не се сменят.',
+    );
     expect(
-      within(past).queryByRole('searchbox', { name: 'Търси рецепта' }),
+      within(past).queryByRole('button', { name: '↻ Смени ястието' }),
     ).toBeNull();
-    expect(within(past).queryByRole('textbox', { name: 'Бележка' })).toBeNull();
     expect(within(past).queryByRole('button', { name: 'Да' })).toBeNull();
+    expect(
+      within(past).queryByRole('group', { name: 'Става ли за теб?' }),
+    ).toBeNull();
+    expect(
+      within(past).getByRole('group', { name: 'Гласове' }),
+    ).toHaveTextContent('Дани: против');
+    await user.click(within(past).getByRole('button', { name: /^Готвач/ }));
     expect(
       within(past).getByRole('button', { name: 'Поли' }),
     ).toBeInTheDocument();

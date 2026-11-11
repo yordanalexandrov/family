@@ -1,6 +1,6 @@
 # Shopping list
 
-The week's shopping list is computed from the meals in the list: a dinner of the menu joins it only when someone taps „🛒 Добави в списъка“ in its sheet (menu.md → `menu-shopping`, ADR-0011); every ingredient of those dinners, scaled to the planned servings, rounded up and grouped by aisle, minus what the pantry („Килер“) always has. Users check items off (shared across devices, works offline), hide computed items, add manual ones and see which dishes an item comes from.
+The week's shopping list is computed from the meals in the list: a dinner of the menu joins it only when someone turns on the switch „В списъка за пазаруване“ in its sheet (menu.md → `menu-shopping`, ADR-0011); every ingredient of those dinners, scaled to the planned servings, rounded up and grouped by aisle, minus what the pantry („Килер“) always has. Users check items off (shared across devices, works offline), hide computed items, add manual ones and see which dishes an item comes from.
 
 ## Sub-features
 
@@ -45,4 +45,4 @@ Preconditions:
 - After the settle, an aisle name can match two regions (the list and inside „Купени“); scope by `getByRole('region', { name: 'Купени' })`.
 - A checked row (also after reload) is inside the collapsed „Купени (N)“; expand it before looking for it.
 - `GET /api/shopping-lists/<week>` answers 200 with `hasMenu: false` for a week without a plan; `listedMealIds` are the meals in the list.
-- A new plan (also the Wednesday proposal) adds nothing to the list: tap „🛒 Добави в списъка“ in the meal's sheet before expecting rows. `psql "select meal_id from shopping_meal sm join shopping_list sl on sl.id = sm.list_id where sl.week_start = '<monday>'"` lists them.
+- A new plan (also the Wednesday proposal) adds nothing to the list: turn on „В списъка за пазаруване“ in the meal's sheet before expecting rows. `psql "select meal_id from shopping_meal sm join shopping_list sl on sl.id = sm.list_id where sl.week_start = '<monday>'"` lists them.

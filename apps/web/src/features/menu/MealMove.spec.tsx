@@ -63,13 +63,26 @@ function serveSwaps(plan: MealPlan) {
   return swaps;
 }
 
+/** „↻ Смени ястието ›“ и после „Размени с друг ден“: чиповете на дните. */
+async function openSwap(
+  user: ReturnType<typeof userEvent.setup>,
+  sheet: HTMLElement,
+) {
+  await user.click(
+    within(sheet).getByRole('button', { name: '↻ Смени ястието' }),
+  );
+  await user.click(
+    within(sheet).getByRole('button', { name: 'Размени с друг ден' }),
+  );
+}
+
 function rowNames() {
   return within(screen.getByRole('list', { name: 'Вечери' }))
     .getAllByRole('listitem')
     .map((item) => item.textContent ?? '');
 }
 
-describe('MealSheet: „Размени с…“', () => {
+describe('MealSheet: „Размени с друг ден“', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(fixtureNow);
@@ -92,7 +105,7 @@ describe('MealSheet: „Размени с…“', () => {
 
     await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
-    await user.click(within(sheet).getByRole('button', { name: 'Размени с…' }));
+    await openSwap(user, sheet);
     const days = within(sheet).getByRole('group', { name: 'Размени с' });
     expect(
       within(days)
@@ -109,6 +122,14 @@ describe('MealSheet: „Размени с…“', () => {
     expect(swaps).toEqual([
       { id: thursday?.id, body: { withMealId: friday?.id } },
     ]);
+    // Размяната е минала: листът е пак на прегледа.
+    expect(
+      await within(sheet).findByRole('button', { name: '↻ Смени ястието' }),
+    ).toBeInTheDocument();
+    // Листът следва ястието на новия му ден: заглавието е същото, затова е „✓ Сменено“ без „беше“ и без „Върни“.
+    const status = within(sheet).getByRole('status');
+    expect(status).toHaveTextContent(/^✓ Сменено$/);
+    expect(within(status).queryByRole('button')).toBeNull();
     await waitFor(() => {
       const rows = rowNames();
       expect(rows[3]).toMatch(/Пиле с ориз/);
@@ -138,7 +159,7 @@ describe('MealSheet: „Размени с…“', () => {
 
     await user.click(screen.getByRole('button', { name: /Мусака/ }));
     const sheet = screen.getByRole('dialog', { name: /четвъртък/ });
-    await user.click(within(sheet).getByRole('button', { name: 'Размени с…' }));
+    await openSwap(user, sheet);
     await user.click(within(sheet).getByRole('button', { name: /неделя/ }));
 
     expect(await within(sheet).findByRole('alert')).toHaveTextContent(
@@ -148,7 +169,7 @@ describe('MealSheet: „Размени с…“', () => {
     expect(rowNames()[6]).not.toMatch(/Мусака/);
   });
 
-  it('минал ден няма „Размени с…“', async () => {
+  it('минал ден няма „Смени ястието“, а с него и размяната', async () => {
     const plan = planFor(thisWeek, {
       0: {
         recipeId: chicken.id,
@@ -165,7 +186,10 @@ describe('MealSheet: „Размени с…“', () => {
     const sheet = screen.getByRole('dialog', { name: /понеделник/ });
 
     expect(
-      within(sheet).queryByRole('button', { name: 'Размени с…' }),
+      within(sheet).queryByRole('button', { name: '↻ Смени ястието' }),
+    ).toBeNull();
+    expect(
+      within(sheet).queryByRole('button', { name: 'Размени с друг ден' }),
     ).toBeNull();
   });
 });

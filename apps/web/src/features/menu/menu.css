@@ -426,27 +426,6 @@ button.meal-row__content:hover {
   font-weight: 600;
 }
 
-.meal-votes {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin: 0;
-  border: 0;
-  padding: 0;
-}
-
-.meal-votes__people {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.meal-votes__past {
-  margin: 0;
-  color: var(--color-text-muted);
-}
-
 .menu__filters {
   display: flex;
   flex-wrap: wrap;
@@ -570,17 +549,391 @@ button.meal-row__content:hover {
   stroke-linecap: round;
 }
 
-/* Листът на ястието: цялото заглавие и „защо“, които редът съкращава. */
+/* Листът на ястието (спек #366): заглавието и „защо“, гласуването и редовете, всеки със свой под-изглед. */
+.meal-sheet__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .meal-sheet__title {
   margin: 0;
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.2;
   overflow-wrap: break-word;
   hyphens: auto;
+}
+
+.meal-sheet__title--empty {
+  color: var(--color-text-muted);
+}
+
+.meal-sheet__title-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.meal-sheet__chevron {
+  flex: none;
+  color: var(--color-text-faded);
+  font-size: 1.3em;
+  line-height: 1;
 }
 
 .meal-sheet__why {
   margin: 0;
   color: var(--color-text-muted);
+}
+
+/* „✓ Сменено (беше …)“ с „Върни“ под заглавието (#371). Празната жива област стои в DOM-а, но не заема място. */
+.meal-sheet__changed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-success);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.meal-sheet__changed:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.meal-sheet__undo {
+  min-block-size: var(--touch-target);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.meal-sheet__undo:hover {
+  background: var(--color-surface-2);
+}
+
+/* Новото заглавие светва веднъж; `key` на заглавието пуска анимацията пак при следваща смяна. */
+@media (prefers-reduced-motion: no-preference) {
+  .meal-sheet__title--changed {
+    animation: meal-sheet-changed var(--motion-slow) ease-out;
+    border-radius: var(--radius-sm);
+  }
+}
+
+@keyframes meal-sheet-changed {
+  from {
+    background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+    box-shadow: 0 0 0 var(--space-1)
+      color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+
+  to {
+    background: transparent;
+    box-shadow: 0 0 0 var(--space-1) transparent;
+  }
+}
+
+.meal-sheet__ask {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.meal-sheet__ask-question {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Празен ден: единствената задача е да се избере ястие. */
+.meal-sheet__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+}
+
+.meal-sheet__group-title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Редовете на прегледа, като в настройките на телефона. */
+.meal-sheet__rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  overflow: hidden;
+}
+
+.meal-sheet__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--touch-target);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-block-end: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+}
+
+.meal-sheet__row:last-child {
+  border-block-end: 0;
+}
+
+button.meal-sheet__row {
+  cursor: pointer;
+}
+
+button.meal-sheet__row:hover {
+  background: var(--color-surface-2);
+}
+
+.meal-sheet__row--static {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.meal-sheet__row-label {
+  font-weight: 600;
+}
+
+.meal-sheet__row-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  color: var(--color-text-muted);
+  text-align: end;
+}
+
+.meal-sheet__comment {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meal-sheet__comment-count {
+  flex: none;
+}
+
+/* Под-изгледът: „‹ Назад“, заглавието и съдържанието. */
+.meal-sheet__view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.meal-sheet__back {
+  align-self: flex-start;
+  min-block-size: var(--touch-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.meal-sheet__view-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.meal-sheet__fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.meal-sheet__note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* „В списъка за пазаруване“: превключвател по модела на настройките. */
+.meal-shopping {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.meal-shopping__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.meal-shopping__switch input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  inline-size: 2.6em;
+  block-size: 1.5em;
+  margin: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.meal-shopping__switch input::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0.15em;
+  inset-inline-start: 0.15em;
+  inline-size: 1.1em;
+  block-size: 1.1em;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition:
+    transform 0.2s,
+    background-color 0.2s;
+}
+
+.meal-shopping__switch input:checked {
+  background: var(--color-accent);
+}
+
+.meal-shopping__switch input:checked::after {
+  background: var(--color-accent-ink);
+  transform: translateX(1.1em);
+}
+
+.meal-shopping__switch input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.meal-shopping__switch input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.meal-shopping__hint {
+  margin: 0;
+}
+
+/* „Смени ястието“: начините един под друг, всеки се разгъва на място; „Махни“ е отделно и в червено. */
+.meal-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.meal-tools__replace {
+  padding-block-end: var(--space-2);
+}
+
+.meal-tools__replace > .button {
+  inline-size: 100%;
+}
+
+.meal-tools__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  inline-size: 100%;
+  min-block-size: var(--touch-target);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.meal-tools__item:hover,
+.meal-tools__item[aria-expanded="true"] {
+  background: var(--color-surface-2);
+}
+
+.meal-tools__chevron {
+  color: var(--color-text-faded);
+  font-size: 1.3em;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .meal-tools__chevron {
+    transition: transform var(--motion-base);
+  }
+}
+
+.meal-tools__item[aria-expanded="true"] .meal-tools__chevron {
+  transform: rotate(90deg);
+}
+
+.meal-tools__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1) var(--space-3);
+}
+
+.meal-tools__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.meal-tools__item--danger {
+  margin-block-start: var(--space-3);
+  color: var(--color-danger);
+}
+
+.move-meal {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .menu__scheduled {

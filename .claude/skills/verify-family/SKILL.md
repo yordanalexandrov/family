@@ -80,6 +80,7 @@ Shipped scenarios, in dependency order (all proven):
 - `scenarios/setup-phone.mjs`: `/?device=phone` → „Кой си?“ → Дани → dashboard. Run first in every new run.
 - `scenarios/recipe-create.mjs`: new dinner recipe with `лук 2 бр.`, checked in the view, the list and the `recipe` tables.
 - `scenarios/menu-to-shopping.mjs`: next week's empty plan, Monday = that recipe, then the computed list (scaled to `1 бр.`), a check, a manual item, reload and DB read.
+- `scenarios/meal-change-restore.mjs`: needs `recipe-create.mjs` twice; next week's Monday (its plan, or a new empty one) gets the older recipe, Поли votes through the api, a change to the newer one, then „Върни“; recipe and votes checked in the DB after the change and after „Върни“. Runs before or after `menu-to-shopping.mjs`, once per run.
 
 Handles: use roles and accessible names (all UI text is Bulgarian), e.g. `page.getByRole('navigation', { name: 'Основна навигация' }).getByRole('link', { name: 'Меню' })`. The app has no `data-testid`s. Per-feature handles, entry points and end states are in [features/README.md](features/README.md); read the matching file before writing a scenario. To discover handles on a screen, drive it once with `aria('look')` and read the `.aria.yml`.
 

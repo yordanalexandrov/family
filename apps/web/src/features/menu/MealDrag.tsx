@@ -97,7 +97,7 @@ export function DraggableMeal({
     >
       {children(
         disabled ? undefined : (
-          // Пътят с клавиатура и екранен четец е „Размени с…“ в листа, затова дръжката е само за пръст и мишка.
+          // Пътят с клавиатура и екранен четец е „Размени с друг ден“ в листа, затова дръжката е само за пръст и мишка.
           <span
             ref={drag.setActivatorNodeRef}
             className="meal-drag__handle"

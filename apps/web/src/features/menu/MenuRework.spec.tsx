@@ -337,24 +337,26 @@ describe('MenuWeek: преработка на менюто', () => {
       expect(sheet).toHaveTextContent(
         'AI преработва менюто: изчакай да свърши',
       );
+      const votes = within(sheet).getByRole('group', { name: 'Гласове' });
       for (const name of ['Не', 'Да']) {
-        expect(within(sheet).getByRole('button', { name })).toBeDisabled();
+        expect(within(votes).getByRole('button', { name })).toBeDisabled();
       }
+      expect(
+        within(sheet).queryByRole('button', { name: '↻ Смени ястието' }),
+      ).not.toBeInTheDocument();
+      await user.click(
+        within(sheet).getByRole('button', { name: /^Разговор/ }),
+      );
       expect(
         within(sheet).queryByRole('textbox', { name: 'Коментар' }),
       ).not.toBeInTheDocument();
-      for (const name of [
-        'Избери сам',
-        '✨ Предложи друго',
-        'Размени с…',
-        'Запази',
-      ]) {
-        expect(
-          within(sheet).queryByRole('button', { name }),
-        ).not.toBeInTheDocument();
-      }
+      await user.click(within(sheet).getByRole('button', { name: 'Назад' }));
+
+      await user.click(within(sheet).getByRole('button', { name: /^Готвач/ }));
       const cook = within(sheet).getByRole('group', { name: 'Готвач' });
       expect(within(cook).getByRole('button', { name: /Поли/ })).toBeEnabled();
+      await user.click(within(sheet).getByRole('button', { name: 'Назад' }));
+      await user.click(within(sheet).getByRole('button', { name: /^Порции/ }));
       expect(
         within(sheet).getByRole('button', { name: 'Повече порции за Поли' }),
       ).toBeEnabled();

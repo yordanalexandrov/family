@@ -55,12 +55,17 @@ function planWithThread(weekStart = thisWeek) {
   return { plan, threads, thursday };
 }
 
-async function openSheet(title: RegExp, name: string) {
+/** Отваря листа на ястието и в него „Разговор ›“; с `thread: false` остава на прегледа. */
+async function openSheet(title: RegExp, name: string, thread = true) {
   const user = userEvent.setup();
   await screen.findByRole('list', { name: 'Вечери' });
   await showPastDays(user);
   await user.click(await screen.findByRole('button', { name: title }));
-  return { user, sheet: screen.getByRole('dialog', { name }) };
+  const sheet = screen.getByRole('dialog', { name });
+  if (thread) {
+    await user.click(within(sheet).getByRole('button', { name: /^Разговор/ }));
+  }
+  return { user, sheet };
 }
 
 describe('MealSheet: разговор', () => {
@@ -210,7 +215,7 @@ describe('MealSheet: разговор', () => {
     ).toBeNull();
   });
 
-  it('„Избери сам“ отваря избора от регистъра', async () => {
+  it('„Избери от рецептите“ отваря избора от регистъра', async () => {
     const { plan, threads } = planWithThread();
     servePlans({ [thisWeek]: plan });
     serveDinnerRecipes();
@@ -218,12 +223,21 @@ describe('MealSheet: разговор', () => {
     const patches = serveMealUpdates(plan);
 
     renderApp('/menu');
-    const { user, sheet } = await openSheet(/Мусака/, 'четвъртък, 5 ноември');
+    const { user, sheet } = await openSheet(
+      /Мусака/,
+      'четвъртък, 5 ноември',
+      false,
+    );
+    await user.click(
+      within(sheet).getByRole('button', { name: '↻ Смени ястието' }),
+    );
     expect(
       within(sheet).queryByRole('searchbox', { name: 'Търси рецепта' }),
     ).toBeNull();
 
-    await user.click(within(sheet).getByRole('button', { name: 'Избери сам' }));
+    await user.click(
+      within(sheet).getByRole('button', { name: 'Избери от рецептите' }),
+    );
     await user.click(
       await within(sheet).findByRole('button', { name: /^Пиле с ориз/ }),
     );
@@ -259,6 +273,15 @@ describe('MealSheet: разговор в минала седмица', () => {
     const sheet = screen.getByRole('dialog', {
       name: 'четвъртък, 29 октомври',
     });
+    // Разговорът се чете: редът му води към него, а готвачът и порциите само се виждат.
+    for (const name of [/^Готвач/, /^Порции/]) {
+      expect(within(sheet).queryByRole('button', { name })).toBeNull();
+    }
+    expect(within(sheet).queryByRole('switch')).toBeNull();
+    expect(
+      within(sheet).queryByRole('button', { name: '↻ Смени ястието' }),
+    ).toBeNull();
+    await user.click(within(sheet).getByRole('button', { name: /^Разговор/ }));
 
     const thread = within(sheet).getByRole('list', { name: 'Разговор' });
     expect(
@@ -271,9 +294,9 @@ describe('MealSheet: разговор в минала седмица', () => {
       'Да',
       'Не',
       'Изпрати',
-      'Избери сам',
+      'Избери от рецептите',
       '✨ Предложи друго',
-      'Размени с…',
+      'Размени с друг ден',
       'Поли',
       'никой',
       'Повече порции за Дани',
