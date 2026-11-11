@@ -358,7 +358,7 @@ describe('MealSheet: „Смени ястието“', () => {
       '✨ Предложи друго',
       'Избери от рецептите›',
       'Размени с друг ден›',
-      'Бележка вместо ястие›',
+      'Бележка към ястието›',
       'Махни ястието от деня',
     ]);
     // Всяко действие се разгъва на място: търсенето още го няма.
@@ -395,7 +395,7 @@ describe('MealSheet: „Смени ястието“', () => {
     ]);
   });
 
-  it('бележката вместо ястие се записва и връща към прегледа', async () => {
+  it('бележката към ястие с рецепта се записва и връща към прегледа', async () => {
     const plan = planFor(thisWeek, { 3: withRecipe(moussaka) });
     const patches = serveMealUpdates(plan);
     const { user, sheet } = await openSheet(
@@ -407,7 +407,7 @@ describe('MealSheet: „Смени ястието“', () => {
       within(sheet).getByRole('button', { name: '↻ Смени ястието' }),
     );
     await user.click(
-      within(sheet).getByRole('button', { name: 'Бележка вместо ястие' }),
+      within(sheet).getByRole('button', { name: 'Бележка към ястието' }),
     );
 
     await user.type(
@@ -540,7 +540,7 @@ async function pickFromSearch(
   await user.click(await within(sheet).findByRole('button', { name }));
 }
 
-/** „↻ Смени ястието ›“ (ако го има) → „Бележка вместо ястие“ → `text` → „Запази“. */
+/** „↻ Смени ястието ›“ (ако го има) → „Бележка вместо ястие“ / „Бележка към ястието“ → `text` → „Запази“. */
 async function saveNote(
   user: ReturnType<typeof userEvent.setup>,
   sheet: HTMLElement,
@@ -551,7 +551,9 @@ async function saveNote(
   });
   if (change) await user.click(change);
   await user.click(
-    within(sheet).getByRole('button', { name: 'Бележка вместо ястие' }),
+    within(sheet).getByRole('button', {
+      name: /^Бележка (вместо ястие|към ястието)$/,
+    }),
   );
   const field = within(sheet).getByRole('textbox', { name: 'Бележка' });
   await user.clear(field);
