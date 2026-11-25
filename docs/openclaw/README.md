@@ -70,6 +70,12 @@ curl -s http://127.0.0.1:18789/v1/chat/completions \
 
 Очаква се „web_search е наличен … 5 резултата“. „Не е наличен“ значи, че няма доставчик или plugin-ът не е зареден. Грешка 401/403 значи невалиден ключ или неактивен план. 429 значи, че квотата е свършила.
 
+## Памет
+
+Агентите нямат памет между заявките: всяка заявка е един JSON вход и един JSON изход. Затова workspace-ите им нямат `MEMORY.md`, а всеки prompt казва изрично, че агентът не чете и не пише `MEMORY.md` или `memory/`. Без този ред `openclaw doctor` отчита за всеки агент „Memory system not found in workspace“.
+
+Dreaming (нощната консолидация на паметта от plugin-а `memory-core`) е изключен за целия gateway от 2026-11-24: `plugins.entries.memory-core.config.dreaming.enabled: false` в `~/.openclaw/openclaw.json`. OpenClaw не може да го изключи само за отделен агент. Включен, той обхожда всеки workspace и записва JSON входовете като кандидати за `MEMORY.md` в `memory/dreaming/` на агентите.
+
 ## Smoke преди merge
 
 Prompt или контракт се проверява срещу реалния агент **преди** merge, без да се пипа production. За всеки агент на `homesrv` има копие `<агент>-next` със същия модел и fallback, `thinkingDefault`, `skills`, `subagents` и `tools`, но със собствен workspace `~/.openclaw/workspace-<агент>-next/`. Deploy-ът не го пипа: там стои prompt-ът, пробван последно.
